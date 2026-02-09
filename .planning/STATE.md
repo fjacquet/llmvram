@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Users can quickly determine whether a specific LLM fits on their available GPU hardware — and if not, what changes would make it work.
-**Current focus:** Phase 3 - Core UI (In Progress)
+**Current focus:** Phase 4 - Multi-GPU Support (In Progress)
 
 ## Current Position
 
-Phase: 3 of 5 (Core UI)
-Plan: 4 of 4
-Status: Phase complete
-Last activity: 2026-02-09 — Completed 03-04-PLAN.md (Results Display & App Assembly)
+Phase: 4 of 5 (Multi-GPU Support)
+Plan: 1 of 3
+Status: In progress
+Last activity: 2026-02-09 — Completed 04-01-PLAN.md (Multi-GPU VRAM Calculation Engine)
 
-Progress: [████████░░] 80% (12/15 total plans: Phase 1: 4/4, Phase 2: 4/4, Phase 3: 4/4)
+Progress: [████████░░] 87% (13/15 total plans: Phase 1: 4/4, Phase 2: 4/4, Phase 3: 4/4, Phase 4: 1/3)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 12
-- Average duration: 4.8 min
-- Total execution time: 0.97 hours
+- Total plans completed: 13
+- Average duration: 4.9 min
+- Total execution time: 1.05 hours
 
 **By Phase:**
 
@@ -31,11 +31,12 @@ Progress: [████████░░] 80% (12/15 total plans: Phase 1: 4/4,
 | 1 (Foundation & Data) | 4/4 | 12 min | 3.0 min |
 | 2 (Inference Engine) | 4/4 | 18 min | 4.5 min |
 | 3 (Core UI) | 4/4 | 28 min | 7.0 min |
+| 4 (Multi-GPU Support) | 1/3 | 5 min | 5.4 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 03-01 (3min), 03-02 (5min), 03-03 (6min), 03-04 (14min)
-- Trend: Phase 3 averaged 7.0min, longest phase due to UI assembly and integration complexity (03-04 took 14min for full app assembly + human verification)
+- Last 5 plans: 03-02 (5min), 03-03 (6min), 03-04 (14min), 04-01 (5min)
+- Trend: Phase 4 started efficiently (5.4min for full TDD engine implementation). Expect plans 04-02 and 04-03 to be similar (store integration + UI)
 
 *Updated after each plan completion*
 
@@ -45,6 +46,15 @@ Progress: [████████░░] 80% (12/15 total plans: Phase 1: 4/4,
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 04-01 (Multi-GPU VRAM Calculation Engine):**
+
+- Tensor parallelism shards weights/KV/activations but replicates embeddings and layer norms (~3% of weights)
+- Pipeline parallelism does NOT divide KV cache (each GPU needs full context for its layers)
+- For small KV cache scenarios (batch=1, moderate seq length), TP can use MORE memory per GPU than PP due to weight replication, NCCL buffers, and higher communication overhead outweighing KV cache savings
+- MoE models get 15% extra communication overhead for expert routing in multi-GPU
+- Single GPU (numGPUs=1) always returns passthrough with zero overhead regardless of strategy
+- Interconnect validation: 'none' type blocks multi-GPU, PCIe warns when TP degree exceeds recommended max
 
 **From 03-04 (Results Display & App Assembly):**
 - ResultsPanel handles 4 distinct states in priority order: no selection → loading → error → results
@@ -152,7 +162,7 @@ None yet.
 - Phase 2: MoE parameter confusion — MITIGATED: calculateInferenceVRAM uses total params for weights (46.7B Mixtral), active params for activations (02-02)
 - Phase 2: Performance estimation accuracy — MITIGATED: Roofline model correctly identifies memory-bandwidth bottleneck for typical LLM inference (02-03)
 - Phase 2: UI blocking calculations — MITIGATED: Web Worker offloads calculations to background thread with sync fallback (02-04)
-- Phase 4: Multi-GPU memory split naive division — must account for 10-20% replication and communication overhead
+- Phase 4: Multi-GPU memory split naive division — MITIGATED: calculateMultiGPUVRAM accounts for weight replication (TP: embeddings + layer norms), NCCL buffers (TP: 0.2 GB per peer), strategy-specific overhead (TP: 12%, PP: 5%), and MoE extra overhead (15%) (04-01)
 
 **Verified via integration tests (02-04):**
 
@@ -164,8 +174,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-09 (plan execution)
-Stopped at: Completed 03-04 (Results Display & App Assembly)
-Resume file: .planning/phases/04-advanced-features/04-RESEARCH.md (next phase)
+Stopped at: Completed 04-01 (Multi-GPU VRAM Calculation Engine)
+Resume file: .planning/phases/04-multi-gpu-support/04-02-PLAN.md (next plan)
 
 **Phase 2 Complete:** All 4 plans finished. Inference engine fully functional.
 
@@ -175,4 +185,7 @@ Resume file: .planning/phases/04-advanced-features/04-RESEARCH.md (next phase)
 - ✅ VRAM breakdown chart, memory table, fit indicator, and recommendations (03-03)
 - ✅ Results display panel assembly and responsive layout (03-04)
 
-**Ready for Phase 4 (Advanced Features):** Complete VRAM calculator application working end-to-end. All input/output components functional. Real-time calculations via Web Worker. Responsive layout (mobile/desktop). Dark mode across entire UI. Error handling with toast notifications. Foundation ready for multi-GPU calculations, fine-tuning support, and export features.
+**Phase 4 In Progress:** Multi-GPU support (1/3 plans complete)
+- ✅ Multi-GPU VRAM calculation engine with TP/PP strategies (04-01)
+- 🔄 Next: Zustand store integration for multi-GPU state (04-02)
+- 🔄 Next: Multi-GPU UI components for input and results display (04-03)
