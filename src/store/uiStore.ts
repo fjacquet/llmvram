@@ -1,4 +1,4 @@
-import type { KVCachePrecision, QuantizationFormat } from '@engines/types'
+import type { KVCachePrecision, QuantizationFormat, ShardingStrategy } from '@engines/types'
 import type { GPU, Model } from '@utils/schemas'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -14,6 +14,10 @@ interface UIState {
   batchSize: number
   kvQuantization: KVCachePrecision
 
+  // Multi-GPU parameters (persisted)
+  numGPUs: number
+  shardingStrategy: ShardingStrategy
+
   // UI preferences (persisted)
   isDarkMode: boolean
 
@@ -24,6 +28,8 @@ interface UIState {
   setSequenceLength: (sequenceLength: number) => void
   setBatchSize: (batchSize: number) => void
   setKVQuantization: (kvQuantization: KVCachePrecision) => void
+  setNumGPUs: (numGPUs: number) => void
+  setShardingStrategy: (strategy: ShardingStrategy) => void
   toggleDarkMode: () => void
 }
 
@@ -37,6 +43,8 @@ export const useUIStore = create<UIState>()(
       sequenceLength: 4096,
       batchSize: 1,
       kvQuantization: 'fp16',
+      numGPUs: 1,
+      shardingStrategy: 'tensor-parallel' as ShardingStrategy,
       isDarkMode: false,
 
       // Actions
@@ -46,6 +54,8 @@ export const useUIStore = create<UIState>()(
       setSequenceLength: (sequenceLength) => set({ sequenceLength }),
       setBatchSize: (batchSize) => set({ batchSize }),
       setKVQuantization: (kvQuantization) => set({ kvQuantization }),
+      setNumGPUs: (numGPUs) => set({ numGPUs }),
+      setShardingStrategy: (strategy) => set({ shardingStrategy: strategy }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
     }),
     {
@@ -56,6 +66,8 @@ export const useUIStore = create<UIState>()(
         sequenceLength: state.sequenceLength,
         batchSize: state.batchSize,
         kvQuantization: state.kvQuantization,
+        numGPUs: state.numGPUs,
+        shardingStrategy: state.shardingStrategy,
         isDarkMode: state.isDarkMode,
       }),
     },
