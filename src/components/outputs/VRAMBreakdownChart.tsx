@@ -1,4 +1,5 @@
 import type { InferenceVRAMBreakdown } from '@engines/types'
+import type { PieLabelRenderProps } from 'recharts'
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
 interface VRAMBreakdownChartProps {
@@ -40,32 +41,38 @@ export function VRAMBreakdownChart({ breakdown }: VRAMBreakdownChartProps) {
   const totalGB = breakdown.total.toNumber()
 
   // Custom label renderer showing GB value on segments
-  const renderLabel = (entry: {
-    value: number
-    cx: number
-    cy: number
-    midAngle: number
-    innerRadius: number
-    outerRadius: number
-  }) => {
+  const renderLabel = (props: PieLabelRenderProps) => {
+    // Guard against undefined values
+    const { value, cx, cy, midAngle, innerRadius, outerRadius } = props
+    if (
+      typeof value !== 'number' ||
+      typeof cx !== 'number' ||
+      typeof cy !== 'number' ||
+      typeof midAngle !== 'number' ||
+      typeof innerRadius !== 'number' ||
+      typeof outerRadius !== 'number'
+    ) {
+      return null
+    }
+
     const RADIAN = Math.PI / 180
-    const radius = entry.innerRadius + (entry.outerRadius - entry.innerRadius) * 0.5
-    const x = entry.cx + radius * Math.cos(-entry.midAngle * RADIAN)
-    const y = entry.cy + radius * Math.sin(-entry.midAngle * RADIAN)
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5
+    const x = cx + radius * Math.cos(-midAngle * RADIAN)
+    const y = cy + radius * Math.sin(-midAngle * RADIAN)
 
     // Only show label if value is significant (>1% of total)
-    if (entry.value < totalGB * 0.01) return null
+    if (value < totalGB * 0.01) return null
 
     return (
       <text
         x={x}
         y={y}
         fill="white"
-        textAnchor={x > entry.cx ? 'start' : 'end'}
+        textAnchor={x > cx ? 'start' : 'end'}
         dominantBaseline="central"
         className="text-xs font-medium"
       >
-        {`${entry.value.toFixed(1)}`}
+        {value.toFixed(1)}
       </text>
     )
   }
@@ -121,7 +128,12 @@ export function VRAMBreakdownChart({ breakdown }: VRAMBreakdownChartProps) {
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number) => `${value.toFixed(2)} GB`}
+              formatter={(value) => {
+                if (typeof value === 'number') {
+                  return `${value.toFixed(2)} GB`
+                }
+                return ''
+              }}
               contentStyle={{
                 backgroundColor: 'rgba(255, 255, 255, 0.95)',
                 border: '1px solid #e5e7eb',
