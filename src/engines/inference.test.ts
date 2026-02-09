@@ -341,17 +341,21 @@ describe('calculateInferenceVRAM', () => {
 
     // Verify weights scale with bytes-per-parameter
     for (let i = 0; i < results.length; i++) {
+      const format = formats[i]
+      const result = results[i]
+      if (!format || !result) continue
+
       const expectedWeights = new Decimal(7.0)
         .mul(1e9)
-        .mul(formats[i].expectedBpp)
+        .mul(format.expectedBpp)
         .div(new Decimal(1024).pow(3))
 
-      expect(results[i].modelWeights.toString()).toBe(expectedWeights.toString())
+      expect(result.modelWeights.toString()).toBe(expectedWeights.toString())
     }
 
     // Verify FP32 > FP16 > GPTQ > INT4 (in terms of weight VRAM)
-    expect(results[0].modelWeights.toNumber()).toBeGreaterThan(results[1].modelWeights.toNumber())
-    expect(results[1].modelWeights.toNumber()).toBeGreaterThan(results[2].modelWeights.toNumber())
-    expect(results[2].modelWeights.toNumber()).toBeGreaterThan(results[3].modelWeights.toNumber())
+    expect(results[0]?.modelWeights.toNumber()).toBeGreaterThan(results[1]?.modelWeights.toNumber() ?? 0)
+    expect(results[1]?.modelWeights.toNumber()).toBeGreaterThan(results[2]?.modelWeights.toNumber() ?? 0)
+    expect(results[2]?.modelWeights.toNumber()).toBeGreaterThan(results[3]?.modelWeights.toNumber() ?? 0)
   })
 })
