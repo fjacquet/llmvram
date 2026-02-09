@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 ## Current Position
 
 Phase: 1 of 5 (Foundation & Data)
-Plan: 1 of 4
+Plan: 2 of 4
 Status: In progress
-Last activity: 2026-02-09 — Completed 01-01-PLAN.md (Project Scaffold)
+Last activity: 2026-02-09 — Completed 01-02-PLAN.md (GPU Database)
 
-Progress: [██░░░░░░░░] 25% (Phase 1: 1/4 plans complete)
+Progress: [█████░░░░░] 50% (Phase 1: 2/4 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: 2 min
-- Total execution time: 0.03 hours
+- Total execution time: 0.07 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1 (Foundation & Data) | 1/4 | 2 min | 2 min |
+| 1 (Foundation & Data) | 2/4 | 4 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2min)
-- Trend: Just started
+- Last 5 plans: 01-01 (2min), 01-02 (2min)
+- Trend: Consistent velocity
 
 *Updated after each plan completion*
 
@@ -42,6 +42,11 @@ Progress: [██░░░░░░░░] 25% (Phase 1: 1/4 plans complete)
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+**From 01-02 (GPU Database):**
+- Fixed bus_width schema to support Apple Silicon unified memory (nonnegative vs positive)
+- Added nvlink-5 to interconnect enum for NVIDIA B200 GPU support
+- Included estimated M3 Ultra specs for forward-looking hardware planning
+
 **From 01-01 (Project Scaffold):**
 - Zod-first approach with z.infer<> for type inference ensuring schema and types stay in sync
 - TypeScript noUncheckedIndexedAccess enabled for array access safety in VRAM calculations
@@ -51,7 +56,7 @@ Recent decisions affecting current work:
 **Earlier decisions:**
 - Phase 1: Mirror raidy architecture for consistency across internal tools (IMPLEMENTED in 01-01)
 - Phase 1: Client-side only deployment for static hosting with no infrastructure cost (Pending)
-- Phase 1: Curated + custom model/GPU data for convenience and flexibility (Schemas created in 01-01)
+- Phase 1: Curated + custom model/GPU data for convenience and flexibility (Schemas in 01-01, GPU data in 01-02)
 
 ### Pending Todos
 
@@ -68,5 +73,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-09 (plan execution)
-Stopped at: Completed 01-01 (Project Scaffold) - Ready for 01-02 (GPU Database)
-Resume file: .planning/phases/01-foundation-data/01-02-PLAN.md
+Stopped at: Completed 01-02 (GPU Database) - Ready for 01-03 (Model Database)
+Resume file: .planning/phases/01-foundation-data/01-03-PLAN.md
