@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 ## Current Position
 
 Phase: 5 of 5 (Sharing & Comparison)
-Plan: 2 of 3 (plan 05-02 complete, 05-01 pending, 05-03 pending)
+Plan: 2 of 3 (plans 05-01 and 05-02 complete, 05-03 pending)
 Status: In progress
-Last activity: 2026-02-09 — Completed 05-02-PLAN.md (Comparison Store & UI)
+Last activity: 2026-02-09 — Completed 05-01-PLAN.md (URL Hash Persistence)
 
-Progress: [█████████░] 89% (16/18 total plans: Phase 1: 4/4, Phase 2: 4/4, Phase 3: 4/4, Phase 4: 3/3, Phase 5: 1/3)
+Progress: [█████████░] 94% (17/18 total plans: Phase 1: 4/4, Phase 2: 4/4, Phase 3: 4/4, Phase 4: 3/3, Phase 5: 2/3)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 16
-- Average duration: 4.4 min
-- Total execution time: 1.19 hours
+- Total plans completed: 17
+- Average duration: 4.5 min
+- Total execution time: 1.27 hours
 
 **By Phase:**
 
@@ -32,12 +32,12 @@ Progress: [█████████░] 89% (16/18 total plans: Phase 1: 4/4,
 | 2 (Inference Engine) | 4/4 | 18 min | 4.5 min |
 | 3 (Core UI) | 4/4 | 28 min | 7.0 min |
 | 4 (Multi-GPU Support) | 3/3 | 15 min | 5.0 min |
-| 5 (Sharing & Comparison) | 1/3 | 2.7 min | 2.7 min |
+| 5 (Sharing & Comparison) | 2/3 | 7.3 min | 3.7 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 03-04 (14min), 04-01 (5min), 04-02 (3min), 04-03 (6min), 05-02 (2.7min)
-- Trend: Phase 5 starting efficiently. Plan 05-02 was very fast (2.7min) - straightforward Zustand store and UI components with no complex logic. Expect remaining Phase 5 plans to be similarly efficient.
+- Last 5 plans: 04-01 (5min), 04-02 (3min), 04-03 (6min), 05-02 (2.7min), 05-01 (4.6min)
+- Trend: Phase 5 executing efficiently (average 3.7min). URL persistence (05-01) took 4.6min - slightly longer than comparison store (05-02) due to comprehensive testing (12 unit tests). Both plans well under average.
 
 *Updated after each plan completion*
 
@@ -47,6 +47,16 @@ Progress: [█████████░] 89% (16/18 total plans: Phase 1: 4/4,
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 05-01 (URL Hash Persistence):**
+
+- Use lz-string for URL compression to keep shareable links under 1800 chars (typical configs ~200-400 chars compressed)
+- Store persistence reduced to only isDarkMode — all other state managed via URL hash for sharing functionality
+- Short key names (q, sl, bs, kvq, ng, ss) in URL schema to save bytes before compression
+- Custom model/GPU serialize full parameters, not just ID, for complete restoration when shared link opened
+- deserializeFromURL returns null on any failure, never throws — enables graceful degradation with toast notification
+- 300ms debounce on URL updates to avoid excessive history pollution during rapid parameter changes
+- findModelById and findGPUById helpers moved to store module level for use by URL hydration
 
 **From 05-02 (Comparison Store & UI):**
 
@@ -190,17 +200,18 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-09 (plan execution)
-Stopped at: Completed Plan 05-02 (Comparison Store & UI)
+Stopped at: Completed Plan 05-01 (URL Hash Persistence)
 
 **Phase 4 Complete:** All 3 plans finished. Multi-GPU + offloading fully functional.
 - ✅ Multi-GPU calculation engine with TP/PP strategies (04-01)
 - ✅ Store/Worker/Hook integration for multi-GPU state (04-02)
 - ✅ Multi-GPU UI, offloading panel, quantization expansion (04-03)
 
-**Phase 5 In Progress:** Sharing & comparison (1/3 plans complete)
+**Phase 5 In Progress:** Sharing & comparison (2/3 plans complete)
+- ✅ URL hash persistence with lz-string compression (05-01)
 - ✅ Comparison store and UI with diff highlighting (05-02)
-- 🔄 Next: URL persistence (05-01) or integration + save button (05-03)
-Resume file: .planning/phases/05-sharing-comparison/05-02-PLAN.md
+- 🔄 Next: Integration + save/restore comparison snapshots (05-03)
+Resume file: .planning/phases/05-sharing-comparison/05-01-PLAN.md
 
 **Phase 2 Complete:** All 4 plans finished. Inference engine fully functional.
 
