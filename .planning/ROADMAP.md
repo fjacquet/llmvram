@@ -48,10 +48,13 @@ Plans:
   3. MoE models (Mixtral, DeepSeek) calculate ALL expert weights in VRAM, not just active parameters
   4. Performance estimation (tokens/sec, TTFT) reflects GPU compute capability and memory bandwidth using roofline model
   5. Heavy calculations run in Web Worker without blocking UI, with graceful fallback to synchronous execution
-**Plans**: TBD
+**Plans**: 4 plans in 3 waves
 
 Plans:
-- TBD after planning phase
+- [ ] 02-01-PLAN.md — Engine types, constants, and quantization engine (Wave 1)
+- [ ] 02-02-PLAN.md — KV cache and inference VRAM engine (Wave 2)
+- [ ] 02-03-PLAN.md — Performance estimation engine with roofline model (Wave 2)
+- [ ] 02-04-PLAN.md — Web Worker integration and React hook (Wave 3)
 
 ### Phase 3: Core UI
 **Goal**: Users can calculate and visualize VRAM for single-GPU configurations
@@ -107,7 +110,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Data | 4/4 | Complete | 2026-02-09 |
-| 2. Inference Engine | 0/TBD | Not started | - |
+| 2. Inference Engine | 0/4 | Planning complete | - |
 | 3. Core UI | 0/TBD | Not started | - |
 | 4. Multi-GPU Support | 0/TBD | Not started | - |
 | 5. Sharing & Comparison | 0/TBD | Not started | - |
