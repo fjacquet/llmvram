@@ -6,7 +6,7 @@ import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
 import type { OffloadingConfig } from '@engines/types'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
 import { useUIStore } from '@store/uiStore'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 
 /**
@@ -35,17 +35,28 @@ export function ResultsPanel() {
     kvCacheOffload,
   } = useUIStore()
 
-  // Build offloading config if enabled
-  const offloadingConfig: OffloadingConfig | undefined = offloadingEnabled
-    ? {
-        enabled: offloadingEnabled,
-        target: offloadTarget,
-        mode: offloadMode,
-        offloadPercentage,
-        offloadLayers,
-        kvCacheOffload,
-      }
-    : undefined
+  // Build offloading config if enabled (memoized to prevent render loops)
+  const offloadingConfig = useMemo<OffloadingConfig | undefined>(
+    () =>
+      offloadingEnabled
+        ? {
+            enabled: offloadingEnabled,
+            target: offloadTarget,
+            mode: offloadMode,
+            offloadPercentage,
+            offloadLayers,
+            kvCacheOffload,
+          }
+        : undefined,
+    [
+      offloadingEnabled,
+      offloadTarget,
+      offloadMode,
+      offloadPercentage,
+      offloadLayers,
+      kvCacheOffload,
+    ],
+  )
 
   // Call the calculation hook with multi-GPU and offloading params
   const { result, loading, error } = useInferenceCalculation(
