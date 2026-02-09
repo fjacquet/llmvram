@@ -5,33 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Users can quickly determine whether a specific LLM fits on their available GPU hardware — and if not, what changes would make it work.
-**Current focus:** Phase 2 - Inference Engine
+**Current focus:** Phase 2 - Inference Engine (Complete)
 
 ## Current Position
 
 Phase: 2 of 5 (Inference Engine)
-Plan: 3 of 4
-Status: In progress
-Last activity: 2026-02-09 — Completed 02-02-PLAN.md (KV Cache & Inference Engine)
+Plan: 4 of 4
+Status: Phase complete
+Last activity: 2026-02-09 — Completed 02-04-PLAN.md (Web Worker Integration)
 
-Progress: [███▓░░░░░░] 75% (Phase 2: 3/4 plans complete)
+Progress: [████░░░░░░] 100% (Phase 2: 4/4 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 3.6 min
-- Total execution time: 0.42 hours
+- Total plans completed: 8
+- Average duration: 3.75 min
+- Total execution time: 0.50 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 (Foundation & Data) | 4/4 | 12 min | 3.0 min |
-| 2 (Inference Engine) | 3/4 | 13 min | 4.3 min |
+| 2 (Inference Engine) | 4/4 | 18 min | 4.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-04 (5min), 02-01 (4min), 02-03 (4min), 02-02 (5min)
+- Last 5 plans: 02-01 (4min), 02-03 (4min), 02-02 (5min), 02-04 (5min)
 - Trend: Consistent 4-5 min range, stable for engine implementation plans
 
 *Updated after each plan completion*
@@ -42,6 +42,12 @@ Progress: [███▓░░░░░░] 75% (Phase 2: 3/4 plans complete)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 02-04 (Web Worker Integration):**
+- Worker serializes Decimal values to strings for structured cloning (Decimal methods don't survive postMessage)
+- Hook provides sync fallback via dynamic imports when Workers unavailable (SSR, old browsers)
+- Integration tests use realistic model/GPU configs (Llama 3 70B, Mixtral 8x7B) to verify pipeline correctness
+- Worker uses relative imports (not path aliases) for Vite bundling compatibility
 
 **From 02-03 (Performance Estimation Engine):**
 - Use roofline model (min of memory-bound and compute-bound) for tokens/sec estimation — captures both bandwidth-limited and FLOPS-limited regimes
@@ -102,12 +108,26 @@ None yet.
 - Phase 2: KV cache scaling for GQA/MQA architectures — MITIGATED: calculateKVCacheVRAM correctly applies GQA ratio (8x reduction verified for Llama 3 70B) (02-02)
 - Phase 2: MoE parameter confusion — MITIGATED: calculateInferenceVRAM uses total params for weights (46.7B Mixtral), active params for activations (02-02)
 - Phase 2: Performance estimation accuracy — MITIGATED: Roofline model correctly identifies memory-bandwidth bottleneck for typical LLM inference (02-03)
+- Phase 2: UI blocking calculations — MITIGATED: Web Worker offloads calculations to background thread with sync fallback (02-04)
 - Phase 4: Multi-GPU memory split naive division — must account for 10-20% replication and communication overhead
+
+**Verified via integration tests (02-04):**
+- Llama 3 70B GPTQ fits on H100 80GB (~42 GB total: 39.12 GB weights + 1.25 GB KV cache + activations + 1GB framework)
+- Mixtral 8x7B FP16 exceeds 80GB (~87 GB) — correctly uses total params (46.7B) not active (13B)
+- KV quantization int4 reduces cache by 4x vs fp16
+- Long context (131K tokens) calculates without error
 
 ## Session Continuity
 
 Last session: 2026-02-09 (plan execution)
-Stopped at: Completed 02-02 (KV Cache & Inference Engine)
-Resume file: .planning/phases/02-inference-engine/02-04-PLAN.md (Multi-GPU Distribution)
+Stopped at: Completed 02-04 (Web Worker Integration)
+Resume file: .planning/phases/03-ui-components/03-01-PLAN.md (next phase)
 
-**Phase 2 In Progress:** Quantization engine (02-01), performance estimation (02-03), and KV cache/inference engine (02-02) complete. Ready for 02-04 (Multi-GPU Distribution) to finish phase. Note: Plans executed out of order (02-01, 02-03, 02-02, then 02-04) due to independent dependencies.
+**Phase 2 Complete:** All 4 plans finished. Inference engine fully functional:
+- ✅ Quantization engine with 13 formats and overhead (02-01)
+- ✅ KV cache with GQA/MQA support (02-02)
+- ✅ Inference VRAM calculation with MoE handling (02-02)
+- ✅ Performance estimation with roofline model (02-03)
+- ✅ Web Worker integration with React hook (02-04)
+
+**Ready for Phase 3:** UI components can consume `useInferenceCalculation` hook with model/GPU selections.
