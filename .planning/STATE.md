@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Core value:** Users can quickly determine whether a specific LLM fits on their available GPU hardware — and if not, what changes would make it work.
-**Current focus:** Phase 2 - Inference Engine (Complete)
+**Current focus:** Phase 3 - Core UI (In Progress)
 
 ## Current Position
 
-Phase: 2 of 5 (Inference Engine)
-Plan: 4 of 4
-Status: Phase complete
-Last activity: 2026-02-09 — Completed 02-04-PLAN.md (Web Worker Integration)
+Phase: 3 of 5 (Core UI)
+Plan: 1 of 4
+Status: In progress
+Last activity: 2026-02-09 — Completed 03-01-PLAN.md (UI Foundation & Dark Mode)
 
-Progress: [████░░░░░░] 100% (Phase 2: 4/4 plans complete)
+Progress: [████▓░░░░░] 11% (9/15 total plans: Phase 1: 4/4, Phase 2: 4/4, Phase 3: 1/4)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 3.75 min
-- Total execution time: 0.50 hours
+- Total plans completed: 9
+- Average duration: 3.67 min
+- Total execution time: 0.55 hours
 
 **By Phase:**
 
@@ -29,10 +29,11 @@ Progress: [████░░░░░░] 100% (Phase 2: 4/4 plans complete)
 |-------|-------|-------|----------|
 | 1 (Foundation & Data) | 4/4 | 12 min | 3.0 min |
 | 2 (Inference Engine) | 4/4 | 18 min | 4.5 min |
+| 3 (Core UI) | 1/4 | 3 min | 3.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (4min), 02-03 (4min), 02-02 (5min), 02-04 (5min)
-- Trend: Consistent 4-5 min range, stable for engine implementation plans
+- Last 5 plans: 02-03 (4min), 02-02 (5min), 02-04 (5min), 03-01 (3min)
+- Trend: Phase 3 started with faster 3-minute plan, back to Phase 1 speed
 
 *Updated after each plan completion*
 
@@ -42,6 +43,12 @@ Progress: [████░░░░░░] 100% (Phase 2: 4/4 plans complete)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 03-01 (UI Foundation & Dark Mode):**
+- Zustand persist uses partialize to persist only preferences (not large model/GPU objects) to avoid stale data
+- FOUC prevention inline script in index.html reads localStorage before first paint using same key as persist middleware
+- useDarkMode hook is single source of truth for document.documentElement.classList manipulation
+- @custom-variant dark in Tailwind v4 enables class-based dark mode (critical for toggling, vs media query)
 
 **From 02-04 (Web Worker Integration):**
 - Worker serializes Decimal values to strings for structured cloning (Decimal methods don't survive postMessage)
@@ -120,14 +127,15 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-09 (plan execution)
-Stopped at: Completed 02-04 (Web Worker Integration)
-Resume file: .planning/phases/03-ui-components/03-01-PLAN.md (next phase)
+Stopped at: Completed 03-01 (UI Foundation & Dark Mode)
+Resume file: .planning/phases/03-core-ui/03-02-PLAN.md (next plan)
 
-**Phase 2 Complete:** All 4 plans finished. Inference engine fully functional:
-- ✅ Quantization engine with 13 formats and overhead (02-01)
-- ✅ KV cache with GQA/MQA support (02-02)
-- ✅ Inference VRAM calculation with MoE handling (02-02)
-- ✅ Performance estimation with roofline model (02-03)
-- ✅ Web Worker integration with React hook (02-04)
+**Phase 2 Complete:** All 4 plans finished. Inference engine fully functional.
 
-**Ready for Phase 3:** UI components can consume `useInferenceCalculation` hook with model/GPU selections.
+**Phase 3 Started (1/4 complete):**
+- ✅ UI foundation with Tailwind v4 dark mode and Zustand store (03-01)
+- ⏳ Model & GPU selectors (03-02)
+- ⏳ Calculation parameter inputs (03-03)
+- ⏳ Results display with breakdown visualization (03-04)
+
+**Ready for Plan 03-02:** Zustand store has setSelectedModel/setSelectedGPU actions. @headlessui/react installed for Combobox components.
