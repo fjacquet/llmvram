@@ -338,5 +338,55 @@
     "num_attention_heads": 64,
     "num_kv_heads": 64,
     "intermediate_size": 28672
+  },
+  {
+    "id": "mistralai-devstral-2-123b",
+    "name": "Devstral 2 123B",
+    "architecture": "dense",
+    "num_parameters_billion": 123,
+    "hidden_size": 12288,
+    "num_hidden_layers": 88,
+    "num_attention_heads": 96,
+    "num_kv_heads": 8,
+    "intermediate_size": 28672
+  },
+  {
+    "id": "moonshotai-kimi-k2-instruct",
+    "name": "Kimi K2 Instruct",
+    "architecture": "moe",
+    "num_parameters_billion": 1026,
+    "hidden_size": 7168,
+    "num_hidden_layers": 61,
+    "num_attention_heads": 64,
+    "num_kv_heads": 64,
+    "intermediate_size": 18432,
+    "num_experts": 384,
+    "num_experts_per_token": 8
+  },
+  {
+    "id": "minimax-m2.1",
+    "name": "MiniMax M2.1",
+    "architecture": "moe",
+    "num_parameters_billion": 228,
+    "hidden_size": 3072,
+    "num_hidden_layers": 62,
+    "num_attention_heads": 48,
+    "num_kv_heads": 8,
+    "intermediate_size": 1536,
+    "num_experts": 256,
+    "num_experts_per_token": 8
+  },
+  {
+    "id": "qwen-qwen3-235b-a22b",
+    "name": "Qwen3 235B A22B",
+    "architecture": "moe",
+    "num_parameters_billion": 235,
+    "hidden_size": 4096,
+    "num_hidden_layers": 94,
+    "num_attention_heads": 64,
+    "num_kv_heads": 4,
+    "intermediate_size": 12288,
+    "num_experts": 128,
+    "num_experts_per_token": 8
   }
 ]

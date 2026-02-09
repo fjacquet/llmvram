@@ -65,7 +65,7 @@ describe('Model Database Validation', () => {
   it('should have valid parameter counts', () => {
     modelsData.forEach((model) => {
       expect(model.num_parameters_billion).toBeGreaterThan(0)
-      expect(model.num_parameters_billion).toBeLessThan(1000) // Sanity check
+      expect(model.num_parameters_billion).toBeLessThan(2000) // Sanity check (Kimi K2 has 1026B total MoE params)
     })
   })
 
