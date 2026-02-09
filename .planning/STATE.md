@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 ## Current Position
 
 Phase: 1 of 5 (Foundation & Data)
-Plan: 2 of 4
+Plan: 3 of 4
 Status: In progress
-Last activity: 2026-02-09 — Completed 01-02-PLAN.md (GPU Database)
+Last activity: 2026-02-09 — Completed 01-03-PLAN.md (Model Database)
 
-Progress: [█████░░░░░] 50% (Phase 1: 2/4 plans complete)
+Progress: [███████░░░] 75% (Phase 1: 3/4 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 2 min
-- Total execution time: 0.07 hours
+- Total plans completed: 3
+- Average duration: 2.3 min
+- Total execution time: 0.12 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1 (Foundation & Data) | 2/4 | 4 min | 2 min |
+| 1 (Foundation & Data) | 3/4 | 7 min | 2.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2min), 01-02 (2min)
+- Last 5 plans: 01-01 (2min), 01-02 (2min), 01-03 (3min)
 - Trend: Consistent velocity
 
 *Updated after each plan completion*
@@ -41,6 +41,11 @@ Progress: [█████░░░░░] 50% (Phase 1: 2/4 plans complete)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 01-03 (Model Database):**
+- Used plan specifications directly rather than HuggingFace API (specs already vetted)
+- MoE models specify total parameters (46.7B for Mixtral 8x7B) not active parameters (13B) — critical for VRAM accuracy
+- All GQA models include num_kv_heads field for accurate KV cache calculations
 
 **From 01-02 (GPU Database):**
 - Fixed bus_width schema to support Apple Silicon unified memory (nonnegative vs positive)
@@ -56,7 +61,7 @@ Recent decisions affecting current work:
 **Earlier decisions:**
 - Phase 1: Mirror raidy architecture for consistency across internal tools (IMPLEMENTED in 01-01)
 - Phase 1: Client-side only deployment for static hosting with no infrastructure cost (Pending)
-- Phase 1: Curated + custom model/GPU data for convenience and flexibility (Schemas in 01-01, GPU data in 01-02)
+- Phase 1: Curated + custom model/GPU data for convenience and flexibility (Schemas in 01-01, GPU data in 01-02, Model data in 01-03)
 
 ### Pending Todos
 
@@ -66,12 +71,12 @@ None yet.
 
 **Research-flagged risks:**
 - Phase 1: Quantization overhead (10-30% underestimation if ignored) — must apply 1.1-1.3x multipliers
-- Phase 2: KV cache scaling for GQA/MQA architectures — must factor n_kv_heads/n_heads ratio to avoid 2-8x overestimation
-- Phase 2: MoE parameter confusion — Mixtral loads ALL 46.7B params in VRAM, not just 13B active
+- Phase 2: KV cache scaling for GQA/MQA architectures — MITIGATED: num_kv_heads now in model database (01-03)
+- Phase 2: MoE parameter confusion — MITIGATED: Model database uses total params (46.7B for Mixtral 8x7B) per 01-03
 - Phase 4: Multi-GPU memory split naive division — must account for 10-20% replication and communication overhead
 
 ## Session Continuity
 
 Last session: 2026-02-09 (plan execution)
-Stopped at: Completed 01-02 (GPU Database) - Ready for 01-03 (Model Database)
-Resume file: .planning/phases/01-foundation-data/01-03-PLAN.md
+Stopped at: Completed 01-03 (Model Database) - Ready for 01-04 (Quantization Database)
+Resume file: .planning/phases/01-foundation-data/01-04-PLAN.md
