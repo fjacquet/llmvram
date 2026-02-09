@@ -4,7 +4,10 @@ import { MultiGPUBreakdownChart } from '@components/outputs/MultiGPUBreakdownCha
 import { Recommendations } from '@components/outputs/Recommendations'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
 import type { OffloadingConfig } from '@engines/types'
+import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
+import type { ConfigSnapshot } from '@store/comparisonStore'
+import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
 import { useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
@@ -34,6 +37,9 @@ export function ResultsPanel() {
     offloadLayers,
     kvCacheOffload,
   } = useUIStore()
+
+  // Read comparison store for save functionality
+  const { snapshots, addSnapshot } = useComparisonStore()
 
   // Build offloading config if enabled (memoized to prevent render loops)
   const offloadingConfig = useMemo<OffloadingConfig | undefined>(
@@ -170,14 +176,85 @@ export function ResultsPanel() {
     doesNotFit = result.vram.total.greaterThan(selectedGPU.vram_gb)
   }
 
+  /**
+   * Generate descriptive label for snapshot
+   */
+  const generateLabel = (): string => {
+    const modelName = selectedModel.name
+    const gpuName = selectedGPU.name
+    const quantName = quantization.toUpperCase()
+    return `${modelName} / ${gpuName} / ${quantName}`
+  }
+
+  /**
+   * Save current configuration and results to comparison store
+   */
+  const handleSaveToComparison = () => {
+    if (!selectedModel || !selectedGPU || !result) return
+
+    // Convert all Decimal results to plain numbers for serialization
+    const snapshotData: Omit<ConfigSnapshot, 'id' | 'timestamp'> = {
+      label: generateLabel(),
+      config: {
+        modelName: selectedModel.name,
+        modelId: selectedModel.id,
+        gpuName: selectedGPU.name,
+        gpuId: selectedGPU.id,
+        gpuVramGb: selectedGPU.vram_gb,
+        quantization,
+        sequenceLength,
+        batchSize,
+        kvQuantization,
+        numGPUs,
+        shardingStrategy,
+        offloadingEnabled,
+        offloadTarget,
+        offloadPercentage,
+      },
+      results: {
+        totalVRAM: result.vram.total.toNumber(),
+        modelWeights: result.vram.modelWeights.toNumber(),
+        kvCache: result.vram.kvCache.toNumber(),
+        activations: result.vram.activations.toNumber(),
+        frameworkOverhead: result.vram.frameworkOverhead.toNumber(),
+        tokensPerSecond: result.performance.tokensPerSecond.toNumber(),
+        timeToFirstToken: result.performance.timeToFirstToken.toNumber(),
+        bottleneck: result.performance.bottleneck,
+        fits: !doesNotFit,
+        perGPUTotal: result.multiGPU?.totalPerGPU.toNumber() ?? null,
+        utilizationPercent: result.multiGPU?.utilizationPercent.toNumber() ?? null,
+      },
+    }
+
+    addSnapshot(snapshotData)
+    toast.success('Configuration saved to comparison')
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <div className="space-y-6">
         {/* VRAM Section */}
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            VRAM Requirements
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              VRAM Requirements
+            </h2>
+            <button
+              type="button"
+              onClick={handleSaveToComparison}
+              disabled={snapshots.length >= 3}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {snapshots.length >= 3 ? (
+                'Max 3 saved'
+              ) : (
+                <>
+                  <PlusIcon className="h-4 w-4" />
+                  Save to Compare
+                </>
+              )}
+            </button>
+          </div>
           <div className="space-y-6">
             {/* Fit Indicator - shows per-GPU utilization for multi-GPU, on-device for offloading */}
             {result.multiGPU ? (

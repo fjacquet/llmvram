@@ -1,3 +1,4 @@
+import { compressToEncodedURIComponent } from 'lz-string'
 import { describe, expect, it } from 'vitest'
 import { deserializeFromURL, isCustomId, serializeToURL } from './urlSerializer'
 
@@ -224,7 +225,6 @@ describe('URL Serializer', () => {
       })
 
       // Manually compress the invalid JSON
-      const { compressToEncodedURIComponent } = require('lz-string')
       const compressed = compressToEncodedURIComponent(invalidJson)
 
       // Should return null because schema validation fails
