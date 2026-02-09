@@ -12,7 +12,7 @@ This roadmap transforms the LLM VRAM Calculator from concept to functional brows
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation & Data** - Project infrastructure and static databases
+- [x] **Phase 1: Foundation & Data** - Project infrastructure and static databases
 - [ ] **Phase 2: Inference Engine** - Core calculation logic with Web Workers
 - [ ] **Phase 3: Core UI** - Basic calculator interface with visualization
 - [ ] **Phase 4: Multi-GPU Support** - Multi-GPU calculation and distribution
@@ -33,10 +33,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 4 plans in 3 waves
 
 Plans:
-- [ ] 01-01-PLAN.md — Project infrastructure and Zod schemas (Wave 1)
-- [ ] 01-02-PLAN.md — GPU database with 15+ entries (Wave 2)
-- [ ] 01-03-PLAN.md — Model database with 30+ entries (Wave 2)
-- [ ] 01-04-PLAN.md — Data refresh scripts and verification (Wave 3)
+- [x] 01-01-PLAN.md — Project infrastructure and Zod schemas (Wave 1)
+- [x] 01-02-PLAN.md — GPU database with 18 entries (Wave 2)
+- [x] 01-03-PLAN.md — Model database with 30 entries (Wave 2)
+- [x] 01-04-PLAN.md — Data refresh scripts and verification (Wave 3)
 
 ### Phase 2: Inference Engine
 **Goal**: Accurate VRAM calculations for all model types and quantization formats
@@ -106,7 +106,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Data | 0/TBD | Not started | - |
+| 1. Foundation & Data | 4/4 | Complete | 2026-02-09 |
 | 2. Inference Engine | 0/TBD | Not started | - |
 | 3. Core UI | 0/TBD | Not started | - |
 | 4. Multi-GPU Support | 0/TBD | Not started | - |
