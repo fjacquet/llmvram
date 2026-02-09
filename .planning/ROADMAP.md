@@ -30,10 +30,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Vitest test suite runs with passing tests for data schemas and validation
   4. Model database includes 30+ popular models with accurate parameter counts, architecture types, and layer configurations
   5. GPU database includes 15+ GPUs (NVIDIA datacenter/consumer, AMD MI300X, Apple Silicon) with VRAM, bandwidth, and FLOPS specs
-**Plans**: TBD
+**Plans**: 4 plans in 3 waves
 
 Plans:
-- TBD after planning phase
+- [ ] 01-01-PLAN.md — Project infrastructure and Zod schemas (Wave 1)
+- [ ] 01-02-PLAN.md — GPU database with 15+ entries (Wave 2)
+- [ ] 01-03-PLAN.md — Model database with 30+ entries (Wave 2)
+- [ ] 01-04-PLAN.md — Data refresh scripts and verification (Wave 3)
 
 ### Phase 2: Inference Engine
 **Goal**: Accurate VRAM calculations for all model types and quantization formats
