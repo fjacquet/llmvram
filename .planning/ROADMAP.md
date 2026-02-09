@@ -99,11 +99,13 @@ Plans:
   3. User can select interconnect type (NVLink, PCIe) with visual indication of performance impact
   4. User can choose sharding strategy (Tensor Parallel, Pipeline Parallel) with memory distribution explanation
   5. Visualization shows memory distribution across GPUs with per-GPU utilization percentage
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
 
 Plans:
 
-- TBD after planning phase
+- [ ] 04-01-PLAN.md — Multi-GPU calculation engine with TP/PP strategies and interconnect validation (Wave 1, TDD)
+- [ ] 04-02-PLAN.md — Store, Worker, and Hook integration for multi-GPU parameters and results (Wave 2)
+- [ ] 04-03-PLAN.md — Multi-GPU UI: input selectors, stacked bar chart, assembly, and verification (Wave 3)
 
 ### Phase 5: Sharing & Comparison
 
@@ -131,5 +133,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Foundation & Data | 4/4 | Complete | 2026-02-09 |
 | 2. Inference Engine | 4/4 | Complete | 2026-02-09 |
 | 3. Core UI | 4/4 | Complete | 2026-02-09 |
-| 4. Multi-GPU Support | 0/TBD | Not started | - |
+| 4. Multi-GPU Support | 0/3 | Planned | - |
 | 5. Sharing & Comparison | 0/TBD | Not started | - |
