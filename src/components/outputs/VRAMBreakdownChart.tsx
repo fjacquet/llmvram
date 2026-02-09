@@ -141,9 +141,7 @@ export function VRAMBreakdownChart({ breakdown }: VRAMBreakdownChartProps) {
                 backgroundColor: isDarkMode
                   ? 'rgba(31, 41, 55, 0.95)'
                   : 'rgba(255, 255, 255, 0.95)',
-                border: isDarkMode
-                  ? '1px solid #374151'
-                  : '1px solid #e5e7eb',
+                border: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
                 borderRadius: '0.375rem',
                 color: isDarkMode ? '#f3f4f6' : '#111827',
               }}
