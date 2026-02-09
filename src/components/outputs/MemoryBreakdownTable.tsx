@@ -39,12 +39,12 @@ export function MemoryBreakdownTable({ breakdown }: MemoryBreakdownTableProps) {
   }
 
   return (
-    <table aria-label="Memory breakdown details" className="w-full text-sm border-collapse">
+    <table aria-label="Memory breakdown details" className="w-full text-sm border-collapse text-gray-900 dark:text-gray-100">
       <thead>
         <tr className="bg-gray-100 dark:bg-gray-800">
-          <th className="text-left font-medium px-4 py-2">Component</th>
-          <th className="text-right font-medium px-4 py-2">Size (GB)</th>
-          <th className="text-right font-medium px-4 py-2">% of Total</th>
+          <th className="text-left font-medium px-4 py-2 text-gray-700 dark:text-gray-300">Component</th>
+          <th className="text-right font-medium px-4 py-2 text-gray-700 dark:text-gray-300">Size (GB)</th>
+          <th className="text-right font-medium px-4 py-2 text-gray-700 dark:text-gray-300">% of Total</th>
         </tr>
       </thead>
       <tbody>

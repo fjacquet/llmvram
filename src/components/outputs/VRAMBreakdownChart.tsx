@@ -1,4 +1,5 @@
 import type { InferenceVRAMBreakdown } from '@engines/types'
+import { useUIStore } from '@store/uiStore'
 import type { PieLabelRenderProps } from 'recharts'
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
@@ -14,6 +15,8 @@ const COLORS = {
 }
 
 export function VRAMBreakdownChart({ breakdown }: VRAMBreakdownChartProps) {
+  const isDarkMode = useUIStore((s) => s.isDarkMode)
+
   // Convert Decimal values to numbers for Recharts
   const data = [
     {
@@ -135,16 +138,24 @@ export function VRAMBreakdownChart({ breakdown }: VRAMBreakdownChartProps) {
                 return ''
               }}
               contentStyle={{
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                border: '1px solid #e5e7eb',
+                backgroundColor: isDarkMode
+                  ? 'rgba(31, 41, 55, 0.95)'
+                  : 'rgba(255, 255, 255, 0.95)',
+                border: isDarkMode
+                  ? '1px solid #374151'
+                  : '1px solid #e5e7eb',
                 borderRadius: '0.375rem',
+                color: isDarkMode ? '#f3f4f6' : '#111827',
               }}
             />
             <Legend
               verticalAlign="bottom"
               height={36}
               iconType="circle"
-              wrapperStyle={{ paddingTop: '1rem' }}
+              wrapperStyle={{
+                paddingTop: '1rem',
+                color: isDarkMode ? '#d1d5db' : '#374151',
+              }}
             />
             {renderCenterLabel()}
           </PieChart>
