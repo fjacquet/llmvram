@@ -13,8 +13,14 @@
 
 import { calculateInferenceVRAM } from '../engines/inference'
 import { calculateMultiGPUVRAM, validateInterconnect } from '../engines/multi-gpu'
+import { calculateOffloadedVRAM } from '../engines/offloading'
 import { estimatePerformance } from '../engines/performance'
-import type { KVCachePrecision, QuantizationFormat, ShardingStrategy } from '../engines/types'
+import type {
+  KVCachePrecision,
+  OffloadingConfig,
+  QuantizationFormat,
+  ShardingStrategy,
+} from '../engines/types'
 import type { GPU, Model } from '../utils/schemas'
 
 /**
@@ -31,6 +37,12 @@ interface CalculationRequest {
     kvQuantization?: KVCachePrecision
     numGPUs: number
     shardingStrategy: ShardingStrategy
+    offloadingEnabled: boolean
+    offloadTarget: string
+    offloadMode: string
+    offloadPercentage: number
+    offloadLayers: number
+    kvCacheOffload: boolean
   }
 }
 
@@ -58,6 +70,22 @@ interface CalculationSuccessResponse {
       isMemoryBound: boolean
       bottleneck: 'compute' | 'memory' | 'balanced'
     }
+    offloading: {
+      onDevice: {
+        modelWeights: string
+        kvCache: string
+        activations: string
+        frameworkOverhead: string
+        total: string
+      }
+      offloaded: {
+        modelWeights: string
+        kvCache: string
+        total: string
+      }
+      performanceImpact: string
+      slowdownFactor: number
+    } | null
     multiGPU: {
       numGPUs: number
       strategy: string
@@ -107,6 +135,12 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         kvQuantization,
         numGPUs,
         shardingStrategy,
+        offloadingEnabled,
+        offloadTarget,
+        offloadMode,
+        offloadPercentage,
+        offloadLayers,
+        kvCacheOffload,
       } = payload
 
       // 1. Calculate VRAM breakdown
@@ -126,13 +160,32 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         batchSize,
       })
 
-      // 3. Multi-GPU calculation (only when numGPUs > 1)
+      // 3. Offloading calculation (if enabled)
+      let offloadingResult = null
+
+      if (offloadingEnabled) {
+        const offloadingConfig: OffloadingConfig = {
+          enabled: offloadingEnabled,
+          target: offloadTarget as 'cpu-ram' | 'nvme',
+          mode: offloadMode as 'percentage' | 'layers',
+          offloadPercentage,
+          offloadLayers,
+          kvCacheOffload,
+        }
+
+        offloadingResult = calculateOffloadedVRAM(vramBreakdown, offloadingConfig, model.num_layers)
+      }
+
+      // 4. Multi-GPU calculation (only when numGPUs > 1)
+      // IMPORTANT: If offloading is active, use the offloaded onDevice breakdown as the base
       let multiGPUResult = null
       let interconnectWarning = null
 
       if (numGPUs > 1) {
+        const baseBreakdown = offloadingResult ? offloadingResult.onDevice : vramBreakdown
+
         multiGPUResult = calculateMultiGPUVRAM(
-          vramBreakdown,
+          baseBreakdown,
           model,
           gpu.vram_gb,
           numGPUs,
@@ -143,7 +196,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         interconnectWarning = validation.warning
       }
 
-      // 4. Serialize Decimal values to strings for structured cloning
+      // 5. Serialize Decimal values to strings for structured cloning
       const response: CalculationSuccessResponse = {
         type: 'CALCULATION_RESULT',
         payload: {
@@ -161,6 +214,24 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
             isMemoryBound: performance.isMemoryBound,
             bottleneck: performance.bottleneck,
           },
+          offloading: offloadingResult
+            ? {
+                onDevice: {
+                  modelWeights: offloadingResult.onDevice.modelWeights.toString(),
+                  kvCache: offloadingResult.onDevice.kvCache.toString(),
+                  activations: offloadingResult.onDevice.activations.toString(),
+                  frameworkOverhead: offloadingResult.onDevice.frameworkOverhead.toString(),
+                  total: offloadingResult.onDevice.total.toString(),
+                },
+                offloaded: {
+                  modelWeights: offloadingResult.offloaded.modelWeights.toString(),
+                  kvCache: offloadingResult.offloaded.kvCache.toString(),
+                  total: offloadingResult.offloaded.total.toString(),
+                },
+                performanceImpact: offloadingResult.performanceImpact,
+                slowdownFactor: offloadingResult.slowdownFactor,
+              }
+            : null,
           multiGPU: multiGPUResult
             ? {
                 numGPUs: multiGPUResult.numGPUs,

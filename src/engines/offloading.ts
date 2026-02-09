@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js'
-import type { InferenceVRAMBreakdown, OffloadingConfig, OffloadedVRAMBreakdown } from './types'
+import type { InferenceVRAMBreakdown, OffloadedVRAMBreakdown, OffloadingConfig } from './types'
 
 /**
  * Calculate VRAM breakdown after offloading model weights and/or KV cache.

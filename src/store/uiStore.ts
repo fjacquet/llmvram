@@ -1,4 +1,10 @@
-import type { KVCachePrecision, QuantizationFormat, ShardingStrategy } from '@engines/types'
+import type {
+  KVCachePrecision,
+  OffloadMode,
+  OffloadTarget,
+  QuantizationFormat,
+  ShardingStrategy,
+} from '@engines/types'
 import type { GPU, Model } from '@utils/schemas'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -18,6 +24,14 @@ interface UIState {
   numGPUs: number
   shardingStrategy: ShardingStrategy
 
+  // Offloading parameters (persisted)
+  offloadingEnabled: boolean
+  offloadTarget: OffloadTarget
+  offloadMode: OffloadMode
+  offloadPercentage: number
+  offloadLayers: number
+  kvCacheOffload: boolean
+
   // UI preferences (persisted)
   isDarkMode: boolean
 
@@ -30,6 +44,12 @@ interface UIState {
   setKVQuantization: (kvQuantization: KVCachePrecision) => void
   setNumGPUs: (numGPUs: number) => void
   setShardingStrategy: (strategy: ShardingStrategy) => void
+  setOffloadingEnabled: (enabled: boolean) => void
+  setOffloadTarget: (target: OffloadTarget) => void
+  setOffloadMode: (mode: OffloadMode) => void
+  setOffloadPercentage: (percentage: number) => void
+  setOffloadLayers: (layers: number) => void
+  setKVCacheOffload: (enabled: boolean) => void
   toggleDarkMode: () => void
 }
 
@@ -45,6 +65,12 @@ export const useUIStore = create<UIState>()(
       kvQuantization: 'fp16',
       numGPUs: 1,
       shardingStrategy: 'tensor-parallel' as ShardingStrategy,
+      offloadingEnabled: false,
+      offloadTarget: 'cpu-ram' as OffloadTarget,
+      offloadMode: 'percentage' as OffloadMode,
+      offloadPercentage: 0,
+      offloadLayers: 0,
+      kvCacheOffload: false,
       isDarkMode: false,
 
       // Actions
@@ -56,6 +82,12 @@ export const useUIStore = create<UIState>()(
       setKVQuantization: (kvQuantization) => set({ kvQuantization }),
       setNumGPUs: (numGPUs) => set({ numGPUs }),
       setShardingStrategy: (strategy) => set({ shardingStrategy: strategy }),
+      setOffloadingEnabled: (enabled) => set({ offloadingEnabled: enabled }),
+      setOffloadTarget: (target) => set({ offloadTarget: target }),
+      setOffloadMode: (mode) => set({ offloadMode: mode }),
+      setOffloadPercentage: (percentage) => set({ offloadPercentage: percentage }),
+      setOffloadLayers: (layers) => set({ offloadLayers: layers }),
+      setKVCacheOffload: (enabled) => set({ kvCacheOffload: enabled }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
     }),
     {
@@ -68,6 +100,12 @@ export const useUIStore = create<UIState>()(
         kvQuantization: state.kvQuantization,
         numGPUs: state.numGPUs,
         shardingStrategy: state.shardingStrategy,
+        offloadingEnabled: state.offloadingEnabled,
+        offloadTarget: state.offloadTarget,
+        offloadMode: state.offloadMode,
+        offloadPercentage: state.offloadPercentage,
+        offloadLayers: state.offloadLayers,
+        kvCacheOffload: state.kvCacheOffload,
         isDarkMode: state.isDarkMode,
       }),
     },

@@ -21,6 +21,8 @@ import type {
   InferenceVRAMBreakdown,
   KVCachePrecision,
   MultiGPUVRAMBreakdown,
+  OffloadedVRAMBreakdown,
+  OffloadingConfig,
   PerformanceEstimate,
   QuantizationFormat,
   ShardingStrategy,
@@ -36,6 +38,7 @@ export interface UseInferenceCalculationResult {
   result: {
     vram: InferenceVRAMBreakdown
     performance: PerformanceEstimate
+    offloading: OffloadedVRAMBreakdown | null
     multiGPU: MultiGPUVRAMBreakdown | null
     interconnectWarning: string | null
   } | null
@@ -128,6 +131,43 @@ function reconstructMultiGPUBreakdown(
 }
 
 /**
+ * Reconstruct OffloadedVRAMBreakdown from serialized strings
+ *
+ * Web Workers serialize Decimal values to strings for structured cloning.
+ * This function reconstructs Decimal objects from those strings.
+ */
+function reconstructOffloadingBreakdown(
+  serialized: {
+    onDevice: {
+      modelWeights: string
+      kvCache: string
+      activations: string
+      frameworkOverhead: string
+      total: string
+    }
+    offloaded: {
+      modelWeights: string
+      kvCache: string
+      total: string
+    }
+    performanceImpact: string
+    slowdownFactor: number
+  } | null,
+): OffloadedVRAMBreakdown | null {
+  if (!serialized) return null
+  return {
+    onDevice: reconstructVRAMBreakdown(serialized.onDevice),
+    offloaded: {
+      modelWeights: new Decimal(serialized.offloaded.modelWeights),
+      kvCache: new Decimal(serialized.offloaded.kvCache),
+      total: new Decimal(serialized.offloaded.total),
+    },
+    performanceImpact: serialized.performanceImpact,
+    slowdownFactor: serialized.slowdownFactor,
+  }
+}
+
+/**
  * Calculate inference VRAM and performance with Web Worker offloading
  *
  * @param model - Model configuration (null = no calculation)
@@ -136,6 +176,9 @@ function reconstructMultiGPUBreakdown(
  * @param sequenceLength - Maximum sequence length (prompt + generation)
  * @param batchSize - Number of concurrent sequences
  * @param kvQuantization - KV cache quantization precision (defaults to fp16)
+ * @param numGPUs - Number of GPUs for multi-GPU calculation (defaults to 1)
+ * @param shardingStrategy - Multi-GPU sharding strategy (defaults to tensor-parallel)
+ * @param offloadingConfig - CPU/RAM or NVMe offloading configuration (optional)
  * @returns Hook state with result, loading, and error
  *
  * @example
@@ -165,6 +208,7 @@ export function useInferenceCalculation(
   kvQuantization?: KVCachePrecision,
   numGPUs?: number,
   shardingStrategy?: ShardingStrategy,
+  offloadingConfig?: OffloadingConfig,
 ): UseInferenceCalculationResult {
   const [result, setResult] = useState<UseInferenceCalculationResult['result']>(null)
   const [loading, setLoading] = useState(false)
@@ -195,10 +239,11 @@ export function useInferenceCalculation(
           // Reconstruct Decimal objects from serialized strings
           const vram = reconstructVRAMBreakdown(payload.vram)
           const performance = reconstructPerformanceEstimate(payload.performance)
+          const offloading = reconstructOffloadingBreakdown(payload.offloading)
           const multiGPU = reconstructMultiGPUBreakdown(payload.multiGPU)
           const interconnectWarning = payload.interconnectWarning ?? null
 
-          setResult({ vram, performance, multiGPU, interconnectWarning })
+          setResult({ vram, performance, offloading, multiGPU, interconnectWarning })
           setLoading(false)
         } else if (type === 'CALCULATION_ERROR') {
           setError(workerError)
@@ -226,6 +271,12 @@ export function useInferenceCalculation(
           kvQuantization,
           numGPUs: numGPUs ?? 1,
           shardingStrategy: shardingStrategy ?? 'tensor-parallel',
+          offloadingEnabled: offloadingConfig?.enabled ?? false,
+          offloadTarget: offloadingConfig?.target ?? 'cpu-ram',
+          offloadMode: offloadingConfig?.mode ?? 'percentage',
+          offloadPercentage: offloadingConfig?.offloadPercentage ?? 0,
+          offloadLayers: offloadingConfig?.offloadLayers ?? 0,
+          kvCacheOffload: offloadingConfig?.kvCacheOffload ?? false,
         },
       })
 
@@ -239,9 +290,10 @@ export function useInferenceCalculation(
     Promise.all([
       import('@engines/inference'),
       import('@engines/performance'),
+      import('@engines/offloading'),
       import('@engines/multi-gpu'),
     ])
-      .then(([inferenceModule, performanceModule, multiGPUModule]) => {
+      .then(([inferenceModule, performanceModule, offloadingModule, multiGPUModule]) => {
         const vram = inferenceModule.calculateInferenceVRAM({
           model,
           quantization,
@@ -257,14 +309,26 @@ export function useInferenceCalculation(
           batchSize,
         })
 
+        // Offloading calculation (if enabled)
+        let offloading = null
+        if (offloadingConfig?.enabled) {
+          offloading = offloadingModule.calculateOffloadedVRAM(
+            vram,
+            offloadingConfig,
+            model.num_layers,
+          )
+        }
+
         // Multi-GPU calculation (only when numGPUs > 1)
+        // IMPORTANT: If offloading is active, use the offloaded onDevice breakdown as the base
         let multiGPU = null
         let interconnectWarning = null
         const effectiveNumGPUs = numGPUs ?? 1
         const effectiveStrategy = shardingStrategy ?? 'tensor-parallel'
         if (effectiveNumGPUs > 1) {
+          const baseBreakdown = offloading ? offloading.onDevice : vram
           multiGPU = multiGPUModule.calculateMultiGPUVRAM(
-            vram,
+            baseBreakdown,
             model,
             gpu.vram_gb,
             effectiveNumGPUs,
@@ -278,7 +342,7 @@ export function useInferenceCalculation(
           interconnectWarning = validation.warning
         }
 
-        setResult({ vram, performance, multiGPU, interconnectWarning })
+        setResult({ vram, performance, offloading, multiGPU, interconnectWarning })
         setLoading(false)
       })
       .catch((err) => {
@@ -294,6 +358,7 @@ export function useInferenceCalculation(
     kvQuantization,
     numGPUs,
     shardingStrategy,
+    offloadingConfig,
   ])
 
   return { result, loading, error }
