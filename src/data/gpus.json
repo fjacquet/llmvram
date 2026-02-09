@@ -66,7 +66,7 @@
     "fp16_tflops": 312,
     "fp32_tflops": 19.5,
     "tdp_watts": 300,
-    "interconnect": "none",
+    "interconnect": "nvlink",
     "tier": "datacenter"
   },
   {
@@ -94,6 +94,7 @@
     "fp16_tflops": 318,
     "fp32_tflops": 159,
     "tdp_watts": 575,
+    "interconnect": "none",
     "tier": "consumer"
   },
   {
@@ -107,6 +108,7 @@
     "fp16_tflops": 165,
     "fp32_tflops": 82.6,
     "tdp_watts": 450,
+    "interconnect": "none",
     "tier": "consumer"
   },
   {
@@ -120,6 +122,7 @@
     "fp16_tflops": 71,
     "fp32_tflops": 35.6,
     "tdp_watts": 350,
+    "interconnect": "none",
     "tier": "consumer"
   },
   {
@@ -162,7 +165,7 @@
   },
   {
     "id": "apple-m3-ultra",
-    "name": "Apple M3 Ultra (estimated)",
+    "name": "Apple M3 Ultra",
     "manufacturer": "apple",
     "vram_gb": 192,
     "memory_bandwidth_gbps": 800,

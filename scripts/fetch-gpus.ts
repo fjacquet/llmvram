@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises'
-import { validateGPUs, type GPU } from '../src/utils/schemas'
+import { type GPU, validateGPUs } from '../src/utils/schemas'
 
 /**
  * GPU Database Refresh Script

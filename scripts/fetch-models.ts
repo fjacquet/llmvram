@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises'
-import { validateModels, type Model } from '../src/utils/schemas'
+import { type Model, validateModels } from '../src/utils/schemas'
 
 // Model IDs to fetch (matches the 30+ models from Plan 03)
 const MODEL_IDS = [
@@ -136,7 +136,9 @@ function estimateParameterCount(config: HFConfig): number {
 
 async function main() {
   console.log(`Fetching ${MODEL_IDS.length} model configurations from HuggingFace...`)
-  console.log(`Note: Many models are gated and require authentication. This script fetches public models only.\n`)
+  console.log(
+    `Note: Many models are gated and require authentication. This script fetches public models only.\n`,
+  )
 
   const models: Model[] = []
   const errors: string[] = []
@@ -155,7 +157,9 @@ async function main() {
   console.log(`\nSuccessfully fetched ${models.length} models`)
   if (errors.length > 0) {
     console.error(`\nFailed to fetch ${errors.length} models (likely gated):`)
-    errors.forEach((err) => console.error(`  - ${err}`))
+    for (const err of errors) {
+      console.error(`  - ${err}`)
+    }
     console.error(`\nFor gated models, manually add specs from HuggingFace model cards.`)
   }
 
