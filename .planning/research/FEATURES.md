@@ -100,6 +100,7 @@ Advanced Features:
 ## MVP Recommendation
 
 ### Phase 1: Core Calculator (Table Stakes)
+
 Prioritize in order:
 
 1. **Model Database + Selection** - Foundation for everything
@@ -119,22 +120,25 @@ Prioritize in order:
 **Rationale:** These 8 features deliver a functional inference calculator that matches user expectations. Users can answer "Will this model fit on my GPU?"
 
 ### Phase 2: Training Support (Table Stakes Completion)
-9. **Fine-tuning Calculation** - Full, LoRA, QLoRA
-10. **Multi-GPU Support** - Basic distribution
-11. **Dataset Size Calculator** - Training-specific inputs
+
+1. **Fine-tuning Calculation** - Full, LoRA, QLoRA
+2. **Multi-GPU Support** - Basic distribution
+3. **Dataset Size Calculator** - Training-specific inputs
 
 **Rationale:** Completes table stakes. Now users can plan both inference AND training.
 
 ### Phase 3: Competitive Differentiation
+
 Priority differentiators:
 
-12. **KV Cache Quantization** - Low complexity, high value for long-context
-13. **Optimization Presets** - Medium complexity, high user value
-14. **Advanced Memory Breakdown** - Medium complexity, educational value
-15. **Export/Share Configurations** - Low complexity, collaboration enabler
-16. **Fine-tuning Method Comparison** - Medium complexity, decision support
+1. **KV Cache Quantization** - Low complexity, high value for long-context
+2. **Optimization Presets** - Medium complexity, high user value
+3. **Advanced Memory Breakdown** - Medium complexity, educational value
+4. **Export/Share Configurations** - Low complexity, collaboration enabler
+5. **Fine-tuning Method Comparison** - Medium complexity, decision support
 
 **Defer to Phase 4+:**
+
 - **Performance Estimation** - High complexity, requires benchmarking infrastructure
 - **Multi-GPU Interconnect Awareness** - High complexity, niche audience
 - **CPU/NVMe Offloading** - Medium complexity, but dependent on perf estimation
@@ -145,7 +149,9 @@ Priority differentiators:
 ## Feature Clustering by User Persona
 
 ### Hobbyist/Researcher (Primary)
+
 **Core needs:** Will model X fit on my GPU Y?
+
 - Model selection ⭐
 - GPU selection ⭐
 - Quantization options ⭐
@@ -153,7 +159,9 @@ Priority differentiators:
 - Custom model input
 
 ### ML Engineer (Secondary)
+
 **Core needs:** How should I configure this for production?
+
 - Multi-GPU support ⭐
 - Performance estimation
 - Optimization presets ⭐
@@ -161,7 +169,9 @@ Priority differentiators:
 - Memory breakdown ⭐
 
 ### Data Scientist Training Models (Secondary)
+
 **Core needs:** Can I fine-tune this model?
+
 - Fine-tuning calculation ⭐
 - LoRA/QLoRA support ⭐
 - Dataset size calculator ⭐
@@ -169,7 +179,9 @@ Priority differentiators:
 - Training cost estimation
 
 ### Budget-Conscious User (Tertiary)
+
 **Core needs:** How can I run this with limited hardware?
+
 - CPU/NVMe offloading
 - Quantization options ⭐
 - Optimization suggestions
@@ -178,15 +190,18 @@ Priority differentiators:
 ## Competitive Analysis Notes
 
 **apxml.com/tools/vram-calculator** (Reference Implementation):
+
 - Strengths: Comprehensive, covers inference + training, performance metrics, cloud cost estimation
 - Unique features: Carbon footprint, community benchmarks, optimization presets
 - Approach: Feature-rich, potentially overwhelming for beginners
 
 **Hugging Face Accelerate Estimator** (Not fully analyzed - tool interface unavailable):
+
 - Likely strengths: Integration with HF ecosystem, accurate for HF models
 - Likely gaps: Generic calculator, may not cover all frameworks
 
 **Market Gap Opportunity:**
+
 - Simpler UX than apxml for beginners
 - Better mobile responsiveness
 - More educational (explain WHY memory is used)
@@ -196,6 +211,7 @@ Priority differentiators:
 ## Implementation Complexity Notes
 
 ### Low Complexity (< 1 week)
+
 - Quantization format selection
 - Basic input parameters
 - Custom model input
@@ -205,6 +221,7 @@ Priority differentiators:
 - Gradient accumulation calculator
 
 ### Medium Complexity (1-2 weeks)
+
 - Model selection database (curation effort)
 - Inference VRAM calculation (formula accuracy)
 - VRAM usage breakdown visualization
@@ -219,6 +236,7 @@ Priority differentiators:
 - Comparative analysis UI
 
 ### High Complexity (3+ weeks)
+
 - Fine-tuning calculation (all modes, accurate)
 - Performance estimation (benchmarking data required)
 - Multi-GPU interconnect awareness (complex modeling)
@@ -228,13 +246,16 @@ Priority differentiators:
 ## Sources
 
 **HIGH Confidence:**
+
 - apxml.com/tools/vram-calculator (fetched 2026-02-09) - Comprehensive feature analysis of leading tool
 
 **MEDIUM Confidence:**
+
 - EleutherAI Cookbook references (fetched 2026-02-09) - Confirms ecosystem tools exist
 - Training data on LLM memory calculation patterns (Jan 2025 cutoff)
 
 **LOW Confidence (Flagged for Validation):**
+
 - Hugging Face accelerate tool features (could not access interface)
 - vram.asmirnov.xyz features (access blocked)
 - GPU_poor and other community tools (access blocked)
@@ -242,6 +263,7 @@ Priority differentiators:
 - Interconnect efficiency factors (would need hardware specs validation)
 
 **Gaps to Address:**
+
 - Could not access multiple comparison tools due to WebFetch/WebSearch restrictions
 - Performance estimation complexity may be underestimated
 - Community benchmark moderation effort unknown

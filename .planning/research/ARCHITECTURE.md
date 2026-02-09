@@ -96,6 +96,7 @@ UI Update
 ```
 
 **Key Flow Characteristics:**
+
 - **Unidirectional:** Input → Store → Calculation → Results → Output
 - **Async Calculation:** Workers prevent UI blocking
 - **Reactive:** Store updates trigger component re-renders
@@ -229,10 +230,12 @@ interface GPUSpec {
 ## Patterns to Follow
 
 ### Pattern 1: Engine Isolation
+
 **What:** Calculation engines are pure functions with zero dependencies
 **When:** All calculation logic
 **Why:** Enables testing, worker usage, potential server-side execution
 **Example:**
+
 ```typescript
 // engines/inference.ts
 export interface InferenceParams {
@@ -270,10 +273,12 @@ export function calculateInferenceVRAM(
 ```
 
 ### Pattern 2: Worker Pool for Calculations
+
 **What:** Maintain pool of Web Workers for parallel calculations
 **When:** User changes inputs, triggering recalculation
 **Why:** Prevents UI blocking, enables parallel computation for multi-scenario comparisons
 **Example:**
+
 ```typescript
 // workers/workerPool.ts
 class CalculationWorkerPool {
@@ -301,10 +306,12 @@ class CalculationWorkerPool {
 ```
 
 ### Pattern 3: Middleware-Triggered Calculations
+
 **What:** Store middleware intercepts state changes and triggers calculations
 **When:** Input state changes
 **Why:** Separates UI concerns from calculation orchestration
 **Example:**
+
 ```typescript
 // store/middleware/calculationMiddleware.ts
 export const calculationMiddleware = (store) => (next) => (action) => {
@@ -327,10 +334,12 @@ export const calculationMiddleware = (store) => (next) => (action) => {
 ```
 
 ### Pattern 4: Slice-Based State Organization
+
 **What:** Organize store into logical slices (inputs, results, config)
 **When:** State management setup
 **Why:** Scales with complexity, clear ownership, selective updates
 **Example:**
+
 ```typescript
 // store/slices/inputsSlice.ts
 export const createInputsSlice = (set, get) => ({
@@ -349,10 +358,12 @@ export const createInputsSlice = (set, get) => ({
 ```
 
 ### Pattern 5: Smart Component Composition
+
 **What:** Inputs, outputs, and common components are composable and isolated
 **When:** Building UI
 **Why:** Reusability, testability, clear data flow
 **Example:**
+
 ```typescript
 // components/layout/Calculator.tsx
 export function Calculator() {
@@ -389,10 +400,12 @@ export function ModelSelector() {
 ```
 
 ### Pattern 6: JSON Data with TypeScript Schemas
+
 **What:** Static data in JSON, validated with TypeScript interfaces
 **When:** Model and GPU data
 **Why:** Easy to update, version control friendly, type-safe at boundaries
 **Example:**
+
 ```typescript
 // data/schemas/model.ts
 import modelsData from '../models.json';
@@ -413,8 +426,10 @@ if (llama3) {
 ## Anti-Patterns to Avoid
 
 ### Anti-Pattern 1: Calculations in Components
+
 **What:** Performing VRAM calculations directly in React components
 **Why bad:**
+
 - UI blocks during heavy calculations
 - Difficult to test calculation logic
 - Duplicated logic across components
@@ -422,40 +437,50 @@ if (llama3) {
 **Instead:** Always delegate to engines via workers/hooks
 
 ### Anti-Pattern 2: Direct Worker Access from Components
+
 **What:** Components creating/managing their own workers
 **Why bad:**
+
 - Memory leaks (workers not cleaned up)
 - Duplicate workers across components
 - Complex lifecycle management
 **Instead:** Use hook abstraction (useWorker, useCalculation)
 
 ### Anti-Pattern 3: Prop Drilling Configuration
+
 **What:** Passing calculation parameters through multiple component layers
 **Why bad:**
+
 - Brittle component hierarchy
 - Difficult to add new parameters
 - Unnecessary re-renders
 **Instead:** Use store/context for global calculator state
 
 ### Anti-Pattern 4: Mutable Data Schemas
+
 **What:** Allowing runtime modification of models.json or gpus.json data
 **Why bad:**
+
 - Lost type safety
 - Unpredictable state
 - Difficult to debug
 **Instead:** Treat data files as immutable constants, use store for user customizations
 
 ### Anti-Pattern 5: Monolithic Calculation Function
+
 **What:** Single massive function handling all calculation types
 **Why bad:**
+
 - Difficult to test individual components
 - Can't parallelize different calculation types
 - Hard to maintain and extend
 **Instead:** Separate engines per calculation domain, compose in worker
 
 ### Anti-Pattern 6: Synchronous Heavy Calculations
+
 **What:** Calculating large model VRAM requirements on main thread
 **Why bad:**
+
 - UI freezes during calculation
 - Poor user experience
 - Blocks input handling
@@ -475,8 +500,10 @@ if (llama3) {
 ## Build Order Implications
 
 ### Phase 1: Foundation (Week 1-2)
+
 **Dependencies:** None
 **Components:**
+
 - Data schemas (TypeScript interfaces)
 - Static data files (initial models.json, gpus.json)
 - Basic store setup (Zustand with inputs slice)
@@ -485,8 +512,10 @@ if (llama3) {
 **Rationale:** Establishes data contracts, enables parallel development
 
 ### Phase 2: Core UI (Week 2-3)
+
 **Dependencies:** Phase 1 (schemas, store)
 **Components:**
+
 - Layout components (Calculator, Header)
 - Basic input components (ModelSelector, GPUSelector)
 - Basic output component (VRAMBreakdown)
@@ -495,8 +524,10 @@ if (llama3) {
 **Rationale:** Vertical slice proves architecture, enables testing with synchronous calculations
 
 ### Phase 3: Worker Infrastructure (Week 3-4)
+
 **Dependencies:** Phase 2 (working UI), Phase 1 (engines)
 **Components:**
+
 - calculation.worker.ts
 - workerPool.ts
 - Updated useCalculation hook (async worker-based)
@@ -505,8 +536,10 @@ if (llama3) {
 **Rationale:** Optimization layer, doesn't change UI contracts
 
 ### Phase 4: Advanced Calculations (Week 4-6)
+
 **Dependencies:** Phase 3 (worker infrastructure)
 **Components:**
+
 - Engine: finetuning.ts
 - Engine: multigpu.ts
 - Engine: performance.ts
@@ -516,8 +549,10 @@ if (llama3) {
 **Rationale:** Reuses infrastructure, additive features
 
 ### Phase 5: Polish & Optimization (Week 6-7)
+
 **Dependencies:** Phase 4 (all features)
 **Components:**
+
 - Common components refinement
 - Debouncing, caching optimizations
 - Error boundaries, loading states
@@ -548,6 +583,7 @@ Data Schemas (interfaces)
 **Critical Path:** Data Schemas → Engines → Workers → Hooks → Components
 
 **Parallel Tracks:**
+
 - Static Data can be built alongside Engines
 - Input Components and Output Components can be built in parallel
 - Common Components can be built anytime (no dependencies)
@@ -555,27 +591,32 @@ Data Schemas (interfaces)
 ## Technology Integration Points
 
 ### TypeScript
+
 - **Strict mode enabled** for data safety
 - **Interfaces for all data models** (inputs, results, specs)
 - **Type guards** for runtime validation of JSON data
 
 ### React
+
 - **Functional components** with hooks (no class components)
 - **Strict mode** for detecting side effects
 - **Suspense boundaries** for async data loading
 
 ### State Management (Zustand)
+
 - **Slice pattern** for organization
 - **Middleware** for side effects (calculations)
 - **Selectors** for derived state
 - **DevTools** integration for debugging
 
 ### Web Workers
+
 - **Typed messages** (TypeScript worker interfaces)
 - **Pool management** for parallelism
 - **Graceful fallback** if workers unavailable (synchronous calculation)
 
 ### Build System (Vite assumed)
+
 - **Worker bundling** (Vite's native support)
 - **JSON imports** with tree-shaking
 - **TypeScript checking** pre-build
@@ -584,17 +625,20 @@ Data Schemas (interfaces)
 ## Validation Strategy
 
 ### Data Validation
+
 - **JSON Schema** validation for models.json and gpus.json at build time
 - **TypeScript interfaces** enforce structure at compile time
 - **Runtime guards** for user input bounds (e.g., sequenceLength > 0)
 
 ### Calculation Validation
+
 - **Unit tests** for each engine function (pure functions = easy to test)
 - **Known-good test cases** (e.g., Llama 3 70B fp16 = X GB)
 - **Boundary testing** (minimum/maximum values)
 - **Comparison tests** against reference implementations
 
 ### Component Validation
+
 - **React Testing Library** for component behavior
 - **Storybook** for visual regression testing
 - **Integration tests** for full calculation flow
@@ -620,19 +664,25 @@ Data Schemas (interfaces)
 ## Future Architecture Considerations
 
 ### Server-Side Calculation API
+
 If calculator becomes multi-user or needs backend:
+
 - **API**: POST /api/calculate with CalculatorInputs
 - **Response**: CalculationResults (same interface)
 - **Migration**: Replace worker.postMessage with fetch, minimal code changes
 
 ### Database Backend
+
 If user accounts or saved configurations needed:
+
 - **Schema**: Store CalculatorInputs + metadata (user, timestamp, name)
 - **API**: CRUD for saved calculations
 - **Sync**: Offline-first with sync when online
 
 ### Real-Time Collaboration
+
 If multiple users need to view same calculation:
+
 - **WebSocket** for state synchronization
 - **CRDT** for conflict-free input merging
 - **Presence** indicators for who's viewing
@@ -642,6 +692,7 @@ If multiple users need to view same calculation:
 **Confidence:** MEDIUM
 
 This architecture is based on:
+
 - Established React + TypeScript patterns (HIGH confidence from training data)
 - Web Worker best practices for heavy computation (HIGH confidence)
 - raidy's proven architecture pattern provided as baseline (HIGH confidence)
@@ -649,12 +700,13 @@ This architecture is based on:
 - Browser calculator architecture patterns from training data (MEDIUM confidence)
 
 **Limitations:**
+
 - No direct access to raidy's codebase for detailed implementation patterns
 - Could not verify current (2026) best practices via web search
 - Recommendations based on training knowledge up to January 2025
 
 **Recommended validation:**
+
 - Review raidy's actual implementation for specific patterns
 - Check Context7 for React, TypeScript, Zustand current API documentation
 - Validate Web Worker patterns with current browser API documentation
-

@@ -16,6 +16,7 @@
 **Confidence:** HIGH for React/TS as foundation, MEDIUM for version specifics (need verification)
 
 **Rationale for React over alternatives:**
+
 - **vs Vue 3:** React's ecosystem for complex calculations is more mature (better TypeScript inference, more numerical libraries)
 - **vs Svelte:** React's larger ecosystem means more calculator/scientific tool examples to learn from
 - **vs Solid:** React's stability and raidy alignment outweigh Solid's performance gains for this use case
@@ -29,6 +30,7 @@
 **Confidence:** MEDIUM (Vite 7 may not be released yet - Vite 5.x was latest in my Jan 2025 training. Verify current version.)
 
 **Why Vite over alternatives:**
+
 - **vs webpack:** Dramatically faster dev experience, simpler config for static sites
 - **vs Parcel:** More predictable build output, better plugin ecosystem for optimization
 - **vs esbuild directly:** Vite provides better DX wrapper while still using esbuild under the hood
@@ -42,6 +44,7 @@
 **Confidence:** HIGH (excellent fit for calculator domain)
 
 **Why Zustand for calculators:**
+
 - **Minimal re-renders:** Selector-based subscriptions prevent unnecessary recalculations
 - **DevTools:** Time-travel debugging for complex calculation flows
 - **Middleware:** Persist calculation history to localStorage
@@ -58,6 +61,7 @@
 **Confidence:** MEDIUM (Tailwind v4 was early release in my training. Verify stability/release status.)
 
 **Why Tailwind:**
+
 - **Rapid prototyping:** Calculator UIs are form-heavy - utility classes speed development
 - **Consistency:** Design tokens prevent visual drift across calculation sections
 - **Bundle size:** PurgeCSS removes unused styles - critical for static deployment
@@ -77,11 +81,13 @@
 **Confidence:** MEDIUM-HIGH (Recharts solid for basic viz, may need alternatives for advanced needs)
 
 **Recharts rationale:**
+
 - **Declarative:** Fits React patterns better than imperative D3
 - **Responsive:** Built-in responsive containers for mobile calculator views
 - **Composition:** Easy to build custom chart combinations (VRAM stacked bar + memory bandwidth line chart)
 
 **Alternative to consider:**
+
 - **Visx (Airbnb):** Lower-level than Recharts, higher-level than D3. Better for custom scientific visualizations. Consider if Recharts feels limiting.
 - **Chart.js with react-chartjs-2:** More performant for large datasets, but less React-idiomatic
 
@@ -98,11 +104,13 @@
 **Confidence:** HIGH (these are standard for numerical applications)
 
 **Decimal.js is non-negotiable** because:
+
 - VRAM calculations involve large numbers (gigabytes, terabytes)
 - Precision errors compound in multi-GPU sharding calculations
 - User trust requires exact values matching vendor specs
 
 **Zod rationale:**
+
 - Validates JSON databases (models.json, gpus.json) at load time
 - Generates TypeScript types from schemas (single source of truth)
 - Error messages guide JSON curation ("expected number, got string")
@@ -117,11 +125,13 @@
 **Confidence:** HIGH
 
 **Why static JSON:**
+
 - **No backend needed:** Aligns with static deployment requirement
 - **Version control:** Models/GPUs evolve - Git tracks database changes
 - **Type safety:** Generate TypeScript types from JSON schemas (use `json-schema-to-typescript` or Zod)
 
 **Structure recommendation:**
+
 ```typescript
 // models.json - separate file per vendor for tree-shaking
 export interface ModelSpec {
@@ -149,11 +159,13 @@ export interface ModelSpec {
 **Confidence:** HIGH (all are current best practices)
 
 **Biome over ESLint/Prettier:**
+
 - **Single tool:** No config conflicts between linter/formatter
 - **Speed:** Sub-second linting for entire codebase
 - **Opinionated:** Less bikeshedding, more building
 
 **Vitest over Jest:**
+
 - **Native ESM:** No transform overhead for Vite-built code
 - **Speed:** Parallel test execution, smart watch mode
 - **DX:** Test UI included, better error messages
@@ -169,6 +181,7 @@ export interface ModelSpec {
 **Confidence:** HIGH
 
 **Test priorities for calculator domain:**
+
 1. **Unit tests (critical):** VRAM calculation accuracy, edge cases (zero GPUs, max sharding)
 2. **Component tests (important):** State updates, form validation, derived calculations
 3. **E2E tests (nice-to-have):** Full workflows, visual regression for charts
@@ -182,6 +195,7 @@ export interface ModelSpec {
 **Confidence:** HIGH
 
 **Why pnpm over npm/yarn:**
+
 - **Speed:** Hardlinks instead of copying packages
 - **Strict:** Prevents accidental imports of non-declared dependencies
 - **Monorepo-ready:** If raidy + llmvram need shared components later
@@ -222,6 +236,7 @@ export interface ModelSpec {
 ### VRAM Calculation Accuracy
 
 **Critical requirements:**
+
 1. **Precision:** Use Decimal.js for all memory math (no native Number)
 2. **Validation:** Zod schemas for model/GPU specs (runtime validation)
 3. **Testing:** Property-based testing with `fast-check` (test calculation invariants)
@@ -230,6 +245,7 @@ export interface ModelSpec {
 ### Performance
 
 **Calculator-specific optimizations:**
+
 1. **Memoization:** `useMemo` for derived calculations (VRAM per layer, total memory)
 2. **Debouncing:** Slider inputs should debounce before triggering recalculation (use `use-debounce` hook)
 3. **Web Workers:** For complex scenarios (1000+ layer models, 100+ GPU configurations), offload calculation to worker thread
@@ -238,6 +254,7 @@ export interface ModelSpec {
 ### Accessibility
 
 **Calculator UIs must be accessible:**
+
 1. **Semantic HTML:** Use `<input type="number">` for numerical inputs (mobile keyboard optimization)
 2. **ARIA labels:** Screen readers need context for calculation results
 3. **Keyboard navigation:** Tab through form fields, Enter to calculate
@@ -396,9 +413,9 @@ export default defineConfig({
 **Before roadmap creation, validate:**
 
 1. **Visit official documentation:**
-   - https://vite.dev (verify latest version)
-   - https://tailwindcss.com (verify v4 status)
-   - https://react.dev (verify React 19 stability)
+   - <https://vite.dev> (verify latest version)
+   - <https://tailwindcss.com> (verify v4 status)
+   - <https://react.dev> (verify React 19 stability)
 
 2. **Check raidy's actual package.json:**
    - Confirm exact versions used in sister project
@@ -415,18 +432,20 @@ export default defineConfig({
 **Verification status:** MEDIUM confidence overall
 
 Unable to verify with authoritative sources (Context7, official docs) due to tool restrictions. Recommendations based on:
+
 - Training data (current through January 2025)
 - Domain expertise for calculator applications
 - Alignment with raidy project patterns
 - Industry best practices for React SPAs
 
 **Required verification:**
-- Official Vite documentation (https://vite.dev)
-- Official Tailwind CSS documentation (https://tailwindcss.com)
-- Official React documentation (https://react.dev)
+
+- Official Vite documentation (<https://vite.dev>)
+- Official Tailwind CSS documentation (<https://tailwindcss.com>)
+- Official React documentation (<https://react.dev>)
 - Raidy project's actual package.json
-- Zustand documentation (https://zustand.docs.pmnd.rs)
-- Recharts documentation (https://recharts.org)
-- Biome documentation (https://biomejs.dev)
+- Zustand documentation (<https://zustand.docs.pmnd.rs>)
+- Recharts documentation (<https://recharts.org>)
+- Biome documentation (<https://biomejs.dev>)
 
 **Recommendation:** Cross-reference this stack analysis with current official documentation before finalizing roadmap. Version numbers may be outdated.

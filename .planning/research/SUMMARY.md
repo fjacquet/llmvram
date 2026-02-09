@@ -20,6 +20,7 @@ Critical risks center on calculation accuracy. Quantization overhead (10-30% und
 React 19 + TypeScript with strict mode provides the foundation. Vite handles builds with fast HMR. Zustand manages state with minimal boilerplate. Tailwind CSS accelerates UI development with utility classes. Recharts provides declarative charting for VRAM breakdowns. Biome replaces ESLint/Prettier for 10-100x faster linting. Vitest enables Jest-compatible testing with Vite integration.
 
 **Core technologies:**
+
 - **React 19 + TypeScript 5.8+**: Component-based UI with compile-time safety for calculation accuracy
 - **Vite 7.x**: Fast build tool with native ESM and tree-shaking (verify version - may need 5.x or 6.x)
 - **Zustand 5.x**: Lightweight state management (1kb) with selector-based subscriptions for calculator state
@@ -30,11 +31,13 @@ React 19 + TypeScript with strict mode provides the foundation. Vite handles bui
 - **Biome 1.x**: All-in-one linting/formatting (replaces ESLint + Prettier)
 
 **Critical dependencies:**
+
 - Decimal.js is non-negotiable (VRAM calculations involve large numbers where precision errors compound)
 - Web Workers required for responsive UI during complex calculations
 - TypeScript strict mode essential (catches numerical edge cases at compile time)
 
 **Version verification needed:**
+
 - Vite 7.x may not exist (training data showed 5.x) - verify current stable version
 - Tailwind CSS 4.x was early release - check stability before using
 - React 19 stability - verify production readiness
@@ -44,6 +47,7 @@ React 19 + TypeScript with strict mode provides the foundation. Vite handles bui
 Research identified clear feature tiers based on competitive analysis (apxml.com/tools/vram-calculator) and domain expectations.
 
 **Must have (table stakes):**
+
 - Model selection database with parameter specs
 - GPU selection database with VRAM specs
 - Quantization format selection (FP16, FP32, INT8, INT4, NF4, GPTQ, AWQ)
@@ -55,6 +59,7 @@ Research identified clear feature tiers based on competitive analysis (apxml.com
 - Fine-tuning VRAM estimation (full fine-tuning, LoRA, QLoRA)
 
 **Should have (competitive differentiation):**
+
 - KV cache quantization options (FP16/FP8/INT8 cache precision)
 - Optimization framework presets (Unsloth, DeepSpeed ZeRO, PEFT)
 - Advanced memory breakdown (separate activations, gradients, optimizer states)
@@ -63,6 +68,7 @@ Research identified clear feature tiers based on competitive analysis (apxml.com
 - Gradient accumulation calculator
 
 **Defer (v2+):**
+
 - Performance estimation (tokens/sec, TTFT) - requires benchmarking infrastructure
 - Multi-GPU interconnect awareness (NVLink vs PCIe efficiency) - high complexity
 - CPU/NVMe offloading estimation - dependent on performance estimation
@@ -71,6 +77,7 @@ Research identified clear feature tiers based on competitive analysis (apxml.com
 - Energy/carbon footprint - low value compared to alternatives
 
 **Anti-features (explicitly avoid):**
+
 - Model training/inference execution (out of scope, use vLLM/Ollama instead)
 - Model downloading/hosting (infrastructure burden, link to Hugging Face)
 - User accounts/authentication (stateless browser tool, localStorage for favorites)
@@ -93,6 +100,7 @@ The architecture isolates calculation logic from UI concerns through pure functi
 5. **Static Data** (`src/data/`) - Model and GPU specifications in JSON with TypeScript schemas. Zod validates at load time, generates types for compile-time safety. Structured for tree-shaking (separate files per vendor).
 
 **Data flow:**
+
 ```
 User Input → Component → Store Update → Middleware → Worker Pool → Engine (pure calc)
 → Worker Result → Store Update → Component Re-render → UI Update
@@ -101,6 +109,7 @@ User Input → Component → Store Update → Middleware → Worker Pool → Eng
 Key characteristics: Unidirectional flow, async calculations, reactive updates, debounced inputs (300ms).
 
 **Build order implications:**
+
 1. Data schemas must come first (everything depends on TypeScript interfaces)
 2. Engines can be built in parallel once schemas exist (pure functions, no dependencies)
 3. Workers wrap engines (depends on engines being complete)
@@ -121,6 +130,7 @@ Research identified 15 pitfalls across three severity levels. The top five are p
 5. **Fine-tuning Optimizer State Multiplier Wrong** - Using fixed "AdamW = 8 bytes per param" for LoRA leads to 10-100x overestimation. Only adapter weights have optimizer states (1-2% of params for rank 16-64). Full fine-tuning requires 13x model weight (model + gradients + optimizer). CRITICAL for Phase 3 - must distinguish trainable vs frozen params.
 
 **Phase-specific warnings:**
+
 - Phase 1 MVP: Must handle quantization overhead (#1) and KV cache scaling (#2) or core functionality is broken
 - Phase 2 Architecture: Add MoE support (#3), context length optimizations, GGUF variants
 - Phase 3 Training: Optimizer state calculation (#5), activation memory formulas, gradient checkpointing
@@ -132,9 +142,11 @@ Research identified 15 pitfalls across three severity levels. The top five are p
 Based on combined research, recommended phase structure prioritizes calculation accuracy and incremental validation. Each phase delivers user value while building toward complete feature set.
 
 ### Phase 1: Core Infrastructure & Data
+
 **Rationale:** Establishes foundation for all calculations. Pure functions enable testing without UI complexity. Static data allows frontend-only deployment.
 
 **Delivers:**
+
 - TypeScript interfaces for all data models (ModelSpec, GPUSpec, CalculatorInputs, Results)
 - Static JSON databases (models.json with 20-30 popular models, gpus.json with 15-20 common GPUs)
 - Zod schemas with runtime validation
@@ -142,6 +154,7 @@ Based on combined research, recommended phase structure prioritizes calculation 
 - Unit tests for calculation accuracy
 
 **Avoids:**
+
 - Building UI before calculation logic is validated (saves rework)
 - Database backend complexity (JSON in version control)
 
@@ -152,9 +165,11 @@ Based on combined research, recommended phase structure prioritizes calculation 
 ---
 
 ### Phase 2: MVP Calculator (Inference)
+
 **Rationale:** Delivers minimum viable product - users can answer "will this model fit on my GPU?" Proves architecture with vertical slice before expanding scope.
 
 **Delivers:**
+
 - Basic UI layout (Calculator shell, Header, Footer)
 - Input components (ModelSelector, GPUSelector, QuantizationPicker, ParameterInputs)
 - Output component (VRAMBreakdown with Recharts visualization)
@@ -163,6 +178,7 @@ Based on combined research, recommended phase structure prioritizes calculation 
 - Custom model input for power users
 
 **Addresses features:**
+
 - Model selection database (table stakes)
 - GPU selection database (table stakes)
 - Quantization format selection (table stakes)
@@ -171,6 +187,7 @@ Based on combined research, recommended phase structure prioritizes calculation 
 - Clear result display (table stakes)
 
 **Avoids pitfalls:**
+
 - Quantization overhead (#1) - Apply 1.1-1.3x multipliers in inference engine
 - KV cache scaling (#2) - Expose n_kv_heads parameter, calculate GQA/MQA correctly
 
@@ -181,9 +198,11 @@ Based on combined research, recommended phase structure prioritizes calculation 
 ---
 
 ### Phase 3: Worker Infrastructure & Optimization
+
 **Rationale:** Adds performance layer without changing UI contracts. Prevents blocking on complex calculations (128K context, 70B+ models).
 
 **Delivers:**
+
 - Web Worker implementation (calculation.worker.ts)
 - Worker pool management (size = CPU cores)
 - Updated useCalculation hook (async worker-based)
@@ -191,6 +210,7 @@ Based on combined research, recommended phase structure prioritizes calculation 
 - Loading states and error boundaries
 
 **Uses stack:**
+
 - Web Workers (native browser API)
 - TypeScript worker interfaces (typed postMessage)
 - Zustand middleware for side effects
@@ -202,9 +222,11 @@ Based on combined research, recommended phase structure prioritizes calculation 
 ---
 
 ### Phase 4: Training Support
+
 **Rationale:** Completes table stakes features. Training use case distinct from inference (different memory profile). Many users need fine-tuning estimation.
 
 **Delivers:**
+
 - Fine-tuning calculation engine (finetuning.ts)
 - Training method selection (Full, LoRA, QLoRA)
 - LoRA configuration inputs (rank, alpha)
@@ -214,11 +236,13 @@ Based on combined research, recommended phase structure prioritizes calculation 
 - Training-specific VRAM breakdown (model + gradients + optimizer + activations)
 
 **Addresses features:**
+
 - Fine-tuning VRAM estimation (table stakes)
 - Gradient accumulation calculator (differentiator)
 - Fine-tuning method comparison (differentiator)
 
 **Avoids pitfalls:**
+
 - Optimizer state multiplier (#5) - Separate logic for Full FT (13x model) vs LoRA (1.2-1.5x)
 - Activation memory (#10) - Account for MLP expansion (4x hidden_size)
 - MoE parameters (#3) - Special handling for Mixtral fine-tuning (all experts loaded)
@@ -230,9 +254,11 @@ Based on combined research, recommended phase structure prioritizes calculation 
 ---
 
 ### Phase 5: Multi-GPU Support
+
 **Rationale:** Common production deployment pattern. Enables large model calculations. Requires distinct logic from single-GPU.
 
 **Delivers:**
+
 - Multi-GPU calculation engine (multigpu.ts)
 - GPU count input (1-16)
 - Sharding strategy selection (Tensor Parallel, Pipeline Parallel, Hybrid)
@@ -241,14 +267,17 @@ Based on combined research, recommended phase structure prioritizes calculation 
 - Interconnect notes (NVLink recommended for >4 GPUs)
 
 **Addresses features:**
+
 - Multi-GPU support (table stakes completion)
 - Multi-GPU visualization (differentiator)
 
 **Avoids pitfalls:**
+
 - Naive memory split (#4) - Add 10-15% overhead for replicated components
 - Communication overhead (#11) - Warn when bandwidth insufficient for model size
 
 **Implements architecture:**
+
 - Separate calculation engine (multigpu.ts imports inference.ts, composes results)
 - Worker pool enables parallel calculation for comparison scenarios
 
@@ -259,9 +288,11 @@ Based on combined research, recommended phase structure prioritizes calculation 
 ---
 
 ### Phase 6: Differentiation Features
+
 **Rationale:** Polish and competitive advantages. Lower complexity, high user value. These features distinguish from basic calculators.
 
 **Delivers:**
+
 - KV cache quantization options (FP16/FP8/INT8 cache, separate from model quantization)
 - Optimization framework presets (Unsloth, DeepSpeed ZeRO-2/3, PEFT, FSDP templates)
 - Advanced memory breakdown (separate activations, gradients, optimizer, temporary buffers)
@@ -269,6 +300,7 @@ Based on combined research, recommended phase structure prioritizes calculation 
 - Fine-tuning method comparison view (side-by-side Full vs LoRA vs QLoRA)
 
 **Addresses features:**
+
 - KV cache quantization (differentiator) - Low complexity, high value for long-context
 - Optimization presets (differentiator) - Medium complexity, high user value
 - Advanced breakdown (differentiator) - Medium complexity, educational value
@@ -282,9 +314,11 @@ Based on combined research, recommended phase structure prioritizes calculation 
 ---
 
 ### Phase 7: Advanced Features (Optional)
+
 **Rationale:** If time permits. High complexity or lower ROI. Can defer to v2.
 
 **Potential features:**
+
 - Performance estimation (tokens/sec, TTFT, throughput) - Requires benchmarking database
 - CPU/NVMe offloading estimation - Depends on performance estimation
 - Training cost estimation - Requires performance data + cloud pricing integration
@@ -299,22 +333,26 @@ Based on combined research, recommended phase structure prioritizes calculation 
 ### Phase Ordering Rationale
 
 **Dependency-driven:**
+
 1. Phase 1 (Infrastructure) → Phase 2 (MVP) → Phase 3 (Workers) is strict dependency chain
 2. Phase 4 (Training) and Phase 5 (Multi-GPU) can run in parallel if resources allow (separate engines)
 3. Phase 6 (Differentiation) requires Phase 2-5 complete (reuses all engines)
 
 **Risk-driven:**
+
 - Phase 2 proves core value before expanding scope
 - Phase 3 adds performance without changing contracts (low risk refactor)
 - Phase 4-5 are independent feature expansions (failure doesn't affect other phases)
 
 **Pitfall mitigation:**
+
 - Critical pitfalls (#1, #2) addressed in Phase 1-2 foundation
 - Training pitfalls (#5) isolated to Phase 4
 - Multi-GPU pitfalls (#4) isolated to Phase 5
 - Each phase can be validated against real implementations before next phase
 
 **User value prioritization:**
+
 - Phase 2 delivers to hobbyists (primary persona): "Will X fit on my GPU?"
 - Phase 4 adds data scientists (secondary persona): "Can I fine-tune this?"
 - Phase 5 adds ML engineers (secondary persona): "How should I configure multi-GPU?"
@@ -323,17 +361,20 @@ Based on combined research, recommended phase structure prioritizes calculation 
 ### Research Flags
 
 **Standard patterns (skip `/gsd:research-phase`):**
+
 - **Phase 1:** Data modeling, JSON schemas, TypeScript interfaces are well-documented
 - **Phase 2:** React calculator UIs are common, many examples available
 - **Phase 3:** Web Worker patterns well-established, browser API stable
 - **Phase 6:** UI polish and export features are straightforward implementations
 
 **May need targeted research:**
+
 - **Phase 4 (Training):** Fine-tuning memory formulas should be validated against HuggingFace accelerate docs, DeepSpeed papers. Complexity: LoRA/QLoRA/Full FT have different memory profiles that need verification. Consider `/gsd:research-phase` if formulas uncertain.
 
 - **Phase 5 (Multi-GPU):** Multi-GPU overhead constants (replication, communication buffers) may need research on Megatron-LM, DeepSpeed ZeRO documentation. Tensor Parallel vs Pipeline Parallel efficiency factors need validation. Consider `/gsd:research-phase` if overhead estimates are rough.
 
 **Definitely needs research:**
+
 - **Phase 7 (Performance):** Requires extensive benchmarking database research. Tokens/sec depends on GPU architecture, model size, batch size, quantization. Would need `/gsd:research-phase` with performance benchmarking focus.
 
 ## Confidence Assessment
@@ -352,29 +393,34 @@ Research provides solid foundation for roadmap. Core technology choices are prov
 ### Gaps to Address
 
 **Version verification (before Phase 1):**
+
 - Vite 7.x may not be released (training data showed 5.x latest) - verify current stable version, may need 5.x or 6.x
 - Tailwind CSS 4.x was early release in training - check stability, may need 3.x if v4 unstable
 - React 19 was newly released - verify production readiness, check for major issues
 - Zustand 5.x version check (4.x was latest in training)
 
 **Formula validation (during Phase 4-5):**
+
 - Fine-tuning memory formulas - validate against HuggingFace transformers memory anatomy docs
 - Multi-GPU overhead constants - validate against Megatron-LM, DeepSpeed papers for replication factors
 - MoE model handling - verify with Mixtral/DeepSeek V3 actual measurements
 - Quantization overhead multipliers - test against GPTQ/AWQ/GGUF actual memory usage
 
 **Domain knowledge validation (during implementation):**
+
 - KV cache scaling for GQA/MQA - verify n_kv_heads values for popular models (Llama 3, Mistral, GPT-4)
 - Framework overhead - measure PyTorch/CUDA baseline (500MB-1GB estimate needs confirmation)
 - Activation memory formulas - validate MLP expansion factors (4x hidden_size assumption)
 - Batch size scaling - test padding inefficiency with variable-length sequences
 
 **Data curation (ongoing):**
+
 - Model database needs 20-30 popular models with accurate parameter counts - requires manual curation
 - GPU database needs 15-20 common GPUs with VRAM specs - straightforward from vendor specs
 - Architecture parameters (n_kv_heads, intermediate_size, vocab_size) - extract from Hugging Face model cards
 
 **Testing strategy:**
+
 - Compare calculator results against vLLM memory profiling for common configs
 - Test against HuggingFace accelerate memory estimates
 - Validate quantized model estimates against actual GPTQ/AWQ/GGUF measurements
@@ -383,16 +429,19 @@ Research provides solid foundation for roadmap. Core technology choices are prov
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - **apxml.com/tools/vram-calculator** (fetched 2026-02-09) - Comprehensive competitive analysis, feature landscape, industry expectations. Provided clear table stakes vs differentiators.
 - **Training data on React/TypeScript/Web Workers patterns** (Jan 2025 cutoff) - Established architecture patterns, component composition, state management with Zustand.
 - **raidy project** (provided as baseline) - Sister project architecture alignment for React, TypeScript, Vite, Tailwind, Biome patterns. Reduces cognitive load.
 
 ### Secondary (MEDIUM confidence)
+
 - **Training data on LLM memory calculation patterns** (Jan 2025 cutoff) - VRAM formulas (KV cache, activations, optimizer states), quantization overhead, multi-GPU sharding.
 - **EleutherAI Cookbook references** (fetched 2026-02-09) - Confirms ecosystem tools exist, validates domain patterns.
 - **Training data on calculator application patterns** - Form-heavy UIs, numerical precision requirements, visualization best practices.
 
 ### Tertiary (LOW confidence - flagged for validation)
+
 - **Vite 7.x, Tailwind CSS 4.x versions** - Assumed based on version progression, may not exist or be stable yet. MUST verify official documentation.
 - **Fine-tuning memory formulas** - Based on training data, should validate against current HuggingFace docs, DeepSpeed papers.
 - **Multi-GPU overhead constants** - Rough estimates (10-15% replication, 100-500MB buffers), need validation against Megatron-LM, production systems.
@@ -401,6 +450,7 @@ Research provides solid foundation for roadmap. Core technology choices are prov
 - **Performance estimation approaches** - Tokens/sec formulas would require extensive benchmarking research (deferred to Phase 7).
 
 ### Missing (unable to access)
+
 - **Context7 tool** - Could not verify current React 19, Zustand 5, Vite 7 API documentation
 - **Hugging Face accelerate tool** - Could not access interface to compare features
 - **vram.asmirnov.xyz** - Access blocked, could not analyze competitor
@@ -408,11 +458,12 @@ Research provides solid foundation for roadmap. Core technology choices are prov
 - **Microsoft Learn** - Could not verify current best practices for 2026
 
 **Recommended validation sources:**
-- Official Vite documentation (https://vite.dev) - verify latest stable version
-- Official Tailwind CSS documentation (https://tailwindcss.com) - verify v4 release status
-- Official React documentation (https://react.dev) - verify React 19 stability
+
+- Official Vite documentation (<https://vite.dev>) - verify latest stable version
+- Official Tailwind CSS documentation (<https://tailwindcss.com>) - verify v4 release status
+- Official React documentation (<https://react.dev>) - verify React 19 stability
 - Raidy project's actual package.json - confirm exact versions for alignment
-- Zustand documentation (https://zustand.docs.pmnd.rs) - API patterns
+- Zustand documentation (<https://zustand.docs.pmnd.rs>) - API patterns
 - HuggingFace transformers memory anatomy - formula validation
 - vLLM documentation - memory model validation
 - DeepSpeed/Megatron-LM papers - multi-GPU overhead validation

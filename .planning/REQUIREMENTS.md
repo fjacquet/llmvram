@@ -133,6 +133,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | VIZ-05 | Phase 5 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 36 total
 - Mapped to phases: 36
 - Unmapped: 0

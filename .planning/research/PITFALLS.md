@@ -15,16 +15,19 @@ These mistakes cause estimation errors >20% and can lead to OOM failures in prod
 **What goes wrong:** Calculator assumes 4-bit quantization means exactly 0.5 bytes per parameter (4 bits / 8 bits). Reality: GPTQ adds grouping metadata, zero-point storage, scale factors. AWQ adds activation scales. Actual memory is 0.55-0.65 bytes per parameter for 4-bit models.
 
 **Why it happens:**
+
 - Treating quantization as pure bit-packing
 - Ignoring format-specific metadata
 - Not accounting for alignment padding
 
 **Consequences:**
+
 - 10-30% underestimation for quantized models
 - OOM on models that "should fit"
 - User loses trust in calculator
 
 **Prevention:**
+
 ```
 Quantization memory = (parameters * bits_per_param / 8) * overhead_multiplier
 
@@ -37,6 +40,7 @@ Overhead multipliers:
 ```
 
 **Detection:**
+
 - User reports "model doesn't fit but calculator says it should"
 - Estimates match theory but not real-world measurements
 - Larger errors on smaller quantization (2-bit, 3-bit)
@@ -50,16 +54,19 @@ Overhead multipliers:
 **What goes wrong:** Calculator uses formula `KV_memory = 2 * n_layers * d_model * seq_len`, assuming linear scaling. Reality: With attention mechanisms, effective memory depends on implementation. GQA (Grouped Query Attention) and MQA (Multi-Query Attention) drastically reduce KV cache.
 
 **Why it happens:**
+
 - Using formulas from original Transformer (2017)
 - Not accounting for modern attention optimizations
 - Ignoring architecture-specific KV reduction
 
 **Consequences:**
+
 - Overestimation for GQA/MQA models (Mistral, Llama 3, GPT-4)
 - 2-8x overestimation for MQA models
 - Users think they need more VRAM than required
 
 **Prevention:**
+
 ```
 KV_memory = 2 * n_layers * d_model * seq_len * (n_kv_heads / n_heads)
 
@@ -73,6 +80,7 @@ Example:
 ```
 
 **Detection:**
+
 - Estimates are 2-4x higher than vLLM/TGI actual usage
 - Same context length gives vastly different estimates for different models
 - Missing n_kv_heads parameter in model config
@@ -86,16 +94,19 @@ Example:
 **What goes wrong:** Calculator loads entire model weight into VRAM calculation. Reality: MoE models (Mixtral, DeepSeek V3) only activate a subset of experts per token. But ALL expert weights must be in VRAM, just not all activated simultaneously for compute.
 
 **Why it happens:**
+
 - Confusing "active parameters" with "loaded parameters"
 - Marketing materials say "13B active, 47B total" → assuming 13B memory
 - Not understanding sparse vs dense memory requirements
 
 **Consequences:**
+
 - Massive underestimation (up to 4x)
 - Mixtral 8x7B calculated as 13B instead of ~47B
 - Complete OOM on models that "should fit easily"
 
 **Prevention:**
+
 ```
 MoE memory calculation:
 
@@ -109,6 +120,7 @@ Activation memory = based on active_parameters (lower than dense)
 ```
 
 **Detection:**
+
 - "13B MoE" calculator result similar to dense 13B
 - Missing expert count / experts-per-token in config
 - Estimates way below Mixtral/Qwen MoE actual measurements
@@ -122,16 +134,19 @@ Activation memory = based on active_parameters (lower than dense)
 **What goes wrong:** Calculator divides memory by GPU count: `memory_per_gpu = total_memory / n_gpus`. Reality: Tensor parallelism has replication overhead (embeddings, layernorms), pipeline parallelism has activation stashing, and there's communication buffer overhead.
 
 **Why it happens:**
+
 - Assuming perfect sharding
 - Ignoring replicated components
 - Not accounting for interconnect buffers
 
 **Consequences:**
+
 - 10-20% underestimation for multi-GPU setups
 - OOM on last GPU in pipeline
 - Users frustrated by "2x GPU should be 2x model size"
 
 **Prevention:**
+
 ```
 Tensor Parallelism overhead:
 - Embeddings: replicated on all GPUs (typically 2-5% of model)
@@ -148,6 +163,7 @@ Per-GPU overhead:
 ```
 
 **Detection:**
+
 - Multi-GPU estimates exactly total/n_gpus
 - Missing TP/PP strategy selection
 - Same estimate for 2x24GB and 1x48GB (should differ)
@@ -161,16 +177,19 @@ Per-GPU overhead:
 **What goes wrong:** Calculator uses fixed "AdamW = 8 bytes per parameter" rule. Reality: Optimizer memory depends on trainable parameter count, not total parameters. With LoRA/QLoRA, only adapter weights have optimizer states.
 
 **Why it happens:**
+
 - Using full fine-tuning formulas for PEFT
 - Not distinguishing trainable vs frozen parameters
 - Ignoring gradient checkpointing impact
 
 **Consequences:**
+
 - 10-100x overestimation for LoRA/QLoRA
 - Users think fine-tuning is impossible
 - Massive underestimation for full fine-tuning (missing gradients)
 
 **Prevention:**
+
 ```
 Full Fine-tuning (all parameters trainable):
 - Model weights: params * bytes_per_param
@@ -192,6 +211,7 @@ QLoRA:
 ```
 
 **Detection:**
+
 - LoRA estimate same as full fine-tuning
 - Missing rank parameter for LoRA
 - No distinction between trainable/frozen parameters
@@ -205,16 +225,19 @@ QLoRA:
 **What goes wrong:** Calculator scales KV cache linearly: doubling context = doubling memory. Reality: Attention computation memory scales quadratically with sequence length in standard implementations, though KV cache is linear. Flash Attention changes this.
 
 **Why it happens:**
+
 - Focusing only on KV cache (which is linear)
 - Ignoring attention matrix materialization
 - Not accounting for Flash Attention optimization
 
 **Consequences:**
+
 - Underestimation at long contexts (32K+)
 - Missing memory spike during prefill phase
 - Wrong estimates for training vs inference
 
 **Prevention:**
+
 ```
 Inference with Flash Attention:
 - KV cache: linear with seq_len ✓
@@ -233,6 +256,7 @@ Training:
 ```
 
 **Detection:**
+
 - Same memory estimate for 4K and 128K context (should be 32x)
 - No Flash Attention toggle
 - Missing prefill vs decode distinction
@@ -246,16 +270,19 @@ Training:
 **What goes wrong:** Calculator assumes memory scales linearly with batch size. Reality: Model weights are constant, KV cache scales linearly with batch, but activations scale with batch AND sequence length. Padding inefficiency amplifies this.
 
 **Why it happens:**
+
 - Formula: `total = model_weights + batch_size * per_sample_memory`
 - Treating all components as batch-dependent
 - Ignoring padding waste in batched inference
 
 **Consequences:**
+
 - Underestimation for large batches
 - Missing "sweet spot" batch size guidance
 - No warning about padding overhead
 
 **Prevention:**
+
 ```
 Memory breakdown by batch scaling:
 
@@ -278,6 +305,7 @@ Padding waste:
 ```
 
 **Detection:**
+
 - Batch=2 estimate is exactly 2x batch=1
 - No padding efficiency consideration
 - Missing dynamic batching explanation
@@ -293,6 +321,7 @@ Padding waste:
 **What goes wrong:** Calculator has single "GGUF" quantization option. Reality: GGUF has 20+ quantization variants (Q4_0, Q4_K_M, Q5_K_S, Q6_K, IQ2_XXS) with 2-50% memory differences.
 
 **Prevention:**
+
 - Expose GGUF subtype selection
 - Q4_0: 4.5 bits/param, Q4_K_M: 4.8 bits/param, Q5_K_M: 5.6 bits/param
 - Link to GGUF quantization guide
@@ -306,6 +335,7 @@ Padding waste:
 **What goes wrong:** Calculator estimates pure model memory. Reality: PyTorch has 500MB-1GB baseline overhead, CUDA context 200-500MB, vLLM paged attention 1-2GB buffer.
 
 **Prevention:**
+
 ```
 Framework overhead:
 - PyTorch: 500MB-1GB
@@ -317,6 +347,7 @@ Add to every calculation: base_overhead + framework_overhead
 ```
 
 **Detection:**
+
 - Calculator shows 23.5GB for model that needs 24GB GPU
 - No "available memory" vs "total memory" distinction
 
@@ -329,6 +360,7 @@ Add to every calculation: base_overhead + framework_overhead
 **What goes wrong:** Calculator uses `activations = batch * seq_len * hidden_size * 4`. Reality: Different layers have different activation sizes (MLP expands to intermediate_size, often 4x hidden_size).
 
 **Prevention:**
+
 ```
 Per-layer activation memory:
 - Attention: batch * seq_len * hidden_size
@@ -350,6 +382,7 @@ With gradient checkpointing:
 **What goes wrong:** Multi-GPU calculator assumes GPUs work independently. Reality: Tensor parallelism requires all-reduce after each layer (~100GB/s bandwidth needed for 70B model), pipeline parallelism has bubble overhead.
 
 **Prevention:**
+
 - Add interconnect requirement notes (NVLink vs PCIe)
 - Warn when model size / n_gpus / bandwidth > latency budget
 - Show TP vs PP efficiency trade-offs
@@ -363,6 +396,7 @@ With gradient checkpointing:
 **What goes wrong:** Calculator allows "load FP16 model, train in BF16" without warning. Reality: Conversion has temporary memory spike (need both versions in VRAM briefly), and mixed precision has FP32 master weights.
 
 **Prevention:**
+
 - Warn on precision mismatch
 - Mixed precision: add FP32 master weights (4x optimizer memory)
 - Show conversion memory spike
@@ -375,7 +409,7 @@ With gradient checkpointing:
 
 ### Pitfall 13: Vocabulary Size Impact Ignored
 
-**What goes wrong:** Calculator doesn't expose vocab_size parameter. Reality: Embedding and LM head memory = vocab_size * hidden_size * bytes_per_param. Models with 250K vocab (DeepSeek) use 10-15% more memory than 32K vocab models.
+**What goes wrong:** Calculator doesn't expose vocab_size parameter. Reality: Embedding and LM head memory = vocab_size *hidden_size* bytes_per_param. Models with 250K vocab (DeepSeek) use 10-15% more memory than 32K vocab models.
 
 **Prevention:** Include vocab_size in architecture config, calculate embedding memory separately
 
@@ -387,7 +421,7 @@ With gradient checkpointing:
 
 **What goes wrong:** RoPE (Rotary Position Embeddings) precomputed tables cached in VRAM. At 128K context, can be 500MB-2GB.
 
-**Prevention:** Add RoPE cache = seq_len * hidden_size * 4 bytes (fp32)
+**Prevention:** Add RoPE cache = seq_len *hidden_size* 4 bytes (fp32)
 
 **Phase mapping:** Phase 2 (Architecture Support) - Optional
 
@@ -435,6 +469,7 @@ To prevent these pitfalls:
 ## Sources
 
 **Confidence note:** This document was created from training data (January 2025 cutoff) without access to verification tools. All findings should be validated against:
+
 - vLLM documentation (memory management, PagedAttention)
 - HuggingFace transformers documentation (model architectures)
 - DeepSpeed and Megatron-LM papers (multi-GPU strategies)
@@ -442,8 +477,9 @@ To prevent these pitfalls:
 - Model cards on HuggingFace (architecture specifics for Llama 3, Mistral, Mixtral, DeepSeek)
 
 Recommended validation sources:
-- https://github.com/vllm-project/vllm (actual memory profiling)
-- https://huggingface.co/docs/transformers/main/en/model_memory_anatomy
-- https://arxiv.org/abs/2205.05198 (FlashAttention paper)
-- https://arxiv.org/abs/1910.02054 (Megatron-LM, model parallelism)
-- https://github.com/ggerganov/llama.cpp/blob/master/examples/quantize/README.md
+
+- <https://github.com/vllm-project/vllm> (actual memory profiling)
+- <https://huggingface.co/docs/transformers/main/en/model_memory_anatomy>
+- <https://arxiv.org/abs/2205.05198> (FlashAttention paper)
+- <https://arxiv.org/abs/1910.02054> (Megatron-LM, model parallelism)
+- <https://github.com/ggerganov/llama.cpp/blob/master/examples/quantize/README.md>
