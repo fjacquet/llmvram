@@ -183,3 +183,64 @@ export interface InterconnectValidation {
   /** Resolved interconnect specification */
   interconnect: InterconnectSpec
 }
+
+/**
+ * Offload target types
+ *
+ * - cpu-ram: Offload to system memory via PCIe (2-5x slower for small amounts, 15-50x for large)
+ * - nvme: Offload to NVMe SSD storage (10-100x slower, for extreme memory pressure)
+ */
+export type OffloadTarget = 'cpu-ram' | 'nvme'
+
+/**
+ * Offload mode determines how to calculate offload amount
+ *
+ * - percentage: Offload a percentage of model weights (0-100%)
+ * - layers: Offload a specific number of layers
+ */
+export type OffloadMode = 'percentage' | 'layers'
+
+/**
+ * Configuration for CPU/RAM or NVMe offloading
+ *
+ * Enables reducing GPU VRAM usage by offloading model weights and/or KV cache
+ * to system memory or NVMe storage at the cost of inference speed.
+ */
+export interface OffloadingConfig {
+  /** Whether offloading is enabled */
+  enabled: boolean
+  /** Target for offloaded memory */
+  target: OffloadTarget
+  /** Mode for calculating offload amount */
+  mode: OffloadMode
+  /** 0-100 percentage of model weights to offload */
+  offloadPercentage: number
+  /** Number of layers to offload (alternative to percentage) */
+  offloadLayers: number
+  /** Whether to offload KV cache to CPU/RAM */
+  kvCacheOffload: boolean
+}
+
+/**
+ * VRAM breakdown after applying offloading
+ *
+ * Shows memory remaining on GPU vs offloaded to CPU/RAM or NVMe,
+ * with performance impact estimate.
+ */
+export interface OffloadedVRAMBreakdown {
+  /** VRAM remaining on GPU after offloading */
+  onDevice: InferenceVRAMBreakdown
+  /** Memory offloaded to CPU/RAM or NVMe */
+  offloaded: {
+    /** Model weights offloaded */
+    modelWeights: Decimal
+    /** KV cache offloaded */
+    kvCache: Decimal
+    /** Total offloaded memory */
+    total: Decimal
+  }
+  /** Estimated performance impact description */
+  performanceImpact: string
+  /** Estimated slowdown multiplier (e.g. 2.0 = 2x slower) */
+  slowdownFactor: number
+}
