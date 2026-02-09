@@ -1,8 +1,26 @@
+import { Layout } from '@components/layout/Layout'
+import { useDarkMode } from '@hooks/useDarkMode'
+import { Toaster } from 'sonner'
+
+/**
+ * Root application component
+ *
+ * Initializes dark mode DOM sync and renders the main layout with toast notifications
+ */
 export default function App() {
+  // Initialize dark mode DOM sync
+  useDarkMode()
+
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <h1 className="text-3xl font-bold text-gray-900">LLM VRAM Calculator</h1>
-      <p className="mt-2 text-gray-600">Foundation ready - Phase 1</p>
-    </div>
+    <>
+      <Layout />
+      <Toaster
+        richColors
+        position="top-right"
+        toastOptions={{
+          className: 'dark:bg-gray-800 dark:text-white',
+        }}
+      />
+    </>
   )
 }
