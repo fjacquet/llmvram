@@ -95,48 +95,48 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | — | Pending |
-| DATA-02 | — | Pending |
-| DATA-03 | — | Pending |
-| DATA-04 | — | Pending |
-| DATA-05 | — | Pending |
-| DATA-06 | — | Pending |
-| DATA-07 | — | Pending |
-| INFER-01 | — | Pending |
-| INFER-02 | — | Pending |
-| INFER-03 | — | Pending |
-| INFER-04 | — | Pending |
-| INFER-05 | — | Pending |
-| INFER-06 | — | Pending |
-| INFER-07 | — | Pending |
-| INFER-08 | — | Pending |
-| INFER-09 | — | Pending |
-| MGPU-01 | — | Pending |
-| MGPU-02 | — | Pending |
-| MGPU-03 | — | Pending |
-| MGPU-04 | — | Pending |
-| MGPU-05 | — | Pending |
-| MGPU-06 | — | Pending |
-| VIZ-01 | — | Pending |
-| VIZ-02 | — | Pending |
-| VIZ-03 | — | Pending |
-| VIZ-04 | — | Pending |
-| VIZ-05 | — | Pending |
-| VIZ-06 | — | Pending |
-| VIZ-07 | — | Pending |
-| INFRA-01 | — | Pending |
-| INFRA-02 | — | Pending |
-| INFRA-03 | — | Pending |
-| INFRA-04 | — | Pending |
-| INFRA-05 | — | Pending |
-| INFRA-06 | — | Pending |
-| INFRA-07 | — | Pending |
+| INFRA-01 | Phase 1 | Pending |
+| INFRA-02 | Phase 1 | Pending |
+| INFRA-03 | Phase 1 | Pending |
+| INFRA-04 | Phase 1 | Pending |
+| INFRA-05 | Phase 1 | Pending |
+| INFRA-06 | Phase 1 | Pending |
+| DATA-01 | Phase 1 | Pending |
+| DATA-02 | Phase 1 | Pending |
+| DATA-03 | Phase 1 | Pending |
+| DATA-04 | Phase 1 | Pending |
+| DATA-05 | Phase 1 | Pending |
+| DATA-06 | Phase 1 | Pending |
+| DATA-07 | Phase 1 | Pending |
+| INFRA-07 | Phase 2 | Pending |
+| INFER-01 | Phase 2 | Pending |
+| INFER-02 | Phase 2 | Pending |
+| INFER-03 | Phase 2 | Pending |
+| INFER-04 | Phase 2 | Pending |
+| INFER-05 | Phase 2 | Pending |
+| INFER-06 | Phase 2 | Pending |
+| INFER-07 | Phase 2 | Pending |
+| INFER-08 | Phase 2 | Pending |
+| INFER-09 | Phase 2 | Pending |
+| VIZ-01 | Phase 3 | Pending |
+| VIZ-02 | Phase 3 | Pending |
+| VIZ-03 | Phase 3 | Pending |
+| VIZ-06 | Phase 3 | Pending |
+| VIZ-07 | Phase 3 | Pending |
+| MGPU-01 | Phase 4 | Pending |
+| MGPU-02 | Phase 4 | Pending |
+| MGPU-03 | Phase 4 | Pending |
+| MGPU-04 | Phase 4 | Pending |
+| MGPU-05 | Phase 4 | Pending |
+| MGPU-06 | Phase 4 | Pending |
+| VIZ-04 | Phase 5 | Pending |
+| VIZ-05 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 36 total
-- Mapped to phases: 0
-- Unmapped: 36 (pending roadmap creation)
+- Mapped to phases: 36
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-09*
-*Last updated: 2026-02-09 after initial definition*
+*Last updated: 2026-02-09 after roadmap creation*
