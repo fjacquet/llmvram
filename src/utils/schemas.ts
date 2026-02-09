@@ -8,7 +8,7 @@ export const GPUSchema = z.object({
   vram_gb: z.number().positive(),
   memory_bandwidth_gbps: z.number().positive(),
   memory_type: z.string(),
-  bus_width: z.number().int().positive(),
+  bus_width: z.number().int().nonnegative(), // 0 for unified memory (Apple Silicon)
 
   // Performance (optional for inference speed estimation)
   fp16_tflops: z.number().positive().optional(),
@@ -16,7 +16,9 @@ export const GPUSchema = z.object({
 
   // Power and interconnect
   tdp_watts: z.number().positive().optional(),
-  interconnect: z.enum(['none', 'nvlink', 'nvlink-4', 'infinity-fabric', 'unified']).optional(),
+  interconnect: z
+    .enum(['none', 'nvlink', 'nvlink-4', 'nvlink-5', 'infinity-fabric', 'unified'])
+    .optional(),
 
   // Classification
   tier: z.enum(['datacenter', 'consumer', 'apple-silicon']),
