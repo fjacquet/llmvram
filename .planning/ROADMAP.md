@@ -13,7 +13,7 @@ This roadmap transforms the LLM VRAM Calculator from concept to functional brows
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation & Data** - Project infrastructure and static databases
-- [ ] **Phase 2: Inference Engine** - Core calculation logic with Web Workers
+- [x] **Phase 2: Inference Engine** - Core calculation logic with Web Workers
 - [ ] **Phase 3: Core UI** - Basic calculator interface with visualization
 - [ ] **Phase 4: Multi-GPU Support** - Multi-GPU calculation and distribution
 - [ ] **Phase 5: Sharing & Comparison** - URL persistence and side-by-side comparison
@@ -51,10 +51,10 @@ Plans:
 **Plans**: 4 plans in 3 waves
 
 Plans:
-- [ ] 02-01-PLAN.md — Engine types, constants, and quantization engine (Wave 1)
-- [ ] 02-02-PLAN.md — KV cache and inference VRAM engine (Wave 2)
-- [ ] 02-03-PLAN.md — Performance estimation engine with roofline model (Wave 2)
-- [ ] 02-04-PLAN.md — Web Worker integration and React hook (Wave 3)
+- [x] 02-01-PLAN.md — Engine types, constants, and quantization engine (Wave 1)
+- [x] 02-02-PLAN.md — KV cache and inference VRAM engine (Wave 2)
+- [x] 02-03-PLAN.md — Performance estimation engine with roofline model (Wave 2)
+- [x] 02-04-PLAN.md — Web Worker integration and React hook (Wave 3)
 
 ### Phase 3: Core UI
 **Goal**: Users can calculate and visualize VRAM for single-GPU configurations
@@ -110,7 +110,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Data | 4/4 | Complete | 2026-02-09 |
-| 2. Inference Engine | 0/4 | Planning complete | - |
+| 2. Inference Engine | 4/4 | Complete | 2026-02-09 |
 | 3. Core UI | 0/TBD | Not started | - |
 | 4. Multi-GPU Support | 0/TBD | Not started | - |
 | 5. Sharing & Comparison | 0/TBD | Not started | - |
