@@ -106,7 +106,21 @@ export function Recommendations({
     })
   }
 
-  // 4. Use multiple GPUs (always show)
+  // 4. Enable offloading to CPU/RAM or NVMe
+  const offloadGB = deficit
+  if (offloadGB > 0) {
+    const offloadTarget = offloadGB <= 32 ? 'CPU/RAM' : 'CPU/RAM + NVMe SSD'
+    const perfNote =
+      offloadGB <= 8 ? '~2-5x slower' : offloadGB <= 24 ? '~5-15x slower' : '~15-50x slower'
+
+    recommendations.push({
+      title: `Enable offloading to ${offloadTarget}`,
+      description: `Offload ~${offloadGB.toFixed(1)} GB of layers to system memory (llama.cpp --n-gpu-layers, DeepSpeed ZeRO-Offload)`,
+      impact: `Enables running but ${perfNote} due to PCIe bandwidth`,
+    })
+  }
+
+  // 5. Use multiple GPUs (always show)
   const totalGB = breakdown.total.toNumber()
   const gpusNeeded = Math.ceil(totalGB / gpu.vram_gb)
 
@@ -116,7 +130,7 @@ export function Recommendations({
     impact: 'Available in Phase 4 (multi-GPU support)',
   })
 
-  // 5. Upgrade GPU (show if a larger common GPU exists)
+  // 6. Upgrade GPU (show if a larger common GPU exists)
   const vramGB = gpu.vram_gb
   let upgradeRecommendation = ''
 
