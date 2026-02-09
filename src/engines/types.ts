@@ -106,3 +106,80 @@ export const CalculationInputSchema = z.object({
  * Type-safe calculation input (inferred from Zod schema)
  */
 export type CalculationInput = z.infer<typeof CalculationInputSchema>
+
+/**
+ * Multi-GPU sharding strategies
+ *
+ * - tensor-parallel: Shard model weights, KV cache, and activations across GPUs
+ *   (requires high-bandwidth interconnect like NVLink)
+ * - pipeline-parallel: Distribute layers across GPUs, each GPU processes different
+ *   stages of the pipeline (lower bandwidth requirements, higher latency)
+ */
+export type ShardingStrategy = 'tensor-parallel' | 'pipeline-parallel'
+
+/**
+ * GPU interconnect types with different bandwidth characteristics
+ *
+ * - nvlink-4: 4th gen NVLink (900 GB/s bidirectional)
+ * - nvlink-5: 5th gen NVLink (1800 GB/s bidirectional)
+ * - pcie-4: PCIe 4.0 x16 (64 GB/s bidirectional)
+ * - pcie-5: PCIe 5.0 x16 (128 GB/s bidirectional)
+ * - none: No multi-GPU support (single GPU only)
+ */
+export type InterconnectType = 'nvlink-4' | 'nvlink-5' | 'pcie-4' | 'pcie-5' | 'none'
+
+/**
+ * Interconnect specification with bandwidth and recommended limits
+ */
+export interface InterconnectSpec {
+  type: InterconnectType
+  bandwidthGBps: number
+  recommendedMaxTPDegree: number
+}
+
+/**
+ * Multi-GPU VRAM breakdown showing per-GPU memory distribution
+ *
+ * All values in GB (gigabytes) using Decimal.js for precision
+ */
+export interface MultiGPUVRAMBreakdown {
+  /** Number of GPUs in the configuration */
+  numGPUs: number
+  /** Sharding strategy used */
+  strategy: ShardingStrategy
+  /** Per-GPU memory breakdown */
+  perGPU: {
+    /** Model weights allocated to this GPU */
+    modelWeights: Decimal
+    /** KV cache allocated to this GPU */
+    kvCache: Decimal
+    /** Activation memory for this GPU */
+    activations: Decimal
+    /** Framework overhead for this GPU */
+    frameworkOverhead: Decimal
+    /** Communication overhead (NCCL buffers, gradient sync) */
+    communicationOverhead: Decimal
+    /** Total memory required per GPU */
+    total: Decimal
+  }
+  /** Memory replicated across all GPUs (embeddings, layer norms for TP) */
+  replicatedMemory: Decimal
+  /** Total VRAM required per GPU (includes all components) */
+  totalPerGPU: Decimal
+  /** GPU utilization percentage (totalPerGPU / gpuVramGB * 100) */
+  utilizationPercent: Decimal
+  /** Single-GPU baseline for comparison */
+  singleGPUBaseline: Decimal
+}
+
+/**
+ * Interconnect validation result
+ */
+export interface InterconnectValidation {
+  /** True if configuration is valid */
+  valid: boolean
+  /** Warning message if configuration is suboptimal (null if no warning) */
+  warning: string | null
+  /** Resolved interconnect specification */
+  interconnect: InterconnectSpec
+}

@@ -1,5 +1,10 @@
 import Decimal from 'decimal.js'
-import type { KVCachePrecision, QuantizationFormat } from './types'
+import type {
+  InterconnectSpec,
+  InterconnectType,
+  KVCachePrecision,
+  QuantizationFormat,
+} from './types'
 
 /**
  * Framework overhead for PyTorch + CUDA runtime
@@ -88,3 +93,96 @@ export const KV_PRECISION_BYTES: Record<KVCachePrecision, Decimal> = {
  * Binary units (GiB) match GPU VRAM reporting (NVIDIA-SMI, etc.)
  */
 export const BYTES_PER_GB = new Decimal(1024).pow(3)
+
+/**
+ * NCCL buffer memory per peer GPU (200MB per peer)
+ *
+ * NCCL (NVIDIA Collective Communications Library) allocates buffers for
+ * inter-GPU communication in tensor parallelism. Each GPU needs buffers
+ * for each peer GPU in the tensor parallel group.
+ *
+ * For N GPUs: NCCL overhead = 0.2 GB * (N-1) peers
+ *
+ * Reference: NVIDIA NCCL documentation on buffer allocation
+ */
+export const NCCL_BUFFER_PER_PEER_GB = new Decimal(0.2)
+
+/**
+ * Embedding weight fraction of total model weights (~3%)
+ *
+ * In tensor parallelism, embeddings must be replicated across all GPUs
+ * (not sharded) for efficient lookup. This constant estimates the fraction
+ * of model weights devoted to embeddings.
+ *
+ * Used in conjunction with layer norm memory for replicated memory calculation.
+ */
+export const EMBEDDING_WEIGHT_FRACTION = new Decimal(0.03)
+
+/**
+ * Tensor parallelism communication overhead (12%)
+ *
+ * TP requires all-reduce operations for gradient synchronization and
+ * activation passing. This adds ~12% memory overhead for communication buffers.
+ */
+export const TP_COMMUNICATION_OVERHEAD = new Decimal(0.12)
+
+/**
+ * Pipeline parallelism communication overhead (5%)
+ *
+ * PP has lower communication overhead than TP since it only passes activations
+ * between pipeline stages (no all-reduce). ~5% overhead for activation buffers.
+ */
+export const PP_COMMUNICATION_OVERHEAD = new Decimal(0.05)
+
+/**
+ * Pipeline parallelism activation stashing overhead (12%)
+ *
+ * PP requires stashing activations from forward pass for backward pass across
+ * pipeline stages. This adds ~12% to the base activation memory.
+ */
+export const PP_ACTIVATION_STASHING_OVERHEAD = new Decimal(0.12)
+
+/**
+ * MoE multi-GPU communication overhead (15% extra)
+ *
+ * MoE models have additional expert routing communication overhead in multi-GPU
+ * setups. This multiplier is applied on top of base TP/PP overhead.
+ *
+ * For TP with MoE: communicationOverhead = weightsPerGPU * 0.12 * 1.15
+ */
+export const MOE_MULTI_GPU_OVERHEAD = new Decimal(0.15)
+
+/**
+ * Interconnect specifications for different GPU interconnect types
+ *
+ * Bandwidth values are bidirectional (total read+write).
+ * recommendedMaxTPDegree is the practical limit for tensor parallelism
+ * before communication overhead dominates.
+ */
+export const INTERCONNECT_SPECS: Record<InterconnectType, InterconnectSpec> = {
+  'nvlink-4': {
+    type: 'nvlink-4',
+    bandwidthGBps: 900,
+    recommendedMaxTPDegree: 8,
+  },
+  'nvlink-5': {
+    type: 'nvlink-5',
+    bandwidthGBps: 1800,
+    recommendedMaxTPDegree: 8,
+  },
+  'pcie-4': {
+    type: 'pcie-4',
+    bandwidthGBps: 64,
+    recommendedMaxTPDegree: 2,
+  },
+  'pcie-5': {
+    type: 'pcie-5',
+    bandwidthGBps: 128,
+    recommendedMaxTPDegree: 4,
+  },
+  none: {
+    type: 'none',
+    bandwidthGBps: 0,
+    recommendedMaxTPDegree: 1,
+  },
+}
