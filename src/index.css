@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-surface: #ffffff;
+  --color-surface-dark: #0f172a;
+  --color-panel: #f8fafc;
+  --color-panel-dark: #1e293b;
+}
