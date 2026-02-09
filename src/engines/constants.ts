@@ -24,6 +24,10 @@ export const FRAMEWORK_OVERHEAD_GB = new Decimal(1.0)
  * Float formats: Standard precision
  * - fp32: 4 bytes, fp16/bf16: 2 bytes
  *
+ * NVIDIA FP formats (Blackwell/Hopper):
+ * - nvfp6: 6-bit FP (E3M2) → 0.75 bytes/param
+ * - nvfp4: 4-bit FP (E2M1) with FP8 scaling → ~4.5 bpp effective → 0.5625 bytes/param
+ *
  * Integer formats: Native precision
  * - int8: 1 byte, int4/nf4: 0.5 bytes
  *
@@ -31,22 +35,35 @@ export const FRAMEWORK_OVERHEAD_GB = new Decimal(1.0)
  * - gptq: 0.6 bytes (4-bit + 1.2x overhead for codebooks/scales)
  * - awq: 0.6 bytes (4-bit + 1.2x overhead for activation-aware quantization)
  *
- * GGUF formats (empirical bits-per-parameter, NOT theoretical):
- * - q4_0: 4.5 bpp → 0.5625 bytes
- * - q4_k_m: 4.8 bpp → 0.6 bytes (includes K-quantization metadata)
- * - q5_k_m: 5.6 bpp → 0.7 bytes
- * - q6_k: 6.5 bpp → 0.8125 bytes
- * - q8_0: 8.5 bpp → 1.0625 bytes
+ * GGUF formats (empirical bits-per-parameter from llama.cpp block sizes):
+ * Computed as: type_size_bytes * 8 / block_size
+ * - q2_k:   block 256, size 84 → 2.625 bpp → 0.328 bytes
+ * - q3_k_s: block 256, size 110 → 3.4375 bpp → 0.430 bytes
+ * - q3_k_m: mixed quantization → ~3.9 bpp → 0.489 bytes
+ * - q3_k_l: mixed quantization → ~4.13 bpp → 0.516 bytes
+ * - q4_0:   block 32, size 18 → 4.5 bpp → 0.5625 bytes
+ * - q4_k_s: block 256, size 144 → 4.5 bpp → 0.5625 bytes
+ * - q4_k_m: mixed quantization → ~4.8 bpp → 0.6 bytes
+ * - q5_0:   block 32, size 22 → 5.5 bpp → 0.6875 bytes
+ * - q5_k_s: block 256, size 176 → 5.5 bpp → 0.6875 bytes
+ * - q5_k_m: mixed quantization → ~5.69 bpp → 0.711 bytes
+ * - q6_k:   block 256, size 210 → 6.5625 bpp → 0.820 bytes
+ * - q8_0:   block 32, size 34 → 8.5 bpp → 1.0625 bytes
  *
  * Sources:
  * - GPTQ/AWQ overhead: localaimaster.com/gptq-vs-awq-quantization-methods (INFER-01)
- * - GGUF empirical bpp: Artefact2 gist github.com/Artefact2/d7dc977a6c7288ac784cab80e3f3a700 (INFER-02)
+ * - GGUF block sizes: llama.cpp ggml-common.h (INFER-02)
+ * - NVIDIA FP formats: TensorRT-LLM documentation
  */
 export const BYTES_PER_PARAMETER: Record<QuantizationFormat, Decimal> = {
   // Float formats
   fp32: new Decimal(4.0),
   fp16: new Decimal(2.0),
   bf16: new Decimal(2.0),
+
+  // NVIDIA FP formats
+  nvfp6: new Decimal(0.75), // 6-bit FP (E3M2)
+  nvfp4: new Decimal(0.5625), // 4-bit FP (E2M1) + FP8 scales → ~4.5 bpp
 
   // Integer formats
   int8: new Decimal(1.0),
@@ -57,12 +74,19 @@ export const BYTES_PER_PARAMETER: Record<QuantizationFormat, Decimal> = {
   gptq: new Decimal(0.6), // 0.5 * 1.2
   awq: new Decimal(0.6), // 0.5 * 1.2
 
-  // GGUF formats (empirical bpp / 8)
-  'gguf-q4_0': new Decimal(0.5625), // 4.5 / 8
-  'gguf-q4_k_m': new Decimal(0.6), // 4.8 / 8
-  'gguf-q5_k_m': new Decimal(0.7), // 5.6 / 8
-  'gguf-q6_k': new Decimal(0.8125), // 6.5 / 8
-  'gguf-q8_0': new Decimal(1.0625), // 8.5 / 8
+  // GGUF formats (empirical bpp / 8, from llama.cpp block sizes)
+  'gguf-q8_0': new Decimal(1.0625), // 8.5 bpp
+  'gguf-q6_k': new Decimal(0.82), // 6.5625 bpp
+  'gguf-q5_k_s': new Decimal(0.6875), // 5.5 bpp
+  'gguf-q5_k_m': new Decimal(0.711), // 5.69 bpp
+  'gguf-q5_0': new Decimal(0.6875), // 5.5 bpp
+  'gguf-q4_k_s': new Decimal(0.5625), // 4.5 bpp
+  'gguf-q4_k_m': new Decimal(0.6), // 4.8 bpp
+  'gguf-q4_0': new Decimal(0.5625), // 4.5 bpp
+  'gguf-q3_k_l': new Decimal(0.516), // 4.13 bpp
+  'gguf-q3_k_m': new Decimal(0.489), // 3.9 bpp
+  'gguf-q3_k_s': new Decimal('0.430'), // 3.44 bpp
+  'gguf-q2_k': new Decimal(0.328), // 2.625 bpp
 }
 
 /**

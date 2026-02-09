@@ -2,12 +2,13 @@ import type Decimal from 'decimal.js'
 import { z } from 'zod'
 
 /**
- * All 13 supported quantization formats for model weights
+ * All supported quantization formats for model weights
  *
  * Float formats: fp32, fp16, bf16
+ * NVIDIA FP formats: nvfp4 (E2M1), nvfp6 (E3M2) — Blackwell/Hopper
  * Integer formats: int8, int4, nf4
  * Compressed formats with overhead: gptq, awq (4-bit with 1.2x overhead)
- * GGUF variants: q4_0, q4_k_m, q5_k_m, q6_k, q8_0 (empirical bits-per-parameter)
+ * GGUF variants: q2_k through q8_0 (empirical bits-per-parameter from llama.cpp)
  *
  * Reference: .planning/research/PITFALLS.md - Quantization overhead section
  */
@@ -15,16 +16,25 @@ export type QuantizationFormat =
   | 'fp32'
   | 'fp16'
   | 'bf16'
+  | 'nvfp6'
+  | 'nvfp4'
   | 'int8'
   | 'int4'
   | 'nf4'
   | 'gptq'
   | 'awq'
-  | 'gguf-q4_0'
-  | 'gguf-q4_k_m'
-  | 'gguf-q5_k_m'
-  | 'gguf-q6_k'
   | 'gguf-q8_0'
+  | 'gguf-q6_k'
+  | 'gguf-q5_k_s'
+  | 'gguf-q5_k_m'
+  | 'gguf-q5_0'
+  | 'gguf-q4_k_s'
+  | 'gguf-q4_k_m'
+  | 'gguf-q4_0'
+  | 'gguf-q3_k_l'
+  | 'gguf-q3_k_m'
+  | 'gguf-q3_k_s'
+  | 'gguf-q2_k'
 
 /**
  * KV cache quantization precision formats
@@ -87,16 +97,25 @@ export const CalculationInputSchema = z.object({
     'fp32',
     'fp16',
     'bf16',
+    'nvfp6',
+    'nvfp4',
     'int8',
     'int4',
     'nf4',
     'gptq',
     'awq',
-    'gguf-q4_0',
-    'gguf-q4_k_m',
-    'gguf-q5_k_m',
-    'gguf-q6_k',
     'gguf-q8_0',
+    'gguf-q6_k',
+    'gguf-q5_k_s',
+    'gguf-q5_k_m',
+    'gguf-q5_0',
+    'gguf-q4_k_s',
+    'gguf-q4_k_m',
+    'gguf-q4_0',
+    'gguf-q3_k_l',
+    'gguf-q3_k_m',
+    'gguf-q3_k_s',
+    'gguf-q2_k',
   ]),
   /** KV cache quantization (defaults to fp16) */
   kvQuantization: z.enum(['fp16', 'fp8', 'int8', 'int4']).default('fp16'),

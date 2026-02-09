@@ -3,12 +3,16 @@ import type { QuantizationFormat } from '@engines/types'
 import { describe, expect, it } from 'vitest'
 
 describe('getBytesPerParameter', () => {
-  it('should return correct bytes for all 13 quantization formats', () => {
+  it('should return correct bytes for all quantization formats', () => {
     const formatTests: Array<[QuantizationFormat, number]> = [
       // Float formats
       ['fp32', 4.0],
       ['fp16', 2.0],
       ['bf16', 2.0],
+
+      // NVIDIA FP formats
+      ['nvfp6', 0.75],
+      ['nvfp4', 0.5625],
 
       // Integer formats
       ['int8', 1.0],
@@ -19,12 +23,19 @@ describe('getBytesPerParameter', () => {
       ['gptq', 0.6],
       ['awq', 0.6],
 
-      // GGUF formats (empirical bpp)
-      ['gguf-q4_0', 0.5625], // 4.5 bpp
-      ['gguf-q4_k_m', 0.6], // 4.8 bpp
-      ['gguf-q5_k_m', 0.7], // 5.6 bpp
-      ['gguf-q6_k', 0.8125], // 6.5 bpp
+      // GGUF formats (empirical bpp from llama.cpp block sizes)
       ['gguf-q8_0', 1.0625], // 8.5 bpp
+      ['gguf-q6_k', 0.82], // 6.5625 bpp
+      ['gguf-q5_k_s', 0.6875], // 5.5 bpp
+      ['gguf-q5_k_m', 0.711], // 5.69 bpp
+      ['gguf-q5_0', 0.6875], // 5.5 bpp
+      ['gguf-q4_k_s', 0.5625], // 4.5 bpp
+      ['gguf-q4_k_m', 0.6], // 4.8 bpp
+      ['gguf-q4_0', 0.5625], // 4.5 bpp
+      ['gguf-q3_k_l', 0.516], // 4.13 bpp
+      ['gguf-q3_k_m', 0.489], // 3.9 bpp
+      ['gguf-q3_k_s', 0.43], // 3.44 bpp
+      ['gguf-q2_k', 0.328], // 2.625 bpp
     ]
 
     for (const [format, expectedBytes] of formatTests) {
