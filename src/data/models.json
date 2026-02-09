@@ -388,5 +388,44 @@
     "intermediate_size": 12288,
     "num_experts": 128,
     "num_experts_per_token": 8
+  },
+  {
+    "id": "moonshotai-kimi-k2.5",
+    "name": "Kimi K2.5",
+    "architecture": "moe",
+    "num_parameters_billion": 1026,
+    "hidden_size": 7168,
+    "num_hidden_layers": 61,
+    "num_attention_heads": 64,
+    "num_kv_heads": 64,
+    "intermediate_size": 18432,
+    "num_experts": 384,
+    "num_experts_per_token": 8
+  },
+  {
+    "id": "zai-org-glm-4.7",
+    "name": "GLM 4.7",
+    "architecture": "moe",
+    "num_parameters_billion": 358,
+    "hidden_size": 5120,
+    "num_hidden_layers": 92,
+    "num_attention_heads": 96,
+    "num_kv_heads": 8,
+    "intermediate_size": 12288,
+    "num_experts": 160,
+    "num_experts_per_token": 8
+  },
+  {
+    "id": "zai-org-glm-4.7-flash",
+    "name": "GLM 4.7 Flash",
+    "architecture": "moe",
+    "num_parameters_billion": 31,
+    "hidden_size": 2048,
+    "num_hidden_layers": 47,
+    "num_attention_heads": 20,
+    "num_kv_heads": 20,
+    "intermediate_size": 10240,
+    "num_experts": 64,
+    "num_experts_per_token": 4
   }
 ]
