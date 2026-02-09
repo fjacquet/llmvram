@@ -99,39 +99,31 @@ describe('GPUSchema', () => {
 
   describe('invalid GPU data', () => {
     it('should reject GPU with negative vram_gb', () => {
-      expect(() =>
-        GPUSchema.parse({ ...validDatacenterGPU, vram_gb: -10 }),
-      ).toThrow(ZodError)
+      expect(() => GPUSchema.parse({ ...validDatacenterGPU, vram_gb: -10 })).toThrow(ZodError)
     })
 
     it('should reject GPU with empty id', () => {
-      expect(() =>
-        GPUSchema.parse({ ...validDatacenterGPU, id: '' }),
-      ).toThrow(ZodError)
+      expect(() => GPUSchema.parse({ ...validDatacenterGPU, id: '' })).toThrow(ZodError)
     })
 
     it('should reject GPU with invalid manufacturer', () => {
-      expect(() =>
-        GPUSchema.parse({ ...validDatacenterGPU, manufacturer: 'qualcomm' }),
-      ).toThrow(ZodError)
+      expect(() => GPUSchema.parse({ ...validDatacenterGPU, manufacturer: 'qualcomm' })).toThrow(
+        ZodError,
+      )
     })
 
     it('should reject GPU with invalid tier', () => {
-      expect(() =>
-        GPUSchema.parse({ ...validDatacenterGPU, tier: 'gaming' }),
-      ).toThrow(ZodError)
+      expect(() => GPUSchema.parse({ ...validDatacenterGPU, tier: 'gaming' })).toThrow(ZodError)
     })
 
     it('should reject GPU with missing required fields', () => {
-      expect(() =>
-        GPUSchema.parse({ id: 'test', name: 'Test' }),
-      ).toThrow(ZodError)
+      expect(() => GPUSchema.parse({ id: 'test', name: 'Test' })).toThrow(ZodError)
     })
 
     it('should reject GPU with invalid interconnect', () => {
-      expect(() =>
-        GPUSchema.parse({ ...validDatacenterGPU, interconnect: 'thunderbolt' }),
-      ).toThrow(ZodError)
+      expect(() => GPUSchema.parse({ ...validDatacenterGPU, interconnect: 'thunderbolt' })).toThrow(
+        ZodError,
+      )
     })
   })
 })
@@ -161,15 +153,15 @@ describe('ModelSchema', () => {
 
   describe('invalid model data', () => {
     it('should reject model with negative parameters', () => {
-      expect(() =>
-        ModelSchema.parse({ ...validDenseModel, num_parameters_billion: -5 }),
-      ).toThrow(ZodError)
+      expect(() => ModelSchema.parse({ ...validDenseModel, num_parameters_billion: -5 })).toThrow(
+        ZodError,
+      )
     })
 
     it('should reject model with invalid architecture', () => {
-      expect(() =>
-        ModelSchema.parse({ ...validDenseModel, architecture: 'hybrid' }),
-      ).toThrow(ZodError)
+      expect(() => ModelSchema.parse({ ...validDenseModel, architecture: 'hybrid' })).toThrow(
+        ZodError,
+      )
     })
 
     it('should reject model with missing hidden_size', () => {
@@ -178,9 +170,9 @@ describe('ModelSchema', () => {
     })
 
     it('should reject model with non-integer num_hidden_layers', () => {
-      expect(() =>
-        ModelSchema.parse({ ...validDenseModel, num_hidden_layers: 32.5 }),
-      ).toThrow(ZodError)
+      expect(() => ModelSchema.parse({ ...validDenseModel, num_hidden_layers: 32.5 })).toThrow(
+        ZodError,
+      )
     })
   })
 })
@@ -212,9 +204,7 @@ describe('validateGPUs / validateModels array helpers', () => {
   })
 
   it('should reject if any GPU in array is invalid', () => {
-    expect(() =>
-      validateGPUs([validDatacenterGPU, { id: 'bad' }]),
-    ).toThrow(ZodError)
+    expect(() => validateGPUs([validDatacenterGPU, { id: 'bad' }])).toThrow(ZodError)
   })
 
   it('should handle empty GPU arrays', () => {
@@ -228,9 +218,7 @@ describe('validateGPUs / validateModels array helpers', () => {
   })
 
   it('should reject if any Model in array is invalid', () => {
-    expect(() =>
-      validateModels([validDenseModel, { id: 'bad' }]),
-    ).toThrow(ZodError)
+    expect(() => validateModels([validDenseModel, { id: 'bad' }])).toThrow(ZodError)
   })
 
   it('should handle empty Model arrays', () => {
