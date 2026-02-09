@@ -354,8 +354,14 @@ describe('calculateInferenceVRAM', () => {
     }
 
     // Verify FP32 > FP16 > GPTQ > INT4 (in terms of weight VRAM)
-    expect(results[0]?.modelWeights.toNumber()).toBeGreaterThan(results[1]?.modelWeights.toNumber() ?? 0)
-    expect(results[1]?.modelWeights.toNumber()).toBeGreaterThan(results[2]?.modelWeights.toNumber() ?? 0)
-    expect(results[2]?.modelWeights.toNumber()).toBeGreaterThan(results[3]?.modelWeights.toNumber() ?? 0)
+    expect(results[0]?.modelWeights.toNumber()).toBeGreaterThan(
+      results[1]?.modelWeights.toNumber() ?? 0,
+    )
+    expect(results[1]?.modelWeights.toNumber()).toBeGreaterThan(
+      results[2]?.modelWeights.toNumber() ?? 0,
+    )
+    expect(results[2]?.modelWeights.toNumber()).toBeGreaterThan(
+      results[3]?.modelWeights.toNumber() ?? 0,
+    )
   })
 })

@@ -35,3 +35,12 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
+.grepai/
+
+# TypeScript compiled outputs
+scripts/**/*.js
+scripts/**/*.d.ts
+src/**/*.js
+src/**/*.d.ts
+*.config.js
+*.config.d.ts
