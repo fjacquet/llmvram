@@ -10,29 +10,29 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 ## Current Position
 
 Phase: 2 of 5 (Inference Engine)
-Plan: 1 of 4
+Plan: 3 of 4
 Status: In progress
-Last activity: 2026-02-09 — Completed 02-01-PLAN.md (Quantization Engine & Types)
+Last activity: 2026-02-09 — Completed 02-03-PLAN.md (Performance Estimation Engine)
 
-Progress: [██▓░░░░░░░] 25% (Phase 2: 1/4 plans complete)
+Progress: [██▓▓░░░░░░] 50% (Phase 2: 2/4 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 3.2 min
-- Total execution time: 0.27 hours
+- Total plans completed: 6
+- Average duration: 3.3 min
+- Total execution time: 0.33 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 (Foundation & Data) | 4/4 | 12 min | 3.0 min |
-| 2 (Inference Engine) | 1/4 | 4 min | 4.0 min |
+| 2 (Inference Engine) | 2/4 | 8 min | 4.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (2min), 01-03 (3min), 01-04 (5min), 02-01 (4min)
-- Trend: Consistent 3-5 min range, slightly higher for test-heavy plans
+- Last 5 plans: 01-03 (3min), 01-04 (5min), 02-01 (4min), 02-03 (4min)
+- Trend: Consistent 3-5 min range, stable for test-heavy plans
 
 *Updated after each plan completion*
 
@@ -42,6 +42,12 @@ Progress: [██▓░░░░░░░] 25% (Phase 2: 1/4 plans complete)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 02-03 (Performance Estimation Engine):**
+- Use roofline model (min of memory-bound and compute-bound) for tokens/sec estimation — captures both bandwidth-limited and FLOPS-limited regimes
+- TTFT estimated at 0.5x decode speed (2x slower prefill) due to quadratic vs linear attention
+- 5% tolerance for bottleneck classification prevents flip-flopping at memory/compute boundary
+- Handle missing FLOPS gracefully by defaulting to memory-bound only (Infinity for compute bound)
 
 **From 02-01 (Quantization Engine & Types):**
 - Use Decimal.js for ALL arithmetic in engine calculations to avoid floating-point precision errors
@@ -87,12 +93,13 @@ None yet.
 - Phase 2: Quantization overhead (10-30% underestimation if ignored) — MITIGATED: BYTES_PER_PARAMETER includes GPTQ/AWQ 1.2x overhead and GGUF empirical bpp (02-01)
 - Phase 2: KV cache scaling for GQA/MQA architectures — MITIGATED: num_kv_heads now in model database (01-03)
 - Phase 2: MoE parameter confusion — MITIGATED: Model database uses total params (46.7B for Mixtral 8x7B) per 01-03
+- Phase 2: Performance estimation accuracy — MITIGATED: Roofline model correctly identifies memory-bandwidth bottleneck for typical LLM inference (02-03)
 - Phase 4: Multi-GPU memory split naive division — must account for 10-20% replication and communication overhead
 
 ## Session Continuity
 
 Last session: 2026-02-09 (plan execution)
-Stopped at: Completed 02-01 (Quantization Engine & Types)
-Resume file: .planning/phases/02-inference-engine/02-02-PLAN.md (next)
+Stopped at: Completed 02-03 (Performance Estimation Engine)
+Resume file: .planning/phases/02-inference-engine/02-02-PLAN.md (next for KV Cache), then 02-04 (Multi-GPU Distribution)
 
-**Phase 2 In Progress:** Quantization engine complete with type system and constants. Ready for 02-02 (KV Cache Calculation), 02-03 (Multi-GPU), 02-04 (Performance Estimation).
+**Phase 2 In Progress:** Quantization engine (02-01) and performance estimation (02-03) complete. Ready for 02-02 (KV Cache Calculation) and 02-04 (Multi-GPU Distribution). Note: Plans executed out of order (02-03 before 02-02) due to no dependencies on KV cache.
