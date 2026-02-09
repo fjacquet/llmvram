@@ -103,9 +103,9 @@ Plans:
 
 Plans:
 
-- [ ] 04-01-PLAN.md — Multi-GPU calculation engine with TP/PP strategies and interconnect validation (Wave 1, TDD)
-- [ ] 04-02-PLAN.md — Store, Worker, and Hook integration for multi-GPU parameters and results (Wave 2)
-- [ ] 04-03-PLAN.md — Multi-GPU UI: input selectors, stacked bar chart, assembly, and verification (Wave 3)
+- [x] 04-01-PLAN.md — Multi-GPU calculation engine with TP/PP strategies and interconnect validation (Wave 1, TDD)
+- [x] 04-02-PLAN.md — Store, Worker, and Hook integration for multi-GPU parameters and results (Wave 2)
+- [x] 04-03-PLAN.md — Multi-GPU UI, CPU/RAM/NVMe offloading, and quantization expansion (Wave 3)
 
 ### Phase 5: Sharing & Comparison
 
@@ -133,5 +133,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Foundation & Data | 4/4 | Complete | 2026-02-09 |
 | 2. Inference Engine | 4/4 | Complete | 2026-02-09 |
 | 3. Core UI | 4/4 | Complete | 2026-02-09 |
-| 4. Multi-GPU Support | 0/3 | Planned | - |
+| 4. Multi-GPU Support | 3/3 | Complete | 2026-02-09 |
 | 5. Sharing & Comparison | 0/TBD | Not started | - |
