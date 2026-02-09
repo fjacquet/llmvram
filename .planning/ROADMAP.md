@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation & Data** - Project infrastructure and static databases
 - [x] **Phase 2: Inference Engine** - Core calculation logic with Web Workers
 - [x] **Phase 3: Core UI** - Basic calculator interface with visualization
-- [ ] **Phase 4: Multi-GPU Support** - Multi-GPU calculation and distribution
+- [x] **Phase 4: Multi-GPU Support** - Multi-GPU calculation and distribution
 - [ ] **Phase 5: Sharing & Comparison** - URL persistence and side-by-side comparison
 
 ## Phase Details
@@ -117,11 +117,13 @@ Plans:
   1. Current configuration is saved to URL hash automatically and shareable link works when opened in new browser
   2. User can add 2-3 configurations to comparison view and see VRAM differences side-by-side
   3. Comparison clearly highlights differences between configurations (quantization, GPU, context length)
-**Plans**: TBD
+**Plans**: 3 plans in 2 waves
 
 Plans:
 
-- TBD after planning phase
+- [ ] 05-01-PLAN.md — URL hash persistence with lz-string compression and share button (Wave 1)
+- [ ] 05-02-PLAN.md — Comparison store and side-by-side UI with diff highlighting (Wave 1)
+- [ ] 05-03-PLAN.md — Integration wiring, tab navigation, and visual verification (Wave 2)
 
 ## Progress
 
@@ -134,4 +136,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Inference Engine | 4/4 | Complete | 2026-02-09 |
 | 3. Core UI | 4/4 | Complete | 2026-02-09 |
 | 4. Multi-GPU Support | 3/3 | Complete | 2026-02-09 |
-| 5. Sharing & Comparison | 0/TBD | Not started | - |
+| 5. Sharing & Comparison | 0/3 | Not started | - |
