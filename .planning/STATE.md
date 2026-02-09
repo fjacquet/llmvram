@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 ## Current Position
 
 Phase: 3 of 5 (Core UI)
-Plan: 1 of 4
+Plan: 2 of 4
 Status: In progress
-Last activity: 2026-02-09 — Completed 03-01-PLAN.md (UI Foundation & Dark Mode)
+Last activity: 2026-02-09 — Completed 03-02-PLAN.md (Input Components)
 
-Progress: [████▓░░░░░] 11% (9/15 total plans: Phase 1: 4/4, Phase 2: 4/4, Phase 3: 1/4)
+Progress: [████████░░] 67% (10/15 total plans: Phase 1: 4/4, Phase 2: 4/4, Phase 3: 2/4)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 3.67 min
-- Total execution time: 0.55 hours
+- Total plans completed: 10
+- Average duration: 3.8 min
+- Total execution time: 0.63 hours
 
 **By Phase:**
 
@@ -29,11 +29,11 @@ Progress: [████▓░░░░░] 11% (9/15 total plans: Phase 1: 4/4, 
 |-------|-------|-------|----------|
 | 1 (Foundation & Data) | 4/4 | 12 min | 3.0 min |
 | 2 (Inference Engine) | 4/4 | 18 min | 4.5 min |
-| 3 (Core UI) | 1/4 | 3 min | 3.0 min |
+| 3 (Core UI) | 2/4 | 8 min | 4.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-03 (4min), 02-02 (5min), 02-04 (5min), 03-01 (3min)
-- Trend: Phase 3 started with faster 3-minute plan, back to Phase 1 speed
+- Last 5 plans: 02-02 (5min), 02-04 (5min), 03-01 (3min), 03-02 (5min)
+- Trend: Phase 3 averaging 4min, slightly faster than Phase 2 (4.5min)
 
 *Updated after each plan completion*
 
@@ -43,6 +43,13 @@ Progress: [████▓░░░░░] 11% (9/15 total plans: Phase 1: 4/4, 
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 03-02 (Input Components):**
+- Use Headless UI Combobox instead of native select for keyboard navigation and screen reader support
+- Keep custom form state local with useState until submission to avoid polluting Zustand store with temporary values
+- Implement log-scale slider for sequence length to provide even spacing across exponential range (512 to 131K)
+- @types path alias conflicts with TypeScript's @types namespace — use @/types pattern instead
+- Custom forms appear inline below selector when "Custom..." option selected
 
 **From 03-01 (UI Foundation & Dark Mode):**
 - Zustand persist uses partialize to persist only preferences (not large model/GPU objects) to avoid stale data
@@ -127,15 +134,15 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-09 (plan execution)
-Stopped at: Completed 03-01 (UI Foundation & Dark Mode)
-Resume file: .planning/phases/03-core-ui/03-02-PLAN.md (next plan)
+Stopped at: Completed 03-02 (Input Components)
+Resume file: .planning/phases/03-core-ui/03-03-PLAN.md (next plan)
 
 **Phase 2 Complete:** All 4 plans finished. Inference engine fully functional.
 
-**Phase 3 Started (1/4 complete):**
+**Phase 3 In Progress (2/4 complete):**
 - ✅ UI foundation with Tailwind v4 dark mode and Zustand store (03-01)
-- ⏳ Model & GPU selectors (03-02)
+- ✅ Model & GPU selectors with search and custom forms (03-02)
 - ⏳ Calculation parameter inputs (03-03)
 - ⏳ Results display with breakdown visualization (03-04)
 
-**Ready for Plan 03-02:** Zustand store has setSelectedModel/setSelectedGPU actions. @headlessui/react installed for Combobox components.
+**Ready for Plan 03-03:** All six input components created (ModelSelector, GPUSelector, QuantizationPicker, KVQuantizationPicker, SequenceLengthInput, BatchSizeInput) and connected to Zustand store. @heroicons/react installed. Dark mode styling applied.
