@@ -12,6 +12,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "test": "vitest",
+    "test:ci": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "refresh:models": "tsx scripts/fetch-models.ts",
