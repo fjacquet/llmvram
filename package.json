@@ -20,7 +20,9 @@
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
+    "@heroicons/react": "^2.2.0",
     "decimal.js": "^10.4.3",
+    "lz-string": "^1.5.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "recharts": "^3.6.0",
