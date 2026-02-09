@@ -12,8 +12,9 @@
  */
 
 import { calculateInferenceVRAM } from '../engines/inference'
+import { calculateMultiGPUVRAM, validateInterconnect } from '../engines/multi-gpu'
 import { estimatePerformance } from '../engines/performance'
-import type { KVCachePrecision, QuantizationFormat } from '../engines/types'
+import type { KVCachePrecision, QuantizationFormat, ShardingStrategy } from '../engines/types'
 import type { GPU, Model } from '../utils/schemas'
 
 /**
@@ -28,6 +29,8 @@ interface CalculationRequest {
     sequenceLength: number
     batchSize: number
     kvQuantization?: KVCachePrecision
+    numGPUs: number
+    shardingStrategy: ShardingStrategy
   }
 }
 
@@ -55,6 +58,23 @@ interface CalculationSuccessResponse {
       isMemoryBound: boolean
       bottleneck: 'compute' | 'memory' | 'balanced'
     }
+    multiGPU: {
+      numGPUs: number
+      strategy: string
+      perGPU: {
+        modelWeights: string
+        kvCache: string
+        activations: string
+        frameworkOverhead: string
+        communicationOverhead: string
+        total: string
+      }
+      replicatedMemory: string
+      totalPerGPU: string
+      utilizationPercent: string
+      singleGPUBaseline: string
+    } | null
+    interconnectWarning: string | null
   }
 }
 
@@ -78,7 +98,16 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
 
   if (type === 'CALCULATE_INFERENCE') {
     try {
-      const { model, gpu, quantization, sequenceLength, batchSize, kvQuantization } = payload
+      const {
+        model,
+        gpu,
+        quantization,
+        sequenceLength,
+        batchSize,
+        kvQuantization,
+        numGPUs,
+        shardingStrategy,
+      } = payload
 
       // 1. Calculate VRAM breakdown
       const vramBreakdown = calculateInferenceVRAM({
@@ -97,7 +126,24 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         batchSize,
       })
 
-      // 3. Serialize Decimal values to strings for structured cloning
+      // 3. Multi-GPU calculation (only when numGPUs > 1)
+      let multiGPUResult = null
+      let interconnectWarning = null
+
+      if (numGPUs > 1) {
+        multiGPUResult = calculateMultiGPUVRAM(
+          vramBreakdown,
+          model,
+          gpu.vram_gb,
+          numGPUs,
+          shardingStrategy,
+        )
+
+        const validation = validateInterconnect(gpu, numGPUs, shardingStrategy)
+        interconnectWarning = validation.warning
+      }
+
+      // 4. Serialize Decimal values to strings for structured cloning
       const response: CalculationSuccessResponse = {
         type: 'CALCULATION_RESULT',
         payload: {
@@ -115,6 +161,25 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
             isMemoryBound: performance.isMemoryBound,
             bottleneck: performance.bottleneck,
           },
+          multiGPU: multiGPUResult
+            ? {
+                numGPUs: multiGPUResult.numGPUs,
+                strategy: multiGPUResult.strategy,
+                perGPU: {
+                  modelWeights: multiGPUResult.perGPU.modelWeights.toString(),
+                  kvCache: multiGPUResult.perGPU.kvCache.toString(),
+                  activations: multiGPUResult.perGPU.activations.toString(),
+                  frameworkOverhead: multiGPUResult.perGPU.frameworkOverhead.toString(),
+                  communicationOverhead: multiGPUResult.perGPU.communicationOverhead.toString(),
+                  total: multiGPUResult.perGPU.total.toString(),
+                },
+                replicatedMemory: multiGPUResult.replicatedMemory.toString(),
+                totalPerGPU: multiGPUResult.totalPerGPU.toString(),
+                utilizationPercent: multiGPUResult.utilizationPercent.toString(),
+                singleGPUBaseline: multiGPUResult.singleGPUBaseline.toString(),
+              }
+            : null,
+          interconnectWarning,
         },
       }
 

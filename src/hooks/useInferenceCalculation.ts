@@ -20,8 +20,10 @@
 import type {
   InferenceVRAMBreakdown,
   KVCachePrecision,
+  MultiGPUVRAMBreakdown,
   PerformanceEstimate,
   QuantizationFormat,
+  ShardingStrategy,
 } from '@engines/types'
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
@@ -34,6 +36,8 @@ export interface UseInferenceCalculationResult {
   result: {
     vram: InferenceVRAMBreakdown
     performance: PerformanceEstimate
+    multiGPU: MultiGPUVRAMBreakdown | null
+    interconnectWarning: string | null
   } | null
   loading: boolean
   error: string | null
@@ -81,6 +85,49 @@ function reconstructPerformanceEstimate(serialized: {
 }
 
 /**
+ * Reconstruct MultiGPUVRAMBreakdown from serialized strings
+ *
+ * Web Workers serialize Decimal values to strings for structured cloning.
+ * This function reconstructs Decimal objects from those strings.
+ */
+function reconstructMultiGPUBreakdown(
+  serialized: {
+    numGPUs: number
+    strategy: string
+    perGPU: {
+      modelWeights: string
+      kvCache: string
+      activations: string
+      frameworkOverhead: string
+      communicationOverhead: string
+      total: string
+    }
+    replicatedMemory: string
+    totalPerGPU: string
+    utilizationPercent: string
+    singleGPUBaseline: string
+  } | null,
+): MultiGPUVRAMBreakdown | null {
+  if (!serialized) return null
+  return {
+    numGPUs: serialized.numGPUs,
+    strategy: serialized.strategy as ShardingStrategy,
+    perGPU: {
+      modelWeights: new Decimal(serialized.perGPU.modelWeights),
+      kvCache: new Decimal(serialized.perGPU.kvCache),
+      activations: new Decimal(serialized.perGPU.activations),
+      frameworkOverhead: new Decimal(serialized.perGPU.frameworkOverhead),
+      communicationOverhead: new Decimal(serialized.perGPU.communicationOverhead),
+      total: new Decimal(serialized.perGPU.total),
+    },
+    replicatedMemory: new Decimal(serialized.replicatedMemory),
+    totalPerGPU: new Decimal(serialized.totalPerGPU),
+    utilizationPercent: new Decimal(serialized.utilizationPercent),
+    singleGPUBaseline: new Decimal(serialized.singleGPUBaseline),
+  }
+}
+
+/**
  * Calculate inference VRAM and performance with Web Worker offloading
  *
  * @param model - Model configuration (null = no calculation)
@@ -116,6 +163,8 @@ export function useInferenceCalculation(
   sequenceLength: number,
   batchSize: number,
   kvQuantization?: KVCachePrecision,
+  numGPUs?: number,
+  shardingStrategy?: ShardingStrategy,
 ): UseInferenceCalculationResult {
   const [result, setResult] = useState<UseInferenceCalculationResult['result']>(null)
   const [loading, setLoading] = useState(false)
@@ -146,8 +195,10 @@ export function useInferenceCalculation(
           // Reconstruct Decimal objects from serialized strings
           const vram = reconstructVRAMBreakdown(payload.vram)
           const performance = reconstructPerformanceEstimate(payload.performance)
+          const multiGPU = reconstructMultiGPUBreakdown(payload.multiGPU)
+          const interconnectWarning = payload.interconnectWarning ?? null
 
-          setResult({ vram, performance })
+          setResult({ vram, performance, multiGPU, interconnectWarning })
           setLoading(false)
         } else if (type === 'CALCULATION_ERROR') {
           setError(workerError)
@@ -173,6 +224,8 @@ export function useInferenceCalculation(
           sequenceLength,
           batchSize,
           kvQuantization,
+          numGPUs: numGPUs ?? 1,
+          shardingStrategy: shardingStrategy ?? 'tensor-parallel',
         },
       })
 
@@ -183,8 +236,12 @@ export function useInferenceCalculation(
     }
 
     // Sync fallback (SSR, old browsers)
-    Promise.all([import('@engines/inference'), import('@engines/performance')])
-      .then(([inferenceModule, performanceModule]) => {
+    Promise.all([
+      import('@engines/inference'),
+      import('@engines/performance'),
+      import('@engines/multi-gpu'),
+    ])
+      .then(([inferenceModule, performanceModule, multiGPUModule]) => {
         const vram = inferenceModule.calculateInferenceVRAM({
           model,
           quantization,
@@ -200,14 +257,44 @@ export function useInferenceCalculation(
           batchSize,
         })
 
-        setResult({ vram, performance })
+        // Multi-GPU calculation (only when numGPUs > 1)
+        let multiGPU = null
+        let interconnectWarning = null
+        const effectiveNumGPUs = numGPUs ?? 1
+        const effectiveStrategy = shardingStrategy ?? 'tensor-parallel'
+        if (effectiveNumGPUs > 1) {
+          multiGPU = multiGPUModule.calculateMultiGPUVRAM(
+            vram,
+            model,
+            gpu.vram_gb,
+            effectiveNumGPUs,
+            effectiveStrategy,
+          )
+          const validation = multiGPUModule.validateInterconnect(
+            gpu,
+            effectiveNumGPUs,
+            effectiveStrategy,
+          )
+          interconnectWarning = validation.warning
+        }
+
+        setResult({ vram, performance, multiGPU, interconnectWarning })
         setLoading(false)
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : String(err))
         setLoading(false)
       })
-  }, [model, gpu, quantization, sequenceLength, batchSize, kvQuantization])
+  }, [
+    model,
+    gpu,
+    quantization,
+    sequenceLength,
+    batchSize,
+    kvQuantization,
+    numGPUs,
+    shardingStrategy,
+  ])
 
   return { result, loading, error }
 }
