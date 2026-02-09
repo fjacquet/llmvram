@@ -69,10 +69,13 @@ Plans:
   6. When model doesn't fit, recommendations suggest actionable changes (lower quantization, reduce context length, add GPUs)
   7. UI is responsive on mobile, tablet, and desktop with readable charts on all screen sizes
   8. User can toggle dark mode and preference persists across sessions
-**Plans**: TBD
+**Plans**: 4 plans in 3 waves
 
 Plans:
-- TBD after planning phase
+- [ ] 03-01-PLAN.md — Store, dark mode, and CSS foundation (Wave 1)
+- [ ] 03-02-PLAN.md — Input components: model/GPU selectors, quantization pickers, parameter sliders (Wave 2)
+- [ ] 03-03-PLAN.md — Output components: VRAM chart, fit indicator, memory table, recommendations (Wave 2)
+- [ ] 03-04-PLAN.md — Layout assembly, App integration, and visual verification (Wave 3)
 
 ### Phase 4: Multi-GPU Support
 **Goal**: Users can calculate VRAM for multi-GPU configurations with sharding strategies
@@ -105,12 +108,12 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Data | 4/4 | Complete | 2026-02-09 |
 | 2. Inference Engine | 4/4 | Complete | 2026-02-09 |
-| 3. Core UI | 0/TBD | Not started | - |
+| 3. Core UI | 0/4 | Not started | - |
 | 4. Multi-GPU Support | 0/TBD | Not started | - |
 | 5. Sharing & Comparison | 0/TBD | Not started | - |
