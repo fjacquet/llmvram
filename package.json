@@ -13,7 +13,10 @@
     "format": "biome format --write .",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "refresh:models": "tsx scripts/fetch-models.ts",
+    "refresh:gpus": "tsx scripts/fetch-gpus.ts",
+    "refresh:all": "npm run refresh:models && npm run refresh:gpus"
   },
   "dependencies": {
     "decimal.js": "^10.4.3",
@@ -37,6 +40,7 @@
     "@vitest/ui": "^4.0.16",
     "jsdom": "^27.4.0",
     "tailwindcss": "^4.1.18",
+    "tsx": "^4.19.2",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
     "vitest": "^4.0.16"
