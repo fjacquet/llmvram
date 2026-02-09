@@ -1,3 +1,5 @@
+import gpusData from '@data/gpus.json'
+import modelsData from '@data/models.json'
 import type {
   KVCachePrecision,
   OffloadMode,
@@ -6,8 +8,27 @@ import type {
   ShardingStrategy,
 } from '@engines/types'
 import type { GPU, Model } from '@utils/schemas'
+import { validateGPUs, validateModels } from '@utils/schemas'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+
+// Load and validate data once at module level
+const models = validateModels(modelsData)
+const gpus = validateGPUs(gpusData)
+
+/**
+ * Find a model by ID in the curated database
+ */
+export function findModelById(id: string): Model | null {
+  return models.find((m) => m.id === id) ?? null
+}
+
+/**
+ * Find a GPU by ID in the curated database
+ */
+export function findGPUById(id: string): GPU | null {
+  return gpus.find((g) => g.id === id) ?? null
+}
 
 interface UIState {
   // Model and GPU selections (not persisted - large objects, may become stale)
@@ -92,20 +113,8 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'llmvram-ui-preferences',
-      // Only persist preferences, not selections
+      // Only persist dark mode preference - all other state managed via URL hash
       partialize: (state) => ({
-        quantization: state.quantization,
-        sequenceLength: state.sequenceLength,
-        batchSize: state.batchSize,
-        kvQuantization: state.kvQuantization,
-        numGPUs: state.numGPUs,
-        shardingStrategy: state.shardingStrategy,
-        offloadingEnabled: state.offloadingEnabled,
-        offloadTarget: state.offloadTarget,
-        offloadMode: state.offloadMode,
-        offloadPercentage: state.offloadPercentage,
-        offloadLayers: state.offloadLayers,
-        kvCacheOffload: state.kvCacheOffload,
         isDarkMode: state.isDarkMode,
       }),
     },
