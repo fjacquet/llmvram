@@ -1,5 +1,5 @@
-import type { ReactElement } from 'react'
 import type Decimal from 'decimal.js'
+import type { ReactElement } from 'react'
 
 interface FitIndicatorProps {
   totalVRAM: Decimal

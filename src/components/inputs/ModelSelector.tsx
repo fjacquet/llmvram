@@ -8,9 +8,9 @@ import {
 } from '@headlessui/react'
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid'
 import { useUIStore } from '@store/uiStore'
-import { type CustomModelInput, createCustomModel, type Model } from '@types/model'
 import { validateModels } from '@utils/schemas'
 import { useState } from 'react'
+import { type CustomModelInput, createCustomModel, type Model } from '@/types/model'
 
 // Validate models data at module load
 const models = validateModels(modelsData)

@@ -8,9 +8,9 @@ import {
 } from '@headlessui/react'
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid'
 import { useUIStore } from '@store/uiStore'
-import { type CustomGPUInput, createCustomGPU, type GPU } from '@types/gpu'
 import { validateGPUs } from '@utils/schemas'
 import { useMemo, useState } from 'react'
+import { type CustomGPUInput, createCustomGPU, type GPU } from '@/types/gpu'
 
 // Validate GPUs data at module load
 const gpus = validateGPUs(gpusData)
