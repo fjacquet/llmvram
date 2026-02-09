@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { GPUSchema, validateGPUs } from './schemas'
 
 describe('GPU Database Validation', () => {
-  it('should have at least 17 GPUs', () => {
-    expect(gpusData.length).toBeGreaterThanOrEqual(17)
+  it('should have at least 18 GPUs', () => {
+    expect(gpusData.length).toBeGreaterThanOrEqual(18)
   })
 
   it('should validate all GPU entries against schema', () => {
@@ -16,7 +16,7 @@ describe('GPU Database Validation', () => {
     const nvidiaDC = gpusData.filter(
       (gpu) => gpu.manufacturer === 'nvidia' && gpu.tier === 'datacenter',
     )
-    expect(nvidiaDC.length).toBeGreaterThanOrEqual(6)
+    expect(nvidiaDC.length).toBeGreaterThanOrEqual(7)
 
     const h100 = gpusData.find((gpu) => gpu.id.includes('h100'))
     const h200 = gpusData.find((gpu) => gpu.id.includes('h200'))

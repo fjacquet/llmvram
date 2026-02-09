@@ -102,6 +102,22 @@ const GPUS: GPU[] = [
     tier: 'datacenter',
   },
 
+  // NVIDIA Workstation/Server
+  {
+    id: 'nvidia-rtx-pro-6000-server',
+    name: 'NVIDIA RTX PRO 6000 Server Edition',
+    manufacturer: 'nvidia',
+    vram_gb: 96,
+    memory_bandwidth_gbps: 1597,
+    memory_type: 'GDDR7',
+    bus_width: 512,
+    fp16_tflops: 240,
+    fp32_tflops: 120,
+    tdp_watts: 600,
+    interconnect: 'none',
+    tier: 'datacenter',
+  },
+
   // NVIDIA Consumer
   {
     id: 'nvidia-rtx-5090',
