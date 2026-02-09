@@ -28,7 +28,7 @@ export function OffloadingPanel() {
   const setKVCacheOffload = useUIStore((s) => s.setKVCacheOffload)
   const selectedModel = useUIStore((s) => s.selectedModel)
 
-  const totalLayers = selectedModel?.num_layers ?? 80
+  const totalLayers = selectedModel?.num_hidden_layers ?? 80
 
   return (
     <div className="space-y-4">

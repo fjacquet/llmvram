@@ -17,7 +17,16 @@ export const GPUSchema = z.object({
   // Power and interconnect
   tdp_watts: z.number().positive().optional(),
   interconnect: z
-    .enum(['none', 'nvlink', 'nvlink-4', 'nvlink-5', 'infinity-fabric', 'unified'])
+    .enum([
+      'none',
+      'nvlink',
+      'nvlink-4',
+      'nvlink-5',
+      'pcie-4',
+      'pcie-5',
+      'infinity-fabric',
+      'unified',
+    ])
     .optional(),
 
   // Classification

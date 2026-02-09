@@ -173,7 +173,11 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
           kvCacheOffload,
         }
 
-        offloadingResult = calculateOffloadedVRAM(vramBreakdown, offloadingConfig, model.num_layers)
+        offloadingResult = calculateOffloadedVRAM(
+          vramBreakdown,
+          offloadingConfig,
+          model.num_hidden_layers,
+        )
       }
 
       // 4. Multi-GPU calculation (only when numGPUs > 1)

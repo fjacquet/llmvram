@@ -1,7 +1,9 @@
 import { FitIndicator } from '@components/outputs/FitIndicator'
 import { MemoryBreakdownTable } from '@components/outputs/MemoryBreakdownTable'
+import { MultiGPUBreakdownChart } from '@components/outputs/MultiGPUBreakdownChart'
 import { Recommendations } from '@components/outputs/Recommendations'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
+import type { OffloadingConfig } from '@engines/types'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
 import { useUIStore } from '@store/uiStore'
 import { useEffect } from 'react'
@@ -12,13 +14,40 @@ import { toast } from 'sonner'
  *
  * Connects Zustand store selections to useInferenceCalculation hook
  * and renders output components with proper state handling.
+ * Supports multi-GPU and offloading configurations.
  */
 export function ResultsPanel() {
-  // Read selections from store
-  const { selectedModel, selectedGPU, quantization, sequenceLength, batchSize, kvQuantization } =
-    useUIStore()
+  // Read all selections from store
+  const {
+    selectedModel,
+    selectedGPU,
+    quantization,
+    sequenceLength,
+    batchSize,
+    kvQuantization,
+    numGPUs,
+    shardingStrategy,
+    offloadingEnabled,
+    offloadTarget,
+    offloadMode,
+    offloadPercentage,
+    offloadLayers,
+    kvCacheOffload,
+  } = useUIStore()
 
-  // Call the calculation hook
+  // Build offloading config if enabled
+  const offloadingConfig: OffloadingConfig | undefined = offloadingEnabled
+    ? {
+        enabled: offloadingEnabled,
+        target: offloadTarget,
+        mode: offloadMode,
+        offloadPercentage,
+        offloadLayers,
+        kvCacheOffload,
+      }
+    : undefined
+
+  // Call the calculation hook with multi-GPU and offloading params
   const { result, loading, error } = useInferenceCalculation(
     selectedModel,
     selectedGPU,
@@ -26,6 +55,9 @@ export function ResultsPanel() {
     sequenceLength,
     batchSize,
     kvQuantization,
+    numGPUs,
+    shardingStrategy,
+    offloadingConfig,
   )
 
   // Show toast on error (only once per error change)
@@ -111,7 +143,21 @@ export function ResultsPanel() {
     return null
   }
 
-  const doesNotFit = result.vram.total.greaterThan(selectedGPU.vram_gb)
+  // Determine which breakdown to use for FitIndicator and display
+  const displayBreakdown = result.offloading ? result.offloading.onDevice : result.vram
+
+  // Determine doesNotFit logic based on active features
+  let doesNotFit = false
+  if (result.multiGPU) {
+    // Multi-GPU: check if per-GPU total exceeds GPU capacity
+    doesNotFit = result.multiGPU.totalPerGPU.greaterThan(selectedGPU.vram_gb)
+  } else if (result.offloading) {
+    // Offloading only: check if on-device total exceeds GPU capacity
+    doesNotFit = result.offloading.onDevice.total.greaterThan(selectedGPU.vram_gb)
+  } else {
+    // Single GPU, no offloading: check if total exceeds GPU capacity
+    doesNotFit = result.vram.total.greaterThan(selectedGPU.vram_gb)
+  }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -122,15 +168,67 @@ export function ResultsPanel() {
             VRAM Requirements
           </h2>
           <div className="space-y-6">
-            <FitIndicator totalVRAM={result.vram.total} availableVRAM={selectedGPU.vram_gb} />
-            <VRAMBreakdownChart breakdown={result.vram} />
-            <MemoryBreakdownTable breakdown={result.vram} />
+            {/* Fit Indicator - shows per-GPU utilization for multi-GPU, on-device for offloading */}
+            {result.multiGPU ? (
+              <FitIndicator
+                totalVRAM={result.multiGPU.totalPerGPU}
+                availableVRAM={selectedGPU.vram_gb}
+              />
+            ) : (
+              <FitIndicator
+                totalVRAM={displayBreakdown.total}
+                availableVRAM={selectedGPU.vram_gb}
+              />
+            )}
+
+            {/* Offloading Summary */}
+            {result.offloading && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                  Offloading Active
+                </h4>
+                <div className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
+                  <p>
+                    <span className="font-medium">Offloaded:</span>{' '}
+                    {result.offloading.offloaded.total.toFixed(2)} GB to{' '}
+                    {offloadTarget === 'cpu-ram' ? 'CPU/RAM' : 'NVMe'}
+                  </p>
+                  <p>
+                    <span className="font-medium">On-device:</span>{' '}
+                    {result.offloading.onDevice.total.toFixed(2)} GB
+                  </p>
+                  <p className="text-xs italic">{result.offloading.performanceImpact}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Single-GPU Breakdown Chart and Table */}
+            <VRAMBreakdownChart breakdown={displayBreakdown} />
+            <MemoryBreakdownTable breakdown={displayBreakdown} />
+
+            {/* Multi-GPU Breakdown Chart */}
+            {result.multiGPU && (
+              <MultiGPUBreakdownChart breakdown={result.multiGPU} gpuVRAM={selectedGPU.vram_gb} />
+            )}
+
+            {/* Interconnect Warning */}
+            {result.interconnectWarning && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  ⚠ {result.interconnectWarning}
+                </p>
+              </div>
+            )}
+
+            {/* Recommendations */}
             {doesNotFit && (
               <Recommendations
                 gpu={selectedGPU}
                 breakdown={result.vram}
                 currentQuantization={quantization}
                 currentSequenceLength={sequenceLength}
+                numGPUs={numGPUs}
+                multiGPUBreakdown={result.multiGPU}
               />
             )}
           </div>

@@ -315,7 +315,7 @@ export function useInferenceCalculation(
           offloading = offloadingModule.calculateOffloadedVRAM(
             vram,
             offloadingConfig,
-            model.num_layers,
+            model.num_hidden_layers,
           )
         }
 

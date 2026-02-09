@@ -1,4 +1,9 @@
-import type { InferenceVRAMBreakdown, QuantizationFormat } from '@engines/types'
+import type {
+  InferenceVRAMBreakdown,
+  MultiGPUVRAMBreakdown,
+  QuantizationFormat,
+} from '@engines/types'
+import { useUIStore } from '@store/uiStore'
 import type { GPU } from '@/types/gpu'
 
 interface RecommendationsProps {
@@ -6,6 +11,8 @@ interface RecommendationsProps {
   breakdown: InferenceVRAMBreakdown
   currentQuantization: QuantizationFormat
   currentSequenceLength: number
+  numGPUs?: number
+  multiGPUBreakdown?: MultiGPUVRAMBreakdown | null
 }
 
 interface Recommendation {
@@ -19,7 +26,11 @@ export function Recommendations({
   breakdown,
   currentQuantization,
   currentSequenceLength,
+  numGPUs = 1,
+  multiGPUBreakdown,
 }: RecommendationsProps) {
+  const offloadingEnabled = useUIStore((s) => s.offloadingEnabled)
+
   const deficit = breakdown.total.minus(gpu.vram_gb).toNumber()
 
   // If model fits, don't show recommendations
@@ -106,29 +117,49 @@ export function Recommendations({
     })
   }
 
-  // 4. Enable offloading to CPU/RAM or NVMe
-  const offloadGB = deficit
-  if (offloadGB > 0) {
-    const offloadTarget = offloadGB <= 32 ? 'CPU/RAM' : 'CPU/RAM + NVMe SSD'
-    const perfNote =
-      offloadGB <= 8 ? '~2-5x slower' : offloadGB <= 24 ? '~5-15x slower' : '~15-50x slower'
+  // 4. Enable offloading to CPU/RAM or NVMe (only if not already enabled)
+  if (!offloadingEnabled) {
+    const offloadGB = deficit
+    if (offloadGB > 0) {
+      const offloadTarget = offloadGB <= 32 ? 'CPU/RAM' : 'CPU/RAM + NVMe SSD'
+      const perfNote =
+        offloadGB <= 8 ? '~2-5x slower' : offloadGB <= 24 ? '~5-15x slower' : '~15-50x slower'
 
-    recommendations.push({
-      title: `Enable offloading to ${offloadTarget}`,
-      description: `Offload ~${offloadGB.toFixed(1)} GB of layers to system memory (llama.cpp --n-gpu-layers, DeepSpeed ZeRO-Offload)`,
-      impact: `Enables running but ${perfNote} due to PCIe bandwidth`,
-    })
+      recommendations.push({
+        title: `Enable offloading to ${offloadTarget}`,
+        description: `Offload ~${offloadGB.toFixed(1)} GB of layers to system memory`,
+        impact: `Enables running but ${perfNote} due to PCIe bandwidth`,
+      })
+    }
   }
 
-  // 5. Use multiple GPUs (always show)
+  // 5. Use multiple GPUs
   const totalGB = breakdown.total.toNumber()
-  const gpusNeeded = Math.ceil(totalGB / gpu.vram_gb)
 
-  recommendations.push({
-    title: 'Use multiple GPUs',
-    description: `Use ${gpusNeeded}x ${gpu.name} with tensor parallelism`,
-    impact: 'Available in Phase 4 (multi-GPU support)',
-  })
+  // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
+  if (numGPUs > 1 && multiGPUBreakdown && multiGPUBreakdown.totalPerGPU.greaterThan(gpu.vram_gb)) {
+    // Estimate needed GPUs with 85% efficiency (account for replication/overhead)
+    const gpusNeeded = Math.ceil(totalGB / (gpu.vram_gb * 0.85))
+
+    recommendations.push({
+      title: 'Add more GPUs',
+      description: `Current ${numGPUs}x still exceeds capacity. Try ${gpusNeeded}x ${gpu.name} with tensor parallelism`,
+      impact: `Would distribute ${totalGB.toFixed(1)} GB across ${gpusNeeded} GPUs (~${(totalGB / gpusNeeded).toFixed(1)} GB per GPU)`,
+    })
+  } else if (numGPUs === 1) {
+    // Case B: Single GPU -> show multi-GPU recommendation
+    // Estimate needed GPUs with 85% efficiency (account for replication/overhead)
+    const gpusNeeded = Math.ceil(totalGB / (gpu.vram_gb * 0.85))
+
+    if (gpusNeeded > 1) {
+      recommendations.push({
+        title: 'Use multiple GPUs',
+        description: `Use ${gpusNeeded}x ${gpu.name} with tensor parallelism`,
+        impact: `Would distribute ${totalGB.toFixed(1)} GB across ${gpusNeeded} GPUs (~${(totalGB / gpusNeeded).toFixed(1)} GB per GPU)`,
+      })
+    }
+  }
+  // Case C: Multi-GPU active and fits -> don't show recommendation (already solved)
 
   // 6. Upgrade GPU (show if a larger common GPU exists)
   const vramGB = gpu.vram_gb
