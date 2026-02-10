@@ -3,141 +3,114 @@
 **Defined:** 2026-02-09
 **Core Value:** Users can quickly determine whether a specific LLM fits on their available GPU hardware — and if not, what changes would make it work.
 
-## v1 Requirements
+## v1.0 Requirements (Validated)
 
-Requirements for initial release. Each maps to roadmap phases.
+All v1.0 requirements shipped and validated. See MILESTONES.md for details.
 
-### Data Layer
+- ✓ DATA-01 through DATA-07 — Curated GPU/model databases with custom input and refresh scripts
+- ✓ INFER-01 through INFER-09 — Inference VRAM calculation with 22 quantization formats, KV cache, MoE, performance estimation
+- ✓ MGPU-01 through MGPU-06 — Multi-GPU support with tensor/pipeline parallelism
+- ✓ VIZ-01 through VIZ-07 — Visualization, fit indicator, URL sharing, comparison, responsive layout, dark mode
+- ✓ INFRA-01 through INFRA-07 — Full tech stack, Biome, Vitest, Decimal.js, Zod, Web Workers
 
-- [ ] **DATA-01**: Curated GPU database sourced from open datasets (dbgpu/gpu-info-api) with VRAM, memory bandwidth, FLOPS, and interconnect specs
-- [ ] **DATA-02**: Curated model database sourced from HuggingFace config.json with parameter count, hidden_size, num_layers, num_attention_heads, num_kv_heads, intermediate_size, architecture type (dense/MoE)
-- [ ] **DATA-03**: User can enter custom model specs manually (parameter count, layers, hidden size, attention heads, KV heads, intermediate size, architecture type)
-- [ ] **DATA-04**: User can enter custom GPU specs manually (VRAM amount, memory bandwidth, FLOPS)
-- [ ] **DATA-05**: GPU database includes NVIDIA datacenter (A100, H100, H200, B200), NVIDIA consumer (RTX 3090, 4090, 5090), AMD (MI300X), and Apple Silicon (M1-M4 Ultra) with unified memory notation
-- [ ] **DATA-06**: Model database includes 30+ popular models (LLaMA 2/3, Mistral, Mixtral, Qwen, Phi, DeepSeek, Gemma, Command-R) with accurate architecture params
-- [ ] **DATA-07**: Build script or utility to refresh model specs from HuggingFace API and GPU specs from open databases
+## v1.1 Requirements
 
-### Inference Calculation
+Requirements for fine-tuning estimation milestone. Each maps to roadmap phases.
 
-- [ ] **INFER-01**: Calculate model weight memory by quantization format (FP32, FP16, BF16, INT8, INT4, NF4, GPTQ, AWQ, GGUF Q4/Q5/Q6/Q8)
-- [ ] **INFER-02**: Calculate KV cache memory by sequence length, batch size, and number of KV heads (supporting GQA/MQA architectures)
-- [ ] **INFER-03**: Calculate activation memory for inference
-- [ ] **INFER-04**: Account for framework overhead (CUDA context, memory allocator fragmentation, temporary buffers)
-- [ ] **INFER-05**: Support KV cache quantization (FP16, FP8, INT8, INT4) separately from weight quantization
-- [ ] **INFER-06**: User can configure sequence length (512 to 131072 tokens) and batch size (1 to 64)
-- [ ] **INFER-07**: Correctly handle MoE architectures (loaded params vs active params, expert memory)
-- [ ] **INFER-08**: Estimate tokens/second throughput based on GPU compute and memory bandwidth (roofline model)
-- [ ] **INFER-09**: Estimate time-to-first-token (TTFT) for prefill phase
+### Fine-Tuning Core
 
-### Multi-GPU
+- [ ] **FTCORE-01**: User can toggle between Inference and Fine-tuning mode
+- [ ] **FTCORE-02**: User can select fine-tuning method (Full / LoRA / QLoRA)
+- [ ] **FTCORE-03**: User can select optimizer (AdamW, SGD, 8-bit Adam, Adafactor)
+- [ ] **FTCORE-04**: User can see training memory breakdown (weights, optimizer states, gradients, activations, overhead)
+- [ ] **FTCORE-05**: User can configure LoRA rank (4-256) and alpha
+- [ ] **FTCORE-06**: User can configure LoRA target modules percentage (10-100%)
+- [ ] **FTCORE-07**: User can toggle mixed precision training (FP32/FP16/BF16)
 
-- [ ] **MGPU-01**: User can select number of GPUs (1-8) for model distribution
-- [ ] **MGPU-02**: Calculate VRAM per GPU accounting for tensor parallelism memory distribution
-- [ ] **MGPU-03**: Account for communication overhead and memory replication (10-20% overhead)
-- [ ] **MGPU-04**: User can select interconnect type (NVLink, PCIe) with bandwidth impact on performance estimates
-- [ ] **MGPU-05**: Support pipeline parallelism as sharding strategy with per-stage memory accounting
-- [ ] **MGPU-06**: Show memory distribution across GPUs with per-GPU utilization
+### Memory Optimization
 
-### Visualization & UX
+- [ ] **OPTIM-01**: User can set gradient accumulation steps (1-128) and see effective batch size
+- [ ] **OPTIM-02**: User can toggle gradient checkpointing and see memory impact (50-80% activation reduction)
+- [ ] **OPTIM-03**: User can toggle Flash Attention and see KV cache reduction
+- [ ] **OPTIM-04**: User can see effective batch size calculation (batch x accumulation steps x GPUs)
 
-- [ ] **VIZ-01**: Memory breakdown chart showing weights, KV cache, activations, overhead as stacked/donut visualization
-- [ ] **VIZ-02**: Clear fit/no-fit indicator with total VRAM needed vs available, percentage used
-- [ ] **VIZ-03**: When model doesn't fit, show actionable recommendations (lower quantization, reduce context, add GPUs)
-- [ ] **VIZ-04**: URL hash persistence for sharing configurations (same pattern as raidy)
-- [ ] **VIZ-05**: Side-by-side comparison of 2-3 configurations (different GPUs or quantization settings)
-- [ ] **VIZ-06**: Responsive layout with input panel and results panel
-- [ ] **VIZ-07**: Dark mode support (matching raidy)
+### Framework Presets
 
-### Infrastructure
+- [ ] **FWPRST-01**: User can select framework preset (DeepSpeed ZeRO-1/2/3, Unsloth, vLLM, TGI, None)
+- [ ] **FWPRST-02**: Framework preset auto-configures optimization settings with memory impact shown
+- [ ] **FWPRST-03**: User can toggle 8-bit optimizer (2x memory savings)
+- [ ] **FWPRST-04**: QLoRA mode shows 4-bit base + 16-bit adapter memory split
 
-- [ ] **INFRA-01**: React 19 + TypeScript strict + Vite + Zustand + Tailwind CSS + Recharts stack
-- [ ] **INFRA-02**: Biome for linting/formatting (matching raidy)
-- [ ] **INFRA-03**: Vitest for unit testing with engine calculation coverage
-- [ ] **INFRA-04**: Decimal.js for precision arithmetic in all calculation engines
-- [ ] **INFRA-05**: Zod schemas for model and GPU data validation
-- [ ] **INFRA-06**: Static site deployment (Vercel/GitHub Pages — no backend)
-- [ ] **INFRA-07**: Web Workers for heavy calculations to prevent UI blocking
+### Multi-GPU Training
 
-## v2 Requirements
+- [ ] **MGPUTR-01**: User can estimate multi-GPU training VRAM with DeepSpeed ZeRO stages
+- [ ] **MGPUTR-02**: ZeRO stages show correct memory reduction (Stage 1: optimizer, Stage 2: +gradients, Stage 3: +weights)
+- [ ] **MGPUTR-03**: User can enable CPU offloading for optimizer states in training mode
+
+## v1.2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
 
-### Fine-tuning
+### Performance
 
-- **TRAIN-01**: Estimate VRAM for full fine-tuning (optimizer states + gradients + activations)
-- **TRAIN-02**: Estimate VRAM for LoRA fine-tuning (adapter params, reduced optimizer states, rank configuration)
-- **TRAIN-03**: Estimate VRAM for QLoRA (quantized base + LoRA adapters)
-- **TRAIN-04**: Side-by-side comparison of Full vs LoRA vs QLoRA memory requirements
-- **TRAIN-05**: Gradient accumulation calculator (effective batch size trade-offs)
-- **TRAIN-06**: Dataset size memory estimation (samples, tokens, epochs)
+- **PERF-01**: User can see training throughput estimation (samples/sec)
+- **PERF-02**: User can see training time estimation per epoch
 
-### Advanced Features
+### Advanced Training
 
-- **ADV-01**: Optimization framework presets (vLLM, TGI, Unsloth, DeepSpeed ZeRO)
-- **ADV-02**: CPU/NVMe offloading estimation with performance penalty
-- **ADV-03**: Energy consumption and cost estimation
-- **ADV-04**: Memory optimization suggestions engine (rule-based recommendations)
+- **ADVTR-01**: User can select FSDP as distributed training strategy
+- **ADVTR-02**: User can configure MoE-specific fine-tuning (expert selection)
+- **ADVTR-03**: User can see cost estimation per training run
 
 ## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
 | Model execution/inference | Calculator only — link to vLLM, Ollama, TGI |
-| Model downloading/hosting | Link to HuggingFace instead |
-| User accounts/authentication | Stateless browser tool, localStorage for preferences |
+| Hyperparameter tuning suggestions | Out of scope — domain-specific, not VRAM estimation |
+| Dataset size recommendations | Too training-task specific |
+| Training loss prediction | Impossible without knowing data quality |
+| Learning rate scheduling | Unrelated to VRAM |
+| Cost estimation per epoch | Too many variables (provider, region, spot pricing) |
+| FSDP / Megatron strategies | Overwhelming complexity for v1.1 — start with DeepSpeed ZeRO only |
+| MoE-specific fine-tuning | Niche, complex, low ROI for v1.1 |
+| Data loading/preprocessing memory | Highly variable, framework-dependent |
 | Community benchmark submission | Requires backend + moderation — out of scope for static site |
-| Real-time GPU monitoring | Different product — users have nvidia-smi |
 | Mobile native app | Responsive web sufficient |
-| Cloud pricing integration | Prices change too fast, separate concern |
 | AI-powered recommendations | Rule-based suggestions are clearer and more predictable |
 
 ## Traceability
 
+Which phases cover which requirements. Updated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
-| INFRA-05 | Phase 1 | Pending |
-| INFRA-06 | Phase 1 | Pending |
-| DATA-01 | Phase 1 | Pending |
-| DATA-02 | Phase 1 | Pending |
-| DATA-03 | Phase 1 | Pending |
-| DATA-04 | Phase 1 | Pending |
-| DATA-05 | Phase 1 | Pending |
-| DATA-06 | Phase 1 | Pending |
-| DATA-07 | Phase 1 | Pending |
-| INFRA-07 | Phase 2 | Pending |
-| INFER-01 | Phase 2 | Pending |
-| INFER-02 | Phase 2 | Pending |
-| INFER-03 | Phase 2 | Pending |
-| INFER-04 | Phase 2 | Pending |
-| INFER-05 | Phase 2 | Pending |
-| INFER-06 | Phase 2 | Pending |
-| INFER-07 | Phase 2 | Pending |
-| INFER-08 | Phase 2 | Pending |
-| INFER-09 | Phase 2 | Pending |
-| VIZ-01 | Phase 3 | Pending |
-| VIZ-02 | Phase 3 | Pending |
-| VIZ-03 | Phase 3 | Pending |
-| VIZ-06 | Phase 3 | Pending |
-| VIZ-07 | Phase 3 | Pending |
-| MGPU-01 | Phase 4 | Pending |
-| MGPU-02 | Phase 4 | Pending |
-| MGPU-03 | Phase 4 | Pending |
-| MGPU-04 | Phase 4 | Pending |
-| MGPU-05 | Phase 4 | Pending |
-| MGPU-06 | Phase 4 | Pending |
-| VIZ-04 | Phase 5 | Pending |
-| VIZ-05 | Phase 5 | Pending |
+| FTCORE-01 | — | Pending |
+| FTCORE-02 | — | Pending |
+| FTCORE-03 | — | Pending |
+| FTCORE-04 | — | Pending |
+| FTCORE-05 | — | Pending |
+| FTCORE-06 | — | Pending |
+| FTCORE-07 | — | Pending |
+| OPTIM-01 | — | Pending |
+| OPTIM-02 | — | Pending |
+| OPTIM-03 | — | Pending |
+| OPTIM-04 | — | Pending |
+| FWPRST-01 | — | Pending |
+| FWPRST-02 | — | Pending |
+| FWPRST-03 | — | Pending |
+| FWPRST-04 | — | Pending |
+| MGPUTR-01 | — | Pending |
+| MGPUTR-02 | — | Pending |
+| MGPUTR-03 | — | Pending |
 
 **Coverage:**
-
-- v1 requirements: 36 total
-- Mapped to phases: 36
-- Unmapped: 0
+- v1.1 requirements: 18 total
+- Mapped to phases: 0
+- Unmapped: 18
 
 ---
 *Requirements defined: 2026-02-09*
-*Last updated: 2026-02-09 after roadmap creation*
+*Last updated: 2026-02-10 after v1.1 milestone requirements*
