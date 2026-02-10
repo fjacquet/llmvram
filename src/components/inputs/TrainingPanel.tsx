@@ -1,3 +1,6 @@
+import { EffectiveBatchDisplay } from '@components/inputs/EffectiveBatchDisplay'
+import { GradientAccumulationInput } from '@components/inputs/GradientAccumulationInput'
+import { OptimizationToggles } from '@components/inputs/OptimizationToggles'
 import { OptimizerPicker } from '@components/inputs/OptimizerPicker'
 import { PrecisionPicker } from '@components/inputs/PrecisionPicker'
 import { TrainingMethodPicker } from '@components/inputs/TrainingMethodPicker'
@@ -5,8 +8,7 @@ import { TrainingMethodPicker } from '@components/inputs/TrainingMethodPicker'
 /**
  * Training configuration panel assembling all training-specific inputs
  *
- * Contains training method, optimizer, and precision pickers
- * LoRA-specific options (rank, alpha, target modules) will be added in a later phase
+ * Contains training method, optimizer, precision pickers, and memory optimization controls
  */
 export function TrainingPanel() {
   return (
@@ -17,6 +19,13 @@ export function TrainingPanel() {
       <TrainingMethodPicker />
       <OptimizerPicker />
       <PrecisionPicker />
+
+      <hr className="border-gray-200 dark:border-gray-700" />
+
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Memory Optimizations</h3>
+      <GradientAccumulationInput />
+      <EffectiveBatchDisplay />
+      <OptimizationToggles />
     </div>
   )
 }
