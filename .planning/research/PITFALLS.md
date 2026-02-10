@@ -1,485 +1,1016 @@
-# Domain Pitfalls: LLM VRAM Calculators
+# Domain Pitfalls: Adding Fine-Tuning VRAM Estimation
 
-**Domain:** LLM VRAM estimation tools
-**Researched:** 2026-02-09
-**Confidence:** LOW-MEDIUM (based on training data only - tools unavailable for verification)
+**Domain:** Fine-tuning VRAM calculation for LLM VRAM Calculator (v2.0 milestone)
+**Researched:** 2026-02-10
+**Confidence:** HIGH (verified with Context7, official docs, and current 2026 sources)
 
-**Note:** This research was conducted without access to current documentation tools. All findings are based on training data (January 2025 cutoff) and should be verified against current sources.
+**Context:** This document covers pitfalls specific to ADDING fine-tuning estimation features to an existing inference VRAM calculator. For inference-only pitfalls, see the v1.0 PITFALLS.md.
+
+---
 
 ## Critical Pitfalls
 
-These mistakes cause estimation errors >20% and can lead to OOM failures in production.
+These mistakes cause estimation errors >50% and lead to OOM failures or massive overestimation.
 
-### Pitfall 1: Quantization Overhead Ignored
+### Pitfall 1: Reusing Inference KV Cache Formula for Training
 
-**What goes wrong:** Calculator assumes 4-bit quantization means exactly 0.5 bytes per parameter (4 bits / 8 bits). Reality: GPTQ adds grouping metadata, zero-point storage, scale factors. AWQ adds activation scales. Actual memory is 0.55-0.65 bytes per parameter for 4-bit models.
+**What goes wrong:** Calculator reuses inference KV cache formula (`2 * n_layers * d_model * seq_len * n_kv_heads/n_heads`) for fine-tuning mode. Reality: Training processes batches in parallel with full attention matrices, not sequential generation. KV cache behavior is fundamentally different.
 
 **Why it happens:**
-
-- Treating quantization as pure bit-packing
-- Ignoring format-specific metadata
-- Not accounting for alignment padding
+- Assuming KV cache works the same way in training
+- Not understanding that training doesn't cache keys/values the same way
+- Trying to maximize code reuse between inference and training
 
 **Consequences:**
-
-- 10-30% underestimation for quantized models
-- OOM on models that "should fit"
-- User loses trust in calculator
+- Training memory underestimated by 30-60% for long sequences
+- Missing attention matrix materialization during forward/backward pass
+- Users hit OOM when "calculator said it would fit"
 
 **Prevention:**
 
 ```
-Quantization memory = (parameters * bits_per_param / 8) * overhead_multiplier
+Training attention memory (without Flash Attention):
+- Forward pass attention matrix: batch * n_heads * seq_len² * 2 bytes (BF16)
+- Backward pass gradients: same size
+- Total: 2 * batch * n_heads * seq_len² * 2 bytes
 
-Overhead multipliers:
-- GPTQ 4-bit: 1.1-1.3x (groupsize dependent)
-- AWQ 4-bit: 1.15-1.25x
-- bitsandbytes NF4: 1.1-1.2x
-- GGUF Q4_K_M: 1.15x
-- GGUF Q4_0: 1.05x
+Training attention memory (with Flash Attention v2+):
+- Forward/backward uses tiling, no full matrix materialization
+- Memory: O(batch * seq_len) instead of O(batch * seq_len²)
+- Reduction: 10-20x for long sequences (8K+)
+
+Note: Training does NOT use KV cache like inference. Don't reuse that calculation.
 ```
 
 **Detection:**
+- Training estimate looks almost identical to inference estimate
+- Missing Flash Attention toggle for training mode
+- Estimates don't explode with long sequences (they should without Flash Attention)
 
-- User reports "model doesn't fit but calculator says it should"
-- Estimates match theory but not real-world measurements
-- Larger errors on smaller quantization (2-bit, 3-bit)
+**Phase mapping:** Phase 1 (Fine-tuning MVP) - Must separate training from inference logic immediately
 
-**Phase mapping:** Phase 1 (MVP) must get this right or entire calculator is unusable
+**Sources:**
+- [FlashAttention: Fast and Memory-Efficient Exact Attention](https://github.com/Dao-AILab/flash-attention)
+- [PyTorch Out-of-the-Box Acceleration](https://pytorch.org/blog/out-of-the-box-acceleration/)
 
 ---
 
-### Pitfall 2: KV Cache Quadratic Scaling Assumed
+### Pitfall 2: Optimizer State Precision Assumption
 
-**What goes wrong:** Calculator uses formula `KV_memory = 2 * n_layers * d_model * seq_len`, assuming linear scaling. Reality: With attention mechanisms, effective memory depends on implementation. GQA (Grouped Query Attention) and MQA (Multi-Query Attention) drastically reduce KV cache.
+**What goes wrong:** Calculator assumes optimizer states match training precision (BF16 training = 2 bytes/param optimizer state). Reality: AdamW and most optimizers maintain states in FP32 (4 bytes) for numerical stability, even when training in BF16/FP16.
 
 **Why it happens:**
-
-- Using formulas from original Transformer (2017)
-- Not accounting for modern attention optimizations
-- Ignoring architecture-specific KV reduction
+- Logical assumption: "training in BF16 = everything in BF16"
+- Not reading optimizer implementation details
+- Copying formulas from blog posts that simplify for clarity
 
 **Consequences:**
-
-- Overestimation for GQA/MQA models (Mistral, Llama 3, GPT-4)
-- 2-8x overestimation for MQA models
-- Users think they need more VRAM than required
+- 2x underestimation of optimizer memory
+- Total training memory off by 30-40%
+- "18 bytes per parameter" becomes 14, completely wrong
 
 **Prevention:**
 
 ```
-KV_memory = 2 * n_layers * d_model * seq_len * (n_kv_heads / n_heads)
+AdamW optimizer states (standard):
+- First moment (momentum): params * 4 bytes (FP32)
+- Second moment (variance): params * 4 bytes (FP32)
+- Total: 8 bytes per TRAINABLE parameter
 
-Standard attention: n_kv_heads = n_heads (ratio = 1.0)
-GQA: n_kv_heads < n_heads (ratio = 0.125 to 0.5)
-MQA: n_kv_heads = 1 (ratio = 1/n_heads, often ~0.03)
+Total training memory per parameter (mixed precision):
+- Model weights (BF16): 2 bytes
+- Gradients (BF16): 2 bytes
+- Master weights (FP32): 4 bytes (copy of weights in FP32)
+- Optimizer states (FP32): 8 bytes
+- Total: ~16-18 bytes per trainable parameter
 
-Example:
-- Llama 3 70B: 8 KV heads, 64 query heads → 8/64 = 0.125x
-- Mistral 7B: 8 KV heads, 32 query heads → 8/32 = 0.25x
+Alternative optimizers:
+- SGD with momentum: 4 bytes/param (1x FP32 state)
+- AdamW 8-bit: ~2 bytes/param (quantized states)
+- Lion: 4 bytes/param (1x FP32 state)
 ```
 
 **Detection:**
+- Optimizer state memory changes when user switches training precision
+- Missing "master weights" in mixed precision explanation
+- Total training memory < 12 bytes/param (impossibly low for AdamW)
 
-- Estimates are 2-4x higher than vLLM/TGI actual usage
-- Same context length gives vastly different estimates for different models
-- Missing n_kv_heads parameter in model config
+**Phase mapping:** Phase 1 (Fine-tuning MVP) - Core calculation must be accurate
 
-**Phase mapping:** Phase 1 (MVP) - Core calculation logic
-
----
-
-### Pitfall 3: MoE Active Parameters Miscalculation
-
-**What goes wrong:** Calculator loads entire model weight into VRAM calculation. Reality: MoE models (Mixtral, DeepSeek V3) only activate a subset of experts per token. But ALL expert weights must be in VRAM, just not all activated simultaneously for compute.
-
-**Why it happens:**
-
-- Confusing "active parameters" with "loaded parameters"
-- Marketing materials say "13B active, 47B total" → assuming 13B memory
-- Not understanding sparse vs dense memory requirements
-
-**Consequences:**
-
-- Massive underestimation (up to 4x)
-- Mixtral 8x7B calculated as 13B instead of ~47B
-- Complete OOM on models that "should fit easily"
-
-**Prevention:**
-
-```
-MoE memory calculation:
-
-Model weights = total_parameters (NOT active_parameters) * bytes_per_param
-- Mixtral 8x7B: 46.7B parameters loaded, ~13B active per token
-- DeepSeek V3: All expert weights in VRAM, subset activated
-
-KV cache = same as dense model (based on d_model, not active params)
-
-Activation memory = based on active_parameters (lower than dense)
-```
-
-**Detection:**
-
-- "13B MoE" calculator result similar to dense 13B
-- Missing expert count / experts-per-token in config
-- Estimates way below Mixtral/Qwen MoE actual measurements
-
-**Phase mapping:** Phase 2 (Architecture Support) - Must be separate from dense model logic
+**Sources:**
+- [Memory Requirements (HBM, GPU RAM)](https://apxml.com/courses/how-to-build-a-large-language-model/chapter-18-hardware-considerations-llm-training/memory-requirements-hbm-gpu-ram)
+- [Efficient Training on a Single GPU](https://huggingface.co/docs/transformers/v4.20.1/en/perf_train_gpu_one)
+- [Modern Optimizers: AdamW, Lion](https://medium.com/@spjosyula2005/modern-optimizers-adamw-lion-and-what-actually-works-at-scale-68ffc033713b)
 
 ---
 
-### Pitfall 4: Multi-GPU Memory Split Naive
+### Pitfall 3: LoRA Adapter-Only Optimizer States Ignored
 
-**What goes wrong:** Calculator divides memory by GPU count: `memory_per_gpu = total_memory / n_gpus`. Reality: Tensor parallelism has replication overhead (embeddings, layernorms), pipeline parallelism has activation stashing, and there's communication buffer overhead.
-
-**Why it happens:**
-
-- Assuming perfect sharding
-- Ignoring replicated components
-- Not accounting for interconnect buffers
-
-**Consequences:**
-
-- 10-20% underestimation for multi-GPU setups
-- OOM on last GPU in pipeline
-- Users frustrated by "2x GPU should be 2x model size"
-
-**Prevention:**
-
-```
-Tensor Parallelism overhead:
-- Embeddings: replicated on all GPUs (typically 2-5% of model)
-- LayerNorms: replicated
-- Effective split: 85-90% of model weight, not 100%
-
-Pipeline Parallelism overhead:
-- Activation stashing: 10-15% additional per stage
-- Micro-batch buffers: depends on batch size
-
-Per-GPU overhead:
-- NCCL buffers: 100-500MB per GPU
-- Framework overhead: 500MB-1GB PyTorch/CUDA
-```
-
-**Detection:**
-
-- Multi-GPU estimates exactly total/n_gpus
-- Missing TP/PP strategy selection
-- Same estimate for 2x24GB and 1x48GB (should differ)
-
-**Phase mapping:** Phase 3 (Multi-GPU) - Needs separate logic from single-GPU
-
----
-
-### Pitfall 5: Fine-tuning Optimizer State Multiplier Wrong
-
-**What goes wrong:** Calculator uses fixed "AdamW = 8 bytes per parameter" rule. Reality: Optimizer memory depends on trainable parameter count, not total parameters. With LoRA/QLoRA, only adapter weights have optimizer states.
+**What goes wrong:** Calculator multiplies optimizer state memory by total model parameters for LoRA fine-tuning. Reality: Only LoRA adapter parameters (typically <1% of model) are trainable and get optimizer states. Frozen base model weights have no optimizer states.
 
 **Why it happens:**
-
-- Using full fine-tuning formulas for PEFT
 - Not distinguishing trainable vs frozen parameters
-- Ignoring gradient checkpointing impact
+- Applying full fine-tuning formula to LoRA
+- Missing that LoRA freezes base model completely
 
 **Consequences:**
-
-- 10-100x overestimation for LoRA/QLoRA
-- Users think fine-tuning is impossible
-- Massive underestimation for full fine-tuning (missing gradients)
+- 100-200x overestimation for LoRA fine-tuning
+- Calculator shows "need 400GB" when 24GB is sufficient
+- Users think fine-tuning is impossible on consumer hardware
 
 **Prevention:**
 
 ```
-Full Fine-tuning (all parameters trainable):
-- Model weights: params * bytes_per_param
-- Gradients: params * 4 bytes (fp32)
-- Optimizer states (AdamW): params * 8 bytes (2x fp32 moments)
-- Total: ~13x model weight (for fp32 training)
+LoRA trainable parameters:
+- Adapter matrices per layer: 2 * rank * d_model
+- Number of target layers: typically attention layers (q_proj, k_proj, v_proj, o_proj)
+- Total adapters: ~0.2-2% of base model parameters
 
-LoRA (only adapter trainable):
-- Base model: params * bytes_per_param (quantized OK)
-- LoRA adapters: r * d_model * num_layers * 2 (A and B matrices)
-- Gradients: only for adapters (~1% of full)
-- Optimizer states: only for adapters
-- Total: ~1.2-1.5x base model (for rank 16-64)
+Example (Llama 7B, rank 16, 4 targets per layer, 32 layers):
+- Base model: 7B params frozen
+- Adapters: 2 * 16 * 4096 * 4 * 32 = 16.8M trainable params
+- Ratio: 16.8M / 7B = 0.24%
 
-QLoRA:
-- Base model in 4-bit: params * 0.5
-- Rest same as LoRA
-- Total: often 40-50% of full fine-tuning memory
+Memory calculation:
+- Base model: 7B * 2 bytes (BF16) = 14GB
+- Adapter weights: 16.8M * 2 bytes = 33.6MB
+- Adapter gradients: 16.8M * 2 bytes = 33.6MB
+- Adapter optimizer states: 16.8M * 8 bytes = 134MB
+- Activations: based on batch_size, seq_len, hidden_size
+- Total: ~16-18GB (NOT 90GB like full fine-tuning)
+
+CRITICAL: Only count trainable params for gradients + optimizer states!
 ```
 
 **Detection:**
+- LoRA memory estimate similar to full fine-tuning
+- Missing LoRA rank parameter input
+- Calculator doesn't ask "which layers to target with LoRA"
+- Estimate doesn't change dramatically between rank 8 and rank 64
 
-- LoRA estimate same as full fine-tuning
-- Missing rank parameter for LoRA
-- No distinction between trainable/frozen parameters
+**Phase mapping:** Phase 1 (Fine-tuning MVP) - Essential for LoRA support
 
-**Phase mapping:** Phase 1 (MVP) if including fine-tuning, otherwise Phase 4
+**Sources:**
+- [LoRA fine-tuning Hyperparameters Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide)
+- [Practical Tips for Finetuning LLMs Using LoRA](https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms)
+- [Understanding LoRA Adapters Rank and Alpha Parameters](https://datawizz.ai/blog/understanding-lora-adapters-rank-and-alpha-parameters)
 
 ---
 
-### Pitfall 6: Context Length Scaling Assumption
+### Pitfall 4: QLoRA Precision Mixing Miscalculation
 
-**What goes wrong:** Calculator scales KV cache linearly: doubling context = doubling memory. Reality: Attention computation memory scales quadratically with sequence length in standard implementations, though KV cache is linear. Flash Attention changes this.
+**What goes wrong:** Calculator treats QLoRA as "4-bit LoRA" with uniform precision. Reality: QLoRA mixes three precisions: 4-bit NF4 base model (frozen), FP16/BF16 adapter weights (trainable), FP32 optimizer states (for adapters only).
 
 **Why it happens:**
-
-- Focusing only on KV cache (which is linear)
-- Ignoring attention matrix materialization
-- Not accounting for Flash Attention optimization
+- Thinking QLoRA is just "quantized LoRA"
+- Not understanding the three-precision architecture
+- Missing that base model quantization doesn't affect adapter memory
 
 **Consequences:**
-
-- Underestimation at long contexts (32K+)
-- Missing memory spike during prefill phase
-- Wrong estimates for training vs inference
+- Incorrect memory calculation (typically overestimation)
+- Missing that 4-bit base saves ~75% on frozen weights
+- Not accounting for dequantization overhead during forward pass
 
 **Prevention:**
 
 ```
-Inference with Flash Attention:
-- KV cache: linear with seq_len ✓
-- Attention: O(1) memory (Flash Attention)
-- Total: approximately linear
+QLoRA memory breakdown (Llama 7B example):
+1. Base model (4-bit NF4, frozen):
+   - 7B * 0.5 bytes * 1.1 (overhead) = 3.85GB
 
-Inference without Flash Attention:
-- KV cache: linear
-- Attention matrix: O(seq_len²) in VRAM during compute
-- Total: dominated by quadratic term at 16K+ context
+2. Paged optimizer buffers:
+   - Additional 500MB-1GB for CPU-GPU paging
 
-Training:
-- Always quadratic without Flash Attention
-- Linear with Flash Attention v2+
-- Gradient checkpointing trades compute for memory
+3. LoRA adapters (BF16, trainable):
+   - Same as regular LoRA: ~17M params * 2 bytes = 34MB
+
+4. Adapter gradients (BF16):
+   - 17M params * 2 bytes = 34MB
+
+5. Adapter optimizer states (FP32):
+   - 17M params * 8 bytes = 136MB
+
+6. Activations (mixed precision):
+   - Forward pass: batch * seq_len * hidden * layers * 2-4x
+   - With gradient checkpointing: 60% reduction
+
+Total: ~6-8GB (vs 90GB full fine-tuning, 16-18GB LoRA)
+
+Key insight: 4-bit base model provides 75% memory savings on frozen weights,
+adapters stay in FP16/BF16 for training stability, optimizer states still FP32.
 ```
 
 **Detection:**
+- QLoRA memory = LoRA memory / 4 (too simple)
+- Missing "paged optimizer" explanation
+- No mention of NF4 quantization specifically
+- Estimate doesn't account for dequantization overhead
 
-- Same memory estimate for 4K and 128K context (should be 32x)
-- No Flash Attention toggle
-- Missing prefill vs decode distinction
+**Phase mapping:** Phase 2 (Advanced Fine-tuning) - After basic LoRA works
 
-**Phase mapping:** Phase 2 (Architecture Support) - Context strategies
+**Sources:**
+- [Making LLMs even more accessible with bitsandbytes, 4-bit quantization and QLoRA](https://huggingface.co/blog/4bit-transformers-bitsandbytes)
+- [QLoRA: Efficient Finetuning of Quantized LLMs](https://github.com/artidoro/qlora)
+- [Quantized LoRA (QLoRA) Principles](https://apxml.com/courses/lora-peft-efficient-llm-training/chapter-4-advanced-lora-variants/qlora-principles)
 
 ---
 
-### Pitfall 7: Batch Size Memory Scaling Wrong
+### Pitfall 5: Gradient Accumulation Peak Memory Misconception
 
-**What goes wrong:** Calculator assumes memory scales linearly with batch size. Reality: Model weights are constant, KV cache scales linearly with batch, but activations scale with batch AND sequence length. Padding inefficiency amplifies this.
+**What goes wrong:** Calculator shows memory reduction when increasing gradient accumulation steps. Reality: Gradient accumulation reduces PER-STEP batch size (activation memory), but does NOT reduce peak gradient or optimizer state memory. Common misconception that it's a general memory optimization.
 
 **Why it happens:**
-
-- Formula: `total = model_weights + batch_size * per_sample_memory`
-- Treating all components as batch-dependent
-- Ignoring padding waste in batched inference
+- Blog posts say "gradient accumulation saves memory"
+- Not distinguishing activation memory vs gradient memory
+- Confusing effective batch size with peak memory
 
 **Consequences:**
-
-- Underestimation for large batches
-- Missing "sweet spot" batch size guidance
-- No warning about padding overhead
+- Showing reduced memory estimate with more accumulation steps (WRONG)
+- Users expect 8x accumulation = 8x memory savings (not true)
+- Missing that accumulation is for batch size simulation, not memory reduction
 
 **Prevention:**
 
 ```
-Memory breakdown by batch scaling:
+Memory impact of gradient accumulation:
 
-Constant (batch-independent):
-- Model weights: independent of batch
-- Embedding tables: independent of batch
+Micro-batch size: 1, Accumulation steps: 8, Effective batch: 8
 
-Linear with batch:
-- KV cache: batch_size * seq_len * kv_memory_per_token
-- Output logits: batch_size * vocab_size * 4 bytes
+REDUCED (scales with micro-batch):
+- Activations: batch=1 activations, not batch=8
+- Forward pass intermediate values: batch=1 only
+- Savings: ~85% on activation memory
 
-Linear with batch AND seq_len:
-- Activations: batch_size * seq_len * d_model * n_layers * multiplier
-- Multiplier depends on architecture (2-4x typical)
+NOT REDUCED (constant regardless of accumulation):
+- Model weights: same size
+- Gradients: accumulated in-place, same memory
+- Optimizer states: same size
+- Peak memory: still need to store full gradients
 
-Padding waste:
-- If batch has sequences [100, 2000, 500, 300] → all padded to 2000
-- Effective batch memory = batch_size * max_seq_len
-- Can waste 50-80% memory with variable lengths
+Correct formula:
+Peak memory = weights + gradients + optimizer_states + (micro_batch_activations)
+NOT: Peak memory = weights + gradients + optimizer_states + (effective_batch_activations)
+
+Example (Llama 7B, mixed precision):
+- Batch=8, accum=1: 14GB (weights) + 14GB (grad) + 56GB (opt) + 12GB (act) = 96GB
+- Batch=1, accum=8: 14GB (weights) + 14GB (grad) + 56GB (opt) + 1.5GB (act) = 85.5GB
+- Savings: 10.5GB (11%), NOT 8x (87%)
 ```
 
 **Detection:**
+- Memory estimate scales linearly down with accumulation steps
+- Explanation says "gradient accumulation saves memory" without caveats
+- Users expect 8x accumulation to enable training on 1/8 the VRAM (impossible)
 
-- Batch=2 estimate is exactly 2x batch=1
-- No padding efficiency consideration
-- Missing dynamic batching explanation
+**Phase mapping:** Phase 1 (Fine-tuning MVP) - Critical for accurate guidance
 
-**Phase mapping:** Phase 2 (Architecture Support) or Phase 4 (Optimization)
+**Sources:**
+- [Gradient Accumulation: Increase Batch Size Without Explicitly Increasing Batch Size](https://blog.dailydoseofds.com/p/gradient-accumulation-increase-batch)
+- [Gradient Accumulation and Checkpointing](https://aman.ai/primers/ai/grad-accum-checkpoint/)
+- [Gradient Accumulation: Overcome GPU Memory Limitations](https://docs.vultr.com/how-to-use-gradient-accumulation-to-overcome-gpu-memory-limitations)
+
+---
+
+### Pitfall 6: DeepSpeed ZeRO Stage Memory Profile Confusion
+
+**What goes wrong:** Calculator shows linear memory reduction with ZeRO stages (Stage 1 = 50%, Stage 2 = 33%, Stage 3 = 25% per GPU). Reality: Memory savings are 2x / 4x / 8-10x respectively, with different communication overhead and precision requirements.
+
+**Why it happens:**
+- Misunderstanding what each stage partitions
+- Thinking "4 GPUs = divide by 4" for all stages
+- Not accounting for communication volume differences
+
+**Consequences:**
+- Massive overestimation or underestimation of multi-GPU memory
+- Missing that ZeRO-3 is fundamentally different from ZeRO-1/2
+- Not warning about communication overhead (15-30% throughput loss)
+
+**Prevention:**
+
+```
+DeepSpeed ZeRO stage memory profiles (per GPU):
+
+Stage 1 (Optimizer State Partitioning):
+- Model weights: replicated on all GPUs
+- Gradients: replicated on all GPUs
+- Optimizer states: partitioned (divided by N)
+- Memory savings: ~2x total
+- Communication: optimizer all-gather (minimal)
+- Use case: Easy win with minimal complexity
+
+Stage 2 (Optimizer + Gradient Partitioning):
+- Model weights: replicated on all GPUs
+- Gradients: partitioned (divided by N)
+- Optimizer states: partitioned (divided by N)
+- Memory savings: ~4x total
+- Communication: gradient reduce-scatter + optimizer all-gather
+- Use case: Standard for multi-GPU training
+
+Stage 3 (Optimizer + Gradient + Parameter Partitioning):
+- Model weights: partitioned (divided by N)
+- Gradients: partitioned (divided by N)
+- Optimizer states: partitioned (divided by N)
+- Memory savings: ~8-10x total (near-linear scaling)
+- Communication: all-gather params on-the-fly during forward/backward
+- Overhead: 15-30% throughput reduction from parameter communication
+- Use case: Training models that don't fit on N GPUs otherwise
+
+Example (Llama 70B, mixed precision, 4x A100 80GB):
+- Stage 1: ~320GB total / 4 = 80GB per GPU (optimizer only partitioned)
+- Stage 2: ~320GB total / 4 = 80GB per GPU (grad + opt partitioned)
+- Stage 3: ~320GB total / 8 = 40GB per GPU (everything partitioned)
+
+CRITICAL: Don't use simple "divide by N" - savings are 2x/4x/8x, not N-way split!
+```
+
+**Detection:**
+- ZeRO stage 1/2/3 all show `total_memory / num_gpus`
+- Missing communication overhead warning
+- Stage 3 memory same as Stage 2 (should be ~2x better)
+- No explanation of on-the-fly parameter gathering
+
+**Phase mapping:** Phase 3 (Multi-GPU Fine-tuning) - After single-GPU works
+
+**Sources:**
+- [Zero Redundancy Optimizer - DeepSpeed](https://www.deepspeed.ai/tutorials/zero/)
+- [Memory Requirements — DeepSpeed](https://deepspeed.readthedocs.io/en/latest/memory.html)
+- [Scaling Large Language Models with DeepSpeed ZeRO](https://medium.com/@dpratishraj7991/scaling-large-language-models-with-deepspeed-zero-zero-and-zero-offload-a-complete-guide-70d393e311f4)
+
+---
+
+### Pitfall 7: Activation Checkpointing Memory-Compute Trade-off Misrepresented
+
+**What goes wrong:** Calculator shows "enable gradient checkpointing = 60% memory reduction" without mentioning compute cost. Reality: Checkpointing trades 25-40% slower training for 50-70% memory reduction. Selective checkpointing is critical to avoid OOM.
+
+**Why it happens:**
+- Focusing on memory savings only
+- Not understanding recomputation cost
+- Thinking checkpointing is "free memory"
+
+**Consequences:**
+- Users surprised by training slowdown
+- Applying checkpointing to every layer (can cause OOM on CPU)
+- Not understanding when NOT to use checkpointing
+
+**Prevention:**
+
+```
+Gradient checkpointing (activation checkpointing):
+
+How it works:
+1. Forward pass: only save activations at checkpoint boundaries
+2. Backward pass: recompute activations on-the-fly from checkpoints
+3. Trade: Compute intermediate activations twice vs storing them once
+
+Memory savings:
+- Full storage: ~10-15 activations per layer * num_layers
+- With checkpointing: ~2-3 activations per layer (checkpointed only)
+- Reduction: 60-70% of activation memory
+- Example: 12GB activations → 4GB with checkpointing
+
+Compute overhead:
+- Recompute activations during backward pass
+- Slowdown: 25-40% longer training time
+- Flash Attention: reduces recomputation cost (already optimized)
+
+Selective checkpointing best practices:
+- Checkpoint attention layers (expensive to compute, large activations)
+- Don't checkpoint cheap operations (LayerNorm, residual adds)
+- Don't checkpoint output layer (accessed frequently)
+- Typical: checkpoint every 2-4 transformer blocks
+
+Common mistake: Checkpointing every operation
+- Can cause CPU memory issues (need to store checkpoint metadata)
+- Minimal memory savings beyond every 2-4 blocks
+- Maximum compute overhead
+
+Calculator should show:
+✓ Memory reduction: 60-70% of activation memory
+✓ Compute overhead: +25-40% training time
+✓ Recommendation: Enable for large models/long sequences
+```
+
+**Detection:**
+- Only shows memory savings, no compute cost mention
+- "Enable checkpointing" checkbox without explanation
+- No selective vs full checkpointing option
+- Missing guidance on when to use it
+
+**Phase mapping:** Phase 2 (Advanced Fine-tuning) - After basic training works
+
+**Sources:**
+- [Current and New Activation Checkpointing Techniques in PyTorch](https://pytorch.org/blog/activation-checkpointing-techniques/)
+- [Gradient Accumulation and Checkpointing](https://aman.ai/primers/ai/grad-accum-checkpoint/)
+- [Gradient Checkpoints — PyTorch Training Performance Guide](https://residentmario.github.io/pytorch-training-performance-guide/gradient-checkpoints.html)
 
 ---
 
 ## Moderate Pitfalls
 
-### Pitfall 8: GGUF Format Variants Not Distinguished
+### Pitfall 8: LoRA Rank/Alpha Interaction Not Explained
 
-**What goes wrong:** Calculator has single "GGUF" quantization option. Reality: GGUF has 20+ quantization variants (Q4_0, Q4_K_M, Q5_K_S, Q6_K, IQ2_XXS) with 2-50% memory differences.
-
-**Prevention:**
-
-- Expose GGUF subtype selection
-- Q4_0: 4.5 bits/param, Q4_K_M: 4.8 bits/param, Q5_K_M: 5.6 bits/param
-- Link to GGUF quantization guide
-
-**Phase mapping:** Phase 2 (Architecture Support) - Quantization deep-dive
-
----
-
-### Pitfall 9: Framework Overhead Ignored
-
-**What goes wrong:** Calculator estimates pure model memory. Reality: PyTorch has 500MB-1GB baseline overhead, CUDA context 200-500MB, vLLM paged attention 1-2GB buffer.
+**What goes wrong:** Calculator treats LoRA rank and alpha as independent. Reality: Alpha/rank ratio determines LoRA scaling. Increasing rank without alpha causes performance degradation. Rank affects memory linearly.
 
 **Prevention:**
 
 ```
-Framework overhead:
-- PyTorch: 500MB-1GB
-- CUDA context: 200-500MB per GPU
-- vLLM paged KV cache: 10-20% additional
-- TensorRT-LLM: 300-800MB
+LoRA hyperparameter interaction:
 
-Add to every calculation: base_overhead + framework_overhead
+Rank (r):
+- Number of dimensions in adapter matrices (A: d×r, B: r×d)
+- Memory: 2 * r * d_model * num_target_layers
+- Typical values: 8-64 (low), 128-256 (high)
+- Higher rank = more parameters = more capacity = more memory
+
+Alpha (scaling factor):
+- Scaling applied to adapter output: adapter_output * (alpha / rank)
+- Does NOT affect memory
+- Typical values: 16-32 (often 2x rank)
+- Ratio alpha/rank should be >= 1.0
+
+Common mistakes:
+✗ Increasing rank from 16 to 64 without changing alpha (alpha/rank drops 4x)
+✗ Setting alpha < rank (network becomes unstable)
+✗ Assuming alpha affects memory (it doesn't)
+
+Recommendation:
+- Set alpha = 2 * rank (Microsoft recommendation)
+- Start with rank 16, alpha 32 for simple tasks
+- Use rank 64-128, alpha 128-256 for complex adaptations
+- Memory scales linearly with rank
+
+Memory calculation:
+Llama 7B, rank 16, 4 targets per layer, 32 layers:
+- Adapters: 2 * 16 * 4096 * 4 * 32 = 16.8M params
+Llama 7B, rank 64, 4 targets per layer, 32 layers:
+- Adapters: 2 * 64 * 4096 * 4 * 32 = 67.1M params (4x more memory)
 ```
 
 **Detection:**
+- Rank input exists but alpha doesn't
+- No explanation of rank/alpha relationship
+- Memory estimate doesn't change with alpha value (correct!)
+- No guidance on choosing rank values
 
-- Calculator shows 23.5GB for model that needs 24GB GPU
-- No "available memory" vs "total memory" distinction
+**Phase mapping:** Phase 1 (Fine-tuning MVP) - Important for user guidance
 
-**Phase mapping:** Phase 1 (MVP) - Add constant overhead
+**Sources:**
+- [LoRA fine-tuning Hyperparameters Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide)
+- [Understanding LoRA Adapters Rank and Alpha Parameters](https://datawizz.ai/blog/understanding-lora-adapters-rank-and-alpha-parameters)
+- [What rank (r) and alpha to use in LoRA](https://medium.com/@fartypantsham/what-rank-r-and-alpha-to-use-in-lora-in-llm-1b4f025fd133)
 
 ---
 
-### Pitfall 10: Activation Memory Formula Oversimplified
+### Pitfall 9: Mixed Precision Training Complications
 
-**What goes wrong:** Calculator uses `activations = batch * seq_len * hidden_size * 4`. Reality: Different layers have different activation sizes (MLP expands to intermediate_size, often 4x hidden_size).
+**What goes wrong:** Calculator has "training precision" dropdown (FP16/BF16/FP32) that changes all memory calculations proportionally. Reality: Mixed precision keeps master weights in FP32, optimizer states in FP32, only forward/backward in BF16.
 
 **Prevention:**
 
 ```
-Per-layer activation memory:
-- Attention: batch * seq_len * hidden_size
-- MLP: batch * seq_len * intermediate_size (typically 4x hidden)
-- Residual connections: 2x hidden per layer
-- Total per layer: ~10-12x hidden_size * batch * seq_len
+Mixed precision training architecture:
 
-With gradient checkpointing:
-- Recompute activations instead of storing
-- Trade 30-40% more compute for 60-70% less memory
+"BF16 training" actually means:
+- Forward pass computations: BF16 (2 bytes per activation)
+- Backward pass gradients: BF16 (2 bytes per gradient)
+- Master weights: FP32 (4 bytes, copy of model weights)
+- Optimizer states: FP32 (8 bytes per param for AdamW)
+- Final model weights: BF16 (2 bytes)
+
+Memory breakdown (mixed precision):
+- Model weights (BF16): params * 2 bytes
+- Master weights (FP32): params * 4 bytes
+- Gradients (BF16): params * 2 bytes
+- Optimizer states (FP32): params * 8 bytes
+- Total: params * 16 bytes
+
+Memory breakdown (full FP32):
+- Model weights (FP32): params * 4 bytes
+- Gradients (FP32): params * 4 bytes
+- Optimizer states (FP32): params * 8 bytes
+- Total: params * 16 bytes (SAME as mixed precision!)
+
+Key insight: Mixed precision saves memory on ACTIVATIONS (batch-dependent),
+not on model weights/gradients/optimizer states. Savings are 20-30%, not 50%.
+
+BF16 vs FP16:
+- BF16: wider range, better for training, no loss scaling needed
+- FP16: narrower range, requires loss scaling, can underflow
+- Both: same memory usage (2 bytes per value)
+- Recommendation: Use BF16 on Ampere+ GPUs (A100, H100, 4090)
 ```
 
-**Phase mapping:** Phase 1 (MVP) for fine-tuning mode
+**Detection:**
+- Switching from BF16 to FP32 doubles all memory (wrong!)
+- No mention of "master weights"
+- Missing loss scaling explanation for FP16
+- Optimizer state memory changes with training precision
+
+**Phase mapping:** Phase 2 (Advanced Fine-tuning) - After basic training works
+
+**Sources:**
+- [Mixed Precision Training in LLMs: FP16, BF16, FP8, and Beyond](https://medium.com/@dpratishraj7991/mixed-precision-training-in-llms-fp16-bf16-fp8-and-beyond-b4af13ca846f)
+- [How can using FP16, BF16, or FP8 mixed precision speed up my model training?](https://www.runpod.io/articles/guides/fp16-bf16-fp8-mixed-precision-speed-up-my-model-training)
+- [Performance and Scalability: How To Fit a Bigger Model](https://huggingface.co/docs/transformers/v4.15.0/performance)
 
 ---
 
-### Pitfall 11: Model Parallelism Communication Ignored
+### Pitfall 10: Framework-Specific Overhead Differences
 
-**What goes wrong:** Multi-GPU calculator assumes GPUs work independently. Reality: Tensor parallelism requires all-reduce after each layer (~100GB/s bandwidth needed for 70B model), pipeline parallelism has bubble overhead.
+**What goes wrong:** Calculator has single "training overhead" value for all frameworks. Reality: Unsloth uses 70% less VRAM than standard PyTorch/Transformers. vLLM and TGI are inference-only frameworks (can't be used for training).
 
 **Prevention:**
 
-- Add interconnect requirement notes (NVLink vs PCIe)
-- Warn when model size / n_gpus / bandwidth > latency budget
-- Show TP vs PP efficiency trade-offs
+```
+Framework memory overhead (fine-tuning):
 
-**Phase mapping:** Phase 3 (Multi-GPU) - Advanced section
+Standard PyTorch + Transformers:
+- Baseline overhead: 500MB-1GB
+- No special optimizations
+- Reference implementation
+
+Unsloth (optimized):
+- 70% less VRAM than standard
+- Shares vLLM weight space (no duplication)
+- FP8 support with shared buffers
+- Recommendation: Use for LoRA/QLoRA on consumer GPUs
+- Savings: Qwen2.5-32B: 30GB saved, Qwen2.5-14B: 14GB saved
+
+HuggingFace Accelerate:
+- Adds ~200-500MB overhead
+- Enables multi-GPU, mixed precision, DeepSpeed integration
+- Small overhead for significant flexibility
+
+DeepSpeed:
+- ZeRO-Offload overhead: 500MB-1GB for CPU-GPU paging
+- Communication buffers: 100-500MB per GPU
+- Overall: Similar to standard with better scaling
+
+vLLM / TGI:
+- INFERENCE ONLY - cannot be used for training
+- PagedAttention is for serving, not training
+- Common misconception: "vLLM's memory optimizations apply to training" (WRONG)
+
+Calculator should:
+- Default: Standard PyTorch overhead (1GB)
+- Unsloth option: 70% reduction on trainable params + activations
+- Warning: "vLLM and TGI are inference-only frameworks"
+```
+
+**Detection:**
+- vLLM/TGI listed as training framework options
+- No Unsloth option (major omission for consumer GPU users)
+- Framework overhead constant regardless of choice
+- Missing "inference vs training framework" distinction
+
+**Phase mapping:** Phase 2 (Advanced Fine-tuning) - After core calculations work
+
+**Sources:**
+- [Memory Efficient RL | Unsloth Documentation](https://docs.unsloth.ai/get-started/reinforcement-learning-rl-guide/memory-efficient-rl)
+- [Ollama vs vLLM vs Unsloth: A Detailed Comparison](https://medium.com/@neeldevenshah/ollama-vs-vllm-vs-unsloth-a-detailed-comparison-from-an-ai-engineers-perspective-c6aba9a479d1)
+- [vLLM vs. TGI](https://modal.com/blog/vllm-vs-tgi-article)
 
 ---
 
-### Pitfall 12: Precision Conversion Overhead Missing
+### Pitfall 11: Batch Size Scaling Confusion (Per-Device vs Effective vs Total)
 
-**What goes wrong:** Calculator allows "load FP16 model, train in BF16" without warning. Reality: Conversion has temporary memory spike (need both versions in VRAM briefly), and mixed precision has FP32 master weights.
+**What goes wrong:** Calculator has "batch size" input that's ambiguous. Reality: In distributed training, there's per-device batch size, gradient accumulation steps, and number of devices. Effective batch = per_device * accum_steps * num_devices.
 
 **Prevention:**
 
-- Warn on precision mismatch
-- Mixed precision: add FP32 master weights (4x optimizer memory)
-- Show conversion memory spike
+```
+Batch size terminology (distributed training):
 
-**Phase mapping:** Phase 4 (Fine-tuning Advanced)
+1. Per-device batch size (micro-batch):
+   - Batch size processed on single GPU in single forward/backward pass
+   - Directly affects activation memory
+   - Example: per_device_batch_size = 2
+
+2. Gradient accumulation steps:
+   - Number of micro-batches before optimizer step
+   - Example: gradient_accumulation_steps = 4
+
+3. Number of devices (GPUs):
+   - Example: num_devices = 8
+
+4. Effective batch size (total):
+   - effective_batch = per_device * accum_steps * num_devices
+   - Example: 2 * 4 * 8 = 64
+   - This is what matters for training dynamics
+
+Memory impact:
+- Activation memory scales with: per_device_batch_size (micro-batch)
+- Gradient memory: same regardless of accumulation
+- Optimizer memory: same regardless of accumulation
+- Total memory does NOT scale with effective batch size!
+
+Common mistake:
+User sets "batch size = 64", calculator shows memory for 64 samples on single GPU.
+Reality: User meant effective batch 64 = micro-batch 2 * 4 accum * 8 GPUs.
+
+Calculator should ask:
+- Per-device batch size: [1/2/4/8]
+- Gradient accumulation steps: [1/2/4/8/16]
+- Number of GPUs: [1/2/4/8]
+- Show: "Effective batch size: X"
+```
+
+**Detection:**
+- Single "batch size" input without clarification
+- Memory scales linearly with batch size (missing activation vs gradient distinction)
+- Multi-GPU interface doesn't mention per-device batch size
+
+**Phase mapping:** Phase 3 (Multi-GPU Fine-tuning) - Critical for distributed training
+
+**Sources:**
+- [Batch size vs gradient accumulation](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
+- [Batch size vs Gradient accumulation – Axolotl](https://docs.axolotl.ai/docs/batch_vs_grad.html)
+- [Effective Training Techniques — PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html)
+
+---
+
+### Pitfall 12: DeepSpeed ZeRO CPU Offload Overhead Not Modeled
+
+**What goes wrong:** Calculator shows "ZeRO-Offload" checkbox that reduces GPU memory proportionally. Reality: CPU offload has 15-30% throughput cost from PCIe transfers, requires page-locked CPU memory (not unlimited), and adds complexity.
+
+**Prevention:**
+
+```
+ZeRO-Offload memory and performance model:
+
+ZeRO-Offload (Stage 2 + optimizer offload):
+- GPU: Model weights + Gradients
+- CPU: Optimizer states (AdamW: 8 bytes/param)
+- Memory savings: ~40-50% GPU, but requires CPU RAM
+- Throughput: -15-30% from PCIe transfer latency
+- PCIe bandwidth: ~25-32 GB/s (PCIe 4.0 x16)
+
+ZeRO-3-Offload (Stage 3 + parameters + optimizer offload):
+- GPU: Active layer weights + activations (minimal)
+- CPU: Model weights + optimizer states (streamed on-demand)
+- Memory savings: 80-90% GPU, but requires significant CPU RAM
+- Throughput: -20-40% from constant parameter streaming
+- Best for: Models that don't fit on GPU at all
+
+CPU RAM requirements:
+- ZeRO-Offload: optimizer states size (~8 bytes/param)
+- ZeRO-3-Offload: model weights + optimizer states (~10-12 bytes/param)
+- Example: Llama 70B ZeRO-3-Offload needs ~700GB CPU RAM
+
+Trade-offs:
+✓ Can train models that don't fit on GPU
+✓ Aggregate PCIe bandwidth improves with more GPUs
+✗ 15-40% throughput reduction
+✗ Requires page-locked CPU memory (limited resource)
+✗ Adds complexity (CPU memory management)
+
+Calculator should show:
+- GPU memory reduced (show amount)
+- CPU memory required (show amount)
+- Throughput impact: "15-30% slower training"
+- Warning: "Requires high CPU RAM and may cause system instability"
+```
+
+**Detection:**
+- Offload checkbox with no CPU memory requirement shown
+- No throughput impact warning
+- Missing PCIe bandwidth consideration
+- "Free memory" implication (it's not free)
+
+**Phase mapping:** Phase 3 (Multi-GPU Fine-tuning) - Advanced feature
+
+**Sources:**
+- [ZeRO-Offload - DeepSpeed](https://www.deepspeed.ai/tutorials/zero-offload/)
+- [DeepSpeed ZeRO-3 Offload](https://www.deepspeed.ai/2021/03/07/zero3-offload.html)
+- [Scaling Large Language Models with DeepSpeed ZeRO](https://medium.com/@dpratishraj7991/scaling-large-language-models-with-deepspeed-zero-zero-and-zero-offload-a-complete-guide-70d393e311f4)
 
 ---
 
 ## Minor Pitfalls
 
-### Pitfall 13: Vocabulary Size Impact Ignored
+### Pitfall 13: Flash Attention Backward Pass Overhead Ignored
 
-**What goes wrong:** Calculator doesn't expose vocab_size parameter. Reality: Embedding and LM head memory = vocab_size *hidden_size* bytes_per_param. Models with 250K vocab (DeepSeek) use 10-15% more memory than 32K vocab models.
+**What goes wrong:** Calculator shows "Flash Attention = 10-20x memory savings" without caveats. Reality: Forward pass saves memory, but backward pass still needs to write intermediate values to HBM, reducing effectiveness. Training gets 2-4x speedup, not 10-20x.
 
-**Prevention:** Include vocab_size in architecture config, calculate embedding memory separately
+**Prevention:**
 
-**Phase mapping:** Phase 2 (Architecture Support)
+- Flash Attention memory savings: 10-20x for inference (forward only)
+- Training savings: 4-8x (backward pass needs intermediate values)
+- Speedup: 2-4x wall-clock time (still significant!)
+- Recommendation: Always enable for training with seq_len > 2K
+
+**Phase mapping:** Phase 2 (Advanced Fine-tuning) - Important for accurate estimates
+
+**Sources:**
+- [FlashAttention: Fast and Memory-Efficient Exact Attention](https://arxiv.org/abs/2205.14135)
+- [Out of the box acceleration and memory savings](https://pytorch.org/blog/out-of-the-box-acceleration/)
 
 ---
 
-### Pitfall 14: Rotary Embeddings Not Accounted
+### Pitfall 14: Calculator Cross-Validation Errors Ignored
 
-**What goes wrong:** RoPE (Rotary Position Embeddings) precomputed tables cached in VRAM. At 128K context, can be 500MB-2GB.
+**What goes wrong:** Standalone calculator with no validation against real measurements. Reality: DeepSpeed's official estimator can be off by 2.2x (estimated 18GB, reality 40GB). Cross-validation is essential.
 
-**Prevention:** Add RoPE cache = seq_len *hidden_size* 4 bytes (fp32)
+**Prevention:**
 
-**Phase mapping:** Phase 2 (Architecture Support) - Optional
+```
+Validation strategy:
+
+1. Ground truth comparison:
+   - Test against real training runs (HuggingFace Transformers baseline)
+   - Measure: nvidia-smi during training, track peak memory
+   - Models: Llama 7B/13B/70B, Mistral 7B, Mixtral 8x7B
+
+2. Error budget:
+   - Target: <15% error for common configurations
+   - Acceptable: <25% for edge cases
+   - Flag: >25% error means investigation needed
+
+3. Calculator comparison:
+   - Compare against 2+ other VRAM calculators
+   - If deviation >30%, investigate missing parameters
+   - Reference: Modal's fine-tuning calculator (10% error when configured correctly)
+
+4. User feedback loop:
+   - "Report actual vs estimated" feature
+   - Collect real-world measurements
+   - Update formulas based on data
+
+5. Document limitations:
+   - "This is an estimate, actual usage varies by implementation"
+   - "Test on your hardware before committing to large training runs"
+   - Link to profiling guides
+```
+
+**Detection:**
+- No validation against real measurements mentioned
+- "Accuracy" claims without supporting data
+- No user feedback mechanism
+- Single calculator with no cross-validation
+
+**Phase mapping:** Phase 5 (Validation & Polish) - Before public release
+
+**Sources:**
+- [LLM VRAM Calculator Guide 2026: Expert Memory Estimation Tips](https://www.propelrc.com/llm-vram-calculator/)
+- [Estimating vRAM – Hamel's Blog](https://hamel.dev/notes/llm/finetuning/estimating_vram.html)
+- [How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning)
 
 ---
 
-### Pitfall 15: Shared Tensors in Multi-GPU
+### Pitfall 15: Activation Memory Formula Per-Layer Variation
 
-**What goes wrong:** Calculator shows 2x GPU = 2x memory available. Reality: Some frameworks share tensors across GPUs (e.g., DeepSpeed ZeRO stage 3 shards optimizer states but still needs full forward pass per GPU).
+**What goes wrong:** Calculator uses `activations = batch * seq_len * hidden_size * num_layers * 4`. Reality: MLP layers expand to intermediate_size (often 4x hidden_size), attention has different memory profile, residual connections add overhead.
 
-**Prevention:** Add ZeRO stage selector with accurate memory formulas
+**Prevention:**
 
-**Phase mapping:** Phase 3 (Multi-GPU) - Advanced
+```
+Per-layer activation breakdown:
+
+Attention layer:
+- Q, K, V projections: batch * seq_len * hidden_size each
+- Attention scores (if materialized): batch * n_heads * seq_len²
+- Output projection: batch * seq_len * hidden_size
+- Total: ~4x hidden_size * batch * seq_len (without Flash Attention)
+
+MLP layer:
+- Up projection: batch * seq_len * intermediate_size (typically 4x hidden)
+- Activation function: same size
+- Down projection: batch * seq_len * hidden_size
+- Total: ~8x hidden_size * batch * seq_len
+
+Residual connections: 2x hidden_size * batch * seq_len per layer
+
+Total per transformer block: ~10-12x hidden_size * batch * seq_len
+
+With gradient checkpointing:
+- Store only checkpoint boundaries (every 2-4 blocks)
+- Reduction: 60-70% of activation memory
+
+Formula:
+Without checkpointing: 10 * batch * seq_len * hidden * num_layers
+With checkpointing: 3 * batch * seq_len * hidden * num_layers
+```
+
+**Phase mapping:** Phase 1 (Fine-tuning MVP) - Important for accurate estimates
+
+---
+
+### Pitfall 16: LoRA Target Layers Not Parameterized
+
+**What goes wrong:** Calculator assumes LoRA applies to all attention layers. Reality: Users can choose which layers to target (q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj). Memory scales with number of targets.
+
+**Prevention:**
+
+```
+LoRA target layer selection:
+
+Common configurations:
+1. Attention only (most common):
+   - Targets: q_proj, k_proj, v_proj, o_proj
+   - Params per layer: 4 * 2 * rank * hidden_size
+   - Use case: General fine-tuning
+
+2. Attention + MLP:
+   - Targets: q,k,v,o + gate_proj, up_proj, down_proj
+   - Params per layer: 7 * 2 * rank * hidden_size (1.75x more)
+   - Use case: Complex adaptations
+
+3. Minimal (budget):
+   - Targets: q_proj, v_proj only
+   - Params per layer: 2 * 2 * rank * hidden_size (50% of full attention)
+   - Use case: Limited VRAM, simple tasks
+
+Memory calculation:
+Llama 7B, rank 16, 32 layers:
+- 4 targets: 2 * 16 * 4096 * 4 * 32 = 16.8M params
+- 7 targets: 2 * 16 * 4096 * 7 * 32 = 29.4M params (75% more!)
+- 2 targets: 2 * 16 * 4096 * 2 * 32 = 8.4M params (50% less)
+
+Calculator should:
+- Expose target layer selection (dropdown: "attention only" / "attention + MLP" / "custom")
+- Show parameter count changes with targets
+- Explain memory impact of more targets
+```
+
+**Phase mapping:** Phase 2 (Advanced Fine-tuning) - After basic LoRA works
 
 ---
 
 ## Phase-Specific Warnings
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Phase 1: MVP calculations | Quantization overhead (#1), MoE parameters (#3) | Use 1.15x multiplier for quantized, separate MoE logic immediately |
-| Phase 2: Architecture variants | KV cache scaling (#2), Context length (#6) | Expose n_kv_heads, add Flash Attention toggle |
-| Phase 3: Multi-GPU | Naive memory split (#4), Communication overhead (#11) | Add TP/PP overhead constants, warn on interconnect |
-| Phase 4: Fine-tuning | Optimizer state (#5), Activation memory (#10) | Distinguish LoRA/Full FT, add gradient checkpointing |
-| Phase 5: Advanced features | Batch size scaling (#7), Framework overhead (#9) | Profile real workloads, validate against vLLM |
+| Phase | Focus | Likely Pitfalls | Mitigation |
+|-------|-------|-----------------|------------|
+| Phase 1: Fine-tuning MVP | Full FT, LoRA, QLoRA basics | #1 (KV cache reuse), #2 (optimizer precision), #3 (LoRA adapter-only), #5 (gradient accumulation) | Separate training from inference logic immediately. Validate against real training runs. Test with Llama 7B LoRA on 24GB GPU. |
+| Phase 2: Advanced Fine-tuning | Mixed precision, checkpointing, Flash Attention | #7 (checkpointing trade-offs), #9 (mixed precision complications), #13 (Flash Attention backward pass) | Add detailed explanations for each optimization. Show compute vs memory trade-offs explicitly. |
+| Phase 3: Multi-GPU Fine-tuning | DeepSpeed ZeRO, distributed training | #6 (ZeRO stage confusion), #11 (batch size terminology), #12 (CPU offload overhead) | Use official DeepSpeed formulas. Show per-GPU memory explicitly. Warn about communication overhead. |
+| Phase 4: Framework Presets | vLLM, TGI, Unsloth, DeepSpeed configs | #10 (framework differences), #14 (validation errors) | Distinguish inference vs training frameworks clearly. Add Unsloth preset. Validate presets against documentation. |
+| Phase 5: Validation & Polish | Cross-validation, user testing | #14 (calculator errors), all integration bugs | Compare against 2+ other calculators. Collect real measurements. Test edge cases (MoE, GQA, quantized). |
+
+---
+
+## Integration-Specific Warnings
+
+### Reusing Inference Code for Training (HIGH RISK)
+
+**Common mistakes:**
+1. KV cache calculation (training doesn't use KV cache the same way)
+2. Batch processing (inference is sequential generation, training is parallel batches)
+3. Framework overhead (inference frameworks != training frameworks)
+4. Memory profiling (inference peak != training peak due to gradients)
+
+**Prevention:**
+- Create separate calculation paths for inference vs training
+- Share only: model weight calculation, quantization overhead, basic architecture params
+- Don't share: KV cache, batch scaling, framework selection
+
+### Adding Training Toggle to Existing Calculator (MEDIUM RISK)
+
+**Common mistakes:**
+1. "Training mode" checkbox that multiplies everything by 2x (wrong!)
+2. Showing KV cache in training mode (doesn't apply)
+3. Using same batch size semantics (per-device vs effective batch)
+
+**Prevention:**
+- Training mode should be a separate page/section, not a toggle
+- Hide inference-specific fields (generation length, KV cache)
+- Show training-specific fields (gradient accumulation, optimizer, checkpointing)
 
 ---
 
 ## Validation Strategy
 
-To prevent these pitfalls:
+### Unit Testing Critical Calculations
 
-1. **Ground truth comparison:** For each model family (Llama, Mistral, Mixtral), measure actual VRAM usage with vLLM/TGI and compare to calculator
-2. **Error budget:** Aim for <10% error on common configurations, <20% on edge cases
-3. **Test matrix:**
-   - Dense models: Llama 7B, 13B, 70B
-   - MoE models: Mixtral 8x7B, DeepSeek V3
-   - Quantizations: FP16, GPTQ 4-bit, AWQ 4-bit, GGUF Q4_K_M
-   - Contexts: 2K, 8K, 32K, 128K
-   - Batch sizes: 1, 4, 16, 64
-4. **User testing:** Show estimates to experienced ML engineers, collect "this seems wrong" feedback
-5. **Reference implementations:** Link to vLLM memory model, HF accelerate docs, DeepSpeed ZeRO paper
+```typescript
+// Test: LoRA adapter parameter count
+test('LoRA adapter params: Llama 7B, rank 16, 4 targets', () => {
+  const params = 2 * 16 * 4096 * 4 * 32
+  expect(params).toBe(16_777_216) // 16.8M
+})
+
+// Test: Optimizer state memory (AdamW)
+test('AdamW optimizer states: 8 bytes per trainable param', () => {
+  const trainableParams = 16_777_216
+  const optimizerMemory = trainableParams * 8 / (1024**3)
+  expect(optimizerMemory).toBeCloseTo(0.125, 2) // 125MB
+})
+
+// Test: Mixed precision total memory
+test('Mixed precision: 16 bytes per trainable param', () => {
+  const params = 1_000_000_000
+  const weights = params * 2 // BF16
+  const masterWeights = params * 4 // FP32
+  const gradients = params * 2 // BF16
+  const optimizer = params * 8 // FP32
+  const total = (weights + masterWeights + gradients + optimizer) / (1024**3)
+  expect(total).toBeCloseTo(14.9, 1) // ~15GB
+})
+```
+
+### Ground Truth Benchmarks
+
+Test against real training runs:
+
+```
+Llama 7B LoRA (rank 16, 4 targets, batch 1, seq 2048):
+- Expected: ~16-18GB
+- Measure: nvidia-smi peak during training
+- Acceptable error: <15%
+
+Llama 7B QLoRA (rank 16, 4-bit base, batch 1, seq 2048):
+- Expected: ~8-10GB
+- Measure: nvidia-smi peak during training
+- Acceptable error: <20%
+
+Llama 70B DeepSpeed ZeRO-3 (4x A100, batch 2 per device):
+- Expected: ~40GB per GPU
+- Measure: nvidia-smi on each GPU
+- Acceptable error: <20%
+```
+
+### Cross-Validation Against Other Calculators
+
+Compare estimates against:
+1. Modal's fine-tuning calculator (10% error when configured)
+2. HuggingFace Accelerate memory estimator
+3. DeepSpeed configuration generator
+4. Community spreadsheets (validate formulas)
+
+If deviation >30%, investigate formula bugs.
+
+---
+
+## Success Criteria
+
+Fine-tuning estimation is complete when:
+
+- [ ] Full fine-tuning, LoRA, and QLoRA calculations validated (<15% error)
+- [ ] Optimizer state memory correctly accounts for trainable params only
+- [ ] Gradient accumulation correctly reduces activation memory only
+- [ ] DeepSpeed ZeRO stages have correct 2x/4x/8x memory profiles
+- [ ] Mixed precision shows 16 bytes/param (not 8 or 32)
+- [ ] Activation checkpointing shows both memory reduction AND compute cost
+- [ ] LoRA rank/alpha relationship explained
+- [ ] Training calculations completely separate from inference (no code reuse for KV cache)
+- [ ] Framework presets distinguish inference-only (vLLM/TGI) from training (Unsloth/DeepSpeed)
+- [ ] Per-device vs effective batch size terminology clear
+- [ ] Ground truth validation: <15% error on 5+ test cases
+- [ ] Cross-validation: <30% deviation from 2+ other calculators
 
 ---
 
 ## Sources
 
-**Confidence note:** This document was created from training data (January 2025 cutoff) without access to verification tools. All findings should be validated against:
+All sources verified current as of 2026-02-10:
 
-- vLLM documentation (memory management, PagedAttention)
-- HuggingFace transformers documentation (model architectures)
-- DeepSpeed and Megatron-LM papers (multi-GPU strategies)
-- GGML/llama.cpp quantization documentation
-- Model cards on HuggingFace (architecture specifics for Llama 3, Mistral, Mixtral, DeepSeek)
+### Optimizer States & Training Memory
+- [Memory Requirements (HBM, GPU RAM)](https://apxml.com/courses/how-to-build-a-large-language-model/chapter-18-hardware-considerations-llm-training/memory-requirements-hbm-gpu-ram)
+- [Efficient Training on a Single GPU](https://huggingface.co/docs/transformers/v4.20.1/en/perf_train_gpu_one)
+- [Modern Optimizers: AdamW, Lion](https://medium.com/@spjosyula2005/modern-optimizers-adamw-lion-and-what-actually-works-at-scale-68ffc033713b)
+- [DeepSpeed Memory Requirements](https://deepspeed.readthedocs.io/en/latest/memory.html)
 
-Recommended validation sources:
+### LoRA & QLoRA
+- [Making LLMs even more accessible with bitsandbytes, 4-bit quantization and QLoRA](https://huggingface.co/blog/4bit-transformers-bitsandbytes)
+- [QLoRA: Efficient Finetuning of Quantized LLMs](https://github.com/artidoro/qlora)
+- [LoRA fine-tuning Hyperparameters Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide)
+- [Understanding LoRA Adapters Rank and Alpha Parameters](https://datawizz.ai/blog/understanding-lora-adapters-rank-and-alpha-parameters)
+- [Practical Tips for Finetuning LLMs Using LoRA](https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms)
 
-- <https://github.com/vllm-project/vllm> (actual memory profiling)
-- <https://huggingface.co/docs/transformers/main/en/model_memory_anatomy>
-- <https://arxiv.org/abs/2205.05198> (FlashAttention paper)
-- <https://arxiv.org/abs/1910.02054> (Megatron-LM, model parallelism)
-- <https://github.com/ggerganov/llama.cpp/blob/master/examples/quantize/README.md>
+### Gradient Accumulation & Checkpointing
+- [Gradient Accumulation: Increase Batch Size Without Explicitly Increasing Batch Size](https://blog.dailydoseofds.com/p/gradient-accumulation-increase-batch)
+- [Gradient Accumulation and Checkpointing](https://aman.ai/primers/ai/grad-accum-checkpoint/)
+- [Current and New Activation Checkpointing Techniques in PyTorch](https://pytorch.org/blog/activation-checkpointing-techniques/)
+- [Gradient Checkpoints — PyTorch Training Performance Guide](https://residentmario.github.io/pytorch-training-performance-guide/gradient-checkpoints.html)
+
+### DeepSpeed ZeRO
+- [Zero Redundancy Optimizer - DeepSpeed](https://www.deepspeed.ai/tutorials/zero/)
+- [Memory Requirements — DeepSpeed](https://deepspeed.readthedocs.io/en/latest/memory.html)
+- [ZeRO-Offload - DeepSpeed](https://www.deepspeed.ai/tutorials/zero-offload/)
+- [DeepSpeed ZeRO-3 Offload](https://www.deepspeed.ai/2021/03/07/zero3-offload.html)
+- [Scaling Large Language Models with DeepSpeed ZeRO](https://medium.com/@dpratishraj7991/scaling-large-language-models-with-deepspeed-zero-zero-and-zero-offload-a-complete-guide-70d393e311f4)
+
+### Mixed Precision Training
+- [Mixed Precision Training in LLMs: FP16, BF16, FP8, and Beyond](https://medium.com/@dpratishraj7991/mixed-precision-training-in-llms-fp16-bf16-fp8-and-beyond-b4af13ca846f)
+- [How can using FP16, BF16, or FP8 mixed precision speed up my model training?](https://www.runpod.io/articles/guides/fp16-bf16-fp8-mixed-precision-speed-up-my-model-training)
+- [Performance and Scalability: How To Fit a Bigger Model](https://huggingface.co/docs/transformers/v4.15.0/performance)
+
+### Framework Comparisons
+- [Memory Efficient RL | Unsloth Documentation](https://docs.unsloth.ai/get-started/reinforcement-learning-rl-guide/memory-efficient-rl)
+- [Ollama vs vLLM vs Unsloth: A Detailed Comparison](https://medium.com/@neeldevenshah/ollama-vs-vllm-vs-unsloth-a-detailed-comparison-from-an-ai-engineers-perspective-c6aba9a479d1)
+- [vLLM vs. TGI](https://modal.com/blog/vllm-vs-tgi-article)
+
+### Flash Attention
+- [FlashAttention: Fast and Memory-Efficient Exact Attention](https://github.com/Dao-AILab/flash-attention)
+- [FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness](https://arxiv.org/abs/2205.14135)
+- [Out of the box acceleration and memory savings](https://pytorch.org/blog/out-of-the-box-acceleration/)
+
+### Validation & VRAM Estimation
+- [How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning)
+- [LLM VRAM Calculator Guide 2026: Expert Memory Estimation Tips](https://www.propelrc.com/llm-vram-calculator/)
+- [Estimating vRAM – Hamel's Blog](https://hamel.dev/notes/llm/finetuning/estimating_vram.html)
+- [Ultimate VRAM Calculator Guide 2026](https://orbit2x.com/blog/ultimate-vram-calculator-guide-gpu-memory-ai-models)
+
+### Batch Size & Distributed Training
+- [Batch size vs gradient accumulation](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
+- [Batch size vs Gradient accumulation – Axolotl](https://docs.axolotl.ai/docs/batch_vs_grad.html)
+- [Effective Training Techniques — PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html)

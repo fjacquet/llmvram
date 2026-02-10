@@ -1,451 +1,827 @@
-# Technology Stack
+# Technology Stack: Fine-Tuning Features
 
-**Project:** LLM VRAM Calculator
-**Researched:** 2026-02-09
-**Overall Confidence:** MEDIUM (training data from Jan 2025, external verification tools unavailable)
+**Project:** LLM VRAM Calculator - Fine-Tuning Milestone
+**Researched:** 2026-02-10
+**Overall Confidence:** HIGH (existing stack verified, no new libraries needed)
 
-## Recommended Stack
+## Executive Summary
 
-### Core Framework
+**NO NEW LIBRARIES REQUIRED** for fine-tuning VRAM estimation, gradient accumulation calculator, and framework presets. The existing validated stack (React 19, Decimal.js, Zod, Recharts, Zustand) is sufficient for all new features.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **React** | 19.x | UI framework | Mature, component-based, excellent TypeScript support. React 19 includes compiler optimizations and improved hooks. Sister project (raidy) already uses this - shared patterns reduce cognitive load. |
-| **TypeScript** | 5.8+ (strict mode) | Type safety | Essential for calculation accuracy. Strict mode catches numerical edge cases at compile time. Prevents runtime errors in VRAM estimation logic. |
+Fine-tuning features are:
+1. **Pure calculation logic** (formulas for optimizer states, gradients, activations)
+2. **UI extensions** (additional input fields, memory breakdown visualization)
+3. **Static configuration data** (framework presets as JSON)
 
-**Confidence:** HIGH for React/TS as foundation, MEDIUM for version specifics (need verification)
+All can be implemented with the current stack.
 
-**Rationale for React over alternatives:**
+---
 
-- **vs Vue 3:** React's ecosystem for complex calculations is more mature (better TypeScript inference, more numerical libraries)
-- **vs Svelte:** React's larger ecosystem means more calculator/scientific tool examples to learn from
-- **vs Solid:** React's stability and raidy alignment outweigh Solid's performance gains for this use case
+## Stack Analysis: New Features vs. Existing Capabilities
 
-### Build Tool
+### Feature 1: Fine-Tuning VRAM Estimation
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **Vite** | 7.x | Build tool & dev server | Fast HMR, native ESM, optimal for calculation-heavy SPAs. Tree-shaking critical for keeping bundle small. Superior DX compared to webpack. Aligns with raidy. |
+**What's needed:**
+- Calculate model weights (already done)
+- Calculate gradients memory (same size as weights in FP32)
+- Calculate optimizer states (AdamW: 2x params, SGD: 1x params, 8-bit: 0.5x params)
+- Calculate activations memory (batch_size × seq_len × hidden_size × layers)
+- Calculate LoRA adapter memory (rank × hidden_size × layers × 2)
+- Calculate QLoRA memory (4-bit base + LoRA adapters)
 
-**Confidence:** MEDIUM (Vite 7 may not be released yet - Vite 5.x was latest in my Jan 2025 training. Verify current version.)
+**Stack coverage:**
+- ✅ **Decimal.js** (already in stack) - precision arithmetic for all calculations
+- ✅ **TypeScript strict** (already in stack) - type safety for training parameters
+- ✅ **Zod** (already in stack) - validate training configurations
+- ✅ **Pure function pattern** (already established) - engines/fine-tuning.ts follows same pattern as engines/inference.ts
 
-**Why Vite over alternatives:**
+**Confidence:** HIGH - Research confirms these are standard formulas with no specialized libraries available.
 
-- **vs webpack:** Dramatically faster dev experience, simpler config for static sites
-- **vs Parcel:** More predictable build output, better plugin ecosystem for optimization
-- **vs esbuild directly:** Vite provides better DX wrapper while still using esbuild under the hood
+---
 
-### State Management
+### Feature 2: Gradient Accumulation Calculator
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **Zustand** | 5.x | Global state management | Lightweight (1kb), minimal boilerplate, perfect for calculator state (model selections, GPU configs, calculation results). No provider hell. Aligns with raidy patterns. |
+**What's needed:**
+- Calculate effective batch size (micro_batch × gradient_accumulation_steps × num_gpus)
+- Calculate memory savings (activations reduce by 1/gradient_accumulation_steps)
+- Calculate throughput impact (compute time increases)
 
-**Confidence:** HIGH (excellent fit for calculator domain)
+**Stack coverage:**
+- ✅ **Decimal.js** (already in stack) - arithmetic operations
+- ✅ **Pure functions** (already established) - simple mathematical calculations
 
-**Why Zustand for calculators:**
+**Confidence:** HIGH - Pure math, no libraries exist for this specific calculation.
 
-- **Minimal re-renders:** Selector-based subscriptions prevent unnecessary recalculations
-- **DevTools:** Time-travel debugging for complex calculation flows
-- **Middleware:** Persist calculation history to localStorage
-- **vs Redux Toolkit:** 80% less boilerplate for same functionality
-- **vs Jotai/Recoil:** Simpler mental model for derived state (calculation results from inputs)
-- **vs Context API:** Better performance for frequent updates (slider changes, GPU count adjustments)
+---
 
-### Styling
+### Feature 3: Framework Presets (vLLM, TGI, Unsloth, DeepSpeed ZeRO)
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **Tailwind CSS** | 4.x | Utility-first CSS | Rapid UI development, consistent design system. v4 has improved performance and better TypeScript integration. Aligns with raidy. Calculator UIs benefit from utility classes (responsive grids, number formatting). |
+**What's needed:**
+- Configuration presets for popular frameworks
+- Default values for common training scenarios
+- Mapping between framework settings and VRAM estimation parameters
 
-**Confidence:** MEDIUM (Tailwind v4 was early release in my training. Verify stability/release status.)
+**Stack coverage:**
+- ✅ **Static JSON data** (already established pattern) - same as models.json and gpus.json
+- ✅ **Zod schemas** (already in stack) - validate preset configurations
+- ✅ **TypeScript interfaces** (already established) - type-safe preset objects
 
-**Why Tailwind:**
-
-- **Rapid prototyping:** Calculator UIs are form-heavy - utility classes speed development
-- **Consistency:** Design tokens prevent visual drift across calculation sections
-- **Bundle size:** PurgeCSS removes unused styles - critical for static deployment
-- **vs CSS Modules:** Better for design system consistency
-- **vs styled-components:** No runtime CSS-in-JS cost
-- **vs vanilla CSS:** Faster iteration on responsive calculator layouts
-
-**Note:** Consider Tailwind's `@apply` for complex calculator components (formula displays, result cards) to avoid className bloat.
-
-### Visualization
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **Recharts** | 2.x | Charts & graphs | React-native charting, good for VRAM breakdown visualizations (pie charts for layer allocation, bar charts for GPU comparison). Aligns with raidy. |
-| **D3.js** (optional) | 7.x | Advanced visualizations | **Use sparingly** for custom needs Recharts can't handle (network graphs for multi-GPU topology, custom VRAM allocation diagrams). Heavy library - only import specific modules. |
-
-**Confidence:** MEDIUM-HIGH (Recharts solid for basic viz, may need alternatives for advanced needs)
-
-**Recharts rationale:**
-
-- **Declarative:** Fits React patterns better than imperative D3
-- **Responsive:** Built-in responsive containers for mobile calculator views
-- **Composition:** Easy to build custom chart combinations (VRAM stacked bar + memory bandwidth line chart)
-
-**Alternative to consider:**
-
-- **Visx (Airbnb):** Lower-level than Recharts, higher-level than D3. Better for custom scientific visualizations. Consider if Recharts feels limiting.
-- **Chart.js with react-chartjs-2:** More performant for large datasets, but less React-idiomatic
-
-**Anti-pattern:** Don't use Recharts for static diagrams (GPU architecture, model topology). Use SVG components or static assets instead.
-
-### Calculation Libraries
-
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| **Decimal.js** | 10.x | Arbitrary-precision arithmetic | **Critical** for VRAM calculations. Prevents floating-point errors in memory math (e.g., 0.1 + 0.2 !== 0.3). Use for all financial-style precision needs (bytes, memory percentages). |
-| **mathjs** | 13.x | Advanced math operations | Optional. Use if complex formulas needed (statistical analysis of GPU efficiency, matrix operations for tensor memory). Avoid if calculations are simple - adds 500kb. |
-| **zod** | 3.x | Runtime validation & parsing | Validate user inputs (model parameters, GPU configs) and JSON database schemas. TypeScript types generated from schemas ensure type/runtime alignment. |
-
-**Confidence:** HIGH (these are standard for numerical applications)
-
-**Decimal.js is non-negotiable** because:
-
-- VRAM calculations involve large numbers (gigabytes, terabytes)
-- Precision errors compound in multi-GPU sharding calculations
-- User trust requires exact values matching vendor specs
-
-**Zod rationale:**
-
-- Validates JSON databases (models.json, gpus.json) at load time
-- Generates TypeScript types from schemas (single source of truth)
-- Error messages guide JSON curation ("expected number, got string")
-
-### Data Management
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **Static JSON** | N/A | Model/GPU databases | Client-side requirement. Store curated data as importable JSON modules. Vite imports as ES modules (tree-shakeable if structured well). |
-| **IndexedDB** (via localforage) | 1.x | Local caching | Optional. Cache calculation results for "return to previous session" feature. Simpler API than raw IndexedDB. |
-
-**Confidence:** HIGH
-
-**Why static JSON:**
-
-- **No backend needed:** Aligns with static deployment requirement
-- **Version control:** Models/GPUs evolve - Git tracks database changes
-- **Type safety:** Generate TypeScript types from JSON schemas (use `json-schema-to-typescript` or Zod)
-
-**Structure recommendation:**
-
+**Preset data structure:**
 ```typescript
-// models.json - separate file per vendor for tree-shaking
-export interface ModelSpec {
-  id: string;
-  name: string;
-  parameters: number; // in billions
-  architecture: string;
-  layerConfig: {
-    hiddenSize: number;
-    numLayers: number;
-    numAttentionHeads: number;
-    // ... precision fields for VRAM calculation
-  };
-}
-```
-
-### Developer Experience
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **Biome** | 1.x | Linting & formatting | All-in-one tool (replaces ESLint + Prettier). 10-100x faster than ESLint. Consistent formatting prevents calculation logic diffs from style changes. Aligns with raidy. |
-| **Vitest** | 2.x | Unit testing | Native Vite integration, Jest-compatible API. Essential for testing calculation engines (VRAM estimation, sharding algorithms). Inline snapshots for regression testing. |
-| **TypeScript strict mode** | N/A | Compile-time safety | Catches calculation errors at build time. Enable all strict flags: `strictNullChecks`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`. |
-
-**Confidence:** HIGH (all are current best practices)
-
-**Biome over ESLint/Prettier:**
-
-- **Single tool:** No config conflicts between linter/formatter
-- **Speed:** Sub-second linting for entire codebase
-- **Opinionated:** Less bikeshedding, more building
-
-**Vitest over Jest:**
-
-- **Native ESM:** No transform overhead for Vite-built code
-- **Speed:** Parallel test execution, smart watch mode
-- **DX:** Test UI included, better error messages
-
-### Testing Strategy
-
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| **Vitest** | 2.x | Unit tests | Calculation engine tests (VRAM formulas, sharding logic, precision handling) |
-| **Testing Library** | 16.x | Component tests | Form interactions, state updates, chart rendering |
-| **Playwright** | 1.x | E2E tests | Full calculator workflows (select model → configure GPUs → verify results) |
-
-**Confidence:** HIGH
-
-**Test priorities for calculator domain:**
-
-1. **Unit tests (critical):** VRAM calculation accuracy, edge cases (zero GPUs, max sharding)
-2. **Component tests (important):** State updates, form validation, derived calculations
-3. **E2E tests (nice-to-have):** Full workflows, visual regression for charts
-
-### Package Manager
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| **pnpm** | 9.x | Package management | Faster installs, disk-efficient, strict dependency resolution (prevents phantom dependencies). Better for monorepo if raidy integration later. |
-
-**Confidence:** HIGH
-
-**Why pnpm over npm/yarn:**
-
-- **Speed:** Hardlinks instead of copying packages
-- **Strict:** Prevents accidental imports of non-declared dependencies
-- **Monorepo-ready:** If raidy + llmvram need shared components later
-
-**Alternative:** If raidy uses npm/yarn, match it for consistency. Don't mix package managers across sister projects.
-
-## Alternatives Considered
-
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| **Framework** | React 19 | Solid.js | Faster, but smaller ecosystem for numerical tools. React's stability + raidy alignment wins. |
-| **Framework** | React 19 | Svelte 5 | Excellent DX, but TypeScript integration less mature. Calculator needs strict types. |
-| **State** | Zustand | Jotai | Atomic model harder to reason about for large calculation state. Zustand's simplicity better for team onboarding. |
-| **Charts** | Recharts | Visx | Consider for advanced viz. Recharts simpler starting point. |
-| **Charts** | Recharts | Chart.js | More performant, but less React-idiomatic. Recharts integrates better with React state. |
-| **Styling** | Tailwind | UnoCSS | Faster, but less mature. Tailwind's ecosystem + raidy alignment more valuable. |
-| **Styling** | Tailwind | Panda CSS | Zero-runtime interesting, but ecosystem smaller. Stick with proven choice. |
-| **Testing** | Vitest | Jest | Vitest is Jest-compatible but faster with Vite. No reason to use Jest. |
-| **Linting** | Biome | ESLint + Prettier | Biome 10-100x faster, single tool, opinionated. ESLint's flexibility not needed here. |
-
-## Anti-Patterns to Avoid
-
-### Do NOT Use
-
-| Technology | Why Avoid | What to Use Instead |
-|------------|-----------|---------------------|
-| **Native JavaScript numbers for VRAM** | Floating-point errors compound in calculations | **Decimal.js** for all memory arithmetic |
-| **Redux Toolkit** | Overkill boilerplate for calculator state | **Zustand** (5x less code for same result) |
-| **Lodash** | Tree-shaking issues, bundle bloat | Native ES2024 methods (`Object.groupBy`, `Array.at`, etc.) or individual imports |
-| **Moment.js** | Deprecated, heavy (288kb) | Native `Intl.DateTimeFormat` or **date-fns** if complex needs |
-| **axios** | Unnecessary wrapper for static data | Native `fetch` (works in all modern browsers) |
-| **Create React App** | Deprecated, slow, webpack-based | **Vite** (already chosen) |
-| **Class components** | Legacy React pattern | **Functional components + hooks** |
-| **PropTypes** | Weak type checking | **TypeScript** (already chosen) |
-
-## Domain-Specific Considerations
-
-### VRAM Calculation Accuracy
-
-**Critical requirements:**
-
-1. **Precision:** Use Decimal.js for all memory math (no native Number)
-2. **Validation:** Zod schemas for model/GPU specs (runtime validation)
-3. **Testing:** Property-based testing with `fast-check` (test calculation invariants)
-4. **Documentation:** Inline comments explaining VRAM formulas (cite papers/vendor docs)
-
-### Performance
-
-**Calculator-specific optimizations:**
-
-1. **Memoization:** `useMemo` for derived calculations (VRAM per layer, total memory)
-2. **Debouncing:** Slider inputs should debounce before triggering recalculation (use `use-debounce` hook)
-3. **Web Workers:** For complex scenarios (1000+ layer models, 100+ GPU configurations), offload calculation to worker thread
-4. **Lazy loading:** Split database JSON by vendor (import Nvidia GPUs only when needed)
-
-### Accessibility
-
-**Calculator UIs must be accessible:**
-
-1. **Semantic HTML:** Use `<input type="number">` for numerical inputs (mobile keyboard optimization)
-2. **ARIA labels:** Screen readers need context for calculation results
-3. **Keyboard navigation:** Tab through form fields, Enter to calculate
-4. **Focus management:** Focus on result section after calculation completes
-
-## Installation
-
-```bash
-# Initialize project with Vite + React + TypeScript
-pnpm create vite@latest llmvram --template react-ts
-cd llmvram
-
-# Core dependencies
-pnpm add react@^19 react-dom@^19
-pnpm add zustand@^5
-pnpm add tailwindcss@^4 @tailwindcss/vite
-pnpm add recharts@^2
-pnpm add decimal.js@^10
-pnpm add zod@^3
-
-# Optional - advanced needs
-pnpm add mathjs@^13              # If complex formulas needed
-pnpm add localforage@^1          # If session persistence needed
-pnpm add use-debounce@^10        # For input debouncing
-pnpm add d3-hierarchy d3-scale   # If custom D3 viz needed (specific modules only)
-
-# Dev dependencies
-pnpm add -D typescript@^5.8
-pnpm add -D vite@^7              # Verify version exists
-pnpm add -D vitest@^2 @vitest/ui
-pnpm add -D @testing-library/react@^16 @testing-library/user-event
-pnpm add -D @biomejs/biome@^1
-pnpm add -D playwright@^1        # If E2E tests needed
-
-# Type definitions
-pnpm add -D @types/react@^19 @types/react-dom@^19
-pnpm add -D @types/node          # For Vite config
-```
-
-## Configuration Files
-
-### Tailwind CSS v4 Setup
-
-```bash
-# Install Tailwind CSS v4 (verify syntax for v4)
-pnpm add -D tailwindcss@^4 @tailwindcss/vite
-
-# tailwind.config.ts
-import type { Config } from 'tailwindcss'
-
-export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  theme: {
-    extend: {
-      // Calculator-specific design tokens
-      fontFamily: {
-        mono: ['JetBrains Mono', 'Monaco', 'Courier New', 'monospace'],
-      },
-      colors: {
-        'vram-low': '#22c55e',    // Green for safe memory usage
-        'vram-medium': '#f59e0b', // Orange for moderate usage
-        'vram-high': '#ef4444',   // Red for near-limit usage
-      },
-    },
-  },
-} satisfies Config
-```
-
-### Biome Configuration
-
-```jsonc
-// biome.json
+// data/framework-presets.json
 {
-  "$schema": "https://biomejs.dev/schemas/1.0.0/schema.json",
-  "organizeImports": { "enabled": true },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true,
-      "suspicious": {
-        "noExplicitAny": "error" // Critical for calculation types
-      }
+  "deepspeed-zero2": {
+    "name": "DeepSpeed ZeRO Stage 2",
+    "framework": "deepspeed",
+    "config": {
+      "optimizer_offload": false,
+      "param_offload": false,
+      "gradient_accumulation_steps": 4,
+      "gradient_checkpointing": true
     }
   },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 100
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "single",
-      "trailingCommas": "es5"
+  "vllm-default": {
+    "name": "vLLM Default",
+    "framework": "vllm",
+    "config": {
+      "gpu_memory_utilization": 0.9,
+      "max_num_seqs": 256,
+      "swap_space": 4
     }
   }
 }
 ```
 
-### Vitest Configuration
+**Confidence:** HIGH - Framework configurations are well-documented static data.
+
+---
+
+### Feature 4: UI Extensions for Fine-Tuning
+
+**What's needed:**
+- Input components for training parameters (batch size, gradient accumulation, optimizer)
+- Framework preset selector (dropdown with presets)
+- Memory breakdown visualization (stacked bar chart showing model + gradients + optimizer + activations)
+- Training configuration panel (LoRA rank, QLoRA settings)
+
+**Stack coverage:**
+- ✅ **React 19** (already in stack) - functional components with hooks
+- ✅ **Headless UI** (already in stack) - dropdown, toggle, radio group components
+- ✅ **Tailwind CSS v4** (already in stack) - styling for new components
+- ✅ **Recharts** (already in stack) - stacked bar chart for memory breakdown
+- ✅ **Zustand** (already in stack) - extend store with training state slice
+
+**Confidence:** HIGH - All UI primitives already available.
+
+---
+
+## Current Stack Verification
+
+### Dependencies (Verified Current - 2026-02-10)
+
+From existing `package.json`:
+
+| Library | Current Version | Status | Notes |
+|---------|----------------|--------|-------|
+| **decimal.js** | 10.4.3 | ✅ Keep | Perfect for VRAM calculations, no alternatives needed |
+| **zod** | 3.25.76 | ✅ Keep | Extend schemas for training parameters |
+| **react** | 19.2.0 | ✅ Keep | Latest stable, no changes needed |
+| **zustand** | 5.0.9 | ✅ Keep | Add training state slice |
+| **recharts** | 3.6.0 | ✅ Keep | Stacked bar charts for memory breakdown |
+| **@headlessui/react** | 2.2.9 | ✅ Keep | Dropdown for framework presets |
+| **@heroicons/react** | 2.2.0 | ✅ Keep | Icons for training UI |
+| **tailwindcss** | 4.1.18 | ✅ Keep | Styling for new components |
+| **lz-string** | 1.5.0 | ✅ Keep | URL hash compression (reuse for sharing training configs) |
+| **sonner** | 2.0.7 | ✅ Keep | Toasts for training errors/warnings |
+
+**All libraries are current and sufficient.**
+
+---
+
+## What NOT to Add
+
+Based on research of similar projects and ecosystems:
+
+### ❌ mathjs (13.x)
+**Why avoid:**
+- Adds 500KB for features we don't need
+- Decimal.js handles all required precision arithmetic
+- Overkill for simple training memory formulas
+
+**When to reconsider:** If adding complex statistical analysis (e.g., memory efficiency distributions, performance modeling)
+
+---
+
+### ❌ Specialized VRAM Calculation Libraries
+**Why avoid:**
+- No NPM libraries exist for fine-tuning VRAM estimation
+- Existing tools are Python scripts or standalone calculators
+- Hand-rolled formulas are standard (well-documented in research)
+
+**Research findings:**
+- [Modal blog](https://modal.com/blog/how-much-vram-need-fine-tuning) - formulas, not libraries
+- [GitHub gists](https://gist.github.com/lapp0/d28931ebc9f59838800faa7c73e3a0dc) - Python scripts, not reusable libraries
+- [Hamel's blog](https://hamel.dev/notes/llm/finetuning/estimating_vram.html) - documented formulas
+
+**Confidence:** HIGH - We implement formulas directly in engines/fine-tuning.ts
+
+---
+
+### ❌ Alternative Chart Libraries (Visx, Chart.js, D3)
+**Why avoid:**
+- Recharts handles stacked bar charts perfectly
+- Already in stack and working
+- Stacked bar chart is ideal for memory breakdown (model + gradients + optimizer + activations)
+
+**Research findings:**
+- [Top React Chart Libraries 2026](https://aglowiditsolutions.com/blog/react-chart-libraries/) - Recharts still recommended
+- [Syncfusion blog](https://www.syncfusion.com/blogs/post/top-5-react-chart-libraries) - Recharts in top 5
+
+**When to reconsider:** If adding complex training visualizations (e.g., memory over time, multi-scenario comparison graphs)
+
+---
+
+### ❌ Alternative Precision Libraries (big.js, bignumber.js, decimalish)
+**Why avoid:**
+- Decimal.js already in stack and working
+- No performance issues with current calculations
+- Switching adds risk without benefit
+
+**Research findings:**
+- [Decimal.js vs BigNumber.js](https://medium.com/@josephgathumbi/decimal-js-vs-c1471b362181) - both are excellent, no clear winner
+- [npm-compare](https://npm-compare.com/big.js,bignumber.js,decimal.js,decimal.js-light) - Decimal.js most feature-complete
+
+**Confidence:** HIGH - Decimal.js is the right choice, keep it
+
+---
+
+## Integration Points: New Features with Existing Stack
+
+### 1. Calculation Engines
+
+**Pattern:** Same as existing engines (inference.ts, kv-cache.ts, multi-gpu.ts)
 
 ```typescript
-// vitest.config.ts
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
+// engines/fine-tuning.ts (NEW)
+import Decimal from 'decimal.js'
+import type { FineTuningParams, FineTuningResult } from './types'
 
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html'],
-      exclude: ['**/*.config.*', '**/test/**'],
-      // High coverage for calculation engines
-      thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 75,
-      },
-    },
+export function calculateFineTuningVRAM(
+  params: FineTuningParams
+): FineTuningResult {
+  // Pure function - no side effects
+  const modelVRAM = calculateModelWeights(params)
+  const gradientsVRAM = calculateGradients(params)
+  const optimizerVRAM = calculateOptimizerStates(params)
+  const activationsVRAM = calculateActivations(params)
+
+  return {
+    modelVRAM,
+    gradientsVRAM,
+    optimizerVRAM,
+    activationsVRAM,
+    totalVRAM: new Decimal(modelVRAM)
+      .plus(gradientsVRAM)
+      .plus(optimizerVRAM)
+      .plus(activationsVRAM)
+      .toNumber()
+  }
+}
+```
+
+**Confidence:** HIGH - Follows established pattern
+
+---
+
+### 2. Zod Schemas
+
+**Pattern:** Extend existing schemas in utils/schemas.ts
+
+```typescript
+// utils/schemas.ts (EXTEND)
+export const FineTuningConfigSchema = z.object({
+  method: z.enum(['full', 'lora', 'qlora']),
+  optimizer: z.enum(['adamw', 'sgd', 'adamw_8bit']),
+  batch_size: z.number().min(1).max(1024),
+  gradient_accumulation_steps: z.number().min(1).max(128),
+  gradient_checkpointing: z.boolean(),
+  lora_rank: z.number().min(1).max(256).optional(),
+  lora_alpha: z.number().min(1).max(512).optional(),
+})
+
+export type FineTuningConfig = z.infer<typeof FineTuningConfigSchema>
+```
+
+**Confidence:** HIGH - Zod already used for validation
+
+---
+
+### 3. Static Data
+
+**Pattern:** Same as models.json and gpus.json
+
+```typescript
+// data/framework-presets.json (NEW)
+[
+  {
+    "id": "deepspeed-zero1",
+    "name": "DeepSpeed ZeRO Stage 1",
+    "framework": "deepspeed",
+    "description": "Optimizer state partitioning",
+    "config": {
+      "zero_stage": 1,
+      "gradient_accumulation_steps": 4,
+      "gradient_checkpointing": true,
+      "optimizer_offload": false
+    }
   },
+  {
+    "id": "vllm-inference",
+    "name": "vLLM Inference",
+    "framework": "vllm",
+    "description": "Optimized inference with PagedAttention",
+    "config": {
+      "gpu_memory_utilization": 0.9,
+      "max_num_seqs": 256,
+      "swap_space": 4
+    }
+  }
+]
+```
+
+**Confidence:** HIGH - Follows established data pattern
+
+---
+
+### 4. Zustand Store
+
+**Pattern:** Add training slice to existing store
+
+```typescript
+// store/slices/trainingSlice.ts (NEW)
+export const createTrainingSlice = (set, get) => ({
+  // Training configuration
+  trainingEnabled: false,
+  fineTuningMethod: 'lora' as const,
+  optimizer: 'adamw' as const,
+  batchSize: 4,
+  gradientAccumulationSteps: 4,
+  gradientCheckpointing: true,
+  loraRank: 16,
+  loraAlpha: 32,
+
+  // Framework preset
+  selectedPreset: null,
+
+  // Actions
+  setTrainingEnabled: (enabled) => set({ trainingEnabled: enabled }),
+  setFineTuningMethod: (method) => set({ fineTuningMethod: method }),
+  setOptimizer: (optimizer) => set({ optimizer }),
+  setBatchSize: (size) => set({ batchSize: size }),
+  applyPreset: (preset) => set({
+    selectedPreset: preset,
+    gradientAccumulationSteps: preset.config.gradient_accumulation_steps,
+    gradientCheckpointing: preset.config.gradient_checkpointing,
+  }),
 })
 ```
 
-## Version Verification Needed
+**Confidence:** HIGH - Extends existing Zustand pattern
 
-**CRITICAL - Verify these before implementation:**
+---
 
-| Technology | Assumed Version | Verification Needed |
-|------------|-----------------|---------------------|
-| Vite | 7.x | **Check if Vite 7 released.** Latest in my training was Vite 5.x. May need to use Vite 5.x or 6.x. |
-| Tailwind CSS | 4.x | **Check v4 release status.** Was in beta in my training. May need 3.x if v4 unstable. |
-| React | 19.x | **Verify React 19 is stable.** Was released but check for major issues. |
-| Zustand | 5.x | **Check current version.** 4.x was latest in my training. |
-| Biome | 1.x | **Verify feature parity** with ESLint/Prettier for your needs. |
+### 5. UI Components
+
+**Pattern:** Same structure as existing components
+
+```typescript
+// components/inputs/TrainingConfigPanel.tsx (NEW)
+export function TrainingConfigPanel() {
+  const {
+    trainingEnabled,
+    setTrainingEnabled,
+    fineTuningMethod,
+    setFineTuningMethod,
+  } = useCalculatorStore()
+
+  return (
+    <div className="space-y-4">
+      <Toggle
+        enabled={trainingEnabled}
+        onChange={setTrainingEnabled}
+        label="Enable Fine-Tuning Estimation"
+      />
+
+      {trainingEnabled && (
+        <>
+          <RadioGroup
+            value={fineTuningMethod}
+            onChange={setFineTuningMethod}
+            options={[
+              { value: 'full', label: 'Full Fine-Tuning' },
+              { value: 'lora', label: 'LoRA' },
+              { value: 'qlora', label: 'QLoRA' },
+            ]}
+          />
+          {/* More inputs... */}
+        </>
+      )}
+    </div>
+  )
+}
+```
+
+**Confidence:** HIGH - Uses existing Headless UI components
+
+---
+
+### 6. Visualization
+
+**Pattern:** Extend Recharts usage for memory breakdown
+
+```typescript
+// components/outputs/TrainingMemoryBreakdown.tsx (NEW)
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts'
+
+export function TrainingMemoryBreakdown({ results }) {
+  const data = [
+    {
+      name: 'Training Memory',
+      'Model Weights': results.modelVRAM,
+      'Gradients': results.gradientsVRAM,
+      'Optimizer States': results.optimizerVRAM,
+      'Activations': results.activationsVRAM,
+    }
+  ]
+
+  return (
+    <BarChart data={data} width={600} height={300}>
+      <XAxis dataKey="name" />
+      <YAxis label={{ value: 'VRAM (GB)', angle: -90 }} />
+      <Tooltip />
+      <Legend />
+      <Bar dataKey="Model Weights" stackId="a" fill="#3b82f6" />
+      <Bar dataKey="Gradients" stackId="a" fill="#8b5cf6" />
+      <Bar dataKey="Optimizer States" stackId="a" fill="#ec4899" />
+      <Bar dataKey="Activations" stackId="a" fill="#f59e0b" />
+    </BarChart>
+  )
+}
+```
+
+**Confidence:** HIGH - Recharts handles stacked bar charts natively
+
+---
+
+## Domain-Specific Formulas (No Libraries Needed)
+
+Based on research, these are the standard formulas to implement:
+
+### Full Fine-Tuning Memory
+
+```
+Total = Model + Gradients + Optimizer + Activations + Overhead
+
+Model weights = params × bytes_per_param
+Gradients = params × 4 (FP32)
+Optimizer states (AdamW) = params × 8 (2 × FP32 moments)
+Optimizer states (AdamW 8-bit) = params × 2 (2 × INT8 moments)
+Optimizer states (SGD) = params × 4 (1 × FP32 momentum)
+Activations = batch_size × seq_len × hidden_size × num_layers × multiplier
+  where multiplier ≈ 10-12x (attention + MLP + residuals)
+
+With gradient checkpointing: activations ÷ sqrt(num_layers)
+With gradient accumulation: activations ÷ gradient_accumulation_steps
+```
+
+**Sources:**
+- [Modal: How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning)
+- [Hamel's Blog: Estimating vRAM](https://hamel.dev/notes/llm/finetuning/estimating_vram.html)
+
+---
+
+### LoRA Fine-Tuning Memory
+
+```
+Total = Base Model + LoRA Adapters + Optimizer (adapters only) + Activations
+
+Base model = params × bytes_per_param (can be quantized)
+LoRA adapters = 2 × rank × hidden_size × num_layers × bytes_per_param
+  (A and B matrices per layer)
+Gradients (adapters only) = adapter_params × 4
+Optimizer states (adapters only) = adapter_params × 8 (AdamW)
+Activations = same as full fine-tuning
+
+Typical adapter params ≈ 0.5-2% of base model params
+```
+
+**Sources:**
+- [Modal: LoRA vs. QLoRA](https://modal.com/blog/lora-qlora)
+- [HuggingFace Forums: How to calculate memory for LoRA](https://discuss.huggingface.co/t/how-to-calculate-the-memory-required-using-lora-fine-tuning/63049)
+
+---
+
+### QLoRA Fine-Tuning Memory
+
+```
+Total = Quantized Base + LoRA Adapters + Optimizer (adapters only) + Activations
+
+Quantized base = params × 0.5 (4-bit NF4)
+LoRA adapters = 2 × rank × hidden_size × num_layers × 2 (FP16)
+Optimizer states (adapters only) = adapter_params × 8 (AdamW)
+  with paged optimizer (CPU offload during spikes)
+Activations = same as full fine-tuning
+
+QLoRA adds paged optimizer: automatically pages optimizer states to CPU RAM
+during memory spikes, then pages back to GPU when needed.
+```
+
+**Sources:**
+- [Manalelaidouni: QLoRA 4-Bit Quantization](https://manalelaidouni.github.io/4Bit-Quantization-Models-QLoRa.html)
+- [RunPod: Fine-tune on a budget using LoRA and QLoRA](https://www.runpod.io/articles/guides/how-to-fine-tune-large-language-models-on-a-budget)
+
+---
+
+### Gradient Accumulation
+
+```
+Effective batch size = micro_batch_size × gradient_accumulation_steps × num_gpus
+
+Memory impact:
+- Model weights: no change
+- Gradients: no change (accumulated in-place)
+- Optimizer states: no change
+- Activations: reduced by 1/gradient_accumulation_steps
+  (only micro_batch_size activations stored at once)
+
+Throughput impact:
+- Forward passes: gradient_accumulation_steps × micro_batch_time
+- Backward passes: gradient_accumulation_steps × micro_batch_time
+- Optimizer step: 1 × optimizer_step_time (not multiplied)
+```
+
+**Sources:**
+- [HuggingFace: Batch size vs gradient accumulation](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
+- [Axolotl Docs: Batch vs Grad](https://docs.axolotl.ai/docs/batch_vs_grad.html)
+- [Unsloth Blog: Gradient Accumulation Bug Fixes](https://unsloth.ai/blog/gradient)
+
+---
+
+## Framework Presets: Research Findings
+
+### DeepSpeed ZeRO
+
+**Configuration structure:** [DeepSpeed Config JSON](https://www.deepspeed.ai/docs/config-json/)
+
+**Key settings for VRAM estimation:**
+- `zero_optimization.stage` (0/1/2/3) - determines what gets partitioned
+- `zero_optimization.offload_optimizer` - CPU offload
+- `zero_optimization.offload_param` - CPU offload (stage 3 only)
+- `gradient_accumulation_steps`
+- `gradient_checkpointing`
+
+**Memory impact:**
+- Stage 0: No partitioning (baseline)
+- Stage 1: Optimizer state partitioning (÷ num_gpus)
+- Stage 2: Gradient + optimizer partitioning (÷ num_gpus)
+- Stage 3: Parameter + gradient + optimizer partitioning (÷ num_gpus)
+
+---
+
+### vLLM
+
+**Configuration structure:** [vLLM Engine Arguments](https://unsloth.ai/docs/basics/inference-and-deployment/vllm-guide/vllm-engine-arguments)
+
+**Key settings:**
+- `gpu_memory_utilization` (default 0.9) - VRAM percentage to use
+- `max_num_seqs` - max concurrent sequences
+- `swap_space` - CPU swap space in GB
+- `block_size` - KV cache block size (default 16)
+
+**Memory impact:**
+- KV cache uses `gpu_memory_utilization × total_vram - model_vram`
+- PagedAttention reduces fragmentation (10-20% more efficient)
+
+---
+
+### Unsloth
+
+**Configuration pattern:** [Fine-tuning Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide)
+
+**Key settings:**
+- `max_seq_length` - sequence length (impacts KV cache)
+- `load_in_4bit` - QLoRA mode
+- `gradient_checkpointing` - activation recomputation
+- `per_device_train_batch_size`
+- `gradient_accumulation_steps`
+
+**Memory optimizations:**
+- 2x faster training than standard
+- 70% less VRAM through kernel optimizations
+- Compatible with vLLM for deployment
+
+---
+
+### TGI (Text Generation Inference)
+
+**Configuration pattern:** Inference-focused (not training)
+
+**Key settings:**
+- `quantize` - quantization method (bitsandbytes, gptq, awq)
+- `max_concurrent_requests`
+- `max_batch_size`
+- `max_input_length` / `max_total_tokens`
+
+**Not applicable for training VRAM estimation** - TGI is inference-only
+
+---
+
+## Recommended Framework Presets (Static Data)
+
+Create `data/framework-presets.json` with these presets:
+
+```json
+[
+  {
+    "id": "deepspeed-zero1",
+    "name": "DeepSpeed ZeRO Stage 1",
+    "category": "training",
+    "framework": "deepspeed",
+    "description": "Optimizer state partitioning across GPUs",
+    "vram_modifier": {
+      "optimizer_states_divisor": "num_gpus"
+    },
+    "config": {
+      "zero_stage": 1,
+      "gradient_accumulation_steps": 4,
+      "gradient_checkpointing": true,
+      "optimizer_offload": false
+    }
+  },
+  {
+    "id": "deepspeed-zero2",
+    "name": "DeepSpeed ZeRO Stage 2",
+    "category": "training",
+    "framework": "deepspeed",
+    "description": "Gradient + optimizer partitioning",
+    "vram_modifier": {
+      "gradients_divisor": "num_gpus",
+      "optimizer_states_divisor": "num_gpus"
+    },
+    "config": {
+      "zero_stage": 2,
+      "gradient_accumulation_steps": 4,
+      "gradient_checkpointing": true,
+      "optimizer_offload": false
+    }
+  },
+  {
+    "id": "deepspeed-zero3",
+    "name": "DeepSpeed ZeRO Stage 3",
+    "category": "training",
+    "framework": "deepspeed",
+    "description": "Full parameter + gradient + optimizer partitioning",
+    "vram_modifier": {
+      "model_divisor": "num_gpus",
+      "gradients_divisor": "num_gpus",
+      "optimizer_states_divisor": "num_gpus"
+    },
+    "config": {
+      "zero_stage": 3,
+      "gradient_accumulation_steps": 8,
+      "gradient_checkpointing": true,
+      "optimizer_offload": true
+    }
+  },
+  {
+    "id": "vllm-default",
+    "name": "vLLM Default",
+    "category": "inference",
+    "framework": "vllm",
+    "description": "Optimized inference with PagedAttention",
+    "config": {
+      "gpu_memory_utilization": 0.9,
+      "max_num_seqs": 256,
+      "swap_space": 4,
+      "block_size": 16
+    }
+  },
+  {
+    "id": "unsloth-qlora",
+    "name": "Unsloth QLoRA",
+    "category": "training",
+    "framework": "unsloth",
+    "description": "Memory-efficient QLoRA fine-tuning",
+    "config": {
+      "load_in_4bit": true,
+      "gradient_checkpointing": true,
+      "per_device_train_batch_size": 2,
+      "gradient_accumulation_steps": 4,
+      "lora_r": 16,
+      "lora_alpha": 16
+    }
+  }
+]
+```
+
+**Confidence:** HIGH - Based on official documentation
+
+---
+
+## Installation (No Changes Needed)
+
+All required libraries are already installed. No new dependencies to add.
+
+**Current package.json is sufficient:**
+```json
+{
+  "dependencies": {
+    "decimal.js": "^10.4.3",
+    "zod": "^3.25.76",
+    "react": "^19.2.0",
+    "zustand": "^5.0.9",
+    "recharts": "^3.6.0",
+    "@headlessui/react": "^2.2.9",
+    "tailwindcss": "^4.1.18"
+  }
+}
+```
+
+---
+
+## Implementation Roadmap Implications
+
+### Phase Structure Recommendation
+
+**Phase 1: Fine-Tuning Calculation Engine** (1-2 days)
+- Create `engines/fine-tuning.ts` with pure calculation functions
+- Implement formulas for full/LoRA/QLoRA
+- Add comprehensive tests (follow existing test patterns)
+- **Dependencies:** None (pure functions)
+- **Risk:** Low (well-documented formulas)
+
+**Phase 2: Training State & Schemas** (1 day)
+- Extend Zod schemas for training parameters
+- Add training slice to Zustand store
+- Create framework presets JSON
+- **Dependencies:** Phase 1 (types from engines)
+- **Risk:** Low (follows established patterns)
+
+**Phase 3: Training UI Components** (2-3 days)
+- Create TrainingConfigPanel component
+- Create FrameworkPresetSelector component
+- Create TrainingMemoryBreakdown visualization
+- **Dependencies:** Phase 2 (state, schemas)
+- **Risk:** Low (reuses existing UI components)
+
+**Phase 4: Integration & Polish** (1-2 days)
+- Integrate training calculation into main calculator flow
+- Add training mode toggle
+- Update URL hash to include training config
+- Add error handling and validation
+- **Dependencies:** Phase 1-3
+- **Risk:** Low (integration layer)
+
+**Total estimate:** 5-8 days for full implementation
+
+---
 
 ## Confidence Assessment
 
-| Category | Confidence | Rationale |
-|----------|-----------|-----------|
-| **React + TypeScript** | HIGH | Standard choice for complex SPAs, excellent ecosystem |
-| **Zustand** | HIGH | Proven pattern for calculator UIs, aligns with raidy |
-| **Vitest** | HIGH | Best testing solution for Vite projects |
-| **Biome** | MEDIUM-HIGH | Rising tool, may lack some ESLint plugins. Check ecosystem. |
-| **Decimal.js** | HIGH | Industry standard for precision arithmetic |
-| **Zod** | HIGH | Standard for TypeScript validation |
-| **Recharts** | MEDIUM | Good starting point, may need Visx for advanced viz |
-| **Vite 7** | LOW | **Cannot verify version exists** - check official Vite docs |
-| **Tailwind v4** | LOW | **Cannot verify stability** - check official Tailwind docs |
+| Area | Confidence | Rationale |
+|------|-----------|-----------|
+| **No new libraries needed** | HIGH | Research confirms existing stack is sufficient |
+| **Decimal.js for calculations** | HIGH | Already validated for precision arithmetic |
+| **Zod for validation** | HIGH | Already used extensively in codebase |
+| **Recharts for visualization** | HIGH | Stacked bar charts handle memory breakdown perfectly |
+| **Framework preset data** | HIGH | Well-documented configurations from official sources |
+| **Formulas for fine-tuning** | HIGH | Standard formulas from authoritative sources |
+| **Integration patterns** | HIGH | Following established codebase patterns |
 
-## Next Steps - Verification Protocol
+---
 
-**Before roadmap creation, validate:**
+## Risks & Mitigation
 
-1. **Visit official documentation:**
-   - <https://vite.dev> (verify latest version)
-   - <https://tailwindcss.com> (verify v4 status)
-   - <https://react.dev> (verify React 19 stability)
+### Risk 1: Formula Accuracy
+**Risk:** Fine-tuning memory formulas might not match real-world usage
+**Mitigation:**
+- Add 20% overhead to all calculations (standard practice)
+- Include references to source formulas in code comments
+- Add "Experimental" badge to training estimates in UI
+- Plan validation against real training runs in later phase
 
-2. **Check raidy's actual package.json:**
-   - Confirm exact versions used in sister project
-   - Match package manager (npm/yarn/pnpm)
-   - Match tooling versions for consistency
+### Risk 2: Framework Preset Complexity
+**Risk:** Framework configurations are complex, presets might miss edge cases
+**Mitigation:**
+- Start with common presets only (5-10 presets)
+- Add "Custom Configuration" option for advanced users
+- Link to official framework documentation for each preset
+- Allow users to modify preset values
 
-3. **Test critical libraries:**
-   - Install Decimal.js and verify precision with VRAM calculations
-   - Prototype Recharts with sample VRAM breakdown data
-   - Validate Zod schemas with sample model/GPU JSON
+### Risk 3: UI Complexity
+**Risk:** Adding training UI might clutter calculator interface
+**Mitigation:**
+- Use collapsible sections (already established pattern)
+- Add training mode toggle (opt-in)
+- Keep training config separate from inference config
+- Progressive disclosure (show advanced options only when needed)
+
+---
 
 ## Sources
 
-**Verification status:** MEDIUM confidence overall
+### Fine-Tuning VRAM Formulas
+- [Modal: How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning)
+- [Hamel's Blog: Estimating vRAM](https://hamel.dev/notes/llm/finetuning/estimating_vram.html)
+- [GitHub Gist: LLM Memory Requirement Calculator](https://gist.github.com/lapp0/d28931ebc9f59838800faa7c73e3a0dc)
+- [GitHub Gist: Calculating vRAM requirements for LLMs](https://gist.github.com/RahulSChand/4bc83d1529afc99be14d2a2a54b8e968)
 
-Unable to verify with authoritative sources (Context7, official docs) due to tool restrictions. Recommendations based on:
+### LoRA & QLoRA
+- [Modal: LoRA vs. QLoRA](https://modal.com/blog/lora-qlora)
+- [Manalelaidouni: QLoRA 4-Bit Quantization](https://manalelaidouni.github.io/4Bit-Quantization-Models-QLoRa.html)
+- [RunPod: Fine-tune LLMs on a budget using LoRA and QLoRA](https://www.runpod.io/articles/guides/how-to-fine-tune-large-language-models-on-a-budget)
+- [HuggingFace Forums: How to calculate memory for LoRA fine-tuning](https://discuss.huggingface.co/t/how-to-calculate-the-memory-required-using-lora-fine-tuning/63049)
 
-- Training data (current through January 2025)
-- Domain expertise for calculator applications
-- Alignment with raidy project patterns
-- Industry best practices for React SPAs
+### Gradient Accumulation
+- [HuggingFace Forums: Batch size vs gradient accumulation](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
+- [Axolotl Docs: Batch vs Grad](https://docs.axolotl.ai/docs/batch_vs_grad.html)
+- [Unsloth Blog: Gradient Accumulation Bug Fixes](https://unsloth.ai/blog/gradient)
+- [HuggingFace Docs: Gradient Accumulation with Accelerate](https://huggingface.co/docs/accelerate/en/usage_guides/gradient_accumulation)
 
-**Required verification:**
+### Framework Configuration
+- [DeepSpeed: Configuration JSON](https://www.deepspeed.ai/docs/config-json/)
+- [Unsloth Docs: vLLM Engine Arguments](https://unsloth.ai/docs/basics/inference-and-deployment/vllm-guide/vllm-engine-arguments)
+- [Unsloth Docs: Fine-tuning LLMs Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide)
+- [Unsloth GitHub](https://github.com/unslothai/unsloth)
 
-- Official Vite documentation (<https://vite.dev>)
-- Official Tailwind CSS documentation (<https://tailwindcss.com>)
-- Official React documentation (<https://react.dev>)
-- Raidy project's actual package.json
-- Zustand documentation (<https://zustand.docs.pmnd.rs>)
-- Recharts documentation (<https://recharts.org>)
-- Biome documentation (<https://biomejs.dev>)
+### React Libraries
+- [Top React Chart Libraries 2026](https://aglowiditsolutions.com/blog/react-chart-libraries/)
+- [Syncfusion: Top 5 React Chart Libraries 2026](https://www.syncfusion.com/blogs/post/top-5-react-chart-libraries)
 
-**Recommendation:** Cross-reference this stack analysis with current official documentation before finalizing roadmap. Version numbers may be outdated.
+### Precision Arithmetic
+- [Decimal.js vs BigNumber.js](https://medium.com/@josephgathumbi/decimal-js-vs-c1471b362181)
+- [npm-compare: JavaScript Arbitrary-Precision Libraries](https://npm-compare.com/big.js,bignumber.js,decimal.js,decimal.js-light)
+
+---
+
+## Conclusion
+
+**The existing stack requires ZERO additions** for fine-tuning features. All capabilities are already present:
+
+✅ **Calculation logic** → Decimal.js (precision arithmetic)
+✅ **Validation** → Zod (schemas for training parameters)
+✅ **UI components** → React + Headless UI + Tailwind CSS
+✅ **Visualization** → Recharts (stacked bar charts)
+✅ **State management** → Zustand (add training slice)
+✅ **Static data** → JSON (framework presets)
+
+**Implementation is pure extension work:**
+1. New calculation engine (engines/fine-tuning.ts)
+2. New Zod schemas (extend utils/schemas.ts)
+3. New UI components (components/inputs/TrainingConfigPanel.tsx)
+4. New static data (data/framework-presets.json)
+5. New store slice (store/slices/trainingSlice.ts)
+
+**All follow established patterns from v1.0.**
+
+**Confidence:** HIGH - Research validates that no new libraries are needed, formulas are well-documented, and existing stack is sufficient.

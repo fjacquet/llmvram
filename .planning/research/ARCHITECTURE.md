@@ -1,712 +1,972 @@
-# Architecture Patterns: LLM VRAM Calculator
+# Architecture Integration: Fine-Tuning Features
 
-**Domain:** Browser-based technical calculator (LLM VRAM estimation)
-**Researched:** 2026-02-09
-**Baseline:** raidy's architecture pattern
-**Confidence:** MEDIUM (based on established React patterns and raidy reference)
+**Project:** LLM VRAM Calculator
+**Milestone:** Fine-tuning VRAM estimation, gradient accumulation, framework presets
+**Researched:** 2026-02-10
+**Overall Confidence:** HIGH (official documentation verified)
+
+## Executive Summary
+
+The fine-tuning milestone extends the existing inference-focused architecture with training workload support. The architecture follows established patterns: **pure calculation engines** (Decimal.js), **Zod schemas for type safety**, **Zustand for state**, and **React components for UI**. New features integrate cleanly by adding parallel engines, extending the store, and creating new input/output components that reuse existing patterns.
+
+**Key architectural principles maintained:**
+- Engines remain pure functions (no React/DOM dependencies)
+- All data validated through Zod schemas at boundaries
+- Store drives UI state
+- Components split by concern (inputs/, outputs/)
+
+**Integration complexity:** MEDIUM - New calculation domains but familiar patterns
+
+---
 
 ## Recommended Architecture
 
-### High-Level Structure
+### Extended Directory Structure
 
 ```
-llmvram/
-├── src/
-│   ├── engines/              # Pure calculation logic (framework-agnostic)
-│   │   ├── inference.ts      # VRAM for inference calculations
-│   │   ├── finetuning.ts     # VRAM for training calculations
-│   │   ├── multigpu.ts       # Multi-GPU sharding calculations
-│   │   ├── performance.ts    # Performance estimation calculations
-│   │   └── shared/           # Shared calculation utilities
-│   │       ├── quantization.ts
-│   │       ├── kvcache.ts
-│   │       └── constants.ts
-│   ├── components/           # React UI components
-│   │   ├── inputs/           # Input controls
-│   │   │   ├── ModelSelector.tsx
-│   │   │   ├── GPUSelector.tsx
-│   │   │   ├── QuantizationPicker.tsx
-│   │   │   └── ParameterInputs.tsx
-│   │   ├── outputs/          # Results display
-│   │   │   ├── VRAMBreakdown.tsx
-│   │   │   ├── PerformanceMetrics.tsx
-│   │   │   └── MultiGPUVisualization.tsx
-│   │   ├── common/           # Reusable UI components
-│   │   │   ├── Slider.tsx
-│   │   │   ├── Toggle.tsx
-│   │   │   └── InfoTooltip.tsx
-│   │   └── layout/           # Layout components
-│   │       ├── Header.tsx
-│   │       ├── Footer.tsx
-│   │       └── Calculator.tsx
-│   ├── data/                 # Static data sources
-│   │   ├── models.json       # Model specifications
-│   │   ├── gpus.json         # GPU specifications
-│   │   └── schemas/          # TypeScript schemas for data
-│   ├── store/                # State management
-│   │   ├── useCalculatorStore.ts
-│   │   ├── slices/           # Store slices by domain
-│   │   │   ├── inputsSlice.ts
-│   │   │   ├── resultsSlice.ts
-│   │   │   └── configSlice.ts
-│   │   └── middleware/
-│   │       └── calculationMiddleware.ts
-│   ├── workers/              # Web Workers for heavy calculations
-│   │   ├── calculation.worker.ts
-│   │   └── workerPool.ts
-│   └── hooks/                # Custom React hooks
-│       ├── useCalculation.ts
-│       ├── useDebounce.ts
-│       └── useWorker.ts
+src/
+  engines/                    # Pure calculation logic (NEW + MODIFIED)
+    inference.ts              # [EXISTING] Inference VRAM calculation
+    finetuning.ts             # [NEW] Fine-tuning VRAM calculation (full/LoRA/QLoRA)
+    optimizer.ts              # [NEW] Optimizer state memory (AdamW, Adafactor, 8-bit variants)
+    lora.ts                   # [NEW] LoRA adapter parameter calculation
+    gradient-accumulation.ts  # [NEW] Effective batch size, memory tradeoffs
+    framework-presets.ts      # [NEW] vLLM/TGI/Unsloth/DeepSpeed optimization profiles
+    quantization.ts           # [EXISTING] - Reused for QLoRA base model quantization
+    types.ts                  # [MODIFIED] Add training types, optimizer types, framework types
+
+  components/                 # React UI (NEW + MODIFIED)
+    inputs/
+      TrainingModeSelector.tsx       # [NEW] Full FT / LoRA / QLoRA / Inference toggle
+      OptimizerSelector.tsx          # [NEW] AdamW, Adafactor, SGD, 8-bit variants
+      LoRAConfigPanel.tsx            # [NEW] Rank, alpha, target modules, dropout
+      GradientAccumulationInput.tsx  # [NEW] Steps, effective batch size display
+      FrameworkPresetSelector.tsx    # [NEW] vLLM, TGI, Unsloth, DeepSpeed presets
+      ModelSelector.tsx              # [EXISTING] Reused for training
+      QuantizationPicker.tsx         # [EXISTING] Reused for QLoRA base quantization
+
+    outputs/
+      VRAMBreakdownChart.tsx         # [MODIFIED] Extend for training components
+      MemoryBreakdownTable.tsx       # [MODIFIED] Add training mode rows
+      FrameworkOptimizationBadge.tsx # [NEW] Show active optimizations from preset
+
+  store/
+    uiStore.ts                # [MODIFIED] Add training state
+    comparisonStore.ts        # [MODIFIED] Add training results to snapshot
+
+  data/
+    models.json               # [EXISTING] Reused
+    gpus.json                 # [EXISTING] Reused
+    optimizers.json           # [NEW] Optimizer configs (memory multipliers, stability notes)
+    framework-presets.json    # [NEW] Framework optimization profiles
+
+  utils/
+    schemas.ts                # [MODIFIED] Add training schemas, optimizer schemas
 ```
 
-### Component Boundaries
+---
 
-| Component | Responsibility | Communicates With | Isolation Level |
-|-----------|---------------|-------------------|-----------------|
-| **Engines** | Pure calculation functions, no side effects | None directly (called by workers/hooks) | Complete (no dependencies) |
-| **Workers** | Offload heavy calculations, manage computation | Engines (imports), Main thread (postMessage) | Isolated thread |
-| **Store** | Single source of truth for app state | Components (via hooks), Middleware | Singleton |
-| **Components** | UI rendering, user interaction | Store (read/write), Hooks | React tree |
-| **Data** | Static reference data (models, GPUs) | Engines (import), Components (import) | Read-only |
-| **Hooks** | Encapsulate stateful logic, worker communication | Store, Workers, Components | Per-component instance |
+## Component Architecture
 
-### Data Flow
+### 1. New Engines (Pure Functions)
 
+#### `src/engines/finetuning.ts`
+
+**Purpose:** Calculate total VRAM for fine-tuning workloads (full, LoRA, QLoRA)
+
+**Interface:**
+```typescript
+export interface FineTuningVRAMBreakdown {
+  // Base model components (reused from inference)
+  modelWeights: Decimal       // Base model in training precision (or quantized for QLoRA)
+
+  // Training-specific components
+  gradients: Decimal          // Gradient storage (trainable params only for LoRA/QLoRA)
+  optimizerStates: Decimal    // Optimizer momentum/variance (trainable params only)
+  activations: Decimal        // Forward pass activations (larger than inference)
+  loraAdapters: Decimal       // LoRA A/B matrices (0 for full fine-tuning)
+
+  // Infrastructure
+  frameworkOverhead: Decimal  // PyTorch + CUDA + training framework
+  kvCache: Decimal            // KV cache for training (if applicable)
+
+  // Total
+  total: Decimal
+
+  // Metadata
+  trainableParams: number     // Number of trainable parameters
+  frozenParams: number        // Number of frozen parameters
+}
+
+export type TrainingMode = 'full' | 'lora' | 'qlora'
+
+export function calculateFineTuningVRAM(params: {
+  model: Model
+  mode: TrainingMode
+  precision: QuantizationFormat    // Training precision (fp32, bf16, fp16)
+  basePrecision?: QuantizationFormat // QLoRA only: base model quantization (nf4, int4)
+  loraConfig?: LoRAConfig
+  optimizerConfig: OptimizerConfig
+  sequenceLength: number
+  batchSize: number
+  gradientAccumulation?: number
+  gradientCheckpointing?: boolean
+}): FineTuningVRAMBreakdown
 ```
-User Input
-    ↓
-Components (inputs/)
-    ↓
-Store (state update)
-    ↓
-Middleware (triggers calculation)
-    ↓
-Worker (via useWorker hook)
-    ↓
-Engine (pure calculation)
-    ↓
-Worker (postMessage results)
-    ↓
-Store (results update)
-    ↓
-Components (outputs/)
-    ↓
-UI Update
-```
 
-**Key Flow Characteristics:**
-
-- **Unidirectional:** Input → Store → Calculation → Results → Output
-- **Async Calculation:** Workers prevent UI blocking
-- **Reactive:** Store updates trigger component re-renders
-- **Debounced:** Rapid inputs debounced before triggering calculations
-
-### Data Models
-
-#### Input State
+**Key formulas:**
 
 ```typescript
-interface CalculatorInputs {
-  // Model selection
-  model: ModelSpec | null;
-  customParams?: {
-    paramCount: number;
-    hiddenSize: number;
-    numLayers: number;
-    numHeads: number;
-  };
+// Full Fine-Tuning (mixed precision fp16/bf16 training)
+modelWeights = params * 2        // fp16/bf16 weights
+gradients = params * 4           // fp32 gradients
+optimizerStates = params * K     // K = 8 for AdamW, 2 for Adafactor
+activations = batchSize * seqLen * hiddenSize * layers * 12 // MLP expansion
+total = modelWeights + gradients + optimizerStates + activations + overhead
 
-  // Quantization
-  quantization: 'fp32' | 'fp16' | 'int8' | 'int4' | 'nf4';
+// LoRA Fine-Tuning
+baseModel = params * 2           // fp16 frozen weights
+loraParams = rank * hiddenSize * targetLayers * 2 // A and B matrices
+gradients = loraParams * 4       // Only for LoRA adapters
+optimizerStates = loraParams * K // Only for LoRA adapters (~1% of full)
+activations = same as full       // Full forward pass still needed
+total = baseModel + loraParams + gradients + optimizerStates + activations + overhead
 
-  // Inference parameters
-  sequenceLength: number;
-  batchSize: number;
-  contextWindow: number;
+// QLoRA Fine-Tuning
+baseModel = params * 0.5625      // 4-bit NF4 with double quantization overhead
+loraParams = rank * hiddenSize * targetLayers * 2
+gradients = loraParams * 4       // Only for adapters
+optimizerStates = loraParams * K // Only for adapters
+activations = same as full
+total = baseModel + loraParams + gradients + optimizerStates + activations + overhead
+```
 
-  // Fine-tuning parameters (optional)
-  fineTuning?: {
-    enabled: boolean;
-    method: 'full' | 'lora' | 'qlora';
-    loraRank?: number;
-    loraAlpha?: number;
-  };
+**Dependencies:**
+- `calculateModelWeightVRAM` from `quantization.ts`
+- `calculateLoRAParams` from `lora.ts`
+- `calculateOptimizerMemory` from `optimizer.ts`
+- `calculateActivationMemory` from `inference.ts` (extended for training)
 
-  // Multi-GPU parameters (optional)
-  multiGPU?: {
-    enabled: boolean;
-    numGPUs: number;
-    strategy: 'tensor-parallel' | 'pipeline-parallel' | 'hybrid';
-  };
+**Testing:**
+- Validate against HuggingFace transformers reported memory
+- Test cases: Llama 7B full FT, Llama 7B LoRA r=16, Llama 70B QLoRA r=64
+- Error tolerance: <15% vs measured values
 
-  // GPU selection
-  gpu: GPUSpec | null;
+**Sources:**
+- [HuggingFace Model Memory Anatomy](https://huggingface.co/docs/transformers/main/en/model_memory_anatomy)
+- [QLoRA Paper](https://arxiv.org/abs/2305.14314)
+
+---
+
+#### `src/engines/lora.ts`
+
+**Purpose:** Calculate LoRA adapter parameters and memory
+
+**Interface:**
+```typescript
+export interface LoRAConfig {
+  rank: number                    // r: rank of low-rank matrices (4, 8, 16, 32, 64, 128)
+  alpha: number                   // LoRA alpha scaling factor (usually rank or 2*rank)
+  targetModules: LoRATargetModule[]  // Which modules to apply LoRA
+  dropout: number                 // Dropout probability (0.0 - 0.1)
+}
+
+export type LoRATargetModule = 'q_proj' | 'k_proj' | 'v_proj' | 'o_proj' | 'gate_proj' | 'up_proj' | 'down_proj'
+
+export interface LoRAParamBreakdown {
+  perLayerParams: number          // Parameters per transformer layer
+  totalLayers: number             // Number of layers with LoRA
+  totalParams: number             // Total LoRA parameters
+  percentOfBase: number           // Percentage of base model parameters
+  memoryGB: Decimal               // Memory in GB (fp16)
+}
+
+export function calculateLoRAParams(
+  model: Model,
+  config: LoRAConfig,
+): LoRAParamBreakdown
+
+export const LORA_PRESETS: Record<string, LoRAConfig> = {
+  minimal: { rank: 4, alpha: 8, targetModules: ['q_proj', 'v_proj'], dropout: 0.05 },
+  standard: { rank: 16, alpha: 32, targetModules: ['q_proj', 'k_proj', 'v_proj', 'o_proj'], dropout: 0.05 },
+  full: { rank: 64, alpha: 128, targetModules: ['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'], dropout: 0.1 },
 }
 ```
 
-#### Result State
+**Key formulas:**
 
 ```typescript
-interface CalculationResults {
-  timestamp: number;
+// LoRA adds two low-rank matrices A (d × r) and B (r × d) per target module
+// Update: ΔW = B × A (where W is d × d original weight)
 
-  // VRAM breakdown
-  vram: {
-    model: number;           // Model weights
-    kvCache: number;         // KV cache
-    activations: number;     // Activation memory
-    overhead: number;        // Framework overhead
-    total: number;
-  };
+paramsPerModule = 2 * hiddenSize * rank  // A and B matrices
 
-  // Fine-tuning additions (if enabled)
-  fineTuning?: {
-    optimizer: number;       // Optimizer states
-    gradients: number;       // Gradient memory
-    adapters: number;        // LoRA adapters
-    total: number;
-  };
+// For attention projections (q, k, v, o): hiddenSize → hiddenSize
+attentionModules = config.targetModules.filter(m => m.endsWith('_proj')).length
+attentionParams = attentionModules * 2 * hiddenSize * rank * numLayers
 
-  // Multi-GPU distribution (if enabled)
-  multiGPU?: {
-    perGPU: number;
-    totalRequired: number;
-    efficiency: number;      // Utilization %
-  };
+// For MLP projections (gate, up, down): hiddenSize → intermediateSize or reverse
+// gate_proj, up_proj: hiddenSize → intermediateSize
+// down_proj: intermediateSize → hiddenSize
+mlpParams = ...similar calculation...
 
-  // Performance estimation
-  performance: {
-    tokensPerSecond: number;
-    computeBound: boolean;
-    memoryBound: boolean;
-    bottleneck: string;
-  };
+totalParams = attentionParams + mlpParams
+percentOfBase = (totalParams / baseModelParams) * 100  // Usually 0.1% - 2%
+memoryGB = totalParams * 2 / (1024^3)  // fp16 storage
+```
 
-  // Validation
-  fits: boolean;             // Does it fit in selected GPU?
-  recommendation?: string;   // Suggested optimizations
+**Sources:**
+- [LoRA Paper](https://arxiv.org/abs/2106.09685)
+- [PEFT Library Documentation](https://huggingface.co/docs/peft)
+
+---
+
+#### `src/engines/optimizer.ts`
+
+**Purpose:** Calculate optimizer state memory requirements
+
+**Interface:**
+```typescript
+export type OptimizerType =
+  | 'adamw'           // Standard AdamW (fp32 states)
+  | 'adamw_8bit'      // 8-bit AdamW (bitsandbytes)
+  | 'sgd'             // SGD with momentum
+  | 'adafactor'       // Memory-efficient Adafactor
+
+export interface OptimizerConfig {
+  type: OptimizerType
+  learningRate?: number           // For reference only (doesn't affect memory)
+  weightDecay?: number            // For reference only
+}
+
+export interface OptimizerMemoryBreakdown {
+  type: OptimizerType
+  bytesPerParam: number           // Memory bytes per trainable parameter
+  totalMemoryGB: Decimal          // Total optimizer state memory
+  notes: string                   // Stability/performance notes
+}
+
+export function calculateOptimizerMemory(
+  trainableParams: number,
+  config: OptimizerConfig,
+): OptimizerMemoryBreakdown
+
+export const OPTIMIZER_SPECS: Record<OptimizerType, {
+  bytesPerParam: number
+  stability: 'high' | 'medium' | 'low'
+  notes: string
+}> = {
+  adamw: {
+    bytesPerParam: 8,  // 4 bytes momentum + 4 bytes variance (fp32)
+    stability: 'high',
+    notes: 'Standard choice for fine-tuning. Stable convergence.',
+  },
+  adamw_8bit: {
+    bytesPerParam: 2,  // 1 byte momentum + 1 byte variance (int8)
+    stability: 'high',
+    notes: '4x memory reduction vs AdamW. Same performance (bitsandbytes).',
+  },
+  adafactor: {
+    bytesPerParam: 4,  // Factored representation reduces from 8 to ~4
+    stability: 'medium',
+    notes: 'Memory-efficient but less stable. May need tuning.',
+  },
+  sgd: {
+    bytesPerParam: 4,  // 4 bytes momentum (fp32)
+    stability: 'low',
+    notes: 'Minimal memory but poor convergence for LLMs.',
+  },
 }
 ```
 
-#### Data Schemas
+**Key formulas:**
 
 ```typescript
-// models.json
-interface ModelSpec {
-  id: string;
-  name: string;
-  family: 'llama' | 'mistral' | 'gpt' | 'other';
-  params: number;            // Parameter count
-  architecture: {
-    hiddenSize: number;
-    numLayers: number;
-    numHeads: number;
-    numKVHeads?: number;     // For GQA
-    vocabSize: number;
-  };
-  contextWindow: number;
-  tags: string[];
+// AdamW (standard): stores 2 states per parameter
+// - First moment (momentum): fp32 (4 bytes)
+// - Second moment (variance): fp32 (4 bytes)
+optimizerMemory = trainableParams * 8 / (1024^3)  // GB
+
+// AdamW 8-bit: quantized states
+// - First moment: int8 (1 byte)
+// - Second moment: int8 (1 byte)
+optimizerMemory = trainableParams * 2 / (1024^3)  // GB
+
+// Adafactor: factored representation
+// For matrix-shaped params (n × m), stores O(n + m) instead of O(n*m)
+// Approximation: ~50% of AdamW memory
+optimizerMemory = trainableParams * 4 / (1024^3)  // GB
+```
+
+**Sources:**
+- [DeepSpeed ZeRO Memory Requirements](https://deepspeed.readthedocs.io/en/latest/memory.html)
+- [HuggingFace Optimizers Documentation](https://huggingface.co/docs/transformers/en/optimizers)
+- [bitsandbytes 8-bit Adam](https://github.com/TimDettmers/bitsandbytes)
+
+---
+
+#### `src/engines/gradient-accumulation.ts`
+
+**Purpose:** Calculate effective batch size and memory tradeoffs
+
+**Interface:**
+```typescript
+export interface GradientAccumulationConfig {
+  microBatchSize: number          // Actual batch size per step
+  accumulationSteps: number       // Number of steps to accumulate
+  effectiveBatchSize: number      // microBatchSize * accumulationSteps
 }
 
-// gpus.json
-interface GPUSpec {
-  id: string;
-  name: string;
-  manufacturer: 'nvidia' | 'amd' | 'intel';
-  vram: number;              // GB
-  vramType: 'HBM2' | 'HBM3' | 'GDDR6' | 'GDDR6X';
-  bandwidth: number;         // GB/s
-  compute: {
-    fp32: number;            // TFLOPS
-    fp16: number;
-    int8: number;
-  };
-  architecture: string;      // 'Ada Lovelace', 'RDNA 3', etc.
-  releaseYear: number;
+export interface GradientAccumulationImpact {
+  memoryReduction: number         // % reduction vs effective batch size
+  timeIncrease: number            // % increase in training time
+  recommendationLevel: 'optimal' | 'acceptable' | 'inefficient'
+  warnings: string[]
+}
+
+export function calculateGradientAccumulationImpact(
+  config: GradientAccumulationConfig,
+): GradientAccumulationImpact
+
+export function recommendGradientAccumulation(
+  desiredBatchSize: number,
+  availableVRAM: number,
+  requiredVRAMPerSample: Decimal,
+): GradientAccumulationConfig
+```
+
+**Key formulas:**
+
+```typescript
+// Memory savings primarily from activation memory
+// Model weights, gradients, optimizer states remain constant regardless of batch size
+// KV cache and activations scale with batch size
+
+// Memory with gradient accumulation
+memoryWithGA = modelWeights + gradients + optimizerStates +
+               (activations * microBatchSize) + (kvCache * microBatchSize)
+
+// Memory without gradient accumulation (full effective batch)
+memoryWithoutGA = modelWeights + gradients + optimizerStates +
+                  (activations * effectiveBatchSize) + (kvCache * effectiveBatchSize)
+
+// Memory reduction (activations and KV cache only)
+reductionFactor = (effectiveBatchSize - microBatchSize) / effectiveBatchSize
+
+// Time increase (sequential micro-batches)
+timeIncrease = (accumulationSteps - 1) / accumulationSteps * 100  // Percentage
+```
+
+**Warnings:**
+- Recent research (2025) shows gradient accumulation may be wasteful for small batches
+- Recommend batch size 1 with proper tuning over gradient accumulation
+- Only suggest GA when memory constraint is absolute blocker
+
+**Sources:**
+- [Small Batch Size Training for Language Models (2025)](https://arxiv.org/abs/2507.07101)
+- [HuggingFace Gradient Accumulation Discussion](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
+
+---
+
+#### `src/engines/framework-presets.ts`
+
+**Purpose:** Apply framework-specific optimization profiles
+
+**Interface:**
+```typescript
+export type FrameworkType =
+  | 'baseline'      // No framework-specific optimizations
+  | 'vllm'          // vLLM PagedAttention optimizations
+  | 'tgi'           // Hugging Face Text Generation Inference
+  | 'unsloth'       // Unsloth fast fine-tuning
+  | 'deepspeed'     // DeepSpeed ZeRO
+
+export interface FrameworkPreset {
+  framework: FrameworkType
+  optimizations: string[]         // List of active optimizations
+  kvCacheReduction: number        // % reduction in KV cache memory (vLLM PagedAttention)
+  activationReduction: number     // % reduction in activation memory (gradient checkpointing)
+  overheadIncrease: number        // Additional framework overhead (GB)
+  speedupFactor: number           // Training/inference speedup multiplier
+  memoryReductionFactor: number   // Overall memory reduction multiplier
+  requirements: string[]          // Framework-specific requirements
+  notes: string
+}
+
+export const FRAMEWORK_PRESETS: Record<FrameworkType, FrameworkPreset> = {
+  vllm: {
+    framework: 'vllm',
+    optimizations: ['PagedAttention', 'Continuous batching', 'Optimized CUDA kernels'],
+    kvCacheReduction: 96,         // 96% reduction in KV cache waste
+    activationReduction: 0,       // Inference-only
+    overheadIncrease: 1.5,        // vLLM runtime overhead
+    speedupFactor: 2.5,           // 2-4x throughput increase
+    memoryReductionFactor: 0.65,  // Effective memory reduction from paging
+    requirements: ['Inference mode only', 'CUDA GPU'],
+    notes: 'PagedAttention reduces KV cache waste from 60-80% to <4%',
+  },
+  tgi: {
+    framework: 'tgi',
+    optimizations: ['Flash Attention', 'Paged Attention', 'Dynamic batching'],
+    kvCacheReduction: 85,
+    activationReduction: 0,
+    overheadIncrease: 1.0,
+    speedupFactor: 2.0,
+    memoryReductionFactor: 0.70,
+    requirements: ['Inference mode only', 'CUDA GPU'],
+    notes: 'Optimized for production inference with auto-scaling',
+  },
+  unsloth: {
+    framework: 'unsloth',
+    optimizations: ['Manual backprop kernels', 'Triton kernels', 'LoRA optimization'],
+    kvCacheReduction: 0,
+    activationReduction: 26,      // 74% less memory = 26% of original
+    overheadIncrease: 0.5,
+    speedupFactor: 2.0,
+    memoryReductionFactor: 0.26,  // 74% memory reduction
+    requirements: ['Training mode only', 'LoRA or QLoRA'],
+    notes: '2x faster training with 70% less memory vs standard LoRA',
+  },
+  deepspeed: {
+    framework: 'deepspeed',
+    optimizations: ['ZeRO Stage 1/2/3', 'Gradient checkpointing', 'CPU offloading'],
+    kvCacheReduction: 0,
+    activationReduction: 70,
+    overheadIncrease: 2.0,
+    speedupFactor: 0.9,
+    memoryReductionFactor: 0.125, // ZeRO-3: ~8x reduction
+    requirements: ['Multi-GPU or CPU offloading', 'Training mode'],
+    notes: 'ZeRO-3 partitions model, gradients, optimizer across GPUs/CPU',
+  },
+  baseline: {
+    framework: 'baseline',
+    optimizations: [],
+    kvCacheReduction: 0,
+    activationReduction: 0,
+    overheadIncrease: 0,
+    speedupFactor: 1.0,
+    memoryReductionFactor: 1.0,
+    requirements: [],
+    notes: 'No framework-specific optimizations',
+  },
+}
+
+export function applyFrameworkOptimizations(
+  baselineBreakdown: FineTuningVRAMBreakdown | InferenceVRAMBreakdown,
+  framework: FrameworkType,
+): { breakdown: typeof baselineBreakdown; preset: FrameworkPreset }
+```
+
+**Sources:**
+- [vLLM PagedAttention Paper](https://arxiv.org/abs/2309.06180)
+- [HuggingFace TGI Documentation](https://huggingface.co/docs/text-generation-inference/en/index)
+- [Unsloth GitHub](https://github.com/unslothai/unsloth)
+- [DeepSpeed ZeRO Documentation](https://www.deepspeed.ai/tutorials/zero/)
+
+---
+
+### 2. Extended Types (`src/engines/types.ts`)
+
+```typescript
+// Add to existing types.ts
+
+/**
+ * Training mode selection
+ */
+export type TrainingMode = 'inference' | 'full-ft' | 'lora' | 'qlora'
+
+/**
+ * Fine-tuning VRAM breakdown (extends inference breakdown)
+ */
+export interface FineTuningVRAMBreakdown extends InferenceVRAMBreakdown {
+  // Additional training components
+  gradients: Decimal          // Gradient storage
+  optimizerStates: Decimal    // Optimizer momentum/variance
+  loraAdapters: Decimal       // LoRA adapters (0 for full FT)
+
+  // Metadata
+  trainableParams: number
+  frozenParams: number
+
+  // Override total to include training components
+  total: Decimal
+}
+
+/**
+ * Optimizer configuration schema
+ */
+export const OptimizerConfigSchema = z.object({
+  type: z.enum(['adamw', 'adamw_8bit', 'sgd', 'adafactor']),
+  learningRate: z.number().positive().optional(),
+  weightDecay: z.number().nonnegative().optional(),
+})
+
+/**
+ * LoRA configuration schema
+ */
+export const LoRAConfigSchema = z.object({
+  rank: z.number().int().positive().min(1).max(256),
+  alpha: z.number().int().positive(),
+  targetModules: z.array(z.enum([
+    'q_proj', 'k_proj', 'v_proj', 'o_proj',
+    'gate_proj', 'up_proj', 'down_proj',
+  ])),
+  dropout: z.number().min(0).max(1),
+})
+
+/**
+ * Framework preset type
+ */
+export type FrameworkType = 'baseline' | 'vllm' | 'tgi' | 'unsloth' | 'deepspeed'
+```
+
+---
+
+### 3. Store Extensions (`src/store/uiStore.ts`)
+
+```typescript
+// Add to UIState interface
+
+interface UIState {
+  // ... existing fields ...
+
+  // Training configuration
+  trainingMode: TrainingMode
+  optimizerConfig: OptimizerConfig
+  loraConfig: LoRAConfig | null
+  gradientAccumulationSteps: number
+  gradientCheckpointing: boolean
+  frameworkPreset: FrameworkType
+
+  // Training precision (separate from weight quantization)
+  trainingPrecision: 'fp32' | 'bf16' | 'fp16'
+
+  // Actions
+  setTrainingMode: (mode: TrainingMode) => void
+  setOptimizerConfig: (config: OptimizerConfig) => void
+  setLoRAConfig: (config: LoRAConfig | null) => void
+  setGradientAccumulationSteps: (steps: number) => void
+  setGradientCheckpointing: (enabled: boolean) => void
+  setFrameworkPreset: (framework: FrameworkType) => void
+  setTrainingPrecision: (precision: 'fp32' | 'bf16' | 'fp16') => void
+}
+
+// Default state additions
+{
+  trainingMode: 'inference',
+  optimizerConfig: { type: 'adamw' },
+  loraConfig: null,
+  gradientAccumulationSteps: 1,
+  gradientCheckpointing: false,
+  frameworkPreset: 'baseline',
+  trainingPrecision: 'bf16',
 }
 ```
+
+**State persistence:** Training config should NOT be persisted (URL hash only), similar to existing pattern.
+
+---
+
+### 4. New Input Components
+
+#### `components/inputs/TrainingModeSelector.tsx`
+
+**Purpose:** Toggle between inference, full fine-tuning, LoRA, QLoRA
+
+**UI Pattern:** Radio group or segmented control
+
+```typescript
+<RadioGroup value={trainingMode} onChange={setTrainingMode}>
+  <Radio value="inference">Inference</Radio>
+  <Radio value="full-ft">Full Fine-Tuning</Radio>
+  <Radio value="lora">LoRA</Radio>
+  <Radio value="qlora">QLoRA (4-bit)</Radio>
+</RadioGroup>
+```
+
+**Interactions:**
+- When switching to LoRA/QLoRA, auto-populate `loraConfig` with "standard" preset
+- When switching to full-ft, clear `loraConfig`
+- Show contextual help: "LoRA: 10-20% of full FT memory", "QLoRA: Fine-tune 70B on 24GB GPU"
+
+---
+
+#### `components/inputs/LoRAConfigPanel.tsx`
+
+**Purpose:** Configure LoRA rank, alpha, target modules
+
+**UI Pattern:** Collapsible panel (only shown when mode = lora or qlora)
+
+```typescript
+{(trainingMode === 'lora' || trainingMode === 'qlora') && (
+  <LoRAConfigPanel>
+    {/* Preset selector */}
+    <select value={selectedPreset} onChange={applyPreset}>
+      <option value="minimal">Minimal (r=4, Q+V only)</option>
+      <option value="standard">Standard (r=16, QKVO)</option>
+      <option value="full">Full (r=64, All projections)</option>
+      <option value="custom">Custom</option>
+    </select>
+
+    {/* Live calculation of LoRA params */}
+    <div className="text-sm text-gray-600">
+      LoRA parameters: {loraParams.toLocaleString()}
+      ({percentOfBase.toFixed(2)}% of base model)
+    </div>
+  </LoRAConfigPanel>
+)}
+```
+
+---
+
+#### `components/inputs/OptimizerSelector.tsx`
+
+**Purpose:** Select optimizer type (AdamW, Adafactor, 8-bit variants)
+
+**UI Pattern:** Dropdown with descriptions
+
+```typescript
+<select value={optimizerType} onChange={setOptimizerType}>
+  <option value="adamw">AdamW (Standard - 8 bytes/param)</option>
+  <option value="adamw_8bit">AdamW 8-bit (4x less memory)</option>
+  <option value="adafactor">Adafactor (Memory efficient)</option>
+  <option value="sgd">SGD (Minimal memory, poor convergence)</option>
+</select>
+```
+
+---
+
+#### `components/inputs/GradientAccumulationInput.tsx`
+
+**Purpose:** Configure gradient accumulation steps
+
+**UI Pattern:** Number input with live effective batch size display
+
+```typescript
+<div>
+  <label>Micro-batch Size</label>
+  <input type="number" value={batchSize} min={1} max={64} />
+
+  <label>Gradient Accumulation Steps</label>
+  <input type="number" value={accumulationSteps} min={1} max={64} />
+
+  <div className="text-sm font-medium">
+    Effective Batch Size: {batchSize * accumulationSteps}
+  </div>
+</div>
+```
+
+---
+
+#### `components/inputs/FrameworkPresetSelector.tsx`
+
+**Purpose:** Select framework optimizations (vLLM, TGI, Unsloth, DeepSpeed)
+
+**UI Pattern:** Radio cards with optimization badges
+
+```typescript
+<RadioGroup value={frameworkPreset} onChange={setFrameworkPreset}>
+  <RadioCard value="baseline">
+    <h3>Baseline</h3>
+    <p>No framework-specific optimizations</p>
+  </RadioCard>
+
+  <RadioCard value="vllm" disabled={trainingMode !== 'inference'}>
+    <h3>vLLM PagedAttention</h3>
+    <p>2-4x inference speedup, 96% less KV cache waste</p>
+    <Badge>Inference only</Badge>
+  </RadioCard>
+
+  <RadioCard value="unsloth" disabled={!(trainingMode === 'lora' || trainingMode === 'qlora')}>
+    <h3>Unsloth</h3>
+    <p>2x faster training, 70% less memory</p>
+    <Badge>LoRA/QLoRA only</Badge>
+  </RadioCard>
+</RadioGroup>
+```
+
+---
+
+### 5. Modified Output Components
+
+#### `components/outputs/VRAMBreakdownChart.tsx` (MODIFIED)
+
+**Changes:** Support training mode breakdown with additional slices
+
+```typescript
+const data = trainingMode !== 'inference'
+  ? [
+      { name: 'Model Weights', value: breakdown.modelWeights.toNumber(), color: COLORS.modelWeights },
+      { name: 'Gradients', value: breakdown.gradients.toNumber(), color: COLORS.gradients },
+      { name: 'Optimizer States', value: breakdown.optimizerStates.toNumber(), color: COLORS.optimizerStates },
+      { name: 'LoRA Adapters', value: breakdown.loraAdapters.toNumber(), color: COLORS.loraAdapters },
+      { name: 'Activations', value: breakdown.activations.toNumber(), color: COLORS.activations },
+      { name: 'Framework', value: breakdown.frameworkOverhead.toNumber(), color: COLORS.framework },
+    ].filter(d => d.value > 0)  // Hide zero-value slices
+  : [
+      // ... existing inference breakdown ...
+    ]
+```
+
+---
+
+#### `components/outputs/MemoryBreakdownTable.tsx` (MODIFIED)
+
+**Changes:** Add training-specific rows
+
+```typescript
+{trainingMode !== 'inference' && (
+  <>
+    <tr>
+      <td>Gradients</td>
+      <td>{breakdown.gradients.toFixed(2)} GB</td>
+      <td>Trainable params only ({trainableParams.toLocaleString()} params)</td>
+    </tr>
+    <tr>
+      <td>Optimizer States</td>
+      <td>{breakdown.optimizerStates.toFixed(2)} GB</td>
+      <td>{optimizerType} ({bytesPerParam} bytes/param)</td>
+    </tr>
+  </>
+)}
+```
+
+---
+
+### 6. New Output Components
+
+#### `components/outputs/FrameworkOptimizationBadge.tsx`
+
+**Purpose:** Show active framework optimizations
+
+```typescript
+{frameworkPreset !== 'baseline' && (
+  <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+    <CheckCircleIcon className="w-5 h-5 text-blue-600" />
+    <div>
+      <h4 className="font-medium">{preset.framework} Optimizations Active</h4>
+      <ul className="text-sm text-gray-600 dark:text-gray-400">
+        {preset.optimizations.map(opt => (
+          <li key={opt}>• {opt}</li>
+        ))}
+      </ul>
+    </div>
+  </div>
+)}
+```
+
+---
+
+### 7. Data Files
+
+#### `src/data/optimizers.json` (NEW)
+
+```json
+[
+  {
+    "type": "adamw",
+    "name": "AdamW",
+    "description": "Standard AdamW optimizer with fp32 states",
+    "bytesPerParam": 8,
+    "stability": "high",
+    "recommendedFor": ["full-ft", "lora"],
+    "notes": "Default choice for fine-tuning. Stable convergence."
+  },
+  {
+    "type": "adamw_8bit",
+    "name": "AdamW 8-bit",
+    "description": "8-bit quantized AdamW (bitsandbytes)",
+    "bytesPerParam": 2,
+    "stability": "high",
+    "recommendedFor": ["full-ft", "lora", "qlora"],
+    "notes": "4x memory reduction with same performance. Requires bitsandbytes."
+  }
+]
+```
+
+---
+
+## Data Flow
+
+### Inference Mode (EXISTING)
+
+```
+User Input (Model, GPU, Quantization, Batch, Seq Length)
+  ↓
+uiStore (Zustand)
+  ↓
+Engine: calculateInferenceVRAM()
+  ├─ calculateModelWeightVRAM()
+  ├─ calculateKVCacheVRAM()
+  └─ calculateActivationMemory()
+  ↓
+InferenceVRAMBreakdown (Decimal.js)
+  ↓
+Components render (VRAMBreakdownChart, MemoryBreakdownTable, FitIndicator)
+```
+
+### Fine-Tuning Mode (NEW)
+
+```
+User Input (Model, Training Mode, LoRA Config, Optimizer, Framework Preset)
+  ↓
+uiStore (Zustand) - extended with training state
+  ↓
+Engine: calculateFineTuningVRAM()
+  ├─ calculateModelWeightVRAM() [REUSED]
+  ├─ calculateLoRAParams() [NEW]
+  ├─ calculateOptimizerMemory() [NEW]
+  ├─ calculateActivationMemory() [REUSED, extended]
+  └─ applyFrameworkOptimizations() [NEW]
+  ↓
+FineTuningVRAMBreakdown (Decimal.js)
+  ↓
+Components render (VRAMBreakdownChart [EXTENDED], MemoryBreakdownTable [EXTENDED])
+```
+
+---
+
+## Build Order (Suggested Sequence)
+
+### Phase 1: Core Fine-Tuning Engine (Week 1)
+
+1. **Extend types** (`src/engines/types.ts`)
+2. **Build optimizer engine** (`src/engines/optimizer.ts`)
+3. **Build LoRA engine** (`src/engines/lora.ts`)
+4. **Build fine-tuning engine** (`src/engines/finetuning.ts`)
+
+**Validation:** Test against known values (Llama 7B LoRA r=16 ≈ 16GB)
+
+---
+
+### Phase 2: Store & Integration (Week 1-2)
+
+5. **Extend store** (`src/store/uiStore.ts`)
+6. **Extend comparison store** (`src/store/comparisonStore.ts`)
+
+---
+
+### Phase 3: Input Components (Week 2)
+
+7. **TrainingModeSelector** (`components/inputs/TrainingModeSelector.tsx`)
+8. **LoRAConfigPanel** (`components/inputs/LoRAConfigPanel.tsx`)
+9. **OptimizerSelector** (`components/inputs/OptimizerSelector.tsx`)
+10. **GradientAccumulationInput** (`components/inputs/GradientAccumulationInput.tsx`)
+
+---
+
+### Phase 4: Output Components (Week 2-3)
+
+11. **Extend VRAMBreakdownChart** (`components/outputs/VRAMBreakdownChart.tsx`)
+12. **Extend MemoryBreakdownTable** (`components/outputs/MemoryBreakdownTable.tsx`)
+13. **FrameworkOptimizationBadge** (`components/outputs/FrameworkOptimizationBadge.tsx`)
+
+---
+
+### Phase 5: Framework Presets (Week 3)
+
+14. **Framework presets engine** (`src/engines/framework-presets.ts`)
+15. **FrameworkPresetSelector** (`components/inputs/FrameworkPresetSelector.tsx`)
+16. **Data files** (`src/data/framework-presets.json`, `src/data/optimizers.json`)
+
+---
+
+### Phase 6: Testing & Validation (Week 3-4)
+
+17. **Integration tests**
+18. **UI/UX testing**
+19. **Documentation**
+
+---
 
 ## Patterns to Follow
 
-### Pattern 1: Engine Isolation
-
-**What:** Calculation engines are pure functions with zero dependencies
-**When:** All calculation logic
-**Why:** Enables testing, worker usage, potential server-side execution
-**Example:**
+### 1. Pure Engine Functions
 
 ```typescript
-// engines/inference.ts
-export interface InferenceParams {
-  paramCount: number;
-  quantization: Quantization;
-  sequenceLength: number;
-  batchSize: number;
-}
-
-export interface InferenceResult {
-  modelVRAM: number;
-  kvCacheVRAM: number;
-  activationVRAM: number;
-  overheadVRAM: number;
-  totalVRAM: number;
-}
-
-export function calculateInferenceVRAM(
-  params: InferenceParams
-): InferenceResult {
-  // Pure calculation - no side effects, no external state
-  const bytesPerParam = getQuantizationBytes(params.quantization);
-  const modelVRAM = (params.paramCount * bytesPerParam) / (1024 ** 3);
-
-  // ... other calculations
-
-  return {
-    modelVRAM,
-    kvCacheVRAM,
-    activationVRAM,
-    overheadVRAM,
-    totalVRAM: modelVRAM + kvCacheVRAM + activationVRAM + overheadVRAM,
-  };
+// ✅ GOOD: Pure function, no side effects
+export function calculateLoRAParams(
+  model: Model,
+  config: LoRAConfig,
+): LoRAParamBreakdown {
+  const paramsPerModule = 2 * model.hidden_size * config.rank
+  return breakdown
 }
 ```
 
-### Pattern 2: Worker Pool for Calculations
-
-**What:** Maintain pool of Web Workers for parallel calculations
-**When:** User changes inputs, triggering recalculation
-**Why:** Prevents UI blocking, enables parallel computation for multi-scenario comparisons
-**Example:**
+### 2. Zod-First Type System
 
 ```typescript
-// workers/workerPool.ts
-class CalculationWorkerPool {
-  private workers: Worker[] = [];
-  private queue: Task[] = [];
+export const LoRAConfigSchema = z.object({
+  rank: z.number().int().positive().min(1).max(256),
+  alpha: z.number().int().positive(),
+})
 
-  constructor(size: number = navigator.hardwareConcurrency || 4) {
-    for (let i = 0; i < size; i++) {
-      this.workers.push(new Worker('./calculation.worker.ts'));
-    }
-  }
-
-  async calculate(inputs: CalculatorInputs): Promise<CalculationResults> {
-    const worker = this.getAvailableWorker();
-    return new Promise((resolve, reject) => {
-      worker.postMessage({ type: 'CALCULATE', inputs });
-      worker.onmessage = (e) => {
-        if (e.data.type === 'RESULT') {
-          resolve(e.data.results);
-        }
-      };
-    });
-  }
-}
+export type LoRAConfig = z.infer<typeof LoRAConfigSchema>
 ```
 
-### Pattern 3: Middleware-Triggered Calculations
-
-**What:** Store middleware intercepts state changes and triggers calculations
-**When:** Input state changes
-**Why:** Separates UI concerns from calculation orchestration
-**Example:**
+### 3. Conditional Component Rendering
 
 ```typescript
-// store/middleware/calculationMiddleware.ts
-export const calculationMiddleware = (store) => (next) => (action) => {
-  const result = next(action);
-
-  if (action.type === 'inputs/update') {
-    const state = store.getState();
-
-    // Debounce rapid changes
-    clearTimeout(calculationTimer);
-    calculationTimer = setTimeout(() => {
-      workerPool.calculate(state.inputs).then((results) => {
-        store.dispatch({ type: 'results/set', payload: results });
-      });
-    }, 300);
-  }
-
-  return result;
-};
+{(trainingMode === 'lora' || trainingMode === 'qlora') && (
+  <LoRAConfigPanel />
+)}
 ```
 
-### Pattern 4: Slice-Based State Organization
-
-**What:** Organize store into logical slices (inputs, results, config)
-**When:** State management setup
-**Why:** Scales with complexity, clear ownership, selective updates
-**Example:**
-
-```typescript
-// store/slices/inputsSlice.ts
-export const createInputsSlice = (set, get) => ({
-  model: null,
-  quantization: 'fp16',
-  sequenceLength: 2048,
-  batchSize: 1,
-
-  setModel: (model) => set({ model }),
-  setQuantization: (quant) => set({ quantization: quant }),
-  setSequenceLength: (len) => set({ sequenceLength: len }),
-
-  // Batch update to avoid multiple calculations
-  updateInputs: (updates) => set(updates),
-});
-```
-
-### Pattern 5: Smart Component Composition
-
-**What:** Inputs, outputs, and common components are composable and isolated
-**When:** Building UI
-**Why:** Reusability, testability, clear data flow
-**Example:**
-
-```typescript
-// components/layout/Calculator.tsx
-export function Calculator() {
-  return (
-    <div className="calculator">
-      <InputPanel>
-        <ModelSelector />
-        <GPUSelector />
-        <QuantizationPicker />
-        <ParameterInputs />
-      </InputPanel>
-
-      <ResultsPanel>
-        <VRAMBreakdown />
-        <PerformanceMetrics />
-        <MultiGPUVisualization />
-      </ResultsPanel>
-    </div>
-  );
-}
-
-// components/inputs/ModelSelector.tsx
-export function ModelSelector() {
-  const { model, setModel } = useCalculatorStore(
-    (state) => ({ model: state.model, setModel: state.setModel })
-  );
-
-  return (
-    <Select value={model?.id} onChange={(id) => setModel(findModel(id))}>
-      {/* ... */}
-    </Select>
-  );
-}
-```
-
-### Pattern 6: JSON Data with TypeScript Schemas
-
-**What:** Static data in JSON, validated with TypeScript interfaces
-**When:** Model and GPU data
-**Why:** Easy to update, version control friendly, type-safe at boundaries
-**Example:**
-
-```typescript
-// data/schemas/model.ts
-import modelsData from '../models.json';
-
-export const models: ModelSpec[] = modelsData;
-
-export function findModel(id: string): ModelSpec | undefined {
-  return models.find(m => m.id === id);
-}
-
-// Type checking happens at build time
-const llama3 = findModel('llama-3-70b');
-if (llama3) {
-  const params = llama3.params; // TypeScript knows this is a number
-}
-```
+---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Calculations in Components
+### Anti-Pattern 1: Engine Calling React Hooks
 
-**What:** Performing VRAM calculations directly in React components
-**Why bad:**
+```typescript
+// ❌ BAD
+export function calculateFineTuningVRAM() {
+  const model = useUIStore(s => s.selectedModel) // NO!
+}
 
-- UI blocks during heavy calculations
-- Difficult to test calculation logic
-- Duplicated logic across components
-- Can't reuse calculations in workers or server-side
-**Instead:** Always delegate to engines via workers/hooks
-
-### Anti-Pattern 2: Direct Worker Access from Components
-
-**What:** Components creating/managing their own workers
-**Why bad:**
-
-- Memory leaks (workers not cleaned up)
-- Duplicate workers across components
-- Complex lifecycle management
-**Instead:** Use hook abstraction (useWorker, useCalculation)
-
-### Anti-Pattern 3: Prop Drilling Configuration
-
-**What:** Passing calculation parameters through multiple component layers
-**Why bad:**
-
-- Brittle component hierarchy
-- Difficult to add new parameters
-- Unnecessary re-renders
-**Instead:** Use store/context for global calculator state
-
-### Anti-Pattern 4: Mutable Data Schemas
-
-**What:** Allowing runtime modification of models.json or gpus.json data
-**Why bad:**
-
-- Lost type safety
-- Unpredictable state
-- Difficult to debug
-**Instead:** Treat data files as immutable constants, use store for user customizations
-
-### Anti-Pattern 5: Monolithic Calculation Function
-
-**What:** Single massive function handling all calculation types
-**Why bad:**
-
-- Difficult to test individual components
-- Can't parallelize different calculation types
-- Hard to maintain and extend
-**Instead:** Separate engines per calculation domain, compose in worker
-
-### Anti-Pattern 6: Synchronous Heavy Calculations
-
-**What:** Calculating large model VRAM requirements on main thread
-**Why bad:**
-
-- UI freezes during calculation
-- Poor user experience
-- Blocks input handling
-**Instead:** Always use Web Workers for calculations
-
-## Scalability Considerations
-
-| Concern | Current (Launch) | Future (100K+ users) | Enterprise |
-|---------|------------------|----------------------|------------|
-| **Calculation Speed** | Web Workers pool (4 workers) | WASM calculation engines | Server-side calculation API |
-| **Data Size** | ~500 models, ~100 GPUs in JSON | IndexedDB cache, lazy load | Database backend, CDN |
-| **State Management** | Zustand (simple store) | Same (Zustand scales well) | Server state sync (tRPC) |
-| **Multi-Scenario** | Calculate sequentially | Parallel worker pool | Batch calculation API |
-| **Offline Support** | Service Worker for static assets | Full offline mode with sync | N/A (enterprise likely online) |
-| **Export/Share** | Local URL params | Backend for share links | User accounts, saved configs |
-
-## Build Order Implications
-
-### Phase 1: Foundation (Week 1-2)
-
-**Dependencies:** None
-**Components:**
-
-- Data schemas (TypeScript interfaces)
-- Static data files (initial models.json, gpus.json)
-- Basic store setup (Zustand with inputs slice)
-- Engine: inference.ts (core VRAM calculation)
-
-**Rationale:** Establishes data contracts, enables parallel development
-
-### Phase 2: Core UI (Week 2-3)
-
-**Dependencies:** Phase 1 (schemas, store)
-**Components:**
-
-- Layout components (Calculator, Header)
-- Basic input components (ModelSelector, GPUSelector)
-- Basic output component (VRAMBreakdown)
-- Hook: useCalculation (without workers initially)
-
-**Rationale:** Vertical slice proves architecture, enables testing with synchronous calculations
-
-### Phase 3: Worker Infrastructure (Week 3-4)
-
-**Dependencies:** Phase 2 (working UI), Phase 1 (engines)
-**Components:**
-
-- calculation.worker.ts
-- workerPool.ts
-- Updated useCalculation hook (async worker-based)
-- Middleware: calculationMiddleware
-
-**Rationale:** Optimization layer, doesn't change UI contracts
-
-### Phase 4: Advanced Calculations (Week 4-6)
-
-**Dependencies:** Phase 3 (worker infrastructure)
-**Components:**
-
-- Engine: finetuning.ts
-- Engine: multigpu.ts
-- Engine: performance.ts
-- Input components for advanced features
-- Output components for advanced results
-
-**Rationale:** Reuses infrastructure, additive features
-
-### Phase 5: Polish & Optimization (Week 6-7)
-
-**Dependencies:** Phase 4 (all features)
-**Components:**
-
-- Common components refinement
-- Debouncing, caching optimizations
-- Error boundaries, loading states
-- Performance monitoring
-
-**Rationale:** Quality layer on complete functionality
-
-## Dependency Graph
-
-```
-Data Schemas (interfaces)
-    ↓
-    ├─→ Static Data (JSON files)
-    ├─→ Store Slices
-    └─→ Engine Functions
-            ↓
-            ├─→ Web Workers
-            │       ↓
-            │   Worker Pool
-            │       ↓
-            └─→ Hooks (useCalculation, useWorker)
-                    ↓
-                Components
-                    ↓
-                Application
+// ✅ GOOD
+export function calculateFineTuningVRAM(params: {
+  model: Model
+}): FineTuningVRAMBreakdown {
+  // ... pure calculation ...
+}
 ```
 
-**Critical Path:** Data Schemas → Engines → Workers → Hooks → Components
-
-**Parallel Tracks:**
-
-- Static Data can be built alongside Engines
-- Input Components and Output Components can be built in parallel
-- Common Components can be built anytime (no dependencies)
-
-## Technology Integration Points
-
-### TypeScript
-
-- **Strict mode enabled** for data safety
-- **Interfaces for all data models** (inputs, results, specs)
-- **Type guards** for runtime validation of JSON data
-
-### React
-
-- **Functional components** with hooks (no class components)
-- **Strict mode** for detecting side effects
-- **Suspense boundaries** for async data loading
-
-### State Management (Zustand)
-
-- **Slice pattern** for organization
-- **Middleware** for side effects (calculations)
-- **Selectors** for derived state
-- **DevTools** integration for debugging
-
-### Web Workers
-
-- **Typed messages** (TypeScript worker interfaces)
-- **Pool management** for parallelism
-- **Graceful fallback** if workers unavailable (synchronous calculation)
-
-### Build System (Vite assumed)
-
-- **Worker bundling** (Vite's native support)
-- **JSON imports** with tree-shaking
-- **TypeScript checking** pre-build
-- **Code splitting** by route if multi-page
-
-## Validation Strategy
-
-### Data Validation
-
-- **JSON Schema** validation for models.json and gpus.json at build time
-- **TypeScript interfaces** enforce structure at compile time
-- **Runtime guards** for user input bounds (e.g., sequenceLength > 0)
-
-### Calculation Validation
-
-- **Unit tests** for each engine function (pure functions = easy to test)
-- **Known-good test cases** (e.g., Llama 3 70B fp16 = X GB)
-- **Boundary testing** (minimum/maximum values)
-- **Comparison tests** against reference implementations
-
-### Component Validation
-
-- **React Testing Library** for component behavior
-- **Storybook** for visual regression testing
-- **Integration tests** for full calculation flow
-
-## Performance Targets
-
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Initial load | < 2s | Lighthouse |
-| Calculation latency | < 100ms | Performance API |
-| UI responsiveness | 60fps | React DevTools Profiler |
-| Memory usage | < 100MB | Chrome DevTools Memory |
-| Bundle size | < 200KB (gzipped) | Build output |
-
-## Monitoring Points
-
-- **Calculation time** per engine (identify slow functions)
-- **Worker pool utilization** (are we CPU-bound?)
-- **State update frequency** (excessive re-renders?)
-- **Error rates** (calculation failures, invalid inputs)
-- **User input patterns** (which features are most used?)
-
-## Future Architecture Considerations
-
-### Server-Side Calculation API
-
-If calculator becomes multi-user or needs backend:
-
-- **API**: POST /api/calculate with CalculatorInputs
-- **Response**: CalculationResults (same interface)
-- **Migration**: Replace worker.postMessage with fetch, minimal code changes
-
-### Database Backend
-
-If user accounts or saved configurations needed:
-
-- **Schema**: Store CalculatorInputs + metadata (user, timestamp, name)
-- **API**: CRUD for saved calculations
-- **Sync**: Offline-first with sync when online
-
-### Real-Time Collaboration
-
-If multiple users need to view same calculation:
-
-- **WebSocket** for state synchronization
-- **CRDT** for conflict-free input merging
-- **Presence** indicators for who's viewing
+---
 
 ## Sources
 
-**Confidence:** MEDIUM
+### High Confidence (Official Documentation)
 
-This architecture is based on:
+- [LoRA Paper](https://arxiv.org/abs/2106.09685)
+- [QLoRA Paper](https://arxiv.org/abs/2305.14314)
+- [DeepSpeed ZeRO Documentation](https://www.deepspeed.ai/tutorials/zero/)
+- [vLLM PagedAttention Paper](https://arxiv.org/abs/2309.06180)
+- [HuggingFace TGI Documentation](https://huggingface.co/docs/text-generation-inference/en/index)
+- [Unsloth GitHub](https://github.com/unslothai/unsloth)
+- [HuggingFace Optimizers](https://huggingface.co/docs/transformers/en/optimizers)
 
-- Established React + TypeScript patterns (HIGH confidence from training data)
-- Web Worker best practices for heavy computation (HIGH confidence)
-- raidy's proven architecture pattern provided as baseline (HIGH confidence)
-- State management patterns (Zustand, Redux) widely used in calculator apps (MEDIUM confidence)
-- Browser calculator architecture patterns from training data (MEDIUM confidence)
+### Medium Confidence (Web Search Verified)
 
-**Limitations:**
+- [Gradient Accumulation Analysis (2025)](https://arxiv.org/abs/2507.07101)
+- [Modal Blog: Fine-Tuning VRAM](https://modal.com/blog/how-much-vram-need-fine-tuning)
+- [Databricks LoRA Guide](https://www.databricks.com/blog/efficient-fine-tuning-lora-guide-llms)
 
-- No direct access to raidy's codebase for detailed implementation patterns
-- Could not verify current (2026) best practices via web search
-- Recommendations based on training knowledge up to January 2025
+---
 
-**Recommended validation:**
+## Summary
 
-- Review raidy's actual implementation for specific patterns
-- Check Context7 for React, TypeScript, Zustand current API documentation
-- Validate Web Worker patterns with current browser API documentation
+Fine-tuning features integrate cleanly with existing architecture by:
+
+1. **Adding parallel engines** (`finetuning.ts`, `lora.ts`, `optimizer.ts`, `framework-presets.ts`)
+2. **Extending store** with training state (mode, optimizer, LoRA config, framework preset)
+3. **Reusing existing primitives** (quantization, activation calculation, model schema)
+4. **Creating conditional components** (LoRAConfigPanel shows only for LoRA/QLoRA)
+5. **Extending visualizations** (VRAMBreakdownChart adds training slices)
+
+**Integration complexity:** MEDIUM - New calculation domains but familiar patterns
+
+**Build order:** Engines → Store → Input Components → Output Components → Framework Presets
+
+**Key risk:** Accurate formulas for optimizer memory and LoRA parameters. Mitigation: Validate against HuggingFace transformers reported memory.

@@ -1,474 +1,299 @@
 # Project Research Summary
 
-**Project:** LLM VRAM Calculator
-**Domain:** Browser-based technical calculator (LLM memory estimation)
-**Researched:** 2026-02-09
-**Confidence:** MEDIUM
+**Project:** LLM VRAM Calculator - Fine-Tuning Milestone
+**Domain:** Browser-based VRAM estimation tool for LLM fine-tuning workloads
+**Researched:** 2026-02-10
+**Confidence:** HIGH
 
 ## Executive Summary
 
-LLM VRAM calculators are specialized technical tools that estimate GPU memory requirements for running and training large language models. The domain requires precision arithmetic, complex calculation engines, and clear visual presentation of memory breakdowns. Success depends on calculation accuracy (users trust exact numbers) and handling edge cases like quantization overhead, MoE architectures, and multi-GPU sharding.
+Fine-tuning VRAM estimation extends the existing inference calculator with training workload support. Research confirms that **no new libraries are required** — the existing stack (React 19, Decimal.js, Zod, Recharts, Zustand) handles all requirements. Fine-tuning features are pure calculation logic (formulas for optimizer states, gradients, activations), UI extensions (input panels, memory breakdowns), and static configuration data (framework presets). All formulas are well-documented in authoritative sources (HuggingFace, DeepSpeed, QLoRA papers).
 
-The recommended approach uses React 19 + TypeScript for UI, Web Workers for non-blocking calculations, and Decimal.js for precision arithmetic. The architecture isolates calculation engines (pure functions) from UI concerns, enabling thorough testing and future flexibility. Static JSON databases for models/GPUs keep the tool client-side only. The sister project (raidy) uses similar patterns, reducing cognitive load for shared maintenance.
+The recommended approach follows established patterns: pure calculation engines (no React dependencies), Zod-first type system, Zustand state management, and component-based UI. Critical differentiators are framework presets (DeepSpeed ZeRO, Unsloth, vLLM/TGI) and LoRA/QLoRA support, enabling fine-tuning estimation on consumer hardware. The architecture cleanly separates training from inference logic to avoid the most critical pitfall: reusing inference KV cache calculations for training (causes 30-60% underestimation).
 
-Critical risks center on calculation accuracy. Quantization overhead (10-30% underestimation if ignored), KV cache scaling (2-8x overestimation without GQA/MQA support), and MoE parameter confusion (4x underestimation) are the top three pitfalls. Mitigation requires formula validation against real implementations (vLLM, HuggingFace) and explicit handling of modern architecture variants. A phased rollout starting with inference-only MVP allows validation before adding training complexity.
+Key risks center on formula accuracy: optimizer states must account for FP32 precision (8 bytes/param for AdamW) even in mixed precision training, LoRA optimizer states apply only to adapters (~1% of params, not full model), and gradient accumulation reduces activation memory but not gradient or optimizer state memory. Mitigation: validate against real training runs with <15% error target, implement 16 critical pitfall checks, and cross-validate against other calculators.
 
 ## Key Findings
 
 ### Recommended Stack
 
-React 19 + TypeScript with strict mode provides the foundation. Vite handles builds with fast HMR. Zustand manages state with minimal boilerplate. Tailwind CSS accelerates UI development with utility classes. Recharts provides declarative charting for VRAM breakdowns. Biome replaces ESLint/Prettier for 10-100x faster linting. Vitest enables Jest-compatible testing with Vite integration.
+**No new libraries needed.** The existing validated stack is sufficient for all fine-tuning features. Fine-tuning requires three types of extensions: (1) calculation engines with standard formulas, (2) UI components reusing existing primitives, and (3) static JSON configuration data. Research confirms no NPM libraries exist for fine-tuning VRAM estimation — implementations use hand-rolled formulas from papers and documentation.
 
-**Core technologies:**
+**Core technologies (all existing):**
+- **Decimal.js** — precision arithmetic for all training memory calculations (weights, gradients, optimizer states, activations)
+- **Zod** — validate training configurations (optimizer type, LoRA rank, batch size, gradient accumulation)
+- **React 19 + Headless UI** — training mode selectors, LoRA config panels, optimizer dropdowns
+- **Recharts** — extend memory breakdown chart with training components (optimizer states, gradients, activations expanded)
+- **Zustand** — add training state slice (mode, optimizer config, LoRA config, framework preset)
 
-- **React 19 + TypeScript 5.8+**: Component-based UI with compile-time safety for calculation accuracy
-- **Vite 7.x**: Fast build tool with native ESM and tree-shaking (verify version - may need 5.x or 6.x)
-- **Zustand 5.x**: Lightweight state management (1kb) with selector-based subscriptions for calculator state
-- **Decimal.js 10.x**: Arbitrary-precision arithmetic (CRITICAL - prevents floating-point errors in VRAM calculations)
-- **Zod 3.x**: Runtime validation for model/GPU JSON schemas with TypeScript type generation
-- **Recharts 2.x**: React-native charting for VRAM breakdown visualizations
-- **Web Workers**: Offload heavy calculations to prevent UI blocking
-- **Biome 1.x**: All-in-one linting/formatting (replaces ESLint + Prettier)
-
-**Critical dependencies:**
-
-- Decimal.js is non-negotiable (VRAM calculations involve large numbers where precision errors compound)
-- Web Workers required for responsive UI during complex calculations
-- TypeScript strict mode essential (catches numerical edge cases at compile time)
-
-**Version verification needed:**
-
-- Vite 7.x may not exist (training data showed 5.x) - verify current stable version
-- Tailwind CSS 4.x was early release - check stability before using
-- React 19 stability - verify production readiness
+**Key integration points:**
+- Extend `utils/schemas.ts` with `FineTuningConfigSchema`, `OptimizerConfigSchema`, `LoRAConfigSchema`
+- Create new engines: `finetuning.ts`, `lora.ts`, `optimizer.ts`, `gradient-accumulation.ts`, `framework-presets.ts`
+- Reuse existing: `quantization.ts` (for QLoRA base), model database, GPU database, URL serialization
 
 ### Expected Features
 
-Research identified clear feature tiers based on competitive analysis (apxml.com/tools/vram-calculator) and domain expectations.
-
 **Must have (table stakes):**
+- Training mode toggle (Inference / Full FT / LoRA / QLoRA) — users cannot estimate without specifying method
+- Optimizer selection (AdamW, SGD, 8-bit Adam) — 4x memory difference between optimizers
+- Full fine-tuning calculation — model weights + gradients + optimizer states (8B/param) + activations
+- LoRA calculation — frozen base + adapters (~1% params) + optimizer/gradients (adapters only)
+- QLoRA calculation — 4-bit base + FP16 adapters + paged optimizer
+- Training memory breakdown visualization — extend donut chart with optimizer states, gradients, activations
+- Gradient accumulation input + effective batch size display — critical for memory optimization
+- Mixed precision toggle (FP16/BF16) — reduces activations/gradients to 2 bytes
 
-- Model selection database with parameter specs
-- GPU selection database with VRAM specs
-- Quantization format selection (FP16, FP32, INT8, INT4, NF4, GPTQ, AWQ)
-- Inference VRAM calculation (weights, KV cache, activations, overhead)
-- VRAM usage breakdown visualization
-- Basic input parameters (context length, batch size)
-- Custom model input (power users with unreleased models)
-- Multi-GPU support (device count, memory distribution)
-- Fine-tuning VRAM estimation (full fine-tuning, LoRA, QLoRA)
-
-**Should have (competitive differentiation):**
-
-- KV cache quantization options (FP16/FP8/INT8 cache precision)
-- Optimization framework presets (Unsloth, DeepSpeed ZeRO, PEFT)
-- Advanced memory breakdown (separate activations, gradients, optimizer states)
-- Export/share configurations (URL params, JSON export)
-- Fine-tuning method comparison (side-by-side Full vs LoRA vs QLoRA)
-- Gradient accumulation calculator
+**Should have (competitive differentiators):**
+- Framework presets (DeepSpeed ZeRO-1/2/3, Unsloth, vLLM, TGI) — one-click accurate configs
+- Gradient checkpointing toggle — 50-80% activation memory reduction (with 25-40% slowdown warning)
+- Flash Attention toggle — 50-80% KV cache reduction during training
+- LoRA rank/alpha inputs — customize adapter size (rank 8-256, alpha typically 2x rank)
+- Multi-GPU training estimation — DeepSpeed ZeRO stage impact (2x/4x/8x memory savings)
 
 **Defer (v2+):**
-
-- Performance estimation (tokens/sec, TTFT) - requires benchmarking infrastructure
-- Multi-GPU interconnect awareness (NVLink vs PCIe efficiency) - high complexity
-- CPU/NVMe offloading estimation - dependent on performance estimation
-- Training cost estimation - requires performance data + cloud pricing integration
-- Community benchmarks - high complexity, moderation burden
-- Energy/carbon footprint - low value compared to alternatives
-
-**Anti-features (explicitly avoid):**
-
-- Model training/inference execution (out of scope, use vLLM/Ollama instead)
-- Model downloading/hosting (infrastructure burden, link to Hugging Face)
-- User accounts/authentication (stateless browser tool, localStorage for favorites)
-- AI-powered recommendations (rule-based suggestions clearer and more predictable)
+- CPU offloading for training (ZeRO-Offload complexity)
+- Training cost estimation (provider-specific, high variance)
+- FSDP/Megatron strategies (DeepSpeed only for v1.1)
+- Evaluation during training memory (separate concern)
+- Training speed estimation (requires benchmarking data)
 
 ### Architecture Approach
 
-The architecture isolates calculation logic from UI concerns through pure function engines, Web Workers for async computation, and Zustand for reactive state management. This enables thorough testing of calculation accuracy independent of React rendering.
+The fine-tuning milestone extends the existing inference-focused architecture with parallel engines and conditional UI components. Architecture follows established patterns: pure calculation engines (Decimal.js), Zod schemas for type safety, Zustand for state, and React components split by concern. New features integrate cleanly by adding parallel engines, extending the store, and creating new input/output components that reuse existing patterns.
 
 **Major components:**
+1. **Calculation Engines (Pure Functions)** — `finetuning.ts` (full/LoRA/QLoRA VRAM), `lora.ts` (adapter parameter calculation), `optimizer.ts` (state memory by type), `gradient-accumulation.ts` (effective batch size), `framework-presets.ts` (optimization profiles)
+2. **Store Extensions** — Add training slice to Zustand store (mode, optimizer config, LoRA config, framework preset, gradient accumulation steps, gradient checkpointing flag)
+3. **Input Components** — `TrainingModeSelector` (radio group), `LoRAConfigPanel` (rank/alpha/targets), `OptimizerSelector` (dropdown), `GradientAccumulationInput` (steps + effective batch display), `FrameworkPresetSelector` (preset cards)
+4. **Output Components** — Extend `VRAMBreakdownChart` with training slices, extend `MemoryBreakdownTable` with training rows, add `FrameworkOptimizationBadge` (show active optimizations)
+5. **Static Data** — `framework-presets.json` (DeepSpeed ZeRO, Unsloth, vLLM/TGI configs), `optimizers.json` (bytes/param, stability notes)
 
-1. **Calculation Engines** (`src/engines/`) - Pure functions with zero dependencies. Separate modules for inference, fine-tuning, multi-GPU, each exporting typed input/output interfaces. Enables unit testing without UI and future server-side execution.
+**Data flow:** User input (training mode, optimizer, LoRA config) → Zustand store → `calculateFineTuningVRAM()` engine → `FineTuningVRAMBreakdown` (Decimal.js) → Components render (chart, table, badges)
 
-2. **Web Worker Pool** (`src/workers/`) - Pool of workers (size = CPU cores) that import engines and execute calculations off main thread. Prevents UI blocking during complex calculations. Graceful fallback to synchronous if workers unavailable.
-
-3. **State Management** (`src/store/`) - Zustand store organized in slices (inputs, results, config). Middleware intercepts input changes and triggers debounced calculation via worker pool. Selector-based subscriptions prevent unnecessary re-renders.
-
-4. **Component Architecture** (`src/components/`) - Organized by responsibility: `inputs/` (ModelSelector, GPUSelector), `outputs/` (VRAMBreakdown, PerformanceMetrics), `common/` (reusable UI), `layout/` (Calculator shell). Each component subscribes to minimal store state via selectors.
-
-5. **Static Data** (`src/data/`) - Model and GPU specifications in JSON with TypeScript schemas. Zod validates at load time, generates types for compile-time safety. Structured for tree-shaking (separate files per vendor).
-
-**Data flow:**
-
-```
-User Input → Component → Store Update → Middleware → Worker Pool → Engine (pure calc)
-→ Worker Result → Store Update → Component Re-render → UI Update
-```
-
-Key characteristics: Unidirectional flow, async calculations, reactive updates, debounced inputs (300ms).
-
-**Build order implications:**
-
-1. Data schemas must come first (everything depends on TypeScript interfaces)
-2. Engines can be built in parallel once schemas exist (pure functions, no dependencies)
-3. Workers wrap engines (depends on engines being complete)
-4. Components depend on store + hooks (can be built in parallel if hook interfaces defined)
+**Key pattern:** Training calculations are completely separate from inference (no KV cache reuse), avoiding the most critical pitfall. Conditional rendering shows training-specific UI only when training mode is active.
 
 ### Critical Pitfalls
 
-Research identified 15 pitfalls across three severity levels. The top five are project-killers if not addressed in MVP.
+1. **Reusing inference KV cache formula for training** — Training processes batches in parallel with full attention matrices, not sequential generation. KV cache behavior is fundamentally different. Without Flash Attention, training needs `2 * batch * n_heads * seq_len² * 2 bytes` for attention matrices (not the inference KV cache). Prevention: Separate training calculation path, add Flash Attention toggle for training.
 
-1. **Quantization Overhead Ignored** - Assuming 4-bit quantization = exactly 0.5 bytes/param leads to 10-30% underestimation. GPTQ/AWQ add metadata, scale factors, padding. Use 1.1-1.3x multiplier. CRITICAL for Phase 1 MVP - affects all quantized calculations.
+2. **Optimizer state precision assumption** — AdamW maintains states in FP32 (4 bytes) for numerical stability, even when training in BF16/FP16. Total: 8 bytes per trainable parameter (4B momentum + 4B variance). Prevention: Fixed formula `optimizer_states = trainable_params * 8 bytes`, independent of training precision.
 
-2. **KV Cache Quadratic Scaling Assumed** - Using `KV = 2 * layers * d_model * seq_len` formula overestimates GQA/MQA models by 2-8x. Must factor in `n_kv_heads / n_heads` ratio. Llama 3 70B uses 8 KV heads / 64 query heads = 0.125x. CRITICAL for Phase 1 - affects all modern models.
+3. **LoRA adapter-only optimizer states ignored** — Only LoRA adapter parameters (~0.2-2% of model) are trainable. Frozen base model weights have no optimizer states. Prevention: `optimizer_memory = adapter_params * 8 bytes` (NOT `base_model_params * 8 bytes`). For Llama 7B rank 16: 16.8M adapter params, not 7B total params.
 
-3. **MoE Active Parameters Miscalculation** - Confusing "13B active" with "13B loaded" for Mixtral 8x7B leads to 4x underestimation. ALL expert weights must be in VRAM (46.7B), only subset activated per token. CRITICAL for Phase 2 - requires separate logic from dense models.
+4. **Gradient accumulation peak memory misconception** — Gradient accumulation reduces per-step batch size (activation memory), but does NOT reduce peak gradient or optimizer state memory. Prevention: `peak_memory = weights + gradients + optimizer_states + (micro_batch_activations)` (NOT effective batch activations). Savings: ~10-15%, not 87% with 8x accumulation.
 
-4. **Multi-GPU Memory Split Naive** - Dividing total memory by GPU count ignores replication overhead (embeddings, layernorms replicated on all GPUs), pipeline activation stashing, and NCCL communication buffers. Leads to 10-20% underestimation. CRITICAL for Phase 4 - multi-GPU needs dedicated calculation path.
-
-5. **Fine-tuning Optimizer State Multiplier Wrong** - Using fixed "AdamW = 8 bytes per param" for LoRA leads to 10-100x overestimation. Only adapter weights have optimizer states (1-2% of params for rank 16-64). Full fine-tuning requires 13x model weight (model + gradients + optimizer). CRITICAL for Phase 3 - must distinguish trainable vs frozen params.
-
-**Phase-specific warnings:**
-
-- Phase 1 MVP: Must handle quantization overhead (#1) and KV cache scaling (#2) or core functionality is broken
-- Phase 2 Architecture: Add MoE support (#3), context length optimizations, GGUF variants
-- Phase 3 Training: Optimizer state calculation (#5), activation memory formulas, gradient checkpointing
-- Phase 4 Multi-GPU: Sharding overhead (#4), communication buffers, TP/PP strategies
-- Phase 5+: Framework overhead, batch size scaling, precision conversion
+5. **DeepSpeed ZeRO stage memory profile confusion** — Memory savings are 2x/4x/8-10x respectively (Stage 1/2/3), NOT simple divide-by-N. Stage 1: replicate weights+gradients, partition optimizer (2x savings). Stage 2: replicate weights, partition gradients+optimizer (4x savings). Stage 3: partition everything (8-10x savings, 15-30% throughput loss). Prevention: Use 2x/4x/8x multipliers, not `total_memory / num_gpus`.
 
 ## Implications for Roadmap
 
-Based on combined research, recommended phase structure prioritizes calculation accuracy and incremental validation. Each phase delivers user value while building toward complete feature set.
+Based on research, suggested phase structure prioritizes accurate calculation formulas first (avoiding critical pitfalls), then state management and basic UI, then advanced features and framework presets, and finally validation.
 
-### Phase 1: Core Infrastructure & Data
-
-**Rationale:** Establishes foundation for all calculations. Pure functions enable testing without UI complexity. Static data allows frontend-only deployment.
+### Phase 1: Fine-Tuning Calculation Engine (Core)
+**Rationale:** Pure functions with no UI dependencies enable independent testing and formula validation before UI complexity. Addresses critical pitfalls #1, #2, #3 (KV cache reuse, optimizer precision, LoRA adapter-only states).
 
 **Delivers:**
+- `engines/finetuning.ts` — `calculateFineTuningVRAM()` for full/LoRA/QLoRA modes
+- `engines/lora.ts` — `calculateLoRAParams()` for adapter parameter calculation
+- `engines/optimizer.ts` — `calculateOptimizerMemory()` for AdamW/SGD/8-bit variants
+- Comprehensive tests validating formulas against known values (Llama 7B LoRA r=16 ≈ 16GB)
 
-- TypeScript interfaces for all data models (ModelSpec, GPUSpec, CalculatorInputs, Results)
-- Static JSON databases (models.json with 20-30 popular models, gpus.json with 15-20 common GPUs)
-- Zod schemas with runtime validation
-- Inference calculation engine (weights, KV cache, activations, overhead)
-- Unit tests for calculation accuracy
+**Addresses:** Table stakes features (full FT, LoRA, QLoRA calculations), critical formulas must be accurate to avoid OOM failures.
 
-**Avoids:**
+**Avoids:** Pitfall #1 (separate training from inference), Pitfall #2 (FP32 optimizer states), Pitfall #3 (adapter-only optimizer memory).
 
-- Building UI before calculation logic is validated (saves rework)
-- Database backend complexity (JSON in version control)
-
-**Duration:** 1-2 weeks
-**Complexity:** Medium (data curation effort, formula validation)
-**Research needed:** No (well-established patterns)
+**Research flag:** Standard formulas — skip research-phase, implementation ready.
 
 ---
 
-### Phase 2: MVP Calculator (Inference)
-
-**Rationale:** Delivers minimum viable product - users can answer "will this model fit on my GPU?" Proves architecture with vertical slice before expanding scope.
+### Phase 2: Training State & UI Foundation
+**Rationale:** Extend store and add basic UI before advanced features. Training mode selector enables conditional rendering for all subsequent phases. Framework presets data prepared early for preset selector in Phase 4.
 
 **Delivers:**
+- Extended Zod schemas (`FineTuningConfigSchema`, `OptimizerConfigSchema`, `LoRAConfigSchema`)
+- Zustand store training slice (mode, optimizer, LoRA config, framework preset, gradient accumulation, checkpointing)
+- `TrainingModeSelector` component (Inference / Full FT / LoRA / QLoRA radio group)
+- `data/framework-presets.json` (DeepSpeed ZeRO-1/2/3, Unsloth, vLLM, TGI configurations)
+- `data/optimizers.json` (bytes/param, stability notes)
 
-- Basic UI layout (Calculator shell, Header, Footer)
-- Input components (ModelSelector, GPUSelector, QuantizationPicker, ParameterInputs)
-- Output component (VRAMBreakdown with Recharts visualization)
-- Store setup (Zustand with inputs/results slices)
-- Basic calculation flow (synchronous initially, workers in Phase 3)
-- Custom model input for power users
+**Uses:** Zod (schemas), Zustand (store), React (components), Headless UI (radio group).
 
-**Addresses features:**
+**Implements:** State management foundation for training features.
 
-- Model selection database (table stakes)
-- GPU selection database (table stakes)
-- Quantization format selection (table stakes)
-- Inference VRAM calculation (table stakes)
-- VRAM usage breakdown (table stakes)
-- Clear result display (table stakes)
-
-**Avoids pitfalls:**
-
-- Quantization overhead (#1) - Apply 1.1-1.3x multipliers in inference engine
-- KV cache scaling (#2) - Expose n_kv_heads parameter, calculate GQA/MQA correctly
-
-**Duration:** 2-3 weeks
-**Complexity:** Medium (UI implementation, state wiring)
-**Research needed:** No (standard React patterns, calculator UIs well-documented)
+**Research flag:** Standard patterns — skip research-phase, follows existing store structure.
 
 ---
 
-### Phase 3: Worker Infrastructure & Optimization
-
-**Rationale:** Adds performance layer without changing UI contracts. Prevents blocking on complex calculations (128K context, 70B+ models).
+### Phase 3: Advanced Training Inputs
+**Rationale:** After core calculations work (Phase 1) and state management exists (Phase 2), add advanced input components. LoRA config panel and gradient accumulation calculator provide fine-grained control.
 
 **Delivers:**
+- `LoRAConfigPanel` component (rank, alpha, target modules, presets)
+- `OptimizerSelector` component (dropdown with memory impact shown)
+- `GradientAccumulationInput` component (steps input + effective batch size display)
+- Mixed precision toggle (FP16/BF16/FP32 selector)
+- Gradient checkpointing toggle (with memory reduction % and slowdown warning)
 
-- Web Worker implementation (calculation.worker.ts)
-- Worker pool management (size = CPU cores)
-- Updated useCalculation hook (async worker-based)
-- Calculation middleware (debouncing, worker orchestration)
-- Loading states and error boundaries
+**Addresses:** Should-have features (LoRA customization, gradient accumulation, checkpointing).
 
-**Uses stack:**
+**Avoids:** Pitfall #4 (gradient accumulation only reduces activations), Pitfall #7 (checkpointing shows compute cost).
 
-- Web Workers (native browser API)
-- TypeScript worker interfaces (typed postMessage)
-- Zustand middleware for side effects
-
-**Duration:** 1-2 weeks
-**Complexity:** Low-Medium (worker API straightforward, testing async flows)
-**Research needed:** No (Web Worker patterns well-documented)
+**Research flag:** Standard patterns — skip research-phase, UI components reuse existing primitives.
 
 ---
 
-### Phase 4: Training Support
-
-**Rationale:** Completes table stakes features. Training use case distinct from inference (different memory profile). Many users need fine-tuning estimation.
+### Phase 4: Memory Visualization & Output
+**Rationale:** After inputs exist (Phase 3), extend output components to display training memory breakdown. Memory visualization helps users understand where VRAM goes (optimizer states, gradients, activations).
 
 **Delivers:**
+- Extended `VRAMBreakdownChart` with training slices (optimizer states, gradients, activations, LoRA adapters)
+- Extended `MemoryBreakdownTable` with training rows (trainable params, frozen params, optimizer type)
+- `FrameworkOptimizationBadge` component (show active optimizations from preset)
+- Training feasibility indicator ("Fits in VRAM" / "Tight fit" / "Insufficient VRAM")
 
-- Fine-tuning calculation engine (finetuning.ts)
-- Training method selection (Full, LoRA, QLoRA)
-- LoRA configuration inputs (rank, alpha)
-- Optimizer state calculation (AdamW, SGD)
-- Gradient accumulation calculator
-- Dataset size input (samples, tokens per sample, epochs)
-- Training-specific VRAM breakdown (model + gradients + optimizer + activations)
+**Addresses:** Table stakes (training memory breakdown visualization).
 
-**Addresses features:**
+**Implements:** Training-specific output components extending existing chart/table patterns.
 
-- Fine-tuning VRAM estimation (table stakes)
-- Gradient accumulation calculator (differentiator)
-- Fine-tuning method comparison (differentiator)
-
-**Avoids pitfalls:**
-
-- Optimizer state multiplier (#5) - Separate logic for Full FT (13x model) vs LoRA (1.2-1.5x)
-- Activation memory (#10) - Account for MLP expansion (4x hidden_size)
-- MoE parameters (#3) - Special handling for Mixtral fine-tuning (all experts loaded)
-
-**Duration:** 2-3 weeks
-**Complexity:** High (complex formulas, many edge cases)
-**Research needed:** CONSIDER - Fine-tuning formulas may need validation against HuggingFace accelerate, DeepSpeed docs
+**Research flag:** Standard patterns — skip research-phase, Recharts handles stacked bar charts natively.
 
 ---
 
-### Phase 5: Multi-GPU Support
-
-**Rationale:** Common production deployment pattern. Enables large model calculations. Requires distinct logic from single-GPU.
+### Phase 5: Framework Presets & Multi-GPU
+**Rationale:** After single-GPU training works (Phases 1-4), add framework-specific optimizations and multi-GPU support. DeepSpeed ZeRO requires careful stage modeling (2x/4x/8x, not divide-by-N).
 
 **Delivers:**
+- `engines/framework-presets.ts` — `applyFrameworkOptimizations()` for vLLM/TGI/Unsloth/DeepSpeed
+- `FrameworkPresetSelector` component (preset cards with optimization badges)
+- `GradientAccumulationCalculator` — `recommendGradientAccumulation()` for memory-constrained scenarios
+- Multi-GPU training estimation with DeepSpeed ZeRO stage impact
+- Per-GPU memory display for distributed training
 
-- Multi-GPU calculation engine (multigpu.ts)
-- GPU count input (1-16)
-- Sharding strategy selection (Tensor Parallel, Pipeline Parallel, Hybrid)
-- Per-GPU memory calculation (accounts for replication overhead)
-- Multi-GPU visualization (memory distribution across GPUs)
-- Interconnect notes (NVLink recommended for >4 GPUs)
+**Addresses:** Differentiator features (framework presets, multi-GPU).
 
-**Addresses features:**
+**Avoids:** Pitfall #6 (ZeRO stage 2x/4x/8x savings, not linear), Pitfall #10 (framework-specific overhead differences).
 
-- Multi-GPU support (table stakes completion)
-- Multi-GPU visualization (differentiator)
-
-**Avoids pitfalls:**
-
-- Naive memory split (#4) - Add 10-15% overhead for replicated components
-- Communication overhead (#11) - Warn when bandwidth insufficient for model size
-
-**Implements architecture:**
-
-- Separate calculation engine (multigpu.ts imports inference.ts, composes results)
-- Worker pool enables parallel calculation for comparison scenarios
-
-**Duration:** 1-2 weeks
-**Complexity:** Medium (overhead constants need research, visualization complexity)
-**Research needed:** CONSIDER - Multi-GPU strategies may need research on DeepSpeed ZeRO, Megatron-LM papers for accurate overhead constants
+**Research flag:** Needs validation — DeepSpeed ZeRO formulas inferred from documentation, test against real multi-GPU runs.
 
 ---
 
-### Phase 6: Differentiation Features
-
-**Rationale:** Polish and competitive advantages. Lower complexity, high user value. These features distinguish from basic calculators.
+### Phase 6: Validation & Polish
+**Rationale:** Final phase validates all formulas against ground truth, cross-checks other calculators, and tests edge cases. Target <15% error vs real training runs.
 
 **Delivers:**
+- Ground truth benchmarks (Llama 7B LoRA, Llama 7B QLoRA, Llama 70B ZeRO-3)
+- Cross-validation against Modal calculator, HuggingFace Accelerate estimator, DeepSpeed config generator
+- Edge case testing (MoE models, GQA models, long sequences, large ranks)
+- Documentation and user guidance (when to use LoRA vs QLoRA, gradient accumulation recommendations)
+- "Report actual vs estimated" feedback mechanism
 
-- KV cache quantization options (FP16/FP8/INT8 cache, separate from model quantization)
-- Optimization framework presets (Unsloth, DeepSpeed ZeRO-2/3, PEFT, FSDP templates)
-- Advanced memory breakdown (separate activations, gradients, optimizer, temporary buffers)
-- Export/share configurations (URL params for sharing, JSON export for saving)
-- Fine-tuning method comparison view (side-by-side Full vs LoRA vs QLoRA)
+**Addresses:** Pitfall #14 (calculator cross-validation), all formula accuracy concerns.
 
-**Addresses features:**
-
-- KV cache quantization (differentiator) - Low complexity, high value for long-context
-- Optimization presets (differentiator) - Medium complexity, high user value
-- Advanced breakdown (differentiator) - Medium complexity, educational value
-- Export/share (differentiator) - Low complexity, collaboration enabler
-- Method comparison (differentiator) - Medium complexity, decision support
-
-**Duration:** 2-3 weeks
-**Complexity:** Low-Medium (mostly UI/UX work, calculations reuse existing engines)
-**Research needed:** No (standard patterns, UI polish)
-
----
-
-### Phase 7: Advanced Features (Optional)
-
-**Rationale:** If time permits. High complexity or lower ROI. Can defer to v2.
-
-**Potential features:**
-
-- Performance estimation (tokens/sec, TTFT, throughput) - Requires benchmarking database
-- CPU/NVMe offloading estimation - Depends on performance estimation
-- Training cost estimation - Requires performance data + cloud pricing integration
-- Comparative analysis - Side-by-side 2-3 configurations
-- Memory optimization suggestions - Rules engine for "try 4-bit quantization" hints
-
-**Complexity:** High (benchmarking infrastructure, validation burden)
-**Research needed:** YES - Performance estimation requires extensive research
+**Research flag:** Validation phase — measure error rates, update formulas if >15% deviation.
 
 ---
 
 ### Phase Ordering Rationale
 
-**Dependency-driven:**
-
-1. Phase 1 (Infrastructure) → Phase 2 (MVP) → Phase 3 (Workers) is strict dependency chain
-2. Phase 4 (Training) and Phase 5 (Multi-GPU) can run in parallel if resources allow (separate engines)
-3. Phase 6 (Differentiation) requires Phase 2-5 complete (reuses all engines)
-
-**Risk-driven:**
-
-- Phase 2 proves core value before expanding scope
-- Phase 3 adds performance without changing contracts (low risk refactor)
-- Phase 4-5 are independent feature expansions (failure doesn't affect other phases)
-
-**Pitfall mitigation:**
-
-- Critical pitfalls (#1, #2) addressed in Phase 1-2 foundation
-- Training pitfalls (#5) isolated to Phase 4
-- Multi-GPU pitfalls (#4) isolated to Phase 5
-- Each phase can be validated against real implementations before next phase
-
-**User value prioritization:**
-
-- Phase 2 delivers to hobbyists (primary persona): "Will X fit on my GPU?"
-- Phase 4 adds data scientists (secondary persona): "Can I fine-tune this?"
-- Phase 5 adds ML engineers (secondary persona): "How should I configure multi-GPU?"
-- Phase 6 adds competitive polish
+- **Phase 1 first:** Pure calculation engines with no UI dependencies enable independent testing and formula validation. Critical pitfalls (#1, #2, #3) must be addressed in formulas before UI complexity.
+- **Phase 2 before 3:** State management and training mode selector must exist before advanced input components can conditionally render.
+- **Phase 4 after 3:** Memory visualization requires training inputs to exist (can't show breakdown without calculation results).
+- **Phase 5 after 4:** Framework presets and multi-GPU support build on single-GPU foundation. DeepSpeed ZeRO complexity requires core training to work first.
+- **Phase 6 final:** Validation phase catches formula errors across all features before public release.
 
 ### Research Flags
 
-**Standard patterns (skip `/gsd:research-phase`):**
+Phases likely needing deeper research during planning:
+- **Phase 5 (Multi-GPU):** DeepSpeed ZeRO-3 memory partitioning formulas inferred from documentation, not explicitly stated. Needs validation against real multi-GPU training runs. Communication overhead percentages vary by interconnect (10-25% range in sources).
 
-- **Phase 1:** Data modeling, JSON schemas, TypeScript interfaces are well-documented
-- **Phase 2:** React calculator UIs are common, many examples available
-- **Phase 3:** Web Worker patterns well-established, browser API stable
-- **Phase 6:** UI polish and export features are straightforward implementations
-
-**May need targeted research:**
-
-- **Phase 4 (Training):** Fine-tuning memory formulas should be validated against HuggingFace accelerate docs, DeepSpeed papers. Complexity: LoRA/QLoRA/Full FT have different memory profiles that need verification. Consider `/gsd:research-phase` if formulas uncertain.
-
-- **Phase 5 (Multi-GPU):** Multi-GPU overhead constants (replication, communication buffers) may need research on Megatron-LM, DeepSpeed ZeRO documentation. Tensor Parallel vs Pipeline Parallel efficiency factors need validation. Consider `/gsd:research-phase` if overhead estimates are rough.
-
-**Definitely needs research:**
-
-- **Phase 7 (Performance):** Requires extensive benchmarking database research. Tokens/sec depends on GPU architecture, model size, batch size, quantization. Would need `/gsd:research-phase` with performance benchmarking focus.
+Phases with standard patterns (skip research-phase):
+- **Phase 1 (Engines):** Formulas well-documented in HuggingFace, DeepSpeed, QLoRA papers. No ambiguity.
+- **Phase 2 (State/UI):** Follows existing Zustand store pattern, React component structure.
+- **Phase 3 (Inputs):** Reuses Headless UI primitives (radio groups, dropdowns, toggles).
+- **Phase 4 (Outputs):** Extends existing Recharts visualizations, standard table extension.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | MEDIUM-HIGH | Core choices (React, TypeScript, Zustand) are solid. Version specifics need verification (Vite 7 may not exist, Tailwind 4 early release). Decimal.js and Web Workers are proven choices for domain. |
-| Features | HIGH | Competitive analysis (apxml.com) provided clear feature tiers. Table stakes vs differentiators well-defined. MVP scope clear. Anti-features help avoid scope creep. |
-| Architecture | MEDIUM-HIGH | Patterns are established (engine isolation, worker pools, Zustand state). raidy alignment reduces risk. Build order is logical. Some uncertainty on worker pool implementation details. |
-| Pitfalls | MEDIUM | Comprehensive list from training data. Top pitfalls (#1-5) are well-documented in community. Lower severity pitfalls (#6-15) less validated. Need real-world testing against vLLM/HuggingFace to confirm accuracy. |
+| **Stack** | HIGH | Existing stack verified sufficient. No new libraries needed (Decimal.js handles all calculations, Recharts handles stacked bar charts, Zod handles validation). |
+| **Features** | HIGH | Table stakes and differentiators identified from authoritative sources (HuggingFace docs, DeepSpeed docs, QLoRA paper). MVP scope clear (12-15 days). |
+| **Architecture** | HIGH | Follows established patterns (pure engines, Zod schemas, Zustand state, component-based UI). Integration points well-defined. Build order logical (engines → store → inputs → outputs). |
+| **Pitfalls** | HIGH | 16 pitfalls identified from current 2026 sources. Critical pitfalls (#1-7) have clear prevention strategies. Phase-specific warnings mapped. Validation strategy defined (<15% error target). |
 
-**Overall confidence:** MEDIUM-HIGH
+**Overall confidence:** HIGH
 
-Research provides solid foundation for roadmap. Core technology choices are proven. Feature prioritization is clear. Architecture patterns are established. Main uncertainty is calculation accuracy for edge cases (MoE, multi-GPU overhead constants) - these can be validated during implementation.
+Research validates that fine-tuning estimation is well-understood with documented formulas and established patterns. No new libraries required reduces risk. Critical pitfalls identified early with clear prevention strategies.
 
 ### Gaps to Address
 
-**Version verification (before Phase 1):**
+Areas where research was inconclusive or needs validation during implementation:
 
-- Vite 7.x may not be released (training data showed 5.x latest) - verify current stable version, may need 5.x or 6.x
-- Tailwind CSS 4.x was early release in training - check stability, may need 3.x if v4 unstable
-- React 19 was newly released - verify production readiness, check for major issues
-- Zustand 5.x version check (4.x was latest in training)
+- **DeepSpeed ZeRO-3 exact memory partitioning:** Formulas inferred from documentation, not explicitly stated. Sources agree on 8-10x memory savings but don't provide exact per-component breakdown. Mitigation: Test against real ZeRO-3 training runs in Phase 5, compare to DeepSpeed config generator output.
 
-**Formula validation (during Phase 4-5):**
+- **Unsloth-specific optimizations:** Claims 70% memory reduction vs standard LoRA, but optimizations are proprietary. Sources validate claims against user reports, not source code. Mitigation: Use conservative 60% reduction estimate, add disclaimer "based on Unsloth benchmarks."
 
-- Fine-tuning memory formulas - validate against HuggingFace transformers memory anatomy docs
-- Multi-GPU overhead constants - validate against Megatron-LM, DeepSpeed papers for replication factors
-- MoE model handling - verify with Mixtral/DeepSeek V3 actual measurements
-- Quantization overhead multipliers - test against GPTQ/AWQ/GGUF actual memory usage
+- **Training throughput estimation:** Deferred to v2+. Requires benchmarking data not available from web search. High variance across frameworks (Unsloth 2x faster, DeepSpeed ZeRO-3 20-40% slower). Mitigation: Focus v1.1 on memory estimation only, add throughput in future milestone.
 
-**Domain knowledge validation (during implementation):**
+- **Activation memory per-layer variation:** Simplified formula uses `10-12x hidden_size * batch * seq_len` per transformer block. Reality: MLP layers expand to intermediate_size (4x hidden), attention has seq_len² complexity without Flash Attention. Mitigation: Use conservative 12x multiplier, add Flash Attention toggle to address seq_len² issue.
 
-- KV cache scaling for GQA/MQA - verify n_kv_heads values for popular models (Llama 3, Mistral, GPT-4)
-- Framework overhead - measure PyTorch/CUDA baseline (500MB-1GB estimate needs confirmation)
-- Activation memory formulas - validate MLP expansion factors (4x hidden_size assumption)
-- Batch size scaling - test padding inefficiency with variable-length sequences
-
-**Data curation (ongoing):**
-
-- Model database needs 20-30 popular models with accurate parameter counts - requires manual curation
-- GPU database needs 15-20 common GPUs with VRAM specs - straightforward from vendor specs
-- Architecture parameters (n_kv_heads, intermediate_size, vocab_size) - extract from Hugging Face model cards
-
-**Testing strategy:**
-
-- Compare calculator results against vLLM memory profiling for common configs
-- Test against HuggingFace accelerate memory estimates
-- Validate quantized model estimates against actual GPTQ/AWQ/GGUF measurements
-- Aim for <10% error on common configurations, <20% on edge cases
+- **CPU offloading performance penalties:** Sources range from "10-30x slower" to "15-30% slower" depending on PCIe bandwidth and offload strategy. Mitigation: Defer CPU offload to v1.2, focus v1.1 on GPU-only training.
 
 ## Sources
 
 ### Primary (HIGH confidence)
 
-- **apxml.com/tools/vram-calculator** (fetched 2026-02-09) - Comprehensive competitive analysis, feature landscape, industry expectations. Provided clear table stakes vs differentiators.
-- **Training data on React/TypeScript/Web Workers patterns** (Jan 2025 cutoff) - Established architecture patterns, component composition, state management with Zustand.
-- **raidy project** (provided as baseline) - Sister project architecture alignment for React, TypeScript, Vite, Tailwind, Biome patterns. Reduces cognitive load.
+**Technology Stack:**
+- [Decimal.js vs BigNumber.js](https://medium.com/@josephgathumbi/decimal-js-vs-c1471b362181) — validated Decimal.js sufficiency
+- [npm-compare: JavaScript Arbitrary-Precision Libraries](https://npm-compare.com/big.js,bignumber.js,decimal.js,decimal.js-light) — Decimal.js most feature-complete
+- [Top React Chart Libraries 2026](https://aglowiditsolutions.com/blog/react-chart-libraries/) — Recharts still recommended
+
+**Fine-Tuning Formulas:**
+- [Modal: How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning) — formula verification for full fine-tuning with AdamW
+- [HuggingFace Model Memory Anatomy](https://huggingface.co/docs/transformers/main/en/model_memory_anatomy) — official memory breakdown
+- [Memory Requirements (HBM, GPU RAM)](https://apxml.com/courses/how-to-build-a-large-language-model/chapter-18-hardware-considerations-llm-training/memory-requirements-hbm-gpu-ram) — optimizer states precision
+
+**LoRA & QLoRA:**
+- [LoRA Paper](https://arxiv.org/abs/2106.09685) — original LoRA architecture
+- [QLoRA Paper](https://arxiv.org/abs/2305.14314) — QLoRA 4-bit NF4 quantization
+- [Making LLMs even more accessible with bitsandbytes, 4-bit quantization and QLoRA](https://huggingface.co/blog/4bit-transformers-bitsandbytes) — official QLoRA integration
+- [LoRA fine-tuning Hyperparameters Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide) — rank/alpha recommendations
+
+**DeepSpeed ZeRO:**
+- [Zero Redundancy Optimizer - DeepSpeed](https://www.deepspeed.ai/tutorials/zero/) — official ZeRO stage explanations
+- [Memory Requirements — DeepSpeed](https://deepspeed.readthedocs.io/en/latest/memory.html) — per-stage memory formulas
+- [ZeRO-Offload - DeepSpeed](https://www.deepspeed.ai/tutorials/zero-offload/) — CPU offloading mechanics
+
+**Framework Documentation:**
+- [Unsloth GitHub](https://github.com/unslothai/unsloth) — 2x faster, 70% less VRAM claims
+- [vLLM PagedAttention Paper](https://arxiv.org/abs/2309.06180) — inference-only optimizations
+- [HuggingFace TGI Documentation](https://huggingface.co/docs/text-generation-inference/en/index) — TGI optimization techniques
 
 ### Secondary (MEDIUM confidence)
 
-- **Training data on LLM memory calculation patterns** (Jan 2025 cutoff) - VRAM formulas (KV cache, activations, optimizer states), quantization overhead, multi-GPU sharding.
-- **EleutherAI Cookbook references** (fetched 2026-02-09) - Confirms ecosystem tools exist, validates domain patterns.
-- **Training data on calculator application patterns** - Form-heavy UIs, numerical precision requirements, visualization best practices.
+**Gradient Accumulation & Checkpointing:**
+- [Gradient Accumulation: Increase Batch Size Without Explicitly Increasing Batch Size](https://blog.dailydoseofds.com/p/gradient-accumulation-increase-batch) — activation memory only
+- [Current and New Activation Checkpointing Techniques in PyTorch](https://pytorch.org/blog/activation-checkpointing-techniques/) — selective checkpointing
+- [Small Batch Size Training for Language Models (2025)](https://arxiv.org/abs/2507.07101) — gradient accumulation research
 
-### Tertiary (LOW confidence - flagged for validation)
+**Flash Attention:**
+- [FlashAttention: Fast and Memory-Efficient Exact Attention](https://arxiv.org/abs/2205.14135) — 10-20x memory savings at 2K-4K seq lengths
+- [Out of the box acceleration and memory savings](https://pytorch.org/blog/out-of-the-box-acceleration/) — PyTorch integration
 
-- **Vite 7.x, Tailwind CSS 4.x versions** - Assumed based on version progression, may not exist or be stable yet. MUST verify official documentation.
-- **Fine-tuning memory formulas** - Based on training data, should validate against current HuggingFace docs, DeepSpeed papers.
-- **Multi-GPU overhead constants** - Rough estimates (10-15% replication, 100-500MB buffers), need validation against Megatron-LM, production systems.
-- **Quantization overhead multipliers** - Training data estimates (1.1-1.3x), should validate against actual GPTQ/AWQ/GGUF measurements.
-- **MoE model specifics** - Mixtral/DeepSeek V3 parameter counts should be verified against official model cards.
-- **Performance estimation approaches** - Tokens/sec formulas would require extensive benchmarking research (deferred to Phase 7).
+**Mixed Precision:**
+- [Mixed Precision Training in LLMs: FP16, BF16, FP8, and Beyond](https://medium.com/@dpratishraj7991/mixed-precision-training-in-llms-fp16-bf16-fp8-and-beyond-b4af13ca846f) — master weights in FP32
+- [How can using FP16, BF16, or FP8 mixed precision speed up my model training?](https://www.runpod.io/articles/guides/fp16-bf16-fp8-mixed-precision-speed-up-my-model-training) — 20-30% savings, not 50%
 
-### Missing (unable to access)
+### Tertiary (LOW confidence, needs validation)
 
-- **Context7 tool** - Could not verify current React 19, Zustand 5, Vite 7 API documentation
-- **Hugging Face accelerate tool** - Could not access interface to compare features
-- **vram.asmirnov.xyz** - Access blocked, could not analyze competitor
-- **GPU_poor** - Access blocked, could not analyze competitor
-- **Microsoft Learn** - Could not verify current best practices for 2026
+**Training Throughput:**
+- Sources vary widely on speedup/slowdown percentages (Unsloth 2x, DeepSpeed ZeRO-3 20-40% slower, gradient checkpointing 25-40% slower). Defer to v2+ when benchmarking data available.
 
-**Recommended validation sources:**
+**CPU Offloading Performance:**
+- Claims range from "10-30x slower" to "15-30% slower" depending on PCIe bandwidth. Needs hardware-specific validation.
 
-- Official Vite documentation (<https://vite.dev>) - verify latest stable version
-- Official Tailwind CSS documentation (<https://tailwindcss.com>) - verify v4 release status
-- Official React documentation (<https://react.dev>) - verify React 19 stability
-- Raidy project's actual package.json - confirm exact versions for alignment
-- Zustand documentation (<https://zustand.docs.pmnd.rs>) - API patterns
-- HuggingFace transformers memory anatomy - formula validation
-- vLLM documentation - memory model validation
-- DeepSpeed/Megatron-LM papers - multi-GPU overhead validation
+**Unsloth Proprietary Optimizations:**
+- 70% memory reduction claim validated against user reports, not source code. Use conservative estimate.
 
 ---
-
-*Research completed: 2026-02-09*
-*Ready for roadmap: Yes*
+*Research completed: 2026-02-10*
+*Ready for roadmap: yes*
