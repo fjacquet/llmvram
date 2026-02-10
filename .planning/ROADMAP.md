@@ -65,10 +65,11 @@ Plans:
   3. User can select optimizer type (AdamW, SGD, 8-bit Adam, Adafactor)
   4. User can toggle mixed precision training (FP32/FP16/BF16)
   5. Training configuration persists in URL hash for sharing
-**Plans:** TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (to be defined during phase planning)
+- [ ] 07-01-PLAN.md -- Training state & URL persistence
+- [ ] 07-02-PLAN.md -- Training UI components & InputPanel integration
 
 ### Phase 8: Memory Optimization Features
 **Goal:** Users can optimize training memory through gradient accumulation and checkpointing
