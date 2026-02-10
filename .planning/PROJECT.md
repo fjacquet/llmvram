@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A browser-based calculator that estimates VRAM requirements and performance characteristics for running large language models on various GPU configurations. Pure client-side (no backend), deployed as a static site. Supports single and multi-GPU setups with 22 quantization formats, CPU/RAM/NVMe offloading, and shareable configurations.
+A browser-based calculator that estimates VRAM requirements and performance characteristics for running and fine-tuning large language models on various GPU configurations. Pure client-side (no backend), deployed as a static site. Supports single and multi-GPU setups with 22 quantization formats, CPU/RAM/NVMe offloading, fine-tuning estimation (Full/LoRA/QLoRA), framework presets (DeepSpeed ZeRO, Unsloth, vLLM, TGI), and shareable configurations.
 
 ## Core Value
 
@@ -29,25 +29,20 @@ Users can quickly determine whether a specific LLM fits on their available GPU h
 - ✓ URL hash sharing with lz-string compression — v1.0
 - ✓ Side-by-side comparison (up to 3 configs) with diff highlighting — v1.0
 - ✓ Responsive layout, dark mode, Web Workers for non-blocking calculations — v1.0
-- ✓ Zod schemas, Biome linting, Vitest testing (144 tests), static deployment — v1.0
+- ✓ Zod schemas, Biome linting, Vitest testing — v1.0
+- ✓ Fine-tuning VRAM estimation (Full, LoRA, QLoRA with optimizer states and gradients) — v1.1
+- ✓ Training mode toggle with method/optimizer/precision selection — v1.1
+- ✓ Gradient accumulation calculator (1-128 steps, effective batch size) — v1.1
+- ✓ Gradient checkpointing (60% activation memory reduction) — v1.1
+- ✓ Flash Attention (sequence-length-dependent KV cache reduction) — v1.1
+- ✓ Training memory visualization (donut chart + breakdown table) — v1.1
+- ✓ Framework presets (DeepSpeed ZeRO-1/2/3, Unsloth, vLLM, TGI) with auto-optimization — v1.1
+- ✓ Multi-GPU training with ZeRO stage memory reduction (2x/4x/8x) — v1.1
+- ✓ CPU offloading for optimizer states in training mode — v1.1
 
 ### Active
 
-## Current Milestone: v1.1 Fine-Tuning Estimation
-
-**Goal:** Enable users to estimate VRAM requirements for fine-tuning LLMs, including LoRA/QLoRA adapters, optimizer states, gradients, gradient accumulation, and optimization framework presets.
-
-**Target features:**
-
-- Fine-tuning VRAM estimation (full, LoRA, QLoRA with optimizer states and gradients)
-- Gradient accumulation calculator (effective batch size trade-offs)
-- Optimization framework presets (vLLM, TGI, Unsloth, DeepSpeed ZeRO)
-
-**Active requirements:**
-
-- [ ] Estimate VRAM for fine-tuning (full, LoRA, QLoRA with optimizer states and gradients)
-- [ ] Gradient accumulation calculator (effective batch size trade-offs)
-- [ ] Optimization framework presets (vLLM, TGI, Unsloth, DeepSpeed ZeRO)
+(No active requirements — plan next milestone with `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -56,14 +51,18 @@ Users can quickly determine whether a specific LLM fits on their available GPU h
 - Energy/carbon cost estimation — nice to have but not core to VRAM decisions
 - Mobile-native app — web-first, responsive design sufficient
 - AI-powered recommendations — rule-based suggestions are clearer and more predictable
+- FSDP / Megatron strategies — overwhelming complexity, start with DeepSpeed ZeRO only
+- MoE-specific fine-tuning — niche, complex, low ROI
+- Training throughput / time estimation — too many variables (data, hardware, framework)
 
 ## Context
 
-- **Shipped:** v1.0 MVP (2026-02-09) — 9,017 LOC TypeScript, 144 tests, 57 source files
+- **Shipped:** v1.0 MVP (2026-02-09), v1.1 Fine-Tuning Estimation (2026-02-10)
+- **Codebase:** 14,131 LOC TypeScript, 266 tests (18 test files), 73+ source files
 - **Sister project:** raidy (storage calculator) — same team, same architecture patterns
 - **Tech stack:** React 19, Vite 7, TypeScript strict, Zustand, Tailwind CSS v4, Recharts, Decimal.js, Biome, Vitest
 - **Architecture:** engines/ (pure calculation), components/{inputs,outputs,comparison,layout}, data/ (JSON databases), store/ (Zustand), workers/ (Web Worker), hooks/
-- **Target audience:** Engineers evaluating GPU hardware for LLM deployment
+- **Target audience:** Engineers evaluating GPU hardware for LLM deployment and fine-tuning
 
 ## Constraints
 
@@ -85,7 +84,13 @@ Users can quickly determine whether a specific LLM fits on their available GPU h
 | Total MoE params for VRAM | All expert weights must fit in memory | ✓ Good — accurate VRAM estimates |
 | URL hash (not localStorage) for config | Shareable links are more valuable than auto-persist | ✓ Good — lz-string compression keeps URLs manageable |
 | Transient comparison store | Comparisons are ephemeral, not worth persisting | ✓ Good — simple implementation |
-| Fine-tuning deferred to v2 | Inference is the primary use case, ship v1 faster | ✓ Good — delivered complete inference calculator |
+| Separate training from inference calculation paths | Avoid 30-60% underestimation from mixing concerns | ✓ Good — accurate training VRAM estimates |
+| Optimizer states always FP32 | Maintain numerical stability even in mixed precision | ✓ Good — matches real-world training behavior |
+| LoRA optimizer states apply to adapters only | Not full model params — critical pitfall avoidance | ✓ Good — accurate LoRA VRAM estimates |
+| QLoRA three-precision architecture | NF4 base (0.5B/param), FP16 adapters (2B/param), FP32 optimizer (8B/param) | ✓ Good — matches bitsandbytes implementation |
+| DeepSpeed ZeRO stage memory: 2x/4x/8x | Not simple divide-by-N — stage-specific partitioning | ✓ Good — accurate multi-GPU training estimates |
+| Framework preset auto-apply | Cascade optimization settings with mode enforcement | ✓ Good — reduces user configuration burden |
+| ZeRO stage derived from frameworkPreset | Single source of truth — not stored separately | ✓ Good — prevents state inconsistency |
 
 ---
-*Last updated: 2026-02-10 after v1.1 milestone start*
+*Last updated: 2026-02-10 after v1.1 milestone completion*
