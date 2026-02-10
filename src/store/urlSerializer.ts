@@ -1,3 +1,4 @@
+import type { FrameworkPreset } from '@engines/frameworks'
 import type {
   FineTuningMethod,
   KVCachePrecision,
@@ -66,6 +67,19 @@ export const URLStateSchema = z.object({
   ga: z.number().optional(), // gradientAccumulationSteps
   gc: z.boolean().optional(), // gradientCheckpointing
   fa: z.boolean().optional(), // flashAttention
+  // Framework presets and CPU offload (training parameters group)
+  fp: z
+    .enum([
+      'none',
+      'deepspeed-zero1',
+      'deepspeed-zero2',
+      'deepspeed-zero3',
+      'unsloth',
+      'vllm',
+      'tgi',
+    ])
+    .optional(), // frameworkPreset
+  co: z.boolean().optional(), // cpuOffloadOptimizer
 })
 
 export type URLState = z.infer<typeof URLStateSchema>
@@ -105,6 +119,8 @@ export function serializeToURL(state: {
   gradientAccumulationSteps: number
   gradientCheckpointing: boolean
   flashAttention: boolean
+  frameworkPreset: FrameworkPreset
+  cpuOffloadOptimizer: boolean
 }): string {
   const urlState: URLState = {
     // Model serialization
@@ -171,7 +187,14 @@ export function serializeToURL(state: {
           ga: state.gradientAccumulationSteps,
           gc: state.gradientCheckpointing,
           fa: state.flashAttention,
+          fp: state.frameworkPreset,
+          co: state.cpuOffloadOptimizer || undefined, // omit if false
         }
+      : {}),
+
+    // Framework preset for inference mode (vLLM/TGI)
+    ...(state.frameworkPreset !== 'none' && state.mode === 'inference'
+      ? { fp: state.frameworkPreset }
       : {}),
   }
 
