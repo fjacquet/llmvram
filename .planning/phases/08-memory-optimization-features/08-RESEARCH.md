@@ -19,6 +19,7 @@ The project's existing architecture is ideal: pure calculation engines in `src/e
 ## Standard Stack
 
 ### Core
+
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
 | Decimal.js | (existing) | Precise arithmetic for memory calculations | Already in use, prevents floating-point errors in reduction percentages |
@@ -27,6 +28,7 @@ The project's existing architecture is ideal: pure calculation engines in `src/e
 | Zustand | 5.0.9 | State management for optimization settings | Already in use, slice pattern from Phase 7 extends to optimization state |
 
 ### Supporting
+
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
 | PyTorch 2.5+ | (reference only) | Activation checkpointing formulas | Source for O(sqrt(n)) reduction formula |
@@ -34,6 +36,7 @@ The project's existing architecture is ideal: pure calculation engines in `src/e
 | HuggingFace Transformers | v5.0.0+ | Gradient accumulation best practices | Source for per-device batch terminology |
 
 ### Alternatives Considered
+
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
 | Mathematical reduction formulas | Fixed percentages (e.g., "60% reduction") | Fixed percentages ignore model-specific behavior (layer count, sequence length) |
@@ -41,6 +44,7 @@ The project's existing architecture is ideal: pure calculation engines in `src/e
 | Boolean toggles | Percentage sliders for reductions | Toggles simpler for users; reductions are algorithm-specific, not user-configurable |
 
 **Installation:**
+
 ```bash
 # No new dependencies needed - all calculation engines are pure TypeScript
 # Reference libraries for validation only (not runtime dependencies)
@@ -49,6 +53,7 @@ The project's existing architecture is ideal: pure calculation engines in `src/e
 ## Architecture Patterns
 
 ### Recommended Project Structure (After Phase 8)
+
 ```
 src/engines/
 ├── training.ts              # Existing - extend with optimization parameters
@@ -76,6 +81,7 @@ src/utils/
 **When to use:** When multiple optimizations can combine (checkpointing + Flash Attention stack multiplicatively).
 
 **Example:**
+
 ```typescript
 // Source: PyTorch activation checkpointing docs + Flash Attention paper
 // src/engines/trainingActivations.ts
@@ -242,6 +248,7 @@ export function calculateTrainingActivationMemory(params: {
 **When to use:** Always display to users - critical for understanding training behavior.
 
 **Example:**
+
 ```typescript
 // Source: HuggingFace Accelerate docs + PyTorch Lightning docs
 // src/engines/training.ts
@@ -287,6 +294,7 @@ export function calculateEffectiveBatchSize(
 **When to use:** When calculating memory impact of gradient accumulation settings.
 
 **Example:**
+
 ```typescript
 // Source: PITFALLS.md #5 + HuggingFace gradient accumulation docs
 // src/engines/training.ts
@@ -356,11 +364,13 @@ export function calculateEffectiveBatchSize(
 **What goes wrong:** Calculator shows total memory scaling down linearly with gradient accumulation steps. User sets accumulation=8, expects 8x memory reduction, gets OOM.
 
 **Why it happens:**
+
 - Blog posts say "gradient accumulation saves memory" (technically true but incomplete)
 - Not distinguishing activation memory from gradient/optimizer memory
 - Confusing effective batch size with peak memory
 
 **Consequences:**
+
 - User expects 8x accumulation → 8x memory reduction (actually 11-15% reduction)
 - Calculator shows "fits on 10GB GPU" when reality is "needs 85GB"
 - Missing that accumulation is for simulating larger batch, not general memory optimization
@@ -379,16 +389,19 @@ const totalMemory = weights + gradients + optimizer + activationMemory
 ```
 
 **Warning signs:**
+
 - Total memory estimate changes dramatically (>50%) with accumulation steps
 - Gradients or optimizer states scale with accumulation
 - Activation memory calculation uses effective batch instead of micro-batch
 
 **Phase 8 must-haves:**
+
 - Clear UI explanation: "Gradient accumulation reduces activation memory only"
 - Show memory breakdown: weights/gradients/optimizer (constant) vs activations (varies)
 - Calculate effective batch separately and display prominently
 
 **Sources:**
+
 - [Gradient Accumulation: Increase Batch Size Without Explicitly Increasing Batch Size](https://blog.dailydoseofds.com/p/gradient-accumulation-increase-batch)
 - [Gradient Accumulation and Checkpointing](https://aman.ai/primers/ai/grad-accum-checkpoint/)
 - .planning/research/PITFALLS.md #5
@@ -400,11 +413,13 @@ const totalMemory = weights + gradients + optimizer + activationMemory
 **What goes wrong:** Calculator shows checkpointing as pure memory reduction with no downsides. User enables it, training takes 30% longer than expected, doesn't understand why.
 
 **Why it happens:**
+
 - Focusing on memory benefit (60% reduction) without mentioning compute cost
 - Not explaining recomputation mechanism
 - Treating checkpointing as "always enable" optimization
 
 **Consequences:**
+
 - Users surprised by 20-25% training slowdown
 - Not understanding when to enable vs disable checkpointing
 - Confusion about why training is slower despite "optimization"
@@ -435,18 +450,21 @@ interface CheckpointingInfo {
 ```
 
 **Warning signs:**
+
 - Only showing memory reduction, no compute cost
 - No explanation of how checkpointing works (recomputation)
 - Missing "when to use this" guidance
 - No mention of optimal checkpoint frequency (every 2-4 blocks)
 
 **Phase 8 must-haves:**
+
 - Tooltip explaining recomputation mechanism
 - Display both memory reduction AND compute overhead percentages
 - Recommendation text: "Enable for large models, long sequences, or limited VRAM"
 - Note about selective checkpointing (not every layer)
 
 **Sources:**
+
 - [Current and New Activation Checkpointing Techniques in PyTorch](https://pytorch.org/blog/activation-checkpointing-techniques/)
 - [Gradient Checkpointing: The Memory-Saving Hack](https://medium.com/mlworks/gradient-checkpointing-the-unsung-hero-of-llm-training-ac2bbe5d4396)
 - [PyTorch Training Performance Guide - Gradient Checkpoints](https://residentmario.github.io/pytorch-training-performance-guide/gradient-checkpoints.html)
@@ -458,11 +476,13 @@ interface CheckpointingInfo {
 **What goes wrong:** Calculator applies fixed 70% memory reduction for Flash Attention regardless of sequence length. For seq=512, shows massive savings that don't materialize; for seq=32K, underestimates benefit.
 
 **Why it happens:**
+
 - Using single "Flash Attention reduces memory 10-20x" number
 - Not understanding that attention matrix is O(n²) in sequence length
 - Missing that reduction magnitude scales with sequence length
 
 **Consequences:**
+
 - Short sequences: overestimating Flash Attention benefit (attention is small anyway)
 - Long sequences: underestimating benefit (attention dominates memory)
 - Users don't understand when Flash Attention matters most
@@ -497,18 +517,21 @@ function applyFlashAttention(
 ```
 
 **Warning signs:**
+
 - Flash Attention reduction doesn't change with sequence length
 - Same reduction for seq=512 and seq=32768
 - No mention of O(n²) → O(n) complexity improvement
 - Missing speedup benefit (2-4x faster despite recomputation)
 
 **Phase 8 must-haves:**
+
 - Sequence-length-aware reduction calculation
 - UI explanation: "Flash Attention reduces O(n²) attention matrices to O(n)"
 - Show benefit scales with sequence length: "15% at 512 tokens, 70% at 16K tokens"
 - Note about speedup: "Also 2-4x faster training (less memory-bound)"
 
 **Sources:**
+
 - [ELI5: Flash Attention](https://gordicaleksa.medium.com/eli5-flash-attention-5c44017022ad)
 - [GitHub - Dao-AILab/flash-attention](https://github.com/Dao-AILab/flash-attention)
 - [FlashAttention: Fast and Memory-Efficient Exact Attention](https://tridao.me/publications/flash2/flash2.pdf)
@@ -520,11 +543,13 @@ function applyFlashAttention(
 **What goes wrong:** UI shows "Batch Size" input without clarifying per-device vs effective batch. User enters 32 expecting that to fit in VRAM, but calculator uses it as micro-batch and shows OOM.
 
 **Why it happens:**
+
 - Overloaded term "batch size" in distributed training
 - Not distinguishing memory impact (micro-batch) from training dynamics (effective batch)
 - Single input field for what should be multiple concepts
 
 **Consequences:**
+
 - User enters effective batch, calculator treats as micro-batch → massive overestimation
 - User enters micro-batch, doesn't understand effective batch impact on training
 - Confusion about what "batch size" means in multi-GPU context
@@ -564,18 +589,21 @@ interface TrainingBatchConfig {
 ```
 
 **Warning signs:**
+
 - Single "batch size" input without clarification
 - No separate display of effective batch size
 - Micro-batch and effective batch used interchangeably
 - Multi-GPU training without per-device batch terminology
 
 **Phase 8 must-haves:**
+
 - Clear labels: "Per-Device Batch Size" not just "Batch Size"
 - Calculated effective batch size displayed prominently
 - Tooltip explaining: "Per-device affects memory, effective affects learning"
 - Formula shown: "Effective = Per-Device × Accumulation × GPUs"
 
 **Sources:**
+
 - [Batch size vs gradient accumulation - HuggingFace](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
 - [Batch size vs Gradient accumulation - Axolotl](https://docs.axolotl.ai/docs/batch_vs_grad.html)
 - [Effective Training Techniques - PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html)
@@ -587,11 +615,13 @@ interface TrainingBatchConfig {
 **What goes wrong:** Calculator shows checkpointing + Flash Attention + mixed precision all enabled together with perfect multiplicative stacking. Reality: some frameworks don't support all combinations, or they interact poorly.
 
 **Why it happens:**
+
 - Assuming all optimizations are orthogonal
 - Not checking framework compatibility matrices
 - Missing that some optimizations target the same memory component
 
 **Consequences:**
+
 - User enables all optimizations, framework throws error
 - Overestimating combined benefit (some optimizations overlap)
 - Missing framework-specific limitations
@@ -636,18 +666,21 @@ function validateOptimizations(config: OptimizationConfig): ValidationResult {
 ```
 
 **Warning signs:**
+
 - No compatibility checks between optimizations
 - All optimizations enabled simultaneously without warnings
 - Missing framework-specific notes
 - Perfect multiplicative stacking assumed (reality: 80-90% of theoretical)
 
 **Phase 8 must-haves:**
+
 - Compatibility validation (warn if incompatible optimizations selected)
 - Framework-specific notes (e.g., "Flash Attention requires CUDA 11.8+")
 - Realistic stacking (checkpointing 60% + Flash 70% = ~76%, not 88%)
 - Links to framework documentation for each optimization
 
 **Sources:**
+
 - [Unsloth Gradient Checkpointing](https://unsloth.ai/blog/long-context)
 - [Memory-Efficient Attention Algorithms](https://mljourney.com/memory-efficient-attention-algorithms-flash-attention-xformers-and-beyond/)
 
@@ -658,6 +691,7 @@ function validateOptimizations(config: OptimizationConfig): ValidationResult {
 Verified patterns from official sources:
 
 ### Gradient Accumulation Effective Batch Calculation
+
 ```typescript
 // Source: HuggingFace Accelerate documentation
 // https://huggingface.co/docs/accelerate/usage_guides/gradient_accumulation
@@ -681,6 +715,7 @@ export function calculateEffectiveBatchSize(
 ```
 
 ### Gradient Checkpointing Memory Reduction
+
 ```typescript
 // Source: PyTorch activation checkpointing techniques blog
 // https://pytorch.org/blog/activation-checkpointing-techniques/
@@ -707,6 +742,7 @@ export function applyGradientCheckpointing(
 ```
 
 ### Flash Attention Sequence-Dependent Reduction
+
 ```typescript
 // Source: Flash Attention 2 paper (Dao et al., 2023)
 // https://tridao.me/publications/flash2/flash2.pdf
@@ -744,6 +780,7 @@ export function applyFlashAttention(
 ```
 
 ### Combined Optimizations
+
 ```typescript
 // Source: Combined from PyTorch + Flash Attention docs
 
@@ -793,12 +830,14 @@ export function calculateOptimizedActivations(params: {
 | Combined (Checkpointing + Flash) | Both techniques stack | 60-85% total | +20-25% time | Extreme memory constraints, very long sequences |
 
 **Current best practices (2026):**
+
 - **Gradient Accumulation:** Default for multi-GPU training to increase effective batch. Set per-device batch to largest that fits, use accumulation to reach target effective batch.
 - **Gradient Checkpointing:** Enable for models > 30B or sequences > 8K. Use selective checkpointing (every 2-4 transformer blocks), not full.
 - **Flash Attention:** Always enable for sequences > 2K. No downside (faster AND less memory). Required for > 8K sequences on consumer hardware.
 - **Unsloth (specialized):** For LoRA/QLoRA on consumer GPUs, Unsloth's optimized checkpointing provides additional 30% reduction beyond standard PyTorch.
 
 **Deprecated/outdated:**
+
 - **Flash Attention v1:** Use Flash Attention 2 (2-4x faster, better parallelism)
 - **Manual checkpointing:** Use PyTorch's built-in `checkpoint()` API, not manual forward/backward
 - **Fixed accumulation steps:** Tune per-device batch to maximize GPU utilization, then set accumulation for desired effective batch
@@ -825,6 +864,7 @@ export function calculateOptimizedActivations(params: {
 ### Primary (HIGH confidence)
 
 **Gradient Accumulation:**
+
 - [Aman's AI Journal: Gradient Accumulation and Checkpointing](https://aman.ai/primers/ai/grad-accum-checkpoint/)
 - [Gradient Accumulation: Increase Batch Size Without Explicitly Increasing Batch Size](https://blog.dailydoseofds.com/p/gradient-accumulation-increase-batch)
 - [Batch size vs gradient accumulation - HuggingFace Forums](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
@@ -832,32 +872,38 @@ export function calculateOptimizedActivations(params: {
 - [Effective Training Techniques - PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html)
 
 **Gradient Checkpointing:**
+
 - [Current and New Activation Checkpointing Techniques in PyTorch](https://pytorch.org/blog/activation-checkpointing-techniques/)
 - [torch.utils.checkpoint - PyTorch 2.10 documentation](https://docs.pytorch.org/docs/stable/checkpoint.html)
 - [Gradient Checkpoints - PyTorch Training Performance Guide](https://residentmario.github.io/pytorch-training-performance-guide/gradient-checkpoints.html)
 - [Gradient Checkpointing: The Memory-Saving Hack for Training LLMs](https://medium.com/mlworks/gradient-checkpointing-the-unsung-hero-of-llm-training-ac2bbe5d4396)
 
 **Flash Attention:**
+
 - [GitHub - Dao-AILab/flash-attention: Fast and memory-efficient exact attention](https://github.com/Dao-AILab/flash-attention)
 - [ELI5: Flash Attention](https://gordicaleksa.medium.com/eli5-flash-attention-5c44017022ad)
 - [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (PDF)](https://tridao.me/publications/flash2/flash2.pdf)
 
 **Activation Memory Formulas:**
+
 - [Transformer Math 101 - EleutherAI Blog](https://blog.eleuther.ai/transformer-math/)
 - [Estimating memory requirements of transformer networks](https://schartz.github.io/blog/estimating-memory-requirements-of-transformers/)
 - [Understanding and Estimating GPU Memory Demands for Training LLMs](https://medium.com/@maxshapp/understanding-and-estimating-gpu-memory-demands-for-training-llms-in-practise-c5ef20a4baff)
 
 **Combined Optimizations:**
+
 - [Unsloth Gradient Checkpointing - 4x longer context windows](https://unsloth.ai/blog/long-context)
 - [Memory-Efficient Attention Algorithms: Flash Attention, xFormers, and Beyond](https://mljourney.com/memory-efficient-attention-algorithms-flash-attention-xformers-and-beyond/)
 
 ### Secondary (MEDIUM confidence)
 
 **Multi-GPU Training:**
+
 - [Multi-GPU Training with Hugging Face Transformers: A Complete Guide](https://medium.com/@staytechrich/multi-gpu-training-with-hugging-face-transformers-a-complete-guide-ab2cf241df94)
 - [Performing gradient accumulation with Accelerate](https://huggingface.co/docs/accelerate/en/usage_guides/gradient_accumulation)
 
 **Advanced Techniques:**
+
 - [A Study of Optimizations for Fine-tuning Large Language Models (arXiv)](https://arxiv.org/html/2406.02290v1)
 - [Training a Model with Limited Memory using Mixed Precision and Gradient Checkpointing](https://machinelearningmastery.com/training-a-model-with-limited-memory-using-mixed-precision-and-gradient-checkpointing/)
 
@@ -869,6 +915,7 @@ export function calculateOptimizedActivations(params: {
 ## Metadata
 
 **Confidence breakdown:**
+
 - Gradient accumulation formulas: HIGH - verified with HuggingFace + PyTorch Lightning official docs
 - Gradient checkpointing reduction: HIGH - verified with PyTorch official blog and performance guide
 - Flash Attention memory scaling: HIGH - verified with original paper and GitHub repo
@@ -879,11 +926,13 @@ export function calculateOptimizedActivations(params: {
 **Valid until:** 60 days (stable optimization techniques, but framework implementations evolve)
 
 **Key implementation risks:**
+
 - Framework compatibility matrix needs validation (DeepSpeed + Flash Attention combinations)
 - Sequence length breakpoints for Flash Attention are approximations (model-specific)
 - MoE models may have different activation scaling (conservative estimates used)
 
 **Recommended validation:**
+
 - Unit tests for effective batch size calculation (per-device × accumulation × GPUs)
 - Integration tests for optimization stacking (checkpointing + Flash Attention)
 - Cross-validation with PyTorch memory profiler (torch.cuda.memory_summary())

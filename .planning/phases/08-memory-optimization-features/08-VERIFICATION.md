@@ -87,6 +87,7 @@ re_verification: false
 | - | - | None found | - | No blockers or warnings |
 
 **Notes:**
+
 - ✓ No TODO/FIXME/placeholder comments in optimization code
 - ✓ No stub implementations (all functions have real logic)
 - ✓ No console.log-only implementations
@@ -107,7 +108,8 @@ re_verification: false
 #### 2. Flash Attention Sequence-Dependent Benefit
 
 **Test:** Change sequence length (512 → 2048 → 8192), observe Flash Attention toggle description and activations value
-**Expected:** 
+**Expected:**
+
 - <2048: "~15% activation reduction at current sequence length"
 - 2048-8191: "~50% activation reduction at current sequence length"
 - ≥8192: "~70% activation reduction at current sequence length"
@@ -135,6 +137,7 @@ re_verification: false
 ### Test Suite Results
 
 **Optimization Tests (optimizations.test.ts):**
+
 ```
 ✓ 25 tests pass
   - calculateEffectiveBatchSize: 6 tests
@@ -144,6 +147,7 @@ re_verification: false
 ```
 
 **URL Serializer Tests (urlSerializer.test.ts):**
+
 ```
 ✓ 18 tests pass (4 new optimization tests + 14 updated with defaults)
   - Optimization fields serialize when mode is training
@@ -153,6 +157,7 @@ re_verification: false
 ```
 
 **Full Test Suite:**
+
 ```
 ✓ 253 tests pass across 17 test files
 ✓ Zero new test failures
@@ -160,6 +165,7 @@ re_verification: false
 ```
 
 **Build Verification:**
+
 ```
 ✓ TypeScript compilation clean (tsc --noEmit)
 ✓ Production build succeeds (vite build)
@@ -171,6 +177,7 @@ re_verification: false
 **Status:** No gaps found
 
 All 14 must-haves verified:
+
 - ✓ 3 optimization calculation functions (effective batch, checkpointing, flash attention)
 - ✓ 3 UI components (accumulation input, optimization toggles, effective batch display)
 - ✓ Store state (3 fields + setters)

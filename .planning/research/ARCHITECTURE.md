@@ -10,6 +10,7 @@
 The fine-tuning milestone extends the existing inference-focused architecture with training workload support. The architecture follows established patterns: **pure calculation engines** (Decimal.js), **Zod schemas for type safety**, **Zustand for state**, and **React components for UI**. New features integrate cleanly by adding parallel engines, extending the store, and creating new input/output components that reuse existing patterns.
 
 **Key architectural principles maintained:**
+
 - Engines remain pure functions (no React/DOM dependencies)
 - All data validated through Zod schemas at boundaries
 - Store drives UI state
@@ -75,6 +76,7 @@ src/
 **Purpose:** Calculate total VRAM for fine-tuning workloads (full, LoRA, QLoRA)
 
 **Interface:**
+
 ```typescript
 export interface FineTuningVRAMBreakdown {
   // Base model components (reused from inference)
@@ -142,17 +144,20 @@ total = baseModel + loraParams + gradients + optimizerStates + activations + ove
 ```
 
 **Dependencies:**
+
 - `calculateModelWeightVRAM` from `quantization.ts`
 - `calculateLoRAParams` from `lora.ts`
 - `calculateOptimizerMemory` from `optimizer.ts`
 - `calculateActivationMemory` from `inference.ts` (extended for training)
 
 **Testing:**
+
 - Validate against HuggingFace transformers reported memory
 - Test cases: Llama 7B full FT, Llama 7B LoRA r=16, Llama 70B QLoRA r=64
 - Error tolerance: <15% vs measured values
 
 **Sources:**
+
 - [HuggingFace Model Memory Anatomy](https://huggingface.co/docs/transformers/main/en/model_memory_anatomy)
 - [QLoRA Paper](https://arxiv.org/abs/2305.14314)
 
@@ -163,6 +168,7 @@ total = baseModel + loraParams + gradients + optimizerStates + activations + ove
 **Purpose:** Calculate LoRA adapter parameters and memory
 
 **Interface:**
+
 ```typescript
 export interface LoRAConfig {
   rank: number                    // r: rank of low-rank matrices (4, 8, 16, 32, 64, 128)
@@ -216,6 +222,7 @@ memoryGB = totalParams * 2 / (1024^3)  // fp16 storage
 ```
 
 **Sources:**
+
 - [LoRA Paper](https://arxiv.org/abs/2106.09685)
 - [PEFT Library Documentation](https://huggingface.co/docs/peft)
 
@@ -226,6 +233,7 @@ memoryGB = totalParams * 2 / (1024^3)  // fp16 storage
 **Purpose:** Calculate optimizer state memory requirements
 
 **Interface:**
+
 ```typescript
 export type OptimizerType =
   | 'adamw'           // Standard AdamW (fp32 states)
@@ -299,6 +307,7 @@ optimizerMemory = trainableParams * 4 / (1024^3)  // GB
 ```
 
 **Sources:**
+
 - [DeepSpeed ZeRO Memory Requirements](https://deepspeed.readthedocs.io/en/latest/memory.html)
 - [HuggingFace Optimizers Documentation](https://huggingface.co/docs/transformers/en/optimizers)
 - [bitsandbytes 8-bit Adam](https://github.com/TimDettmers/bitsandbytes)
@@ -310,6 +319,7 @@ optimizerMemory = trainableParams * 4 / (1024^3)  // GB
 **Purpose:** Calculate effective batch size and memory tradeoffs
 
 **Interface:**
+
 ```typescript
 export interface GradientAccumulationConfig {
   microBatchSize: number          // Actual batch size per step
@@ -358,11 +368,13 @@ timeIncrease = (accumulationSteps - 1) / accumulationSteps * 100  // Percentage
 ```
 
 **Warnings:**
+
 - Recent research (2025) shows gradient accumulation may be wasteful for small batches
 - Recommend batch size 1 with proper tuning over gradient accumulation
 - Only suggest GA when memory constraint is absolute blocker
 
 **Sources:**
+
 - [Small Batch Size Training for Language Models (2025)](https://arxiv.org/abs/2507.07101)
 - [HuggingFace Gradient Accumulation Discussion](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
 
@@ -373,6 +385,7 @@ timeIncrease = (accumulationSteps - 1) / accumulationSteps * 100  // Percentage
 **Purpose:** Apply framework-specific optimization profiles
 
 **Interface:**
+
 ```typescript
 export type FrameworkType =
   | 'baseline'      // No framework-specific optimizations
@@ -458,6 +471,7 @@ export function applyFrameworkOptimizations(
 ```
 
 **Sources:**
+
 - [vLLM PagedAttention Paper](https://arxiv.org/abs/2309.06180)
 - [HuggingFace TGI Documentation](https://huggingface.co/docs/text-generation-inference/en/index)
 - [Unsloth GitHub](https://github.com/unslothai/unsloth)
@@ -585,6 +599,7 @@ interface UIState {
 ```
 
 **Interactions:**
+
 - When switching to LoRA/QLoRA, auto-populate `loraConfig` with "standard" preset
 - When switching to full-ft, clear `loraConfig`
 - Show contextual help: "LoRA: 10-20% of full FT memory", "QLoRA: Fine-tune 70B on 24GB GPU"
@@ -841,41 +856,41 @@ Components render (VRAMBreakdownChart [EXTENDED], MemoryBreakdownTable [EXTENDED
 
 ### Phase 2: Store & Integration (Week 1-2)
 
-5. **Extend store** (`src/store/uiStore.ts`)
-6. **Extend comparison store** (`src/store/comparisonStore.ts`)
+1. **Extend store** (`src/store/uiStore.ts`)
+2. **Extend comparison store** (`src/store/comparisonStore.ts`)
 
 ---
 
 ### Phase 3: Input Components (Week 2)
 
-7. **TrainingModeSelector** (`components/inputs/TrainingModeSelector.tsx`)
-8. **LoRAConfigPanel** (`components/inputs/LoRAConfigPanel.tsx`)
-9. **OptimizerSelector** (`components/inputs/OptimizerSelector.tsx`)
-10. **GradientAccumulationInput** (`components/inputs/GradientAccumulationInput.tsx`)
+1. **TrainingModeSelector** (`components/inputs/TrainingModeSelector.tsx`)
+2. **LoRAConfigPanel** (`components/inputs/LoRAConfigPanel.tsx`)
+3. **OptimizerSelector** (`components/inputs/OptimizerSelector.tsx`)
+4. **GradientAccumulationInput** (`components/inputs/GradientAccumulationInput.tsx`)
 
 ---
 
 ### Phase 4: Output Components (Week 2-3)
 
-11. **Extend VRAMBreakdownChart** (`components/outputs/VRAMBreakdownChart.tsx`)
-12. **Extend MemoryBreakdownTable** (`components/outputs/MemoryBreakdownTable.tsx`)
-13. **FrameworkOptimizationBadge** (`components/outputs/FrameworkOptimizationBadge.tsx`)
+1. **Extend VRAMBreakdownChart** (`components/outputs/VRAMBreakdownChart.tsx`)
+2. **Extend MemoryBreakdownTable** (`components/outputs/MemoryBreakdownTable.tsx`)
+3. **FrameworkOptimizationBadge** (`components/outputs/FrameworkOptimizationBadge.tsx`)
 
 ---
 
 ### Phase 5: Framework Presets (Week 3)
 
-14. **Framework presets engine** (`src/engines/framework-presets.ts`)
-15. **FrameworkPresetSelector** (`components/inputs/FrameworkPresetSelector.tsx`)
-16. **Data files** (`src/data/framework-presets.json`, `src/data/optimizers.json`)
+1. **Framework presets engine** (`src/engines/framework-presets.ts`)
+2. **FrameworkPresetSelector** (`components/inputs/FrameworkPresetSelector.tsx`)
+3. **Data files** (`src/data/framework-presets.json`, `src/data/optimizers.json`)
 
 ---
 
 ### Phase 6: Testing & Validation (Week 3-4)
 
-17. **Integration tests**
-18. **UI/UX testing**
-19. **Documentation**
+1. **Integration tests**
+2. **UI/UX testing**
+3. **Documentation**
 
 ---
 

@@ -17,11 +17,13 @@ These mistakes cause estimation errors >50% and lead to OOM failures or massive 
 **What goes wrong:** Calculator reuses inference KV cache formula (`2 * n_layers * d_model * seq_len * n_kv_heads/n_heads`) for fine-tuning mode. Reality: Training processes batches in parallel with full attention matrices, not sequential generation. KV cache behavior is fundamentally different.
 
 **Why it happens:**
+
 - Assuming KV cache works the same way in training
 - Not understanding that training doesn't cache keys/values the same way
 - Trying to maximize code reuse between inference and training
 
 **Consequences:**
+
 - Training memory underestimated by 30-60% for long sequences
 - Missing attention matrix materialization during forward/backward pass
 - Users hit OOM when "calculator said it would fit"
@@ -43,6 +45,7 @@ Note: Training does NOT use KV cache like inference. Don't reuse that calculatio
 ```
 
 **Detection:**
+
 - Training estimate looks almost identical to inference estimate
 - Missing Flash Attention toggle for training mode
 - Estimates don't explode with long sequences (they should without Flash Attention)
@@ -50,6 +53,7 @@ Note: Training does NOT use KV cache like inference. Don't reuse that calculatio
 **Phase mapping:** Phase 1 (Fine-tuning MVP) - Must separate training from inference logic immediately
 
 **Sources:**
+
 - [FlashAttention: Fast and Memory-Efficient Exact Attention](https://github.com/Dao-AILab/flash-attention)
 - [PyTorch Out-of-the-Box Acceleration](https://pytorch.org/blog/out-of-the-box-acceleration/)
 
@@ -60,11 +64,13 @@ Note: Training does NOT use KV cache like inference. Don't reuse that calculatio
 **What goes wrong:** Calculator assumes optimizer states match training precision (BF16 training = 2 bytes/param optimizer state). Reality: AdamW and most optimizers maintain states in FP32 (4 bytes) for numerical stability, even when training in BF16/FP16.
 
 **Why it happens:**
+
 - Logical assumption: "training in BF16 = everything in BF16"
 - Not reading optimizer implementation details
 - Copying formulas from blog posts that simplify for clarity
 
 **Consequences:**
+
 - 2x underestimation of optimizer memory
 - Total training memory off by 30-40%
 - "18 bytes per parameter" becomes 14, completely wrong
@@ -91,6 +97,7 @@ Alternative optimizers:
 ```
 
 **Detection:**
+
 - Optimizer state memory changes when user switches training precision
 - Missing "master weights" in mixed precision explanation
 - Total training memory < 12 bytes/param (impossibly low for AdamW)
@@ -98,6 +105,7 @@ Alternative optimizers:
 **Phase mapping:** Phase 1 (Fine-tuning MVP) - Core calculation must be accurate
 
 **Sources:**
+
 - [Memory Requirements (HBM, GPU RAM)](https://apxml.com/courses/how-to-build-a-large-language-model/chapter-18-hardware-considerations-llm-training/memory-requirements-hbm-gpu-ram)
 - [Efficient Training on a Single GPU](https://huggingface.co/docs/transformers/v4.20.1/en/perf_train_gpu_one)
 - [Modern Optimizers: AdamW, Lion](https://medium.com/@spjosyula2005/modern-optimizers-adamw-lion-and-what-actually-works-at-scale-68ffc033713b)
@@ -109,11 +117,13 @@ Alternative optimizers:
 **What goes wrong:** Calculator multiplies optimizer state memory by total model parameters for LoRA fine-tuning. Reality: Only LoRA adapter parameters (typically <1% of model) are trainable and get optimizer states. Frozen base model weights have no optimizer states.
 
 **Why it happens:**
+
 - Not distinguishing trainable vs frozen parameters
 - Applying full fine-tuning formula to LoRA
 - Missing that LoRA freezes base model completely
 
 **Consequences:**
+
 - 100-200x overestimation for LoRA fine-tuning
 - Calculator shows "need 400GB" when 24GB is sufficient
 - Users think fine-tuning is impossible on consumer hardware
@@ -143,6 +153,7 @@ CRITICAL: Only count trainable params for gradients + optimizer states!
 ```
 
 **Detection:**
+
 - LoRA memory estimate similar to full fine-tuning
 - Missing LoRA rank parameter input
 - Calculator doesn't ask "which layers to target with LoRA"
@@ -151,6 +162,7 @@ CRITICAL: Only count trainable params for gradients + optimizer states!
 **Phase mapping:** Phase 1 (Fine-tuning MVP) - Essential for LoRA support
 
 **Sources:**
+
 - [LoRA fine-tuning Hyperparameters Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide)
 - [Practical Tips for Finetuning LLMs Using LoRA](https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms)
 - [Understanding LoRA Adapters Rank and Alpha Parameters](https://datawizz.ai/blog/understanding-lora-adapters-rank-and-alpha-parameters)
@@ -162,11 +174,13 @@ CRITICAL: Only count trainable params for gradients + optimizer states!
 **What goes wrong:** Calculator treats QLoRA as "4-bit LoRA" with uniform precision. Reality: QLoRA mixes three precisions: 4-bit NF4 base model (frozen), FP16/BF16 adapter weights (trainable), FP32 optimizer states (for adapters only).
 
 **Why it happens:**
+
 - Thinking QLoRA is just "quantized LoRA"
 - Not understanding the three-precision architecture
 - Missing that base model quantization doesn't affect adapter memory
 
 **Consequences:**
+
 - Incorrect memory calculation (typically overestimation)
 - Missing that 4-bit base saves ~75% on frozen weights
 - Not accounting for dequantization overhead during forward pass
@@ -201,6 +215,7 @@ adapters stay in FP16/BF16 for training stability, optimizer states still FP32.
 ```
 
 **Detection:**
+
 - QLoRA memory = LoRA memory / 4 (too simple)
 - Missing "paged optimizer" explanation
 - No mention of NF4 quantization specifically
@@ -209,6 +224,7 @@ adapters stay in FP16/BF16 for training stability, optimizer states still FP32.
 **Phase mapping:** Phase 2 (Advanced Fine-tuning) - After basic LoRA works
 
 **Sources:**
+
 - [Making LLMs even more accessible with bitsandbytes, 4-bit quantization and QLoRA](https://huggingface.co/blog/4bit-transformers-bitsandbytes)
 - [QLoRA: Efficient Finetuning of Quantized LLMs](https://github.com/artidoro/qlora)
 - [Quantized LoRA (QLoRA) Principles](https://apxml.com/courses/lora-peft-efficient-llm-training/chapter-4-advanced-lora-variants/qlora-principles)
@@ -220,11 +236,13 @@ adapters stay in FP16/BF16 for training stability, optimizer states still FP32.
 **What goes wrong:** Calculator shows memory reduction when increasing gradient accumulation steps. Reality: Gradient accumulation reduces PER-STEP batch size (activation memory), but does NOT reduce peak gradient or optimizer state memory. Common misconception that it's a general memory optimization.
 
 **Why it happens:**
+
 - Blog posts say "gradient accumulation saves memory"
 - Not distinguishing activation memory vs gradient memory
 - Confusing effective batch size with peak memory
 
 **Consequences:**
+
 - Showing reduced memory estimate with more accumulation steps (WRONG)
 - Users expect 8x accumulation = 8x memory savings (not true)
 - Missing that accumulation is for batch size simulation, not memory reduction
@@ -258,6 +276,7 @@ Example (Llama 7B, mixed precision):
 ```
 
 **Detection:**
+
 - Memory estimate scales linearly down with accumulation steps
 - Explanation says "gradient accumulation saves memory" without caveats
 - Users expect 8x accumulation to enable training on 1/8 the VRAM (impossible)
@@ -265,6 +284,7 @@ Example (Llama 7B, mixed precision):
 **Phase mapping:** Phase 1 (Fine-tuning MVP) - Critical for accurate guidance
 
 **Sources:**
+
 - [Gradient Accumulation: Increase Batch Size Without Explicitly Increasing Batch Size](https://blog.dailydoseofds.com/p/gradient-accumulation-increase-batch)
 - [Gradient Accumulation and Checkpointing](https://aman.ai/primers/ai/grad-accum-checkpoint/)
 - [Gradient Accumulation: Overcome GPU Memory Limitations](https://docs.vultr.com/how-to-use-gradient-accumulation-to-overcome-gpu-memory-limitations)
@@ -276,11 +296,13 @@ Example (Llama 7B, mixed precision):
 **What goes wrong:** Calculator shows linear memory reduction with ZeRO stages (Stage 1 = 50%, Stage 2 = 33%, Stage 3 = 25% per GPU). Reality: Memory savings are 2x / 4x / 8-10x respectively, with different communication overhead and precision requirements.
 
 **Why it happens:**
+
 - Misunderstanding what each stage partitions
 - Thinking "4 GPUs = divide by 4" for all stages
 - Not accounting for communication volume differences
 
 **Consequences:**
+
 - Massive overestimation or underestimation of multi-GPU memory
 - Missing that ZeRO-3 is fundamentally different from ZeRO-1/2
 - Not warning about communication overhead (15-30% throughput loss)
@@ -324,6 +346,7 @@ CRITICAL: Don't use simple "divide by N" - savings are 2x/4x/8x, not N-way split
 ```
 
 **Detection:**
+
 - ZeRO stage 1/2/3 all show `total_memory / num_gpus`
 - Missing communication overhead warning
 - Stage 3 memory same as Stage 2 (should be ~2x better)
@@ -332,6 +355,7 @@ CRITICAL: Don't use simple "divide by N" - savings are 2x/4x/8x, not N-way split
 **Phase mapping:** Phase 3 (Multi-GPU Fine-tuning) - After single-GPU works
 
 **Sources:**
+
 - [Zero Redundancy Optimizer - DeepSpeed](https://www.deepspeed.ai/tutorials/zero/)
 - [Memory Requirements — DeepSpeed](https://deepspeed.readthedocs.io/en/latest/memory.html)
 - [Scaling Large Language Models with DeepSpeed ZeRO](https://medium.com/@dpratishraj7991/scaling-large-language-models-with-deepspeed-zero-zero-and-zero-offload-a-complete-guide-70d393e311f4)
@@ -343,11 +367,13 @@ CRITICAL: Don't use simple "divide by N" - savings are 2x/4x/8x, not N-way split
 **What goes wrong:** Calculator shows "enable gradient checkpointing = 60% memory reduction" without mentioning compute cost. Reality: Checkpointing trades 25-40% slower training for 50-70% memory reduction. Selective checkpointing is critical to avoid OOM.
 
 **Why it happens:**
+
 - Focusing on memory savings only
 - Not understanding recomputation cost
 - Thinking checkpointing is "free memory"
 
 **Consequences:**
+
 - Users surprised by training slowdown
 - Applying checkpointing to every layer (can cause OOM on CPU)
 - Not understanding when NOT to use checkpointing
@@ -391,6 +417,7 @@ Calculator should show:
 ```
 
 **Detection:**
+
 - Only shows memory savings, no compute cost mention
 - "Enable checkpointing" checkbox without explanation
 - No selective vs full checkpointing option
@@ -399,6 +426,7 @@ Calculator should show:
 **Phase mapping:** Phase 2 (Advanced Fine-tuning) - After basic training works
 
 **Sources:**
+
 - [Current and New Activation Checkpointing Techniques in PyTorch](https://pytorch.org/blog/activation-checkpointing-techniques/)
 - [Gradient Accumulation and Checkpointing](https://aman.ai/primers/ai/grad-accum-checkpoint/)
 - [Gradient Checkpoints — PyTorch Training Performance Guide](https://residentmario.github.io/pytorch-training-performance-guide/gradient-checkpoints.html)
@@ -447,6 +475,7 @@ Llama 7B, rank 64, 4 targets per layer, 32 layers:
 ```
 
 **Detection:**
+
 - Rank input exists but alpha doesn't
 - No explanation of rank/alpha relationship
 - Memory estimate doesn't change with alpha value (correct!)
@@ -455,6 +484,7 @@ Llama 7B, rank 64, 4 targets per layer, 32 layers:
 **Phase mapping:** Phase 1 (Fine-tuning MVP) - Important for user guidance
 
 **Sources:**
+
 - [LoRA fine-tuning Hyperparameters Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide)
 - [Understanding LoRA Adapters Rank and Alpha Parameters](https://datawizz.ai/blog/understanding-lora-adapters-rank-and-alpha-parameters)
 - [What rank (r) and alpha to use in LoRA](https://medium.com/@fartypantsham/what-rank-r-and-alpha-to-use-in-lora-in-llm-1b4f025fd133)
@@ -501,6 +531,7 @@ BF16 vs FP16:
 ```
 
 **Detection:**
+
 - Switching from BF16 to FP32 doubles all memory (wrong!)
 - No mention of "master weights"
 - Missing loss scaling explanation for FP16
@@ -509,6 +540,7 @@ BF16 vs FP16:
 **Phase mapping:** Phase 2 (Advanced Fine-tuning) - After basic training works
 
 **Sources:**
+
 - [Mixed Precision Training in LLMs: FP16, BF16, FP8, and Beyond](https://medium.com/@dpratishraj7991/mixed-precision-training-in-llms-fp16-bf16-fp8-and-beyond-b4af13ca846f)
 - [How can using FP16, BF16, or FP8 mixed precision speed up my model training?](https://www.runpod.io/articles/guides/fp16-bf16-fp8-mixed-precision-speed-up-my-model-training)
 - [Performance and Scalability: How To Fit a Bigger Model](https://huggingface.co/docs/transformers/v4.15.0/performance)
@@ -558,6 +590,7 @@ Calculator should:
 ```
 
 **Detection:**
+
 - vLLM/TGI listed as training framework options
 - No Unsloth option (major omission for consumer GPU users)
 - Framework overhead constant regardless of choice
@@ -566,6 +599,7 @@ Calculator should:
 **Phase mapping:** Phase 2 (Advanced Fine-tuning) - After core calculations work
 
 **Sources:**
+
 - [Memory Efficient RL | Unsloth Documentation](https://docs.unsloth.ai/get-started/reinforcement-learning-rl-guide/memory-efficient-rl)
 - [Ollama vs vLLM vs Unsloth: A Detailed Comparison](https://medium.com/@neeldevenshah/ollama-vs-vllm-vs-unsloth-a-detailed-comparison-from-an-ai-engineers-perspective-c6aba9a479d1)
 - [vLLM vs. TGI](https://modal.com/blog/vllm-vs-tgi-article)
@@ -574,7 +608,7 @@ Calculator should:
 
 ### Pitfall 11: Batch Size Scaling Confusion (Per-Device vs Effective vs Total)
 
-**What goes wrong:** Calculator has "batch size" input that's ambiguous. Reality: In distributed training, there's per-device batch size, gradient accumulation steps, and number of devices. Effective batch = per_device * accum_steps * num_devices.
+**What goes wrong:** Calculator has "batch size" input that's ambiguous. Reality: In distributed training, there's per-device batch size, gradient accumulation steps, and number of devices. Effective batch = per_device *accum_steps* num_devices.
 
 **Prevention:**
 
@@ -616,6 +650,7 @@ Calculator should ask:
 ```
 
 **Detection:**
+
 - Single "batch size" input without clarification
 - Memory scales linearly with batch size (missing activation vs gradient distinction)
 - Multi-GPU interface doesn't mention per-device batch size
@@ -623,6 +658,7 @@ Calculator should ask:
 **Phase mapping:** Phase 3 (Multi-GPU Fine-tuning) - Critical for distributed training
 
 **Sources:**
+
 - [Batch size vs gradient accumulation](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
 - [Batch size vs Gradient accumulation – Axolotl](https://docs.axolotl.ai/docs/batch_vs_grad.html)
 - [Effective Training Techniques — PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html)
@@ -672,6 +708,7 @@ Calculator should show:
 ```
 
 **Detection:**
+
 - Offload checkbox with no CPU memory requirement shown
 - No throughput impact warning
 - Missing PCIe bandwidth consideration
@@ -680,6 +717,7 @@ Calculator should show:
 **Phase mapping:** Phase 3 (Multi-GPU Fine-tuning) - Advanced feature
 
 **Sources:**
+
 - [ZeRO-Offload - DeepSpeed](https://www.deepspeed.ai/tutorials/zero-offload/)
 - [DeepSpeed ZeRO-3 Offload](https://www.deepspeed.ai/2021/03/07/zero3-offload.html)
 - [Scaling Large Language Models with DeepSpeed ZeRO](https://medium.com/@dpratishraj7991/scaling-large-language-models-with-deepspeed-zero-zero-and-zero-offload-a-complete-guide-70d393e311f4)
@@ -702,6 +740,7 @@ Calculator should show:
 **Phase mapping:** Phase 2 (Advanced Fine-tuning) - Important for accurate estimates
 
 **Sources:**
+
 - [FlashAttention: Fast and Memory-Efficient Exact Attention](https://arxiv.org/abs/2205.14135)
 - [Out of the box acceleration and memory savings](https://pytorch.org/blog/out-of-the-box-acceleration/)
 
@@ -743,6 +782,7 @@ Validation strategy:
 ```
 
 **Detection:**
+
 - No validation against real measurements mentioned
 - "Accuracy" claims without supporting data
 - No user feedback mechanism
@@ -751,6 +791,7 @@ Validation strategy:
 **Phase mapping:** Phase 5 (Validation & Polish) - Before public release
 
 **Sources:**
+
 - [LLM VRAM Calculator Guide 2026: Expert Memory Estimation Tips](https://www.propelrc.com/llm-vram-calculator/)
 - [Estimating vRAM – Hamel's Blog](https://hamel.dev/notes/llm/finetuning/estimating_vram.html)
 - [How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning)
@@ -853,12 +894,14 @@ Calculator should:
 ### Reusing Inference Code for Training (HIGH RISK)
 
 **Common mistakes:**
+
 1. KV cache calculation (training doesn't use KV cache the same way)
 2. Batch processing (inference is sequential generation, training is parallel batches)
 3. Framework overhead (inference frameworks != training frameworks)
 4. Memory profiling (inference peak != training peak due to gradients)
 
 **Prevention:**
+
 - Create separate calculation paths for inference vs training
 - Share only: model weight calculation, quantization overhead, basic architecture params
 - Don't share: KV cache, batch scaling, framework selection
@@ -866,11 +909,13 @@ Calculator should:
 ### Adding Training Toggle to Existing Calculator (MEDIUM RISK)
 
 **Common mistakes:**
+
 1. "Training mode" checkbox that multiplies everything by 2x (wrong!)
 2. Showing KV cache in training mode (doesn't apply)
 3. Using same batch size semantics (per-device vs effective batch)
 
 **Prevention:**
+
 - Training mode should be a separate page/section, not a toggle
 - Hide inference-specific fields (generation length, KV cache)
 - Show training-specific fields (gradient accumulation, optimizer, checkpointing)
@@ -931,6 +976,7 @@ Llama 70B DeepSpeed ZeRO-3 (4x A100, batch 2 per device):
 ### Cross-Validation Against Other Calculators
 
 Compare estimates against:
+
 1. Modal's fine-tuning calculator (10% error when configured)
 2. HuggingFace Accelerate memory estimator
 3. DeepSpeed configuration generator
@@ -964,12 +1010,14 @@ Fine-tuning estimation is complete when:
 All sources verified current as of 2026-02-10:
 
 ### Optimizer States & Training Memory
+
 - [Memory Requirements (HBM, GPU RAM)](https://apxml.com/courses/how-to-build-a-large-language-model/chapter-18-hardware-considerations-llm-training/memory-requirements-hbm-gpu-ram)
 - [Efficient Training on a Single GPU](https://huggingface.co/docs/transformers/v4.20.1/en/perf_train_gpu_one)
 - [Modern Optimizers: AdamW, Lion](https://medium.com/@spjosyula2005/modern-optimizers-adamw-lion-and-what-actually-works-at-scale-68ffc033713b)
 - [DeepSpeed Memory Requirements](https://deepspeed.readthedocs.io/en/latest/memory.html)
 
 ### LoRA & QLoRA
+
 - [Making LLMs even more accessible with bitsandbytes, 4-bit quantization and QLoRA](https://huggingface.co/blog/4bit-transformers-bitsandbytes)
 - [QLoRA: Efficient Finetuning of Quantized LLMs](https://github.com/artidoro/qlora)
 - [LoRA fine-tuning Hyperparameters Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide)
@@ -977,12 +1025,14 @@ All sources verified current as of 2026-02-10:
 - [Practical Tips for Finetuning LLMs Using LoRA](https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms)
 
 ### Gradient Accumulation & Checkpointing
+
 - [Gradient Accumulation: Increase Batch Size Without Explicitly Increasing Batch Size](https://blog.dailydoseofds.com/p/gradient-accumulation-increase-batch)
 - [Gradient Accumulation and Checkpointing](https://aman.ai/primers/ai/grad-accum-checkpoint/)
 - [Current and New Activation Checkpointing Techniques in PyTorch](https://pytorch.org/blog/activation-checkpointing-techniques/)
 - [Gradient Checkpoints — PyTorch Training Performance Guide](https://residentmario.github.io/pytorch-training-performance-guide/gradient-checkpoints.html)
 
 ### DeepSpeed ZeRO
+
 - [Zero Redundancy Optimizer - DeepSpeed](https://www.deepspeed.ai/tutorials/zero/)
 - [Memory Requirements — DeepSpeed](https://deepspeed.readthedocs.io/en/latest/memory.html)
 - [ZeRO-Offload - DeepSpeed](https://www.deepspeed.ai/tutorials/zero-offload/)
@@ -990,27 +1040,32 @@ All sources verified current as of 2026-02-10:
 - [Scaling Large Language Models with DeepSpeed ZeRO](https://medium.com/@dpratishraj7991/scaling-large-language-models-with-deepspeed-zero-zero-and-zero-offload-a-complete-guide-70d393e311f4)
 
 ### Mixed Precision Training
+
 - [Mixed Precision Training in LLMs: FP16, BF16, FP8, and Beyond](https://medium.com/@dpratishraj7991/mixed-precision-training-in-llms-fp16-bf16-fp8-and-beyond-b4af13ca846f)
 - [How can using FP16, BF16, or FP8 mixed precision speed up my model training?](https://www.runpod.io/articles/guides/fp16-bf16-fp8-mixed-precision-speed-up-my-model-training)
 - [Performance and Scalability: How To Fit a Bigger Model](https://huggingface.co/docs/transformers/v4.15.0/performance)
 
 ### Framework Comparisons
+
 - [Memory Efficient RL | Unsloth Documentation](https://docs.unsloth.ai/get-started/reinforcement-learning-rl-guide/memory-efficient-rl)
 - [Ollama vs vLLM vs Unsloth: A Detailed Comparison](https://medium.com/@neeldevenshah/ollama-vs-vllm-vs-unsloth-a-detailed-comparison-from-an-ai-engineers-perspective-c6aba9a479d1)
 - [vLLM vs. TGI](https://modal.com/blog/vllm-vs-tgi-article)
 
 ### Flash Attention
+
 - [FlashAttention: Fast and Memory-Efficient Exact Attention](https://github.com/Dao-AILab/flash-attention)
 - [FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness](https://arxiv.org/abs/2205.14135)
 - [Out of the box acceleration and memory savings](https://pytorch.org/blog/out-of-the-box-acceleration/)
 
 ### Validation & VRAM Estimation
+
 - [How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning)
 - [LLM VRAM Calculator Guide 2026: Expert Memory Estimation Tips](https://www.propelrc.com/llm-vram-calculator/)
 - [Estimating vRAM – Hamel's Blog](https://hamel.dev/notes/llm/finetuning/estimating_vram.html)
 - [Ultimate VRAM Calculator Guide 2026](https://orbit2x.com/blog/ultimate-vram-calculator-guide-gpu-memory-ai-models)
 
 ### Batch Size & Distributed Training
+
 - [Batch size vs gradient accumulation](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
 - [Batch size vs Gradient accumulation – Axolotl](https://docs.axolotl.ai/docs/batch_vs_grad.html)
 - [Effective Training Techniques — PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html)

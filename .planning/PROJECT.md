@@ -38,11 +38,13 @@ Users can quickly determine whether a specific LLM fits on their available GPU h
 **Goal:** Enable users to estimate VRAM requirements for fine-tuning LLMs, including LoRA/QLoRA adapters, optimizer states, gradients, gradient accumulation, and optimization framework presets.
 
 **Target features:**
+
 - Fine-tuning VRAM estimation (full, LoRA, QLoRA with optimizer states and gradients)
 - Gradient accumulation calculator (effective batch size trade-offs)
 - Optimization framework presets (vLLM, TGI, Unsloth, DeepSpeed ZeRO)
 
 **Active requirements:**
+
 - [ ] Estimate VRAM for fine-tuning (full, LoRA, QLoRA with optimizer states and gradients)
 - [ ] Gradient accumulation calculator (effective batch size trade-offs)
 - [ ] Optimization framework presets (vLLM, TGI, Unsloth, DeepSpeed ZeRO)

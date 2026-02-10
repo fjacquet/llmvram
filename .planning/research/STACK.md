@@ -9,6 +9,7 @@
 **NO NEW LIBRARIES REQUIRED** for fine-tuning VRAM estimation, gradient accumulation calculator, and framework presets. The existing validated stack (React 19, Decimal.js, Zod, Recharts, Zustand) is sufficient for all new features.
 
 Fine-tuning features are:
+
 1. **Pure calculation logic** (formulas for optimizer states, gradients, activations)
 2. **UI extensions** (additional input fields, memory breakdown visualization)
 3. **Static configuration data** (framework presets as JSON)
@@ -22,6 +23,7 @@ All can be implemented with the current stack.
 ### Feature 1: Fine-Tuning VRAM Estimation
 
 **What's needed:**
+
 - Calculate model weights (already done)
 - Calculate gradients memory (same size as weights in FP32)
 - Calculate optimizer states (AdamW: 2x params, SGD: 1x params, 8-bit: 0.5x params)
@@ -30,6 +32,7 @@ All can be implemented with the current stack.
 - Calculate QLoRA memory (4-bit base + LoRA adapters)
 
 **Stack coverage:**
+
 - ✅ **Decimal.js** (already in stack) - precision arithmetic for all calculations
 - ✅ **TypeScript strict** (already in stack) - type safety for training parameters
 - ✅ **Zod** (already in stack) - validate training configurations
@@ -42,11 +45,13 @@ All can be implemented with the current stack.
 ### Feature 2: Gradient Accumulation Calculator
 
 **What's needed:**
+
 - Calculate effective batch size (micro_batch × gradient_accumulation_steps × num_gpus)
 - Calculate memory savings (activations reduce by 1/gradient_accumulation_steps)
 - Calculate throughput impact (compute time increases)
 
 **Stack coverage:**
+
 - ✅ **Decimal.js** (already in stack) - arithmetic operations
 - ✅ **Pure functions** (already established) - simple mathematical calculations
 
@@ -57,16 +62,19 @@ All can be implemented with the current stack.
 ### Feature 3: Framework Presets (vLLM, TGI, Unsloth, DeepSpeed ZeRO)
 
 **What's needed:**
+
 - Configuration presets for popular frameworks
 - Default values for common training scenarios
 - Mapping between framework settings and VRAM estimation parameters
 
 **Stack coverage:**
+
 - ✅ **Static JSON data** (already established pattern) - same as models.json and gpus.json
 - ✅ **Zod schemas** (already in stack) - validate preset configurations
 - ✅ **TypeScript interfaces** (already established) - type-safe preset objects
 
 **Preset data structure:**
+
 ```typescript
 // data/framework-presets.json
 {
@@ -99,12 +107,14 @@ All can be implemented with the current stack.
 ### Feature 4: UI Extensions for Fine-Tuning
 
 **What's needed:**
+
 - Input components for training parameters (batch size, gradient accumulation, optimizer)
 - Framework preset selector (dropdown with presets)
 - Memory breakdown visualization (stacked bar chart showing model + gradients + optimizer + activations)
 - Training configuration panel (LoRA rank, QLoRA settings)
 
 **Stack coverage:**
+
 - ✅ **React 19** (already in stack) - functional components with hooks
 - ✅ **Headless UI** (already in stack) - dropdown, toggle, radio group components
 - ✅ **Tailwind CSS v4** (already in stack) - styling for new components
@@ -143,7 +153,9 @@ From existing `package.json`:
 Based on research of similar projects and ecosystems:
 
 ### ❌ mathjs (13.x)
+
 **Why avoid:**
+
 - Adds 500KB for features we don't need
 - Decimal.js handles all required precision arithmetic
 - Overkill for simple training memory formulas
@@ -153,12 +165,15 @@ Based on research of similar projects and ecosystems:
 ---
 
 ### ❌ Specialized VRAM Calculation Libraries
+
 **Why avoid:**
+
 - No NPM libraries exist for fine-tuning VRAM estimation
 - Existing tools are Python scripts or standalone calculators
 - Hand-rolled formulas are standard (well-documented in research)
 
 **Research findings:**
+
 - [Modal blog](https://modal.com/blog/how-much-vram-need-fine-tuning) - formulas, not libraries
 - [GitHub gists](https://gist.github.com/lapp0/d28931ebc9f59838800faa7c73e3a0dc) - Python scripts, not reusable libraries
 - [Hamel's blog](https://hamel.dev/notes/llm/finetuning/estimating_vram.html) - documented formulas
@@ -168,12 +183,15 @@ Based on research of similar projects and ecosystems:
 ---
 
 ### ❌ Alternative Chart Libraries (Visx, Chart.js, D3)
+
 **Why avoid:**
+
 - Recharts handles stacked bar charts perfectly
 - Already in stack and working
 - Stacked bar chart is ideal for memory breakdown (model + gradients + optimizer + activations)
 
 **Research findings:**
+
 - [Top React Chart Libraries 2026](https://aglowiditsolutions.com/blog/react-chart-libraries/) - Recharts still recommended
 - [Syncfusion blog](https://www.syncfusion.com/blogs/post/top-5-react-chart-libraries) - Recharts in top 5
 
@@ -182,12 +200,15 @@ Based on research of similar projects and ecosystems:
 ---
 
 ### ❌ Alternative Precision Libraries (big.js, bignumber.js, decimalish)
+
 **Why avoid:**
+
 - Decimal.js already in stack and working
 - No performance issues with current calculations
 - Switching adds risk without benefit
 
 **Research findings:**
+
 - [Decimal.js vs BigNumber.js](https://medium.com/@josephgathumbi/decimal-js-vs-c1471b362181) - both are excellent, no clear winner
 - [npm-compare](https://npm-compare.com/big.js,bignumber.js,decimal.js,decimal.js-light) - Decimal.js most feature-complete
 
@@ -435,6 +456,7 @@ With gradient accumulation: activations ÷ gradient_accumulation_steps
 ```
 
 **Sources:**
+
 - [Modal: How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning)
 - [Hamel's Blog: Estimating vRAM](https://hamel.dev/notes/llm/finetuning/estimating_vram.html)
 
@@ -456,6 +478,7 @@ Typical adapter params ≈ 0.5-2% of base model params
 ```
 
 **Sources:**
+
 - [Modal: LoRA vs. QLoRA](https://modal.com/blog/lora-qlora)
 - [HuggingFace Forums: How to calculate memory for LoRA](https://discuss.huggingface.co/t/how-to-calculate-the-memory-required-using-lora-fine-tuning/63049)
 
@@ -477,6 +500,7 @@ during memory spikes, then pages back to GPU when needed.
 ```
 
 **Sources:**
+
 - [Manalelaidouni: QLoRA 4-Bit Quantization](https://manalelaidouni.github.io/4Bit-Quantization-Models-QLoRa.html)
 - [RunPod: Fine-tune on a budget using LoRA and QLoRA](https://www.runpod.io/articles/guides/how-to-fine-tune-large-language-models-on-a-budget)
 
@@ -501,6 +525,7 @@ Throughput impact:
 ```
 
 **Sources:**
+
 - [HuggingFace: Batch size vs gradient accumulation](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
 - [Axolotl Docs: Batch vs Grad](https://docs.axolotl.ai/docs/batch_vs_grad.html)
 - [Unsloth Blog: Gradient Accumulation Bug Fixes](https://unsloth.ai/blog/gradient)
@@ -514,6 +539,7 @@ Throughput impact:
 **Configuration structure:** [DeepSpeed Config JSON](https://www.deepspeed.ai/docs/config-json/)
 
 **Key settings for VRAM estimation:**
+
 - `zero_optimization.stage` (0/1/2/3) - determines what gets partitioned
 - `zero_optimization.offload_optimizer` - CPU offload
 - `zero_optimization.offload_param` - CPU offload (stage 3 only)
@@ -521,6 +547,7 @@ Throughput impact:
 - `gradient_checkpointing`
 
 **Memory impact:**
+
 - Stage 0: No partitioning (baseline)
 - Stage 1: Optimizer state partitioning (÷ num_gpus)
 - Stage 2: Gradient + optimizer partitioning (÷ num_gpus)
@@ -533,12 +560,14 @@ Throughput impact:
 **Configuration structure:** [vLLM Engine Arguments](https://unsloth.ai/docs/basics/inference-and-deployment/vllm-guide/vllm-engine-arguments)
 
 **Key settings:**
+
 - `gpu_memory_utilization` (default 0.9) - VRAM percentage to use
 - `max_num_seqs` - max concurrent sequences
 - `swap_space` - CPU swap space in GB
 - `block_size` - KV cache block size (default 16)
 
 **Memory impact:**
+
 - KV cache uses `gpu_memory_utilization × total_vram - model_vram`
 - PagedAttention reduces fragmentation (10-20% more efficient)
 
@@ -549,6 +578,7 @@ Throughput impact:
 **Configuration pattern:** [Fine-tuning Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide)
 
 **Key settings:**
+
 - `max_seq_length` - sequence length (impacts KV cache)
 - `load_in_4bit` - QLoRA mode
 - `gradient_checkpointing` - activation recomputation
@@ -556,6 +586,7 @@ Throughput impact:
 - `gradient_accumulation_steps`
 
 **Memory optimizations:**
+
 - 2x faster training than standard
 - 70% less VRAM through kernel optimizations
 - Compatible with vLLM for deployment
@@ -567,6 +598,7 @@ Throughput impact:
 **Configuration pattern:** Inference-focused (not training)
 
 **Key settings:**
+
 - `quantize` - quantization method (bitsandbytes, gptq, awq)
 - `max_concurrent_requests`
 - `max_batch_size`
@@ -673,6 +705,7 @@ Create `data/framework-presets.json` with these presets:
 All required libraries are already installed. No new dependencies to add.
 
 **Current package.json is sufficient:**
+
 ```json
 {
   "dependencies": {
@@ -694,6 +727,7 @@ All required libraries are already installed. No new dependencies to add.
 ### Phase Structure Recommendation
 
 **Phase 1: Fine-Tuning Calculation Engine** (1-2 days)
+
 - Create `engines/fine-tuning.ts` with pure calculation functions
 - Implement formulas for full/LoRA/QLoRA
 - Add comprehensive tests (follow existing test patterns)
@@ -701,6 +735,7 @@ All required libraries are already installed. No new dependencies to add.
 - **Risk:** Low (well-documented formulas)
 
 **Phase 2: Training State & Schemas** (1 day)
+
 - Extend Zod schemas for training parameters
 - Add training slice to Zustand store
 - Create framework presets JSON
@@ -708,6 +743,7 @@ All required libraries are already installed. No new dependencies to add.
 - **Risk:** Low (follows established patterns)
 
 **Phase 3: Training UI Components** (2-3 days)
+
 - Create TrainingConfigPanel component
 - Create FrameworkPresetSelector component
 - Create TrainingMemoryBreakdown visualization
@@ -715,6 +751,7 @@ All required libraries are already installed. No new dependencies to add.
 - **Risk:** Low (reuses existing UI components)
 
 **Phase 4: Integration & Polish** (1-2 days)
+
 - Integrate training calculation into main calculator flow
 - Add training mode toggle
 - Update URL hash to include training config
@@ -743,24 +780,30 @@ All required libraries are already installed. No new dependencies to add.
 ## Risks & Mitigation
 
 ### Risk 1: Formula Accuracy
+
 **Risk:** Fine-tuning memory formulas might not match real-world usage
 **Mitigation:**
+
 - Add 20% overhead to all calculations (standard practice)
 - Include references to source formulas in code comments
 - Add "Experimental" badge to training estimates in UI
 - Plan validation against real training runs in later phase
 
 ### Risk 2: Framework Preset Complexity
+
 **Risk:** Framework configurations are complex, presets might miss edge cases
 **Mitigation:**
+
 - Start with common presets only (5-10 presets)
 - Add "Custom Configuration" option for advanced users
 - Link to official framework documentation for each preset
 - Allow users to modify preset values
 
 ### Risk 3: UI Complexity
+
 **Risk:** Adding training UI might clutter calculator interface
 **Mitigation:**
+
 - Use collapsible sections (already established pattern)
 - Add training mode toggle (opt-in)
 - Keep training config separate from inference config
@@ -771,34 +814,40 @@ All required libraries are already installed. No new dependencies to add.
 ## Sources
 
 ### Fine-Tuning VRAM Formulas
+
 - [Modal: How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning)
 - [Hamel's Blog: Estimating vRAM](https://hamel.dev/notes/llm/finetuning/estimating_vram.html)
 - [GitHub Gist: LLM Memory Requirement Calculator](https://gist.github.com/lapp0/d28931ebc9f59838800faa7c73e3a0dc)
 - [GitHub Gist: Calculating vRAM requirements for LLMs](https://gist.github.com/RahulSChand/4bc83d1529afc99be14d2a2a54b8e968)
 
 ### LoRA & QLoRA
+
 - [Modal: LoRA vs. QLoRA](https://modal.com/blog/lora-qlora)
 - [Manalelaidouni: QLoRA 4-Bit Quantization](https://manalelaidouni.github.io/4Bit-Quantization-Models-QLoRa.html)
 - [RunPod: Fine-tune LLMs on a budget using LoRA and QLoRA](https://www.runpod.io/articles/guides/how-to-fine-tune-large-language-models-on-a-budget)
 - [HuggingFace Forums: How to calculate memory for LoRA fine-tuning](https://discuss.huggingface.co/t/how-to-calculate-the-memory-required-using-lora-fine-tuning/63049)
 
 ### Gradient Accumulation
+
 - [HuggingFace Forums: Batch size vs gradient accumulation](https://discuss.huggingface.co/t/batch-size-vs-gradient-accumulation/5260)
 - [Axolotl Docs: Batch vs Grad](https://docs.axolotl.ai/docs/batch_vs_grad.html)
 - [Unsloth Blog: Gradient Accumulation Bug Fixes](https://unsloth.ai/blog/gradient)
 - [HuggingFace Docs: Gradient Accumulation with Accelerate](https://huggingface.co/docs/accelerate/en/usage_guides/gradient_accumulation)
 
 ### Framework Configuration
+
 - [DeepSpeed: Configuration JSON](https://www.deepspeed.ai/docs/config-json/)
 - [Unsloth Docs: vLLM Engine Arguments](https://unsloth.ai/docs/basics/inference-and-deployment/vllm-guide/vllm-engine-arguments)
 - [Unsloth Docs: Fine-tuning LLMs Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide)
 - [Unsloth GitHub](https://github.com/unslothai/unsloth)
 
 ### React Libraries
+
 - [Top React Chart Libraries 2026](https://aglowiditsolutions.com/blog/react-chart-libraries/)
 - [Syncfusion: Top 5 React Chart Libraries 2026](https://www.syncfusion.com/blogs/post/top-5-react-chart-libraries)
 
 ### Precision Arithmetic
+
 - [Decimal.js vs BigNumber.js](https://medium.com/@josephgathumbi/decimal-js-vs-c1471b362181)
 - [npm-compare: JavaScript Arbitrary-Precision Libraries](https://npm-compare.com/big.js,bignumber.js,decimal.js,decimal.js-light)
 
@@ -816,6 +865,7 @@ All required libraries are already installed. No new dependencies to add.
 ✅ **Static data** → JSON (framework presets)
 
 **Implementation is pure extension work:**
+
 1. New calculation engine (engines/fine-tuning.ts)
 2. New Zod schemas (extend utils/schemas.ts)
 3. New UI components (components/inputs/TrainingConfigPanel.tsx)

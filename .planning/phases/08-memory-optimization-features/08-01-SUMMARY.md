@@ -74,6 +74,7 @@ All functions use Decimal.js for precision arithmetic and support multiplicative
 ## Integration
 
 Updated all training VRAM calculation functions to accept optional optimization parameters:
+
 - `calculateFullFineTuningVRAM({...params, gradientCheckpointing, flashAttention})`
 - `calculateLoRAFineTuningVRAM({...params, gradientCheckpointing, flashAttention})`
 - `calculateQLoRAFineTuningVRAM({...params, gradientCheckpointing, flashAttention})`
@@ -83,12 +84,14 @@ Optimizations are applied to activation memory after base calculation, preservin
 ## Test Coverage
 
 **Unit tests (25 tests in optimizations.test.ts):**
+
 - calculateEffectiveBatchSize: 6 tests (single GPU, multi-GPU, edge cases)
 - applyGradientCheckpointing: 5 tests (enabled, disabled, edge cases)
 - applyFlashAttention: 6 tests (short/medium/long sequences, boundaries)
 - Combined optimizations: 8 tests (stacking, commutativity, all permutations)
 
 **Integration tests (10 tests across training.test.ts and lora.test.ts):**
+
 - Full fine-tuning with optimizations: 5 tests
 - LoRA with optimizations: 2 tests
 - QLoRA with optimizations: 3 tests
@@ -99,17 +102,20 @@ All 164 engine tests pass, TypeScript compiles clean, Biome lint passes.
 ## TDD Execution
 
 **RED phase (Commit 0aadf77):**
+
 - Added optimization constants to constants.ts (checkpointing factor, flash retention factors)
 - Added TrainingOptimizationConfig interface to types.ts
 - Created optimizations.test.ts with 25 failing tests
 - Tests failed as expected (module not found)
 
 **GREEN phase (Commit 0aadf77):**
+
 - Implemented optimizations.ts with three pure functions
 - All 25 tests passed on first run
 - Functions correctly handle edge cases (zero activations, disabled optimizations)
 
 **REFACTOR phase (Commit d4d3a66):**
+
 - Integrated optimizations into training.ts, lora.ts
 - Added 10 integration tests across training and LoRA test suites
 - Updated index.ts barrel export
@@ -147,11 +153,13 @@ None — plan executed exactly as written. All expected functions, tests, and in
 **Blockers:** None
 
 **Ready for:**
+
 - Plan 08-02: Memory optimization input components (gradient accumulation, checkpointing, flash toggles)
 - Plan 08-03: Memory optimization results panel (show savings, updated VRAM breakdown)
 - Plan 08-04: Memory optimization state management (persist optimization settings)
 
 **Provides:**
+
 - Complete optimization calculation API
 - Tested integration points for UI components
 - Backward-compatible training VRAM functions
@@ -169,18 +177,21 @@ None — plan executed exactly as written. All expected functions, tests, and in
 ## Self-Check: PASSED
 
 **Created files exist:**
+
 ```bash
 FOUND: src/engines/optimizations.ts
 FOUND: src/engines/optimizations.test.ts
 ```
 
 **Commits exist:**
+
 ```bash
 FOUND: 0aadf77 (feat: TDD RED+GREEN)
 FOUND: d4d3a66 (refactor: TDD REFACTOR)
 ```
 
 **Test execution:**
+
 ```bash
 ✓ src/engines/optimizations.test.ts (25 tests) 3ms
 ✓ src/engines/training.test.ts (19 tests) 6ms

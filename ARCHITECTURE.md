@@ -163,6 +163,7 @@ All engines are **pure functions** using **Decimal.js** for precision arithmetic
 ### Quantization Engine (`quantization.ts`)
 
 Calculates model weight memory for 22 quantization formats:
+
 - Standard: FP32 (4B), FP16 (2B), BF16 (2B), INT8 (1B), INT4 (0.5B), NF4 (0.5B)
 - GPTQ/AWQ: Includes 1.2x overhead multiplier for group quantization metadata
 - GGUF: Empirical bits-per-parameter from Artefact2 measurements (Q2_K through Q8_0)
@@ -206,12 +207,14 @@ Estimates inference speed using the roofline model:
 Distributes memory across GPUs with strategy-specific overhead:
 
 **Tensor Parallelism:**
+
 - Shards weights, KV cache, and activations across GPUs
 - Replicates embeddings and layer norms (~3% of weights)
 - NCCL buffers: 0.2 GB per peer GPU
 - 12% communication overhead (15% for MoE due to expert routing)
 
 **Pipeline Parallelism:**
+
 - Assigns layer ranges to GPUs
 - Does NOT divide KV cache (each GPU needs full context)
 - 5% overhead, lower communication cost
@@ -219,6 +222,7 @@ Distributes memory across GPUs with strategy-specific overhead:
 ### Offloading Engine (`offloading.ts`)
 
 Simulates CPU/RAM and NVMe offloading:
+
 - Calculates how much VRAM can be freed by offloading layers
 - Estimates performance penalty based on PCIe/NVMe bandwidth
 - Provides effective tokens/sec after offloading degradation
@@ -230,6 +234,7 @@ Simulates CPU/RAM and NVMe offloading:
 ### Zustand Store (`uiStore.ts`)
 
 Single store with all calculator state:
+
 - Model/GPU selection (ID or custom specs)
 - Quantization format (weight + KV cache independently)
 - Sequence length, batch size
@@ -321,6 +326,7 @@ flowchart TB
 ### Result States
 
 `ResultsPanel.tsx` handles 4 states in priority order:
+
 1. **No selection** — prompt to select model and GPU
 2. **Loading** — spinner while Web Worker calculates
 3. **Error** — inline error card + toast notification

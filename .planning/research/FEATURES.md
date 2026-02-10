@@ -135,20 +135,20 @@ v1.1 New Calculation Components:
 
 **Should-Have (High Value, Medium Effort):**
 
-9. **Framework presets** (at least 3)
+1. **Framework presets** (at least 3)
    - DeepSpeed ZeRO-2 (most common)
    - Unsloth (LoRA optimized, 70% memory reduction)
    - Basic preset (no optimizations)
-10. **Gradient checkpointing toggle** (50-80% activation reduction)
-11. **Flash Attention toggle** (50-80% KV cache reduction)
-12. **LoRA rank/alpha inputs** (customize adapter size)
+2. **Gradient checkpointing toggle** (50-80% activation reduction)
+3. **Flash Attention toggle** (50-80% KV cache reduction)
+4. **LoRA rank/alpha inputs** (customize adapter size)
 
 **Could-Have (Nice to Have, Defer if Tight):**
 
-13. **8-bit optimizer toggle** (2x memory savings)
-14. **Multi-GPU training with ZeRO** (stage 1/2/3 presets)
-15. **Training speed estimation** (extend performance engine)
-16. **LoRA target modules %** (advanced LoRA tuning)
+1. **8-bit optimizer toggle** (2x memory savings)
+2. **Multi-GPU training with ZeRO** (stage 1/2/3 presets)
+3. **Training speed estimation** (extend performance engine)
+4. **LoRA target modules %** (advanced LoRA tuning)
 
 **Won't-Have in v1.1:**
 
@@ -216,6 +216,7 @@ overhead = 1.0 + (0.15 × training_framework_multiplier)  // 15% LoRA overhead
 ```
 
 **Typical LoRA values:**
+
 - Rank: 4-16 (low), 32-64 (medium), 128-256 (high)
 - Alpha: Usually 2× rank (e.g., rank=16, alpha=32)
 - Target modules: 50% default (attention layers only) to 100% (all linear layers)
@@ -233,6 +234,7 @@ overhead = 1.0 + (0.2 × training_framework_multiplier)  // 20% QLoRA overhead
 ```
 
 **Memory savings:**
+
 - QLoRA uses ~4x less memory than LoRA for the base model
 - Total VRAM for QLoRA typically ~40-60% of LoRA for same model
 
@@ -303,6 +305,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 **When to use:** Multi-GPU training (2-8 GPUs), balanced performance/memory
 
 **Configuration:**
+
 - Optimizer: AdamW 32-bit
 - Mixed precision: BF16
 - Gradient checkpointing: Enabled
@@ -311,6 +314,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 - Gradient accumulation: 4 steps (default)
 
 **Memory impact:**
+
 - Optimizer states: Distributed across GPUs
 - Gradients: Distributed across GPUs
 - Weights: Replicated
@@ -323,6 +327,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 **When to use:** LoRA/QLoRA training, single GPU, memory constrained
 
 **Configuration:**
+
 - Fine-tuning method: QLoRA
 - Base quantization: 4-bit NF4
 - Adapter format: BF16
@@ -334,6 +339,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 - Flash Attention: Enabled
 
 **Memory impact:**
+
 - 70% memory reduction vs standard LoRA (per Unsloth benchmarks)
 - 2x faster training vs standard LoRA
 - Supports 9B models on 24GB VRAM (LoRA 16-bit) or 6.5GB VRAM (QLoRA 4-bit)
@@ -345,6 +351,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 **When to use:** Very large models (70B+), many GPUs (4-8), memory critical
 
 **Configuration:**
+
 - Optimizer: AdamW 32-bit
 - Mixed precision: BF16
 - Gradient checkpointing: Enabled
@@ -354,6 +361,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 - Gradient accumulation: 8 steps
 
 **Memory impact:**
+
 - Everything distributed across GPUs
 - Expected reduction: ~90% per-GPU memory vs single GPU
 - Trade-off: ~25% slower due to communication overhead
@@ -365,6 +373,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 **When to use:** Deployment, serving, inference optimization
 
 **Configuration:**
+
 - Mode: Inference (disable training)
 - Quantization: AWQ 4-bit (recommended)
 - KV cache quantization: FP8
@@ -372,6 +381,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 - Continuous batching: Enabled
 
 **Memory impact:**
+
 - 50-75% memory reduction vs naive inference
 - 14-24x throughput vs Hugging Face Transformers
 
@@ -382,6 +392,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 **When to use:** Hugging Face ecosystem, inference serving
 
 **Configuration:**
+
 - Mode: Inference (disable training)
 - Quantization: GPTQ 4-bit or bitsandbytes
 - KV cache quantization: FP8
@@ -389,6 +400,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 - Tensor parallelism: Enabled (multi-GPU)
 
 **Memory impact:**
+
 - Similar to vLLM, ~50-75% reduction
 
 **Use case:** Hugging Face integration, multi-framework support
@@ -398,6 +410,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 **When to use:** Debugging, baseline comparison, research
 
 **Configuration:**
+
 - Optimizer: AdamW 32-bit
 - Mixed precision: Disabled (FP32)
 - Gradient checkpointing: Disabled
@@ -405,6 +418,7 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 - Gradient accumulation: 1 (no accumulation)
 
 **Memory impact:**
+
 - Maximum memory usage (baseline)
 - Useful for understanding optimization impact
 
@@ -546,4 +560,3 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 | Framework preset configurations | **MEDIUM** | Inferred from best practices, not always explicitly documented |
 | Training throughput estimation | **LOW** | Requires benchmarking data not available from web search |
 | CPU offloading penalties | **LOW** | Wide range of claims, hardware-dependent |
-

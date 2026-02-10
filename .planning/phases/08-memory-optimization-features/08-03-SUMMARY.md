@@ -54,6 +54,7 @@ Created the missing link between optimization engine (08-01) and optimization UI
 **Pattern:** Follows useInferenceCalculation structure but uses synchronous useMemo (training calculations are fast, no Worker needed).
 
 **Functionality:**
+
 - Reads all training config from uiStore: trainingMethod, optimizer, trainingPrecision, batchSize, sequenceLength, loraRank, targetModulesPercent, gradientCheckpointing, flashAttention
 - Returns `{ result: TrainingVRAMBreakdown | LoRAVRAMBreakdown | null, error: string | null }`
 - Branches on trainingMethod to call appropriate engine function:
@@ -64,12 +65,14 @@ Created the missing link between optimization engine (08-01) and optimization UI
 - Memoized by all dependencies for efficient re-calculation
 
 **Type Safety:**
+
 - Exhaustiveness check on trainingMethod with never type
 - Explicit error handling with try/catch
 
 ### Task 2: Training Mode Branch in ResultsPanel (+214 lines)
 
 **Changes:**
+
 1. Import useTrainingCalculation hook and LoRAVRAMBreakdown type
 2. Read `mode` from store
 3. Call training hook unconditionally (React hooks cannot be conditional)
@@ -77,6 +80,7 @@ Created the missing link between optimization engine (08-01) and optimization UI
 5. Branch on `mode === 'training'` in main component return
 
 **Training Results Display:**
+
 - **FitIndicator:** Shows whether training fits in GPU VRAM
 - **Method Badge:** Visual indicator for Full/LoRA/QLoRA
 - **Memory Breakdown Table:**
@@ -91,6 +95,7 @@ Created the missing link between optimization engine (08-01) and optimization UI
 - **Trainable Params Info:** Shows trainable/total params with percentage
 
 **Preservation:**
+
 - Inference mode continues to work exactly as before (zero regression)
 - Save to Compare button hidden for training mode (comparison is inference-only)
 - No performance estimates for training (no tokens/sec for training)
@@ -102,6 +107,7 @@ None — plan executed exactly as written. All expected functionality implemente
 ## Integration Flow
 
 **State → Calculation → Display:**
+
 ```
 User toggles optimization
   ↓
@@ -121,6 +127,7 @@ User sees activations row value decrease
 ## Reactive Updates
 
 **Optimization toggles visibly affect VRAM breakdown:**
+
 - Toggle gradient checkpointing ON → Activations row drops by 60%
 - Toggle Flash Attention ON → Activations row drops by 15-70% (sequence-dependent)
 - Both enabled → Multiplicative stacking (e.g., 0.4 × 0.5 = 0.2 combined reduction)
@@ -146,11 +153,13 @@ User sees activations row value decrease
 ## Test Results
 
 **Existing test suite: All pass**
+
 - 253 tests across 17 test files
 - Zero new test failures
 - Inference calculations unaffected by new training code path
 
 **Verification:**
+
 - ✅ TypeScript compilation clean (`tsc -b`)
 - ✅ Production build succeeds (`vite build`)
 - ✅ Biome lint passes (`npm run lint`)
@@ -161,11 +170,13 @@ User sees activations row value decrease
 **Blockers:** None
 
 **Ready for:**
+
 - Phase 9: Enhanced training visualization (charts, optimization impact indicators)
 - Integration with Phase 7 training UI components now complete
 - Users can configure optimizations (08-02) and see VRAM impact (08-03)
 
 **Provides:**
+
 - Complete training calculation integration
 - Training VRAM breakdown display
 - Reactive optimization updates
@@ -185,17 +196,20 @@ User sees activations row value decrease
 ## Self-Check: PASSED
 
 **Created files exist:**
+
 ```bash
 FOUND: src/hooks/useTrainingCalculation.ts
 ```
 
 **Commits exist:**
+
 ```bash
 FOUND: 4522da6 (Task 1: useTrainingCalculation hook)
 FOUND: 6adfde5 (Task 2: training mode branch in ResultsPanel)
 ```
 
 **Test execution:**
+
 ```bash
 ✓ All 253 tests pass (253 passed, 0 failed)
 ✓ TypeScript compilation clean
