@@ -90,7 +90,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FTCORE-01 | Phase 7 | Complete |
 | FTCORE-02 | Phase 6 | Complete |
 | FTCORE-03 | Phase 6 | Complete |
-| FTCORE-04 | Phase 9 | Pending |
+| FTCORE-04 | Phase 9 | Complete |
 | FTCORE-05 | Phase 6 | Complete |
 | FTCORE-06 | Phase 6 | Complete |
 | FTCORE-07 | Phase 7 | Complete |
@@ -107,6 +107,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MGPUTR-03 | Phase 10 | Pending |
 
 **Coverage:**
+
 - v1.1 requirements: 18 total
 - Mapped to phases: 18
 - Unmapped: 0
