@@ -1,5 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
+import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
 import type {
   FineTuningMethod,
   KVCachePrecision,
@@ -68,6 +69,10 @@ interface UIState {
   gradientCheckpointing: boolean
   flashAttention: boolean
 
+  // Framework presets
+  frameworkPreset: FrameworkPreset
+  cpuOffloadOptimizer: boolean
+
   // UI preferences (persisted)
   isDarkMode: boolean
 
@@ -96,6 +101,8 @@ interface UIState {
   setGradientAccumulationSteps: (steps: number) => void
   setGradientCheckpointing: (enabled: boolean) => void
   setFlashAttention: (enabled: boolean) => void
+  setFrameworkPreset: (preset: FrameworkPreset) => void
+  setCpuOffloadOptimizer: (enabled: boolean) => void
   toggleDarkMode: () => void
 }
 
@@ -127,6 +134,8 @@ export const useUIStore = create<UIState>()(
       gradientAccumulationSteps: 1,
       gradientCheckpointing: false,
       flashAttention: false,
+      frameworkPreset: 'none',
+      cpuOffloadOptimizer: false,
       isDarkMode: false,
 
       // Actions
@@ -154,6 +163,35 @@ export const useUIStore = create<UIState>()(
       setGradientAccumulationSteps: (steps) => set({ gradientAccumulationSteps: steps }),
       setGradientCheckpointing: (enabled) => set({ gradientCheckpointing: enabled }),
       setFlashAttention: (enabled) => set({ flashAttention: enabled }),
+      setFrameworkPreset: (preset) =>
+        set((state) => {
+          const config = FRAMEWORK_PRESETS[preset]
+          const updates: Partial<UIState> = { frameworkPreset: preset }
+
+          // Mode enforcement: vLLM/TGI are inference-only
+          if (config.mode === 'inference') {
+            updates.mode = 'inference'
+          }
+
+          // Auto-apply optimizations from preset config
+          if (config.autoOptimizations.gradientCheckpointing !== undefined) {
+            updates.gradientCheckpointing = config.autoOptimizations.gradientCheckpointing
+          }
+          if (config.autoOptimizations.flashAttention !== undefined) {
+            updates.flashAttention = config.autoOptimizations.flashAttention
+          }
+          if (config.autoOptimizations.optimizer !== undefined) {
+            updates.optimizer = config.autoOptimizations.optimizer
+          }
+
+          // Reset CPU offload when switching away from DeepSpeed
+          if (!preset.startsWith('deepspeed-')) {
+            updates.cpuOffloadOptimizer = false
+          }
+
+          return updates
+        }),
+      setCpuOffloadOptimizer: (enabled) => set({ cpuOffloadOptimizer: enabled }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
     }),
     {
