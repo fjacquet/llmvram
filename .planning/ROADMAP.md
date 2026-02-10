@@ -25,6 +25,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Milestone Goal:** Enable users to estimate VRAM requirements for fine-tuning LLMs, including LoRA/QLoRA adapters, optimizer states, gradients, gradient accumulation, and optimization framework presets.
 
 **Phase Numbering:**
+
 - Integer phases (6, 7, 8, 9, 10): Planned milestone work
 - Decimal phases (6.1, 6.2): Urgent insertions (marked with INSERTED)
 
@@ -39,10 +40,12 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 6: Fine-Tuning Calculation Engines
+
 **Goal:** Users can calculate accurate training VRAM for full/LoRA/QLoRA methods
 **Depends on:** Nothing (builds on existing inference engines)
 **Requirements:** FTCORE-02, FTCORE-03, FTCORE-05, FTCORE-06
 **Success Criteria** (what must be TRUE):
+
   1. User can calculate full fine-tuning VRAM (weights + gradients + optimizer states + activations)
   2. User can calculate LoRA fine-tuning VRAM (frozen base + adapters with correct optimizer state sizing)
   3. User can calculate QLoRA fine-tuning VRAM (4-bit base + FP16 adapters)
@@ -51,15 +54,18 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 3 plans
 
 Plans:
+
 - [x] 06-01-PLAN.md -- Training types, constants, and Zod schemas
 - [x] 06-02-PLAN.md -- TDD: Core training engine (optimizer states, activations, full fine-tuning)
 - [x] 06-03-PLAN.md -- TDD: LoRA/QLoRA engine + barrel exports
 
 ### Phase 7: Training State & Basic UI
+
 **Goal:** Users can toggle into training mode and select basic configuration
 **Depends on:** Phase 6
 **Requirements:** FTCORE-01, FTCORE-07
 **Success Criteria** (what must be TRUE):
+
   1. User can switch between Inference and Fine-tuning modes
   2. User can select fine-tuning method (Full / LoRA / QLoRA)
   3. User can select optimizer type (AdamW, SGD, 8-bit Adam, Adafactor)
@@ -68,29 +74,36 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
+
 - [x] 07-01-PLAN.md -- Training state & URL persistence
 - [x] 07-02-PLAN.md -- Training UI components & InputPanel integration
 
 ### Phase 8: Memory Optimization Features
+
 **Goal:** Users can optimize training memory through gradient accumulation and checkpointing
 **Depends on:** Phase 7
 **Requirements:** OPTIM-01, OPTIM-02, OPTIM-03, OPTIM-04
 **Success Criteria** (what must be TRUE):
+
   1. User can set gradient accumulation steps and see effective batch size calculation
   2. User can toggle gradient checkpointing and see activation memory reduction (50-80%)
   3. User can toggle Flash Attention and see KV cache reduction for training
   4. Effective batch size calculation accounts for micro batch x accumulation steps x GPUs
-**Plans:** 2 plans
+**Plans:** 3 plans
 
 Plans:
+
 - [ ] 08-01-PLAN.md -- TDD: Optimization calculation engine (effective batch, checkpointing, Flash Attention)
 - [ ] 08-02-PLAN.md -- Optimization state, URL persistence, and UI components
+- [ ] 08-03-PLAN.md -- Training calculation integration (hook + ResultsPanel training mode)
 
 ### Phase 9: Training Memory Visualization
+
 **Goal:** Users can see detailed breakdown of training memory components
 **Depends on:** Phase 6, 7, 8
 **Requirements:** FTCORE-04
 **Success Criteria** (what must be TRUE):
+
   1. User can see training memory breakdown chart with optimizer states, gradients, activations, weights
   2. User can see training memory breakdown table with trainable vs frozen parameters
   3. Memory breakdown updates in real-time as training configuration changes
@@ -98,13 +111,16 @@ Plans:
 **Plans:** TBD
 
 Plans:
+
 - [ ] TBD (to be defined during phase planning)
 
 ### Phase 10: Framework Presets & Multi-GPU Training
+
 **Goal:** Users can use framework presets and estimate multi-GPU training VRAM
 **Depends on:** Phase 6, 7, 8, 9
 **Requirements:** FWPRST-01, FWPRST-02, FWPRST-03, FWPRST-04, MGPUTR-01, MGPUTR-02, MGPUTR-03
 **Success Criteria** (what must be TRUE):
+
   1. User can select framework preset (DeepSpeed ZeRO-1/2/3, Unsloth, vLLM, TGI)
   2. Framework preset auto-applies optimization settings (gradient checkpointing, Flash Attention, 8-bit optimizer)
   3. Multi-GPU training estimation shows correct ZeRO stage memory reduction (2x/4x/8x)
@@ -113,6 +129,7 @@ Plans:
 **Plans:** TBD
 
 Plans:
+
 - [ ] TBD (to be defined during phase planning)
 
 ## Progress
@@ -129,6 +146,6 @@ Phases execute in numeric order: 6 → 7 → 8 → 9 → 10
 | 5. Sharing & Comparison | v1.0 | 3/3 | Complete | 2026-02-09 |
 | 6. Fine-Tuning Calculation Engines | v1.1 | 3/3 | Complete | 2026-02-10 |
 | 7. Training State & Basic UI | v1.1 | 2/2 | Complete | 2026-02-10 |
-| 8. Memory Optimization Features | v1.1 | 0/2 | Not started | - |
+| 8. Memory Optimization Features | v1.1 | 0/3 | Not started | - |
 | 9. Training Memory Visualization | v1.1 | 0/TBD | Not started | - |
 | 10. Framework Presets & Multi-GPU Training | v1.1 | 0/TBD | Not started | - |
