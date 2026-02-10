@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-10)
 
 **Core value:** Users can quickly determine whether a specific LLM fits on their available GPU hardware — and if not, what changes would make it work.
-**Current focus:** Phase 10 - Framework Presets & Multi-GPU Training
+**Current focus:** v1.1 milestone complete — all phases shipped
 
 ## Current Position
 
 Phase: 10 of 10 (Framework Presets & Multi-GPU Training)
 Plan: 3 of 3 complete
-Status: Phase complete
-Last activity: 2026-02-10 — Completed Phase 10 Plan 3 (Framework preset UI + multi-GPU training integration)
+Status: v1.1 milestone complete
+Last activity: 2026-02-10 — Completed Phase 10 (Framework Presets & Multi-GPU Training) — v1.1 milestone shipped
 
 Progress: [██████████] 100% (30/30 plans complete: v1.0 18/18, v1.1 12/12)
 
@@ -115,6 +115,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed Phase 10 Plan 3 (Framework preset UI + multi-GPU training integration)
-Resume file: .planning/phases/10-framework-presets-multi-gpu-training/10-03-SUMMARY.md
-Next action: v1.1 complete — all 12 fine-tuning plans executed. Ready for production release.
+Stopped at: v1.1 milestone complete — all 12 fine-tuning plans executed and verified
+Resume file: .planning/phases/10-framework-presets-multi-gpu-training/10-VERIFICATION.md
+Next action: Run `/gsd:complete-milestone` to archive v1.1 and prepare for v1.2

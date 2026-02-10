@@ -19,33 +19,33 @@ Requirements for fine-tuning estimation milestone. Each maps to roadmap phases.
 
 ### Fine-Tuning Core
 
-- [ ] **FTCORE-01**: User can toggle between Inference and Fine-tuning mode
-- [ ] **FTCORE-02**: User can select fine-tuning method (Full / LoRA / QLoRA)
-- [ ] **FTCORE-03**: User can select optimizer (AdamW, SGD, 8-bit Adam, Adafactor)
-- [ ] **FTCORE-04**: User can see training memory breakdown (weights, optimizer states, gradients, activations, overhead)
-- [ ] **FTCORE-05**: User can configure LoRA rank (4-256) and alpha
-- [ ] **FTCORE-06**: User can configure LoRA target modules percentage (10-100%)
-- [ ] **FTCORE-07**: User can toggle mixed precision training (FP32/FP16/BF16)
+- [x] **FTCORE-01**: User can toggle between Inference and Fine-tuning mode
+- [x] **FTCORE-02**: User can select fine-tuning method (Full / LoRA / QLoRA)
+- [x] **FTCORE-03**: User can select optimizer (AdamW, SGD, 8-bit Adam, Adafactor)
+- [x] **FTCORE-04**: User can see training memory breakdown (weights, optimizer states, gradients, activations, overhead)
+- [x] **FTCORE-05**: User can configure LoRA rank (4-256) and alpha
+- [x] **FTCORE-06**: User can configure LoRA target modules percentage (10-100%)
+- [x] **FTCORE-07**: User can toggle mixed precision training (FP32/FP16/BF16)
 
 ### Memory Optimization
 
-- [ ] **OPTIM-01**: User can set gradient accumulation steps (1-128) and see effective batch size
-- [ ] **OPTIM-02**: User can toggle gradient checkpointing and see memory impact (50-80% activation reduction)
-- [ ] **OPTIM-03**: User can toggle Flash Attention and see KV cache reduction
-- [ ] **OPTIM-04**: User can see effective batch size calculation (batch x accumulation steps x GPUs)
+- [x] **OPTIM-01**: User can set gradient accumulation steps (1-128) and see effective batch size
+- [x] **OPTIM-02**: User can toggle gradient checkpointing and see memory impact (50-80% activation reduction)
+- [x] **OPTIM-03**: User can toggle Flash Attention and see KV cache reduction
+- [x] **OPTIM-04**: User can see effective batch size calculation (batch x accumulation steps x GPUs)
 
 ### Framework Presets
 
-- [ ] **FWPRST-01**: User can select framework preset (DeepSpeed ZeRO-1/2/3, Unsloth, vLLM, TGI, None)
-- [ ] **FWPRST-02**: Framework preset auto-configures optimization settings with memory impact shown
-- [ ] **FWPRST-03**: User can toggle 8-bit optimizer (2x memory savings)
-- [ ] **FWPRST-04**: QLoRA mode shows 4-bit base + 16-bit adapter memory split
+- [x] **FWPRST-01**: User can select framework preset (DeepSpeed ZeRO-1/2/3, Unsloth, vLLM, TGI, None)
+- [x] **FWPRST-02**: Framework preset auto-configures optimization settings with memory impact shown
+- [x] **FWPRST-03**: User can toggle 8-bit optimizer (2x memory savings)
+- [x] **FWPRST-04**: QLoRA mode shows 4-bit base + 16-bit adapter memory split
 
 ### Multi-GPU Training
 
-- [ ] **MGPUTR-01**: User can estimate multi-GPU training VRAM with DeepSpeed ZeRO stages
-- [ ] **MGPUTR-02**: ZeRO stages show correct memory reduction (Stage 1: optimizer, Stage 2: +gradients, Stage 3: +weights)
-- [ ] **MGPUTR-03**: User can enable CPU offloading for optimizer states in training mode
+- [x] **MGPUTR-01**: User can estimate multi-GPU training VRAM with DeepSpeed ZeRO stages
+- [x] **MGPUTR-02**: ZeRO stages show correct memory reduction (Stage 1: optimizer, Stage 2: +gradients, Stage 3: +weights)
+- [x] **MGPUTR-03**: User can enable CPU offloading for optimizer states in training mode
 
 ## v1.2 Requirements
 
@@ -98,13 +98,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OPTIM-02 | Phase 8 | Complete |
 | OPTIM-03 | Phase 8 | Complete |
 | OPTIM-04 | Phase 8 | Complete |
-| FWPRST-01 | Phase 10 | Pending |
-| FWPRST-02 | Phase 10 | Pending |
-| FWPRST-03 | Phase 10 | Pending |
-| FWPRST-04 | Phase 10 | Pending |
-| MGPUTR-01 | Phase 10 | Pending |
-| MGPUTR-02 | Phase 10 | Pending |
-| MGPUTR-03 | Phase 10 | Pending |
+| FWPRST-01 | Phase 10 | Complete |
+| FWPRST-02 | Phase 10 | Complete |
+| FWPRST-03 | Phase 10 | Complete |
+| FWPRST-04 | Phase 10 | Complete |
+| MGPUTR-01 | Phase 10 | Complete |
+| MGPUTR-02 | Phase 10 | Complete |
+| MGPUTR-03 | Phase 10 | Complete |
 
 **Coverage:**
 
@@ -115,4 +115,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-09*
-*Last updated: 2026-02-10 after Phase 6 completion*
+*Last updated: 2026-02-10 after Phase 10 completion — v1.1 milestone complete*

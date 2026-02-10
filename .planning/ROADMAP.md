@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1-5 (shipped 2026-02-09)
-- 🚧 **v1.1 Fine-Tuning Estimation** — Phases 6-10 (in progress)
+- ✅ **v1.1 Fine-Tuning Estimation** — Phases 6-10 (shipped 2026-02-10)
 
 ## Phases
 
@@ -20,7 +20,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 </details>
 
-### 🚧 v1.1 Fine-Tuning Estimation (In Progress)
+### ✅ v1.1 Fine-Tuning Estimation (SHIPPED 2026-02-10)
 
 **Milestone Goal:** Enable users to estimate VRAM requirements for fine-tuning LLMs, including LoRA/QLoRA adapters, optimizer states, gradients, gradient accumulation, and optimization framework presets.
 
@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Training State & Basic UI** - Training mode toggle and configuration state management — completed 2026-02-10
 - [x] **Phase 8: Memory Optimization Features** - Gradient accumulation, checkpointing, Flash Attention — completed 2026-02-10
 - [x] **Phase 9: Training Memory Visualization** - Extended charts and tables with training breakdown — completed 2026-02-10
-- [ ] **Phase 10: Framework Presets & Multi-GPU Training** - Framework-specific optimizations and distributed training
+- [x] **Phase 10: Framework Presets & Multi-GPU Training** - Framework-specific optimizations and distributed training — completed 2026-02-10
 
 ## Phase Details
 
@@ -130,9 +130,9 @@ Plans:
 
 Plans:
 
-- [ ] 10-01-PLAN.md -- TDD: Framework preset types + DeepSpeed ZeRO calculation engine
-- [ ] 10-02-PLAN.md -- Framework preset state management + URL persistence + auto-apply
-- [ ] 10-03-PLAN.md -- UI components + training calculation hook + ResultsPanel integration
+- [x] 10-01-PLAN.md -- TDD: Framework preset types + DeepSpeed ZeRO calculation engine
+- [x] 10-02-PLAN.md -- Framework preset state management + URL persistence + auto-apply
+- [x] 10-03-PLAN.md -- UI components + training calculation hook + ResultsPanel integration
 
 ## Progress
 
@@ -150,4 +150,4 @@ Phases execute in numeric order: 6 → 7 → 8 → 9 → 10
 | 7. Training State & Basic UI | v1.1 | 2/2 | Complete | 2026-02-10 |
 | 8. Memory Optimization Features | v1.1 | 3/3 | Complete | 2026-02-10 |
 | 9. Training Memory Visualization | v1.1 | 1/1 | Complete | 2026-02-10 |
-| 10. Framework Presets & Multi-GPU Training | v1.1 | 0/3 | Planning complete | - |
+| 10. Framework Presets & Multi-GPU Training | v1.1 | 3/3 | Complete | 2026-02-10 |
