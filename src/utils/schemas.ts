@@ -99,6 +99,15 @@ export const TrainingInputSchema = z.object({
 
   /** Percentage of linear modules per layer that get LoRA adapters (10-100%) */
   targetModulesPercent: z.number().int().min(10).max(100).default(30),
+
+  /** Gradient accumulation steps — accumulate gradients over multiple micro-batches */
+  gradientAccumulationSteps: z.number().int().min(1).max(128).default(1),
+
+  /** Gradient checkpointing — reduce activation memory by ~60% at cost of ~20-25% training time */
+  gradientCheckpointing: z.boolean().default(false),
+
+  /** Flash Attention — reduce attention activation memory by 15-70% (sequence-dependent) */
+  flashAttention: z.boolean().default(false),
 })
 
 export type TrainingInput = z.infer<typeof TrainingInputSchema>

@@ -59,6 +59,9 @@ describe('URL Serializer', () => {
         loraRank: 16,
         loraAlpha: 32,
         targetModulesPercent: 30,
+        gradientAccumulationSteps: 1,
+        gradientCheckpointing: false,
+        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -123,6 +126,9 @@ describe('URL Serializer', () => {
         loraRank: 16,
         loraAlpha: 32,
         targetModulesPercent: 30,
+        gradientAccumulationSteps: 1,
+        gradientCheckpointing: false,
+        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -174,6 +180,9 @@ describe('URL Serializer', () => {
         loraRank: 16,
         loraAlpha: 32,
         targetModulesPercent: 30,
+        gradientAccumulationSteps: 1,
+        gradientCheckpointing: false,
+        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -211,6 +220,9 @@ describe('URL Serializer', () => {
         loraRank: 16,
         loraAlpha: 32,
         targetModulesPercent: 30,
+        gradientAccumulationSteps: 1,
+        gradientCheckpointing: false,
+        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -248,6 +260,9 @@ describe('URL Serializer', () => {
         loraRank: 16,
         loraAlpha: 32,
         targetModulesPercent: 30,
+        gradientAccumulationSteps: 1,
+        gradientCheckpointing: false,
+        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -287,6 +302,9 @@ describe('URL Serializer', () => {
         loraRank: 32,
         loraAlpha: 64,
         targetModulesPercent: 50,
+        gradientAccumulationSteps: 1,
+        gradientCheckpointing: false,
+        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -347,6 +365,9 @@ describe('URL Serializer', () => {
         loraRank: 8,
         loraAlpha: 16,
         targetModulesPercent: 25,
+        gradientAccumulationSteps: 1,
+        gradientCheckpointing: false,
+        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -360,6 +381,118 @@ describe('URL Serializer', () => {
       expect(deserialized?.lr).toBe(8)
       expect(deserialized?.la).toBe(16)
       expect(deserialized?.tmp).toBe(25)
+    })
+
+    it('should serialize optimization fields when mode is training', () => {
+      const state = {
+        selectedModel: null,
+        selectedGPU: null,
+        quantization: 'fp16' as const,
+        sequenceLength: 2048,
+        batchSize: 1,
+        kvQuantization: 'fp16' as const,
+        numGPUs: 1,
+        shardingStrategy: 'tensor-parallel' as const,
+        offloadingEnabled: false,
+        offloadTarget: 'cpu-ram' as const,
+        offloadMode: 'percentage' as const,
+        offloadPercentage: 0,
+        offloadLayers: 0,
+        kvCacheOffload: false,
+        mode: 'training' as const,
+        trainingMethod: 'lora' as const,
+        optimizer: 'adamw' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 16,
+        loraAlpha: 32,
+        targetModulesPercent: 30,
+        gradientAccumulationSteps: 8,
+        gradientCheckpointing: true,
+        flashAttention: true,
+      }
+
+      const serialized = serializeToURL(state)
+      const deserialized = deserializeFromURL(serialized)
+
+      expect(deserialized).not.toBeNull()
+      expect(deserialized?.ga).toBe(8)
+      expect(deserialized?.gc).toBe(true)
+      expect(deserialized?.fa).toBe(true)
+    })
+
+    it('should NOT serialize optimization fields when mode is inference', () => {
+      const state = {
+        selectedModel: null,
+        selectedGPU: null,
+        quantization: 'fp16' as const,
+        sequenceLength: 2048,
+        batchSize: 1,
+        kvQuantization: 'fp16' as const,
+        numGPUs: 1,
+        shardingStrategy: 'tensor-parallel' as const,
+        offloadingEnabled: false,
+        offloadTarget: 'cpu-ram' as const,
+        offloadMode: 'percentage' as const,
+        offloadPercentage: 0,
+        offloadLayers: 0,
+        kvCacheOffload: false,
+        mode: 'inference' as const,
+        trainingMethod: 'lora' as const,
+        optimizer: 'adamw' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 16,
+        loraAlpha: 32,
+        targetModulesPercent: 30,
+        gradientAccumulationSteps: 8,
+        gradientCheckpointing: true,
+        flashAttention: true,
+      }
+
+      const serialized = serializeToURL(state)
+      const deserialized = deserializeFromURL(serialized)
+
+      expect(deserialized).not.toBeNull()
+      // Optimization fields should NOT be in URL when mode is inference
+      expect(deserialized?.ga).toBeUndefined()
+      expect(deserialized?.gc).toBeUndefined()
+      expect(deserialized?.fa).toBeUndefined()
+    })
+
+    it('should round-trip optimization values', () => {
+      const state = {
+        selectedModel: null,
+        selectedGPU: null,
+        quantization: 'fp16' as const,
+        sequenceLength: 4096,
+        batchSize: 4,
+        kvQuantization: 'fp16' as const,
+        numGPUs: 2,
+        shardingStrategy: 'tensor-parallel' as const,
+        offloadingEnabled: false,
+        offloadTarget: 'cpu-ram' as const,
+        offloadMode: 'percentage' as const,
+        offloadPercentage: 0,
+        offloadLayers: 0,
+        kvCacheOffload: false,
+        mode: 'training' as const,
+        trainingMethod: 'full' as const,
+        optimizer: 'adamw' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 16,
+        loraAlpha: 32,
+        targetModulesPercent: 30,
+        gradientAccumulationSteps: 32,
+        gradientCheckpointing: true,
+        flashAttention: false,
+      }
+
+      const serialized = serializeToURL(state)
+      const deserialized = deserializeFromURL(serialized)
+
+      expect(deserialized).not.toBeNull()
+      expect(deserialized?.ga).toBe(32)
+      expect(deserialized?.gc).toBe(true)
+      expect(deserialized?.fa).toBe(false)
     })
   })
 
@@ -452,6 +585,9 @@ describe('URL Serializer', () => {
         loraRank: 16,
         loraAlpha: 32,
         targetModulesPercent: 30,
+        gradientAccumulationSteps: 1,
+        gradientCheckpointing: false,
+        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -506,6 +642,9 @@ describe('URL Serializer', () => {
         loraRank: 16,
         loraAlpha: 32,
         targetModulesPercent: 30,
+        gradientAccumulationSteps: 1,
+        gradientCheckpointing: false,
+        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)

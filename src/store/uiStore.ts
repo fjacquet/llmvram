@@ -64,6 +64,9 @@ interface UIState {
   loraRank: number
   loraAlpha: number
   targetModulesPercent: number
+  gradientAccumulationSteps: number
+  gradientCheckpointing: boolean
+  flashAttention: boolean
 
   // UI preferences (persisted)
   isDarkMode: boolean
@@ -90,6 +93,9 @@ interface UIState {
   setLoraRank: (rank: number) => void
   setLoraAlpha: (alpha: number) => void
   setTargetModulesPercent: (percent: number) => void
+  setGradientAccumulationSteps: (steps: number) => void
+  setGradientCheckpointing: (enabled: boolean) => void
+  setFlashAttention: (enabled: boolean) => void
   toggleDarkMode: () => void
 }
 
@@ -118,6 +124,9 @@ export const useUIStore = create<UIState>()(
       loraRank: 16,
       loraAlpha: 32,
       targetModulesPercent: 30,
+      gradientAccumulationSteps: 1,
+      gradientCheckpointing: false,
+      flashAttention: false,
       isDarkMode: false,
 
       // Actions
@@ -142,6 +151,9 @@ export const useUIStore = create<UIState>()(
       setLoraRank: (rank) => set({ loraRank: rank }),
       setLoraAlpha: (alpha) => set({ loraAlpha: alpha }),
       setTargetModulesPercent: (percent) => set({ targetModulesPercent: percent }),
+      setGradientAccumulationSteps: (steps) => set({ gradientAccumulationSteps: steps }),
+      setGradientCheckpointing: (enabled) => set({ gradientCheckpointing: enabled }),
+      setFlashAttention: (enabled) => set({ flashAttention: enabled }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
     }),
     {

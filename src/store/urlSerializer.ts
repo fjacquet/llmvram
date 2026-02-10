@@ -63,6 +63,9 @@ export const URLStateSchema = z.object({
   lr: z.number().optional(), // loraRank
   la: z.number().optional(), // loraAlpha
   tmp: z.number().optional(), // targetModulesPercent
+  ga: z.number().optional(), // gradientAccumulationSteps
+  gc: z.boolean().optional(), // gradientCheckpointing
+  fa: z.boolean().optional(), // flashAttention
 })
 
 export type URLState = z.infer<typeof URLStateSchema>
@@ -99,6 +102,9 @@ export function serializeToURL(state: {
   loraRank: number
   loraAlpha: number
   targetModulesPercent: number
+  gradientAccumulationSteps: number
+  gradientCheckpointing: boolean
+  flashAttention: boolean
 }): string {
   const urlState: URLState = {
     // Model serialization
@@ -162,6 +168,9 @@ export function serializeToURL(state: {
           lr: state.loraRank,
           la: state.loraAlpha,
           tmp: state.targetModulesPercent,
+          ga: state.gradientAccumulationSteps,
+          gc: state.gradientCheckpointing,
+          fa: state.flashAttention,
         }
       : {}),
   }
