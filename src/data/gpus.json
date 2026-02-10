@@ -154,6 +154,20 @@
     "tier": "consumer"
   },
   {
+    "id": "nvidia-gb10",
+    "name": "NVIDIA GB10 (DGX Spark)",
+    "manufacturer": "nvidia",
+    "vram_gb": 128,
+    "memory_bandwidth_gbps": 273,
+    "memory_type": "LPDDR5X",
+    "bus_width": 256,
+    "fp16_tflops": 213,
+    "fp32_tflops": 31,
+    "tdp_watts": 140,
+    "interconnect": "none",
+    "tier": "consumer"
+  },
+  {
     "id": "amd-mi300x",
     "name": "AMD MI300X",
     "manufacturer": "amd",

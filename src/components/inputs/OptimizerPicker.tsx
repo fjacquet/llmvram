@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import type { OptimizerType } from '@engines/types'
 import {
   Description,
@@ -44,9 +45,12 @@ export function OptimizerPicker() {
 
   return (
     <Field className="space-y-2">
-      <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        Optimizer Type
-      </Label>
+      <div className="flex items-center gap-1">
+        <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Optimizer Type
+        </Label>
+        <InfoTip text="The optimizer determines memory overhead. AdamW needs 8 bytes/param for states. SGD uses 4 bytes/param. 8-bit AdamW halves optimizer memory." />
+      </div>
       <HeadlessRadioGroup value={optimizer} onChange={setOptimizer}>
         <div className="space-y-2">
           {OPTIMIZERS.map((opt) => (

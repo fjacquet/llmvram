@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import { INTERCONNECT_SPECS } from '@engines/constants'
 import { resolveInterconnect } from '@engines/multi-gpu'
 import { useUIStore } from '@store/uiStore'
@@ -41,8 +42,11 @@ export function ShardingStrategySelector() {
 
   return (
     <div className="space-y-3">
-      <div className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-        Sharding Strategy
+      <div className="flex items-center gap-1 mb-2">
+        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          Sharding Strategy
+        </div>
+        <InfoTip text="Tensor Parallel splits each layer across GPUs (needs fast NVLink). Pipeline Parallel assigns whole layers to GPUs (works over PCIe but adds pipeline bubbles)." />
       </div>
 
       {/* Strategy selection cards */}

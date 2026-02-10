@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import { useUIStore } from '@store/uiStore'
 
 /**
@@ -33,9 +34,12 @@ export function OffloadingPanel() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Offloading Configuration
-        </h3>
+        <div className="flex items-center gap-1">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Offloading Configuration
+          </h3>
+          <InfoTip text="Offload model weights or KV cache to CPU/RAM or NVMe to reduce GPU VRAM usage. This enables running larger models at the cost of slower inference." />
+        </div>
         <label className="flex items-center gap-2 cursor-pointer">
           <span className="text-sm text-gray-700 dark:text-gray-300">Enable Offloading</span>
           <input

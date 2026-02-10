@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import gpusData from '@data/gpus.json'
 import {
   Combobox,
@@ -83,12 +84,15 @@ export function GPUSelector() {
 
   return (
     <div className="space-y-2">
-      <label
-        htmlFor="gpu-selector"
-        className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-      >
-        GPU
-      </label>
+      <div className="flex items-center gap-1">
+        <label
+          htmlFor="gpu-selector"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          GPU
+        </label>
+        <InfoTip text="Choose your target GPU or define custom hardware specs. VRAM capacity determines whether the model fits. Memory bandwidth affects inference speed." />
+      </div>
 
       <Combobox
         value={selectedGPU}

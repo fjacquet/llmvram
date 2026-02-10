@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import modelsData from '@data/models.json'
 import {
   Combobox,
@@ -61,12 +62,15 @@ export function ModelSelector() {
 
   return (
     <div className="space-y-2">
-      <label
-        htmlFor="model-selector"
-        className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-      >
-        Model
-      </label>
+      <div className="flex items-center gap-1">
+        <label
+          htmlFor="model-selector"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          Model
+        </label>
+        <InfoTip text="Select a pre-configured model or define a custom one. For MoE models, the total parameter count (all experts) is used since all weights must fit in VRAM." />
+      </div>
 
       <Combobox
         value={selectedModel}

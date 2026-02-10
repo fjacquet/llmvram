@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import { useUIStore } from '@store/uiStore'
 
 // Preset values for quick selection
@@ -16,12 +17,15 @@ export function BatchSizeInput() {
 
   return (
     <div className="space-y-3">
-      <label
-        htmlFor="batch-size"
-        className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-      >
-        Batch Size
-      </label>
+      <div className="flex items-center gap-1">
+        <label
+          htmlFor="batch-size"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          Batch Size
+        </label>
+        <InfoTip text="Number of sequences processed simultaneously. Higher batch sizes increase throughput but require more VRAM for activations and KV cache." />
+      </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">

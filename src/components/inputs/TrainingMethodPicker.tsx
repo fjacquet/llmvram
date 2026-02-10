@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import type { FineTuningMethod } from '@engines/types'
 import {
   Description,
@@ -39,9 +40,12 @@ export function TrainingMethodPicker() {
 
   return (
     <Field className="space-y-2">
-      <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        Fine-tuning Method
-      </Label>
+      <div className="flex items-center gap-1">
+        <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Fine-tuning Method
+        </Label>
+        <InfoTip text="Full fine-tuning updates all parameters. LoRA trains small adapter layers (~1% of params). QLoRA combines 4-bit quantization with LoRA for minimum VRAM." />
+      </div>
       <HeadlessRadioGroup value={trainingMethod} onChange={setTrainingMethod}>
         <div className="space-y-2">
           {TRAINING_METHODS.map((method) => (

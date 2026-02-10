@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import { useUIStore } from '@store/uiStore'
 
 /**
@@ -12,12 +13,15 @@ export function GPUCountSelector() {
 
   return (
     <div>
-      <label
-        htmlFor="gpu-count"
-        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-      >
-        Number of GPUs
-      </label>
+      <div className="flex items-center gap-1 mb-1">
+        <label
+          htmlFor="gpu-count"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          Number of GPUs
+        </label>
+        <InfoTip text="Use multiple GPUs to distribute model weights. More GPUs enable larger models but add communication overhead between devices." />
+      </div>
       <div className="flex items-center gap-4">
         <input
           id="gpu-count"

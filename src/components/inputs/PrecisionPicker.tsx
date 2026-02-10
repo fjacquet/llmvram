@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import type { TrainingPrecision } from '@engines/types'
 import {
   Description,
@@ -35,9 +36,12 @@ export function PrecisionPicker() {
 
   return (
     <Field className="space-y-2">
-      <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        Training Precision
-      </Label>
+      <div className="flex items-center gap-1">
+        <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Training Precision
+        </Label>
+        <InfoTip text="Training compute precision. Mixed precision (FP16/BF16 with FP32 master weights) halves activation memory while maintaining training stability." />
+      </div>
       <HeadlessRadioGroup value={trainingPrecision} onChange={setTrainingPrecision}>
         <div className="space-y-2">
           {PRECISIONS.map((precision) => (

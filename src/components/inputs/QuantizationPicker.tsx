@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import type { QuantizationFormat } from '@engines/types'
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/react'
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid'
@@ -92,12 +93,15 @@ export function QuantizationPicker() {
 
   return (
     <div className="space-y-2">
-      <label
-        htmlFor="quantization-picker"
-        className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-      >
-        Inference Quantization
-      </label>
+      <div className="flex items-center gap-1">
+        <label
+          htmlFor="quantization-picker"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          Inference Quantization
+        </label>
+        <InfoTip text="Quantization reduces model weight precision to save VRAM. Lower bit formats use less memory but may reduce output quality. GGUF formats are optimized for llama.cpp." />
+      </div>
       <p className="text-xs text-gray-500 dark:text-gray-400">
         Precision for model weights during inference. Lower uses less VRAM but may affect quality.
       </p>

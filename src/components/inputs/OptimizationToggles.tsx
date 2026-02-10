@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import { Description, Field, Label, Switch } from '@headlessui/react'
 import { useUIStore } from '@store/uiStore'
 
@@ -31,9 +32,12 @@ export function OptimizationToggles() {
       {/* Gradient Checkpointing Toggle */}
       <Field>
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Gradient Checkpointing
-          </Label>
+          <div className="flex items-center gap-1">
+            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Gradient Checkpointing
+            </Label>
+            <InfoTip text="Recompute activations during backward pass instead of storing them. Saves ~60% activation memory at the cost of 20-25% more compute time." />
+          </div>
           <Switch
             checked={gradientCheckpointing}
             onChange={setGradientCheckpointing}
@@ -58,9 +62,12 @@ export function OptimizationToggles() {
       {/* Flash Attention Toggle */}
       <Field>
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Flash Attention
-          </Label>
+          <div className="flex items-center gap-1">
+            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Flash Attention
+            </Label>
+            <InfoTip text="Reduces attention memory from O(n^2) to O(n). Benefit scales with sequence length: ~15% at 2K, ~50% at 8K, ~70% at 32K+." />
+          </div>
           <Switch
             checked={flashAttention}
             onChange={setFlashAttention}

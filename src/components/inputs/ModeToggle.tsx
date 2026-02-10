@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import { Description, Field, Label, Switch } from '@headlessui/react'
 import { useUIStore } from '@store/uiStore'
 
@@ -16,9 +17,12 @@ export function ModeToggle() {
   return (
     <Field className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label className="text-lg font-semibold text-gray-900 dark:text-white">
-          {isTraining ? 'Fine-tuning Mode' : 'Inference Mode'}
-        </Label>
+        <div className="flex items-center gap-1">
+          <Label className="text-lg font-semibold text-gray-900 dark:text-white">
+            {isTraining ? 'Fine-tuning Mode' : 'Inference Mode'}
+          </Label>
+          <InfoTip text="Inference mode estimates VRAM for running a model. Training mode adds optimizer states, gradients, and activation memory for fine-tuning." />
+        </div>
         <Switch
           checked={isTraining}
           onChange={(checked) => setMode(checked ? 'training' : 'inference')}

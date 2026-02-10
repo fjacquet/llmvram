@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import { useUIStore } from '@store/uiStore'
 
 // Preset values for quick selection
@@ -36,12 +37,15 @@ export function SequenceLengthInput() {
 
   return (
     <div className="space-y-3">
-      <label
-        htmlFor="sequence-length"
-        className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-      >
-        Sequence Length
-      </label>
+      <div className="flex items-center gap-1">
+        <label
+          htmlFor="sequence-length"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          Sequence Length
+        </label>
+        <InfoTip text="Maximum number of tokens in the context window. Longer sequences increase KV cache memory. Common values: 2K (chat), 8K (documents), 32K+ (long context)." />
+      </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">

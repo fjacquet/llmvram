@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import { Description, Field, Label, Switch } from '@headlessui/react'
 import { useUIStore } from '@store/uiStore'
 
@@ -18,9 +19,12 @@ export function CPUOffloadToggle() {
   return (
     <Field>
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          CPU Offload Optimizer
-        </Label>
+        <div className="flex items-center gap-1">
+          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            CPU Offload Optimizer
+          </Label>
+          <InfoTip text="Move optimizer states to CPU RAM during training. Reduces GPU VRAM by the size of optimizer states but slows training by 15-30% due to PCIe transfers." />
+        </div>
         <Switch
           checked={cpuOffloadOptimizer}
           onChange={setCpuOffloadOptimizer}

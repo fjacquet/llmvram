@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
 import { useUIStore } from '@store/uiStore'
 
@@ -16,12 +17,15 @@ export function FrameworkPresetPicker() {
 
   return (
     <div className="space-y-2">
-      <label
-        htmlFor="framework-preset"
-        className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-      >
-        Framework Preset
-      </label>
+      <div className="flex items-center gap-1">
+        <label
+          htmlFor="framework-preset"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          Framework Preset
+        </label>
+        <InfoTip text="Pre-configured optimization settings for popular frameworks. DeepSpeed ZeRO stages distribute optimizer/gradient/parameter states across GPUs." />
+      </div>
       <select
         id="framework-preset"
         value={frameworkPreset}

@@ -1,7 +1,9 @@
 import { ComparisonView } from '@components/comparison/ComparisonView'
+import { GuidePage } from '@components/guide/GuidePage'
 import { Header } from '@components/layout/Header'
 import { InputPanel } from '@components/layout/InputPanel'
 import { ResultsPanel } from '@components/layout/ResultsPanel'
+import { BookOpenIcon } from '@heroicons/react/24/outline'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useState } from 'react'
 
@@ -15,7 +17,7 @@ import { useState } from 'react'
  * Tab navigation allows switching between Calculator and Comparison views.
  */
 export function Layout() {
-  const [activeTab, setActiveTab] = useState<'calculator' | 'comparison'>('calculator')
+  const [activeTab, setActiveTab] = useState<'calculator' | 'comparison' | 'guide'>('calculator')
   const snapshotCount = useComparisonStore((s) => s.snapshots.length)
 
   return (
@@ -51,6 +53,18 @@ export function Layout() {
               </span>
             )}
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('guide')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 ${
+              activeTab === 'guide'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+          >
+            <BookOpenIcon className="h-4 w-4" />
+            Guide
+          </button>
         </div>
 
         {/* Conditional content based on active tab */}
@@ -65,8 +79,10 @@ export function Layout() {
               <ResultsPanel />
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'comparison' ? (
           <ComparisonView />
+        ) : (
+          <GuidePage />
         )}
       </main>
     </div>

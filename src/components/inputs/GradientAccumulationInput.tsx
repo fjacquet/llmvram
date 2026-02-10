@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import { useUIStore } from '@store/uiStore'
 
 // Preset values for quick selection
@@ -16,12 +17,15 @@ export function GradientAccumulationInput() {
 
   return (
     <div className="space-y-3">
-      <label
-        htmlFor="gradient-accumulation"
-        className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-      >
-        Gradient Accumulation Steps
-      </label>
+      <div className="flex items-center gap-1">
+        <label
+          htmlFor="gradient-accumulation"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          Gradient Accumulation Steps
+        </label>
+        <InfoTip text="Accumulate gradients over multiple micro-batches before updating weights. Simulates larger batch sizes without the VRAM cost." />
+      </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
