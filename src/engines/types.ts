@@ -371,3 +371,23 @@ export interface LoRAVRAMBreakdown extends TrainingVRAMBreakdown {
   /** Adapter parameter count in billions */
   adapterParameters: Decimal
 }
+
+/**
+ * Training memory optimization configuration
+ *
+ * Optional parameters for memory optimization techniques that reduce
+ * activation memory during training at the cost of additional compute.
+ *
+ * - gradientCheckpointing: Recompute activations during backward pass (60% memory reduction)
+ * - flashAttention: Fused attention kernel (15-70% reduction based on sequence length)
+ *
+ * Both techniques can be combined for multiplicative savings.
+ *
+ * Reference: .planning/phases/08-memory-optimization-features/08-RESEARCH.md
+ */
+export interface TrainingOptimizationConfig {
+  /** Enable gradient checkpointing (activation checkpointing) */
+  gradientCheckpointing?: boolean
+  /** Enable Flash Attention memory-efficient attention */
+  flashAttention?: boolean
+}

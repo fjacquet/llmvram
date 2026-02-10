@@ -311,3 +311,48 @@ export const WEIGHT_BYTES: Record<TrainingPrecision, Decimal> = {
  * For LoRA: Only applies to trainable adapter parameters, not frozen base.
  */
 export const MASTER_WEIGHT_BYTES = new Decimal(4)
+
+/**
+ * Gradient checkpointing activation retention factor (40%)
+ *
+ * Gradient checkpointing (activation checkpointing) trades compute for memory
+ * by storing only a subset of activations during forward pass and recomputing
+ * the rest during backward pass. This typically retains 40% of activation memory
+ * (60% reduction) with ~20-30% compute overhead.
+ *
+ * Formula: optimized_activations = base_activations * 0.4
+ *
+ * Reference: .planning/phases/08-memory-optimization-features/08-RESEARCH.md
+ */
+export const CHECKPOINTING_RETENTION_FACTOR = new Decimal(0.4)
+
+/**
+ * Flash Attention retention factors by sequence length
+ *
+ * Flash Attention reduces memory by fusing attention operations and avoiding
+ * materialization of large QK^T attention matrices. Memory savings scale with
+ * sequence length due to quadratic attention memory O(N^2).
+ *
+ * Retention factors (fraction of activation memory kept):
+ * - Short (<2048 tokens): 0.85 (15% reduction) - minimal benefit
+ * - Medium (2048-8191 tokens): 0.5 (50% reduction) - moderate benefit
+ * - Long (>=8192 tokens): 0.3 (70% reduction) - large benefit
+ *
+ * Formula: optimized_activations = base_activations * retention_factor
+ *
+ * Reference: .planning/phases/08-memory-optimization-features/08-RESEARCH.md
+ */
+export const FLASH_ATTENTION_SHORT_RETENTION = new Decimal(0.85)
+export const FLASH_ATTENTION_MEDIUM_RETENTION = new Decimal(0.5)
+export const FLASH_ATTENTION_LONG_RETENTION = new Decimal(0.3)
+
+/**
+ * Flash Attention sequence length thresholds
+ *
+ * Thresholds for determining Flash Attention retention factor:
+ * - < 2048: Short sequence (minimal benefit)
+ * - 2048-8191: Medium sequence (moderate benefit)
+ * - >= 8192: Long sequence (large benefit)
+ */
+export const FLASH_ATTENTION_SHORT_THRESHOLD = 2048
+export const FLASH_ATTENTION_LONG_THRESHOLD = 8192
