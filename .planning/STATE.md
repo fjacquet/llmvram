@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 ## Current Position
 
 Phase: 6 of 10 (Fine-Tuning Calculation Engines)
-Plan: 1 of 3 complete
+Plan: 2 of 3 complete
 Status: In progress
-Last activity: 2026-02-10 — Completed 06-01-PLAN.md (Training Foundation)
+Last activity: 2026-02-10 — Completed 06-02-PLAN.md (Full Fine-Tuning Engine)
 
-Progress: [█████████░] 90% (19/21 plans complete: v1.0 18/18, v1.1 1/3)
+Progress: [█████████░] 95% (20/21 plans complete: v1.0 18/18, v1.1 2/3)
 
 ## Performance Metrics
 
@@ -34,19 +34,19 @@ Progress: [█████████░] 90% (19/21 plans complete: v1.0 18/18
 | 5. Sharing & Comparison | 3 | ~2.25h | ~45min |
 
 **Velocity (v1.1 in progress):**
-- Total plans completed: 1
-- Average duration: 2 min
-- Total execution time: 2 min
+- Total plans completed: 2
+- Average duration: ~2.5 min
+- Total execution time: ~5 min
 
 **By Phase (v1.1):**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 6. Fine-Tuning Engines | 1/3 | 2min | 2min |
+| 6. Fine-Tuning Engines | 2/3 | ~5min | ~2.5min |
 
 **Recent Trend:**
-- v1.1 Phase 6: Fast start (type/schema foundation: 2min)
-- Next plans will be calculation engines (likely longer)
+- v1.1 Phase 6: Rapid TDD execution (foundation: 2min, full fine-tuning engine: 2.7min)
+- Both plans completed with clean test coverage and no deviations
 
 ## Accumulated Context
 
@@ -74,6 +74,9 @@ Recent decisions affecting current work:
 - DeepSpeed ZeRO stage memory: 2x/4x/8x savings — not simple divide-by-N
 - Training framework overhead is 1.5GB (higher than inference 1.0GB) due to autograd + optimizer buffers (06-01)
 - Standard transformer has 7 targetable modules per layer for LoRA (4 attention + 3 MLP) (06-01)
+- Training activations fundamentally different from inference — O(N^2) attention matrices vs O(N) KV cache (06-02)
+- Mixed precision (FP16/BF16) requires FP32 master weights; pure FP32 training does not (06-02)
+- MoE models scale activations by active parameter ratio (20% shared + 80% expert * active_ratio) (06-02)
 
 ### Pending Todos
 
@@ -86,6 +89,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed 06-01-PLAN.md (Training Foundation: types, constants, schemas)
-Resume file: .planning/phases/06-fine-tuning-calculation-engines/06-01-SUMMARY.md
-Next action: Execute 06-02-PLAN.md (Full Fine-Tuning Engine) or create it if not yet planned
+Stopped at: Completed 06-02-PLAN.md (Full Fine-Tuning Engine: calculateOptimizerStateMemory, calculateTrainingActivationMemory, calculateFullFineTuningVRAM)
+Resume file: .planning/phases/06-fine-tuning-calculation-engines/06-02-SUMMARY.md
+Next action: Execute 06-03-PLAN.md (LoRA/QLoRA Engine) or create it if not yet planned
