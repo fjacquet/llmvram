@@ -391,3 +391,42 @@ export interface TrainingOptimizationConfig {
   /** Enable Flash Attention memory-efficient attention */
   flashAttention?: boolean
 }
+
+/**
+ * DeepSpeed ZeRO memory calculation result
+ *
+ * Shows per-GPU memory breakdown after applying ZeRO partitioning,
+ * with reduction factor showing total memory savings vs single-GPU baseline.
+ *
+ * CRITICAL: ZeRO stages partition different components:
+ * - ZeRO-1: Only optimizer states partitioned (2x reduction)
+ * - ZeRO-2: Optimizer states + gradients partitioned (4x reduction)
+ * - ZeRO-3: All training state partitioned (8x reduction with gather overhead)
+ *
+ * Reference: .planning/phases/10-framework-presets-multi-gpu-training/10-RESEARCH.md
+ */
+export interface ZeROResult {
+  /** Per-GPU memory breakdown after ZeRO partitioning */
+  perGPU: {
+    /** Model weights (replicated for ZeRO-1/2, partitioned for ZeRO-3) */
+    modelWeights: Decimal
+    /** FP32 master weights (replicated for ZeRO-1/2, partitioned for ZeRO-3) */
+    masterWeights: Decimal
+    /** Gradients (replicated for ZeRO-1, partitioned for ZeRO-2/3) */
+    gradients: Decimal
+    /** Optimizer states (partitioned for all ZeRO stages) */
+    optimizerStates: Decimal
+    /** Activations (always partitioned) */
+    activations: Decimal
+    /** Framework overhead (15% extra for ZeRO-3 parameter gather) */
+    frameworkOverhead: Decimal
+    /** Total memory per GPU */
+    total: Decimal
+  }
+  /** Memory reduction factor (singleGPU.total / perGPU.total) */
+  reductionFactor: Decimal
+  /** Number of GPUs in configuration */
+  numGPUs: number
+  /** ZeRO stage applied */
+  zeroStage: import('./frameworks').ZeROStage
+}
