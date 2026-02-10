@@ -87,30 +87,31 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FTCORE-01 | — | Pending |
-| FTCORE-02 | — | Pending |
-| FTCORE-03 | — | Pending |
-| FTCORE-04 | — | Pending |
-| FTCORE-05 | — | Pending |
-| FTCORE-06 | — | Pending |
-| FTCORE-07 | — | Pending |
-| OPTIM-01 | — | Pending |
-| OPTIM-02 | — | Pending |
-| OPTIM-03 | — | Pending |
-| OPTIM-04 | — | Pending |
-| FWPRST-01 | — | Pending |
-| FWPRST-02 | — | Pending |
-| FWPRST-03 | — | Pending |
-| FWPRST-04 | — | Pending |
-| MGPUTR-01 | — | Pending |
-| MGPUTR-02 | — | Pending |
-| MGPUTR-03 | — | Pending |
+| FTCORE-01 | Phase 7 | Pending |
+| FTCORE-02 | Phase 6 | Pending |
+| FTCORE-03 | Phase 6 | Pending |
+| FTCORE-04 | Phase 9 | Pending |
+| FTCORE-05 | Phase 6 | Pending |
+| FTCORE-06 | Phase 6 | Pending |
+| FTCORE-07 | Phase 7 | Pending |
+| OPTIM-01 | Phase 8 | Pending |
+| OPTIM-02 | Phase 8 | Pending |
+| OPTIM-03 | Phase 8 | Pending |
+| OPTIM-04 | Phase 8 | Pending |
+| FWPRST-01 | Phase 10 | Pending |
+| FWPRST-02 | Phase 10 | Pending |
+| FWPRST-03 | Phase 10 | Pending |
+| FWPRST-04 | Phase 10 | Pending |
+| MGPUTR-01 | Phase 10 | Pending |
+| MGPUTR-02 | Phase 10 | Pending |
+| MGPUTR-03 | Phase 10 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 18 total
-- Mapped to phases: 0
-- Unmapped: 18
+- Mapped to phases: 18
+- Unmapped: 0
+- Coverage: 100% ✓
 
 ---
 *Requirements defined: 2026-02-09*
-*Last updated: 2026-02-10 after v1.1 milestone requirements*
+*Last updated: 2026-02-10 after v1.1 roadmap creation*
