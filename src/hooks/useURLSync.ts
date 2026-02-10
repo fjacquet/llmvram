@@ -1,9 +1,12 @@
 import type {
+  FineTuningMethod,
   KVCachePrecision,
   OffloadMode,
   OffloadTarget,
+  OptimizerType,
   QuantizationFormat,
   ShardingStrategy,
+  TrainingPrecision,
 } from '@engines/types'
 import { findGPUById, findModelById, useUIStore } from '@store/uiStore'
 import { deserializeFromURL, serializeToURL } from '@store/urlSerializer'
@@ -116,6 +119,17 @@ export function useURLSync() {
       if (urlState.op !== undefined) store.setOffloadPercentage(urlState.op)
       if (urlState.ol !== undefined) store.setOffloadLayers(urlState.ol)
       if (urlState.ko !== undefined) store.setKVCacheOffload(urlState.ko)
+    }
+
+    // Restore training mode and parameters
+    if (urlState.m === 'training') {
+      store.setMode('training')
+      if (urlState.tm) store.setTrainingMethod(urlState.tm as FineTuningMethod)
+      if (urlState.to) store.setOptimizer(urlState.to as OptimizerType)
+      if (urlState.tp) store.setTrainingPrecision(urlState.tp as TrainingPrecision)
+      if (urlState.lr !== undefined) store.setLoraRank(urlState.lr)
+      if (urlState.la !== undefined) store.setLoraAlpha(urlState.la)
+      if (urlState.tmp !== undefined) store.setTargetModulesPercent(urlState.tmp)
     }
   }, []) // Empty deps - only run on mount
 

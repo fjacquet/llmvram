@@ -1,9 +1,12 @@
 import type {
+  FineTuningMethod,
   KVCachePrecision,
   OffloadMode,
   OffloadTarget,
+  OptimizerType,
   QuantizationFormat,
   ShardingStrategy,
+  TrainingPrecision,
 } from '@engines/types'
 import type { GPU, Model } from '@utils/schemas'
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
@@ -51,6 +54,15 @@ export const URLStateSchema = z.object({
   op: z.number().optional(), // offloadPercentage
   ol: z.number().optional(), // offloadLayers
   ko: z.boolean().optional(), // kvCacheOffload
+  // Mode (only present if training; absence = inference for backward compat)
+  m: z.enum(['inference', 'training']).optional(),
+  // Training parameters (only present when mode=training)
+  tm: z.enum(['full', 'lora', 'qlora']).optional(), // trainingMethod
+  to: z.enum(['adamw', 'sgd-momentum', 'adamw-8bit', 'adafactor']).optional(), // optimizer
+  tp: z.enum(['fp32', 'fp16', 'bf16']).optional(), // trainingPrecision
+  lr: z.number().optional(), // loraRank
+  la: z.number().optional(), // loraAlpha
+  tmp: z.number().optional(), // targetModulesPercent
 })
 
 export type URLState = z.infer<typeof URLStateSchema>
@@ -80,6 +92,13 @@ export function serializeToURL(state: {
   offloadPercentage: number
   offloadLayers: number
   kvCacheOffload: boolean
+  mode: 'inference' | 'training'
+  trainingMethod: FineTuningMethod
+  optimizer: OptimizerType
+  trainingPrecision: TrainingPrecision
+  loraRank: number
+  loraAlpha: number
+  targetModulesPercent: number
 }): string {
   const urlState: URLState = {
     // Model serialization
@@ -130,6 +149,19 @@ export function serializeToURL(state: {
           op: state.offloadPercentage,
           ol: state.offloadLayers,
           ko: state.kvCacheOffload,
+        }
+      : {}),
+
+    // Training state (only if mode is training)
+    ...(state.mode === 'training'
+      ? {
+          m: state.mode,
+          tm: state.trainingMethod,
+          to: state.optimizer,
+          tp: state.trainingPrecision,
+          lr: state.loraRank,
+          la: state.loraAlpha,
+          tmp: state.targetModulesPercent,
         }
       : {}),
   }

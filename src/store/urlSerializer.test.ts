@@ -52,6 +52,13 @@ describe('URL Serializer', () => {
         offloadPercentage: 0,
         offloadLayers: 0,
         kvCacheOffload: false,
+        mode: 'inference' as const,
+        trainingMethod: 'lora' as const,
+        optimizer: 'adamw' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 16,
+        loraAlpha: 32,
+        targetModulesPercent: 30,
       }
 
       const serialized = serializeToURL(state)
@@ -69,6 +76,7 @@ describe('URL Serializer', () => {
       expect(deserialized?.ng).toBe(2)
       expect(deserialized?.ss).toBe('tensor-parallel')
       expect(deserialized?.oe).toBeUndefined() // offloading disabled
+      expect(deserialized?.m).toBeUndefined() // inference mode - not serialized
     })
 
     it('should round-trip custom model', () => {
@@ -108,6 +116,13 @@ describe('URL Serializer', () => {
         offloadPercentage: 0,
         offloadLayers: 0,
         kvCacheOffload: false,
+        mode: 'inference' as const,
+        trainingMethod: 'lora' as const,
+        optimizer: 'adamw' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 16,
+        loraAlpha: 32,
+        targetModulesPercent: 30,
       }
 
       const serialized = serializeToURL(state)
@@ -152,6 +167,13 @@ describe('URL Serializer', () => {
         offloadPercentage: 0,
         offloadLayers: 0,
         kvCacheOffload: false,
+        mode: 'inference' as const,
+        trainingMethod: 'lora' as const,
+        optimizer: 'adamw' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 16,
+        loraAlpha: 32,
+        targetModulesPercent: 30,
       }
 
       const serialized = serializeToURL(state)
@@ -182,6 +204,13 @@ describe('URL Serializer', () => {
         offloadPercentage: 50,
         offloadLayers: 20,
         kvCacheOffload: true,
+        mode: 'inference' as const,
+        trainingMethod: 'lora' as const,
+        optimizer: 'adamw' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 16,
+        loraAlpha: 32,
+        targetModulesPercent: 30,
       }
 
       const serialized = serializeToURL(state)
@@ -194,6 +223,143 @@ describe('URL Serializer', () => {
       expect(deserialized?.op).toBe(50)
       expect(deserialized?.ol).toBe(20)
       expect(deserialized?.ko).toBe(true)
+    })
+
+    it('should NOT serialize training fields when mode is inference', () => {
+      const state = {
+        selectedModel: null,
+        selectedGPU: null,
+        quantization: 'fp16' as const,
+        sequenceLength: 2048,
+        batchSize: 1,
+        kvQuantization: 'fp16' as const,
+        numGPUs: 1,
+        shardingStrategy: 'tensor-parallel' as const,
+        offloadingEnabled: false,
+        offloadTarget: 'cpu-ram' as const,
+        offloadMode: 'percentage' as const,
+        offloadPercentage: 0,
+        offloadLayers: 0,
+        kvCacheOffload: false,
+        mode: 'inference' as const,
+        trainingMethod: 'lora' as const,
+        optimizer: 'adamw' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 16,
+        loraAlpha: 32,
+        targetModulesPercent: 30,
+      }
+
+      const serialized = serializeToURL(state)
+      const deserialized = deserializeFromURL(serialized)
+
+      expect(deserialized).not.toBeNull()
+      // Training fields should NOT be in URL
+      expect(deserialized?.m).toBeUndefined()
+      expect(deserialized?.tm).toBeUndefined()
+      expect(deserialized?.to).toBeUndefined()
+      expect(deserialized?.tp).toBeUndefined()
+      expect(deserialized?.lr).toBeUndefined()
+      expect(deserialized?.la).toBeUndefined()
+      expect(deserialized?.tmp).toBeUndefined()
+    })
+
+    it('should serialize training fields when mode is training', () => {
+      const state = {
+        selectedModel: null,
+        selectedGPU: null,
+        quantization: 'fp16' as const,
+        sequenceLength: 2048,
+        batchSize: 1,
+        kvQuantization: 'fp16' as const,
+        numGPUs: 1,
+        shardingStrategy: 'tensor-parallel' as const,
+        offloadingEnabled: false,
+        offloadTarget: 'cpu-ram' as const,
+        offloadMode: 'percentage' as const,
+        offloadPercentage: 0,
+        offloadLayers: 0,
+        kvCacheOffload: false,
+        mode: 'training' as const,
+        trainingMethod: 'qlora' as const,
+        optimizer: 'sgd-momentum' as const,
+        trainingPrecision: 'fp16' as const,
+        loraRank: 32,
+        loraAlpha: 64,
+        targetModulesPercent: 50,
+      }
+
+      const serialized = serializeToURL(state)
+      const deserialized = deserializeFromURL(serialized)
+
+      expect(deserialized).not.toBeNull()
+      // Training fields SHOULD be in URL
+      expect(deserialized?.m).toBe('training')
+      expect(deserialized?.tm).toBe('qlora')
+      expect(deserialized?.to).toBe('sgd-momentum')
+      expect(deserialized?.tp).toBe('fp16')
+      expect(deserialized?.lr).toBe(32)
+      expect(deserialized?.la).toBe(64)
+      expect(deserialized?.tmp).toBe(50)
+    })
+
+    it('should round-trip training configuration', () => {
+      const state = {
+        selectedModel: {
+          id: 'meta-llama-llama-3-70b',
+          name: 'Llama 3 70B',
+          architecture: 'dense' as const,
+          num_parameters_billion: 70,
+          hidden_size: 8192,
+          num_hidden_layers: 80,
+          num_attention_heads: 64,
+          num_kv_heads: 8,
+          intermediate_size: 28672,
+        },
+        selectedGPU: {
+          id: 'nvidia-h100-80gb-sxm',
+          name: 'NVIDIA H100 80GB SXM',
+          manufacturer: 'nvidia' as const,
+          vram_gb: 80,
+          memory_bandwidth_gbps: 3352,
+          memory_type: 'HBM3',
+          bus_width: 5120,
+          fp16_tflops: 1979,
+          tier: 'datacenter' as const,
+          interconnect: 'nvlink-4' as const,
+        },
+        quantization: 'bf16' as const,
+        sequenceLength: 2048,
+        batchSize: 4,
+        kvQuantization: 'fp16' as const,
+        numGPUs: 1,
+        shardingStrategy: 'tensor-parallel' as const,
+        offloadingEnabled: false,
+        offloadTarget: 'cpu-ram' as const,
+        offloadMode: 'percentage' as const,
+        offloadPercentage: 0,
+        offloadLayers: 0,
+        kvCacheOffload: false,
+        mode: 'training' as const,
+        trainingMethod: 'lora' as const,
+        optimizer: 'adamw-8bit' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 8,
+        loraAlpha: 16,
+        targetModulesPercent: 25,
+      }
+
+      const serialized = serializeToURL(state)
+      const deserialized = deserializeFromURL(serialized)
+
+      expect(deserialized).not.toBeNull()
+      expect(deserialized?.m).toBe('training')
+      expect(deserialized?.tm).toBe('lora')
+      expect(deserialized?.to).toBe('adamw-8bit')
+      expect(deserialized?.tp).toBe('bf16')
+      expect(deserialized?.lr).toBe(8)
+      expect(deserialized?.la).toBe(16)
+      expect(deserialized?.tmp).toBe(25)
     })
   })
 
@@ -279,6 +445,13 @@ describe('URL Serializer', () => {
         offloadPercentage: 0,
         offloadLayers: 0,
         kvCacheOffload: false,
+        mode: 'inference' as const,
+        trainingMethod: 'lora' as const,
+        optimizer: 'adamw' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 16,
+        loraAlpha: 32,
+        targetModulesPercent: 30,
       }
 
       const serialized = serializeToURL(state)
@@ -326,6 +499,13 @@ describe('URL Serializer', () => {
         offloadPercentage: 0,
         offloadLayers: 0,
         kvCacheOffload: false,
+        mode: 'inference' as const,
+        trainingMethod: 'lora' as const,
+        optimizer: 'adamw' as const,
+        trainingPrecision: 'bf16' as const,
+        loraRank: 16,
+        loraAlpha: 32,
+        targetModulesPercent: 30,
       }
 
       const serialized = serializeToURL(state)
