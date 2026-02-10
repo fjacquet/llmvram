@@ -1,12 +1,12 @@
-import { describe, expect, it } from 'vitest'
-import Decimal from 'decimal.js'
 import type { Model } from '@utils/schemas'
+import Decimal from 'decimal.js'
+import { describe, expect, it } from 'vitest'
+import { BYTES_PER_GB, TRAINING_FRAMEWORK_OVERHEAD_GB } from './constants'
 import {
+  calculateFullFineTuningVRAM,
   calculateOptimizerStateMemory,
   calculateTrainingActivationMemory,
-  calculateFullFineTuningVRAM,
 } from './training'
-import { BYTES_PER_GB, TRAINING_FRAMEWORK_OVERHEAD_GB } from './constants'
 
 describe('calculateOptimizerStateMemory', () => {
   it('calculates correct memory for AdamW optimizer', () => {
@@ -72,13 +72,7 @@ describe('calculateTrainingActivationMemory', () => {
     // Formula: batch * seq * hidden * layers * 10 * 2 / 1024^3
     // 1 * 2048 * 4096 * 32 * 10 * 2 / 1024^3 = ~5.0 GB
     const result = calculateTrainingActivationMemory(model7B, 1, 2048)
-    const expected = new Decimal(1)
-      .mul(2048)
-      .mul(4096)
-      .mul(32)
-      .mul(10)
-      .mul(2)
-      .div(BYTES_PER_GB)
+    const expected = new Decimal(1).mul(2048).mul(4096).mul(32).mul(10).mul(2).div(BYTES_PER_GB)
     expect(result.toNumber()).toBeCloseTo(expected.toNumber(), 1)
   })
 
