@@ -173,6 +173,66 @@ describe('calculateLoRAFineTuningVRAM', () => {
     expect(breakdown.optimizerStates.toNumber()).toBeCloseTo(0.125, 2)
     expect(breakdown.optimizerStates.toNumber()).toBeLessThan(1) // Much less than full model
   })
+
+  it('reduces activation memory with gradient checkpointing', () => {
+    const baseline = calculateLoRAFineTuningVRAM({
+      model: llama7b,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 2048,
+      loraRank: 16,
+      targetModulesPercent: 50,
+    })
+
+    const optimized = calculateLoRAFineTuningVRAM({
+      model: llama7b,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 2048,
+      loraRank: 16,
+      targetModulesPercent: 50,
+      gradientCheckpointing: true,
+    })
+
+    // Activations should be reduced by 60% (retain 40%)
+    expect(optimized.activations.toNumber()).toBeCloseTo(
+      baseline.activations.mul(0.4).toNumber(),
+      2,
+    )
+    expect(optimized.total.toNumber()).toBeLessThan(baseline.total.toNumber())
+  })
+
+  it('reduces activation memory with flash attention', () => {
+    const baseline = calculateLoRAFineTuningVRAM({
+      model: llama7b,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 4096,
+      loraRank: 16,
+      targetModulesPercent: 50,
+    })
+
+    const optimized = calculateLoRAFineTuningVRAM({
+      model: llama7b,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 4096,
+      loraRank: 16,
+      targetModulesPercent: 50,
+      flashAttention: true,
+    })
+
+    // Activations should be reduced by 50% at 4096 seq (medium)
+    expect(optimized.activations.toNumber()).toBeCloseTo(
+      baseline.activations.mul(0.5).toNumber(),
+      2,
+    )
+    expect(optimized.total.toNumber()).toBeLessThan(baseline.total.toNumber())
+  })
 })
 
 describe('calculateQLoRAFineTuningVRAM', () => {
@@ -264,5 +324,90 @@ describe('calculateQLoRAFineTuningVRAM', () => {
     // ~16.8M params * 2 bytes = ~0.031 GB
     expect(breakdown.gradients.toNumber()).toBeCloseTo(0.031, 2)
     expect(breakdown.gradients.toNumber()).toBeLessThan(1) // Much less than full model
+  })
+
+  it('reduces activation memory with gradient checkpointing', () => {
+    const baseline = calculateQLoRAFineTuningVRAM({
+      model: llama7b,
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 2048,
+      loraRank: 16,
+      targetModulesPercent: 50,
+    })
+
+    const optimized = calculateQLoRAFineTuningVRAM({
+      model: llama7b,
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 2048,
+      loraRank: 16,
+      targetModulesPercent: 50,
+      gradientCheckpointing: true,
+    })
+
+    // Activations should be reduced by 60% (retain 40%)
+    expect(optimized.activations.toNumber()).toBeCloseTo(
+      baseline.activations.mul(0.4).toNumber(),
+      2,
+    )
+    expect(optimized.total.toNumber()).toBeLessThan(baseline.total.toNumber())
+  })
+
+  it('reduces activation memory with flash attention', () => {
+    const baseline = calculateQLoRAFineTuningVRAM({
+      model: llama7b,
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 4096,
+      loraRank: 16,
+      targetModulesPercent: 50,
+    })
+
+    const optimized = calculateQLoRAFineTuningVRAM({
+      model: llama7b,
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 4096,
+      loraRank: 16,
+      targetModulesPercent: 50,
+      flashAttention: true,
+    })
+
+    // Activations should be reduced by 50% at 4096 seq (medium)
+    expect(optimized.activations.toNumber()).toBeCloseTo(
+      baseline.activations.mul(0.5).toNumber(),
+      2,
+    )
+    expect(optimized.total.toNumber()).toBeLessThan(baseline.total.toNumber())
+  })
+
+  it('stacks optimizations multiplicatively', () => {
+    const baseline = calculateQLoRAFineTuningVRAM({
+      model: llama7b,
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 4096,
+      loraRank: 16,
+      targetModulesPercent: 50,
+    })
+
+    const optimized = calculateQLoRAFineTuningVRAM({
+      model: llama7b,
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 4096,
+      loraRank: 16,
+      targetModulesPercent: 50,
+      gradientCheckpointing: true,
+      flashAttention: true,
+    })
+
+    // Activations should be reduced by checkpointing (0.4) * flash (0.5) = 0.2
+    expect(optimized.activations.toNumber()).toBeCloseTo(
+      baseline.activations.mul(0.4).mul(0.5).toNumber(),
+      2,
+    )
+    expect(optimized.total.toNumber()).toBeLessThan(baseline.total.toNumber())
   })
 })

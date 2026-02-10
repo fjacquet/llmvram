@@ -27,6 +27,13 @@ export {
   calculateQLoRAFineTuningVRAM,
 } from './lora'
 
+// Optimization engine
+export {
+  applyFlashAttention,
+  applyGradientCheckpointing,
+  calculateEffectiveBatchSize,
+} from './optimizations'
+
 // Performance engine
 export { estimatePerformance } from './performance'
 
@@ -50,6 +57,7 @@ export type {
   OptimizerType,
   PerformanceEstimate,
   QuantizationFormat,
+  TrainingOptimizationConfig,
   TrainingPrecision,
   TrainingVRAMBreakdown,
 } from './types'

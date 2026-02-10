@@ -259,4 +259,113 @@ describe('calculateFullFineTuningVRAM', () => {
     expect(result).toHaveProperty('totalParameters')
     expect(result).toHaveProperty('method')
   })
+
+  it('reduces activation memory with gradient checkpointing', () => {
+    const baseline = calculateFullFineTuningVRAM({
+      model: model7B,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 2048,
+    })
+
+    const optimized = calculateFullFineTuningVRAM({
+      model: model7B,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 2048,
+      gradientCheckpointing: true,
+    })
+
+    // Activations should be reduced by 60% (retain 40%)
+    expect(optimized.activations.toNumber()).toBeCloseTo(
+      baseline.activations.mul(0.4).toNumber(),
+      2,
+    )
+    // Total should be lower due to reduced activations
+    expect(optimized.total.toNumber()).toBeLessThan(baseline.total.toNumber())
+  })
+
+  it('reduces activation memory with flash attention (medium seq)', () => {
+    const baseline = calculateFullFineTuningVRAM({
+      model: model7B,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 4096,
+    })
+
+    const optimized = calculateFullFineTuningVRAM({
+      model: model7B,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 4096,
+      flashAttention: true,
+    })
+
+    // Activations should be reduced by 50% at 4096 seq (medium)
+    expect(optimized.activations.toNumber()).toBeCloseTo(
+      baseline.activations.mul(0.5).toNumber(),
+      2,
+    )
+    // Total should be lower due to reduced activations
+    expect(optimized.total.toNumber()).toBeLessThan(baseline.total.toNumber())
+  })
+
+  it('stacks gradient checkpointing and flash attention multiplicatively', () => {
+    const baseline = calculateFullFineTuningVRAM({
+      model: model7B,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 4096,
+    })
+
+    const optimized = calculateFullFineTuningVRAM({
+      model: model7B,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 4096,
+      gradientCheckpointing: true,
+      flashAttention: true,
+    })
+
+    // Activations should be reduced by checkpointing (0.4) * flash (0.5) = 0.2 (80% reduction)
+    expect(optimized.activations.toNumber()).toBeCloseTo(
+      baseline.activations.mul(0.4).mul(0.5).toNumber(),
+      2,
+    )
+    // Total should be significantly lower
+    expect(optimized.total.toNumber()).toBeLessThan(baseline.total.toNumber())
+  })
+
+  it('maintains backward compatibility when optimization params omitted', () => {
+    const withoutParams = calculateFullFineTuningVRAM({
+      model: model7B,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 2048,
+    })
+
+    const withFalseParams = calculateFullFineTuningVRAM({
+      model: model7B,
+      trainingPrecision: 'bf16',
+      optimizer: 'adamw',
+      batchSize: 1,
+      sequenceLength: 2048,
+      gradientCheckpointing: false,
+      flashAttention: false,
+    })
+
+    // Both should produce identical results
+    expect(withoutParams.activations.toNumber()).toBeCloseTo(
+      withFalseParams.activations.toNumber(),
+      2,
+    )
+    expect(withoutParams.total.toNumber()).toBeCloseTo(withFalseParams.total.toNumber(), 2)
+  })
 })

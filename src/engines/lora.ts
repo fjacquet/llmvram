@@ -7,6 +7,7 @@ import {
   TOTAL_TARGETABLE_MODULES_PER_LAYER,
   TRAINING_FRAMEWORK_OVERHEAD_GB,
 } from './constants'
+import { applyFlashAttention, applyGradientCheckpointing } from './optimizations'
 import { calculateModelWeightVRAM } from './quantization'
 import { calculateOptimizerStateMemory, calculateTrainingActivationMemory } from './training'
 import type { LoRAVRAMBreakdown, OptimizerType, TrainingPrecision } from './types'
@@ -76,11 +77,15 @@ export function calculateLoRAAdapterParams(params: {
  * 3. FP32 master weights for adapters (mixed precision only)
  * 4. Gradients for adapters (same precision as training)
  * 5. Optimizer states for adapters (always FP32)
- * 6. Training activations (batch-dependent)
+ * 6. Training activations (batch-dependent, can be optimized)
  * 7. Framework overhead (PyTorch + CUDA + autograd)
  *
  * CRITICAL: This is NOT "full fine-tuning divided by N". Optimizer states
  * apply only to adapters, not the frozen 7B base model.
+ *
+ * Optional memory optimizations (applied to activations):
+ * - gradientCheckpointing: Reduces activation memory by 60%
+ * - flashAttention: Reduces activation memory by 15-70% (depends on sequence length)
  *
  * @param params - LoRA training configuration
  * @returns Complete VRAM breakdown with LoRA-specific fields
@@ -114,6 +119,8 @@ export function calculateLoRAFineTuningVRAM(params: {
   sequenceLength: number
   loraRank: number
   targetModulesPercent: number
+  gradientCheckpointing?: boolean
+  flashAttention?: boolean
 }): LoRAVRAMBreakdown {
   const {
     model,
@@ -123,6 +130,8 @@ export function calculateLoRAFineTuningVRAM(params: {
     sequenceLength,
     loraRank,
     targetModulesPercent,
+    gradientCheckpointing,
+    flashAttention,
   } = params
 
   // 1. Calculate adapter parameter count
@@ -156,8 +165,16 @@ export function calculateLoRAFineTuningVRAM(params: {
   // 6. Optimizer states (ONLY for adapters, always FP32)
   const optimizerStates = calculateOptimizerStateMemory(adapterParamsBillion.toNumber(), optimizer)
 
-  // 7. Training activations (batch-dependent)
-  const activations = calculateTrainingActivationMemory(model, batchSize, sequenceLength)
+  // 7. Training activations (batch-dependent, with optional optimizations)
+  let activations = calculateTrainingActivationMemory(model, batchSize, sequenceLength)
+
+  // Apply memory optimizations to activations (multiplicative stacking)
+  if (gradientCheckpointing) {
+    activations = applyGradientCheckpointing(activations, true)
+  }
+  if (flashAttention) {
+    activations = applyFlashAttention(activations, sequenceLength, true)
+  }
 
   // 8. Framework overhead
   const frameworkOverhead = TRAINING_FRAMEWORK_OVERHEAD_GB
@@ -208,6 +225,10 @@ export function calculateLoRAFineTuningVRAM(params: {
  * This enables fine-tuning 7B models on consumer GPUs (12GB VRAM) and
  * 70B models on single A100 (80GB VRAM).
  *
+ * Optional memory optimizations (applied to activations):
+ * - gradientCheckpointing: Reduces activation memory by 60%
+ * - flashAttention: Reduces activation memory by 15-70% (depends on sequence length)
+ *
  * @param params - QLoRA training configuration
  * @returns Complete VRAM breakdown with QLoRA-specific precision architecture
  *
@@ -238,8 +259,19 @@ export function calculateQLoRAFineTuningVRAM(params: {
   sequenceLength: number
   loraRank: number
   targetModulesPercent: number
+  gradientCheckpointing?: boolean
+  flashAttention?: boolean
 }): LoRAVRAMBreakdown {
-  const { model, optimizer, batchSize, sequenceLength, loraRank, targetModulesPercent } = params
+  const {
+    model,
+    optimizer,
+    batchSize,
+    sequenceLength,
+    loraRank,
+    targetModulesPercent,
+    gradientCheckpointing,
+    flashAttention,
+  } = params
 
   // 1. Calculate adapter parameter count
   const adapterParameters = calculateLoRAAdapterParams({
@@ -266,8 +298,16 @@ export function calculateQLoRAFineTuningVRAM(params: {
   // 6. Optimizer states (ONLY for adapters, always FP32)
   const optimizerStates = calculateOptimizerStateMemory(adapterParamsBillion.toNumber(), optimizer)
 
-  // 7. Training activations (batch-dependent)
-  const activations = calculateTrainingActivationMemory(model, batchSize, sequenceLength)
+  // 7. Training activations (batch-dependent, with optional optimizations)
+  let activations = calculateTrainingActivationMemory(model, batchSize, sequenceLength)
+
+  // Apply memory optimizations to activations (multiplicative stacking)
+  if (gradientCheckpointing) {
+    activations = applyGradientCheckpointing(activations, true)
+  }
+  if (flashAttention) {
+    activations = applyFlashAttention(activations, sequenceLength, true)
+  }
 
   // 8. Framework overhead
   const frameworkOverhead = TRAINING_FRAMEWORK_OVERHEAD_GB

@@ -1,4 +1,4 @@
-import Decimal from 'decimal.js'
+import type Decimal from 'decimal.js'
 import {
   CHECKPOINTING_RETENTION_FACTOR,
   FLASH_ATTENTION_LONG_RETENTION,
@@ -68,10 +68,7 @@ export function calculateEffectiveBatchSize(
  *
  * Reference: .planning/phases/08-memory-optimization-features/08-RESEARCH.md
  */
-export function applyGradientCheckpointing(
-  activationMemoryGB: Decimal,
-  enabled: boolean,
-): Decimal {
+export function applyGradientCheckpointing(activationMemoryGB: Decimal, enabled: boolean): Decimal {
   if (!enabled) {
     return activationMemoryGB
   }

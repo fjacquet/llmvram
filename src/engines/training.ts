@@ -8,6 +8,7 @@ import {
   TRAINING_FRAMEWORK_OVERHEAD_GB,
   WEIGHT_BYTES,
 } from './constants'
+import { applyFlashAttention, applyGradientCheckpointing } from './optimizations'
 import type { OptimizerType, TrainingPrecision, TrainingVRAMBreakdown } from './types'
 
 /**
@@ -127,7 +128,7 @@ export function calculateTrainingActivationMemory(
  * 2. FP32 master weights (for mixed precision only)
  * 3. Gradients at training precision
  * 4. Optimizer states (always FP32)
- * 5. Training activations (batch-dependent)
+ * 5. Training activations (batch-dependent, can be optimized)
  * 6. Framework overhead (PyTorch + CUDA + autograd)
  *
  * Memory formula:
@@ -136,12 +137,20 @@ export function calculateTrainingActivationMemory(
  * CRITICAL: Mixed precision (FP16/BF16) requires FP32 master weights for numerical
  * stability. Pure FP32 training does NOT need master weights (they ARE the weights).
  *
+ * Optional memory optimizations (applied to activations):
+ * - gradientCheckpointing: Reduces activation memory by 60% (recompute during backward)
+ * - flashAttention: Reduces activation memory by 15-70% (depends on sequence length)
+ *
+ * Optimizations stack multiplicatively when both enabled.
+ *
  * @param params - Training configuration
  * @param params.model - Model to fine-tune
  * @param params.trainingPrecision - Weight precision (fp32/fp16/bf16)
  * @param params.optimizer - Optimizer type
  * @param params.batchSize - Training batch size
  * @param params.sequenceLength - Training sequence length
+ * @param params.gradientCheckpointing - Enable gradient checkpointing (optional)
+ * @param params.flashAttention - Enable Flash Attention (optional)
  * @returns Complete VRAM breakdown with all components in GB
  *
  * @example
@@ -162,15 +171,18 @@ export function calculateTrainingActivationMemory(
  * // breakdown.frameworkOverhead: 1.5 GB
  * // breakdown.total: ~110.81 GB
  *
- * // FP32 training (no master weights)
- * const fp32Breakdown = calculateFullFineTuningVRAM({
+ * // With gradient checkpointing + Flash Attention
+ * const optimizedBreakdown = calculateFullFineTuningVRAM({
  *   model: llama7b,
- *   trainingPrecision: 'fp32',
+ *   trainingPrecision: 'bf16',
  *   optimizer: 'adamw',
  *   batchSize: 1,
  *   sequenceLength: 2048,
+ *   gradientCheckpointing: true,
+ *   flashAttention: true,
  * })
- * // fp32Breakdown.masterWeights: 0 GB (no master copy needed)
+ * // optimizedBreakdown.activations: ~1.0 GB (5.0 * 0.4 * 0.5)
+ * // optimizedBreakdown.total: ~106.81 GB (lower due to reduced activations)
  * ```
  *
  * Reference: .planning/phases/06-fine-tuning-calculation-engines/06-RESEARCH.md
@@ -182,8 +194,18 @@ export function calculateFullFineTuningVRAM(params: {
   optimizer: OptimizerType
   batchSize: number
   sequenceLength: number
+  gradientCheckpointing?: boolean
+  flashAttention?: boolean
 }): TrainingVRAMBreakdown {
-  const { model, trainingPrecision, optimizer, batchSize, sequenceLength } = params
+  const {
+    model,
+    trainingPrecision,
+    optimizer,
+    batchSize,
+    sequenceLength,
+    gradientCheckpointing,
+    flashAttention,
+  } = params
 
   const paramsBillion = model.num_parameters_billion
   const totalParams = new Decimal(paramsBillion).mul(1e9)
@@ -203,8 +225,16 @@ export function calculateFullFineTuningVRAM(params: {
   // 4. Optimizer states (always FP32)
   const optimizerStates = calculateOptimizerStateMemory(paramsBillion, optimizer)
 
-  // 5. Training activations (batch-dependent)
-  const activations = calculateTrainingActivationMemory(model, batchSize, sequenceLength)
+  // 5. Training activations (batch-dependent, with optional optimizations)
+  let activations = calculateTrainingActivationMemory(model, batchSize, sequenceLength)
+
+  // Apply memory optimizations to activations (multiplicative stacking)
+  if (gradientCheckpointing) {
+    activations = applyGradientCheckpointing(activations, true)
+  }
+  if (flashAttention) {
+    activations = applyFlashAttention(activations, sequenceLength, true)
+  }
 
   // 6. Framework overhead (PyTorch + CUDA + autograd)
   const frameworkOverhead = TRAINING_FRAMEWORK_OVERHEAD_GB
