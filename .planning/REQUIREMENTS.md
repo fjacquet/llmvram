@@ -94,10 +94,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FTCORE-05 | Phase 6 | Complete |
 | FTCORE-06 | Phase 6 | Complete |
 | FTCORE-07 | Phase 7 | Complete |
-| OPTIM-01 | Phase 8 | Pending |
-| OPTIM-02 | Phase 8 | Pending |
-| OPTIM-03 | Phase 8 | Pending |
-| OPTIM-04 | Phase 8 | Pending |
+| OPTIM-01 | Phase 8 | Complete |
+| OPTIM-02 | Phase 8 | Complete |
+| OPTIM-03 | Phase 8 | Complete |
+| OPTIM-04 | Phase 8 | Complete |
 | FWPRST-01 | Phase 10 | Pending |
 | FWPRST-02 | Phase 10 | Pending |
 | FWPRST-03 | Phase 10 | Pending |
