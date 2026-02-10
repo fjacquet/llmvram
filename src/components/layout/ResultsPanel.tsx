@@ -3,9 +3,10 @@ import { MemoryBreakdownTable } from '@components/outputs/MemoryBreakdownTable'
 import { MultiGPUBreakdownChart } from '@components/outputs/MultiGPUBreakdownChart'
 import { Recommendations } from '@components/outputs/Recommendations'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
-import type { OffloadingConfig } from '@engines/types'
+import type { LoRAVRAMBreakdown, OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
+import { useTrainingCalculation } from '@hooks/useTrainingCalculation'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
@@ -22,6 +23,7 @@ import { toast } from 'sonner'
 export function ResultsPanel() {
   // Read all selections from store
   const {
+    mode,
     selectedModel,
     selectedGPU,
     quantization,
@@ -77,12 +79,22 @@ export function ResultsPanel() {
     offloadingConfig,
   )
 
+  // Call training calculation hook (unconditional - React hooks cannot be conditional)
+  const { result: trainingResult, error: trainingError } = useTrainingCalculation()
+
   // Show toast on error (only once per error change)
   useEffect(() => {
     if (error) {
       toast.error(error)
     }
   }, [error])
+
+  // Show toast on training error
+  useEffect(() => {
+    if (trainingError) {
+      toast.error(trainingError)
+    }
+  }, [trainingError])
 
   // State 1: No model or GPU selected
   if (!selectedModel || !selectedGPU) {
@@ -230,6 +242,207 @@ export function ResultsPanel() {
     toast.success('Configuration saved to comparison')
   }
 
+  /**
+   * Render training results (when mode is 'training')
+   */
+  const renderTrainingResults = () => {
+    // Error state
+    if (trainingError) {
+      return (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6">
+          <div className="flex items-start">
+            <svg
+              className="h-6 w-6 text-red-600 dark:text-red-400 mr-3 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              role="img"
+              aria-label="Error icon"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div>
+              <h3 className="text-lg font-semibold text-red-900 dark:text-red-200 mb-1">
+                Calculation Error
+              </h3>
+              <p className="text-red-800 dark:text-red-300">{trainingError}</p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // No result yet
+    if (!trainingResult || !selectedModel || !selectedGPU) {
+      return null
+    }
+
+    // Type guard to check if result is LoRA/QLoRA
+    const isLoRA = 'baseWeights' in trainingResult
+
+    // Build breakdown rows dynamically
+    interface BreakdownRow {
+      name: string
+      value: number
+      color: string
+    }
+
+    const rows: BreakdownRow[] = []
+
+    if (isLoRA) {
+      const loraResult = trainingResult as LoRAVRAMBreakdown
+      rows.push({
+        name: 'Base Model Weights',
+        value: loraResult.baseWeights.toNumber(),
+        color: '#3b82f6',
+      })
+      rows.push({
+        name: 'Adapter Weights',
+        value: loraResult.adapterWeights.toNumber(),
+        color: '#06b6d4',
+      })
+    } else {
+      rows.push({
+        name: 'Model Weights',
+        value: trainingResult.modelWeights.toNumber(),
+        color: '#3b82f6',
+      })
+    }
+
+    if (trainingResult.masterWeights.greaterThan(0)) {
+      rows.push({
+        name: 'Master Weights (FP32)',
+        value: trainingResult.masterWeights.toNumber(),
+        color: '#8b5cf6',
+      })
+    }
+
+    rows.push(
+      {
+        name: 'Gradients',
+        value: trainingResult.gradients.toNumber(),
+        color: '#ef4444',
+      },
+      {
+        name: 'Optimizer States',
+        value: trainingResult.optimizerStates.toNumber(),
+        color: '#f59e0b',
+      },
+      {
+        name: 'Activations',
+        value: trainingResult.activations.toNumber(),
+        color: '#10b981',
+      },
+      {
+        name: 'Framework Overhead',
+        value: trainingResult.frameworkOverhead.toNumber(),
+        color: '#6b7280',
+      },
+    )
+
+    const totalGB = trainingResult.total.toNumber()
+    const trainablePercent = trainingResult.trainableParameters
+      .div(trainingResult.totalParameters)
+      .mul(100)
+      .toNumber()
+
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              Training VRAM Requirements
+            </h2>
+            <div className="space-y-6">
+              {/* Fit Indicator */}
+              <FitIndicator totalVRAM={trainingResult.total} availableVRAM={selectedGPU.vram_gb} />
+
+              {/* Training method badge */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  Method:
+                </span>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                  {trainingResult.method === 'full'
+                    ? 'Full Fine-Tuning'
+                    : trainingResult.method === 'lora'
+                      ? 'LoRA'
+                      : 'QLoRA'}
+                </span>
+              </div>
+
+              {/* Training memory breakdown table */}
+              <table className="w-full text-sm border-collapse text-gray-900 dark:text-gray-100">
+                <thead>
+                  <tr className="bg-gray-100 dark:bg-gray-800">
+                    <th className="text-left font-medium px-4 py-2 text-gray-700 dark:text-gray-300">
+                      Component
+                    </th>
+                    <th className="text-right font-medium px-4 py-2 text-gray-700 dark:text-gray-300">
+                      Size (GB)
+                    </th>
+                    <th className="text-right font-medium px-4 py-2 text-gray-700 dark:text-gray-300">
+                      % of Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, idx) => (
+                    <tr
+                      key={row.name}
+                      className={
+                        idx % 2 === 0
+                          ? 'bg-white dark:bg-gray-900'
+                          : 'bg-gray-50 dark:bg-gray-800/50'
+                      }
+                    >
+                      <td className="px-4 py-2 flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: row.color }}
+                          aria-hidden="true"
+                        />
+                        {row.name}
+                      </td>
+                      <td className="text-right px-4 py-2">{row.value.toFixed(2)}</td>
+                      <td className="text-right px-4 py-2">
+                        {((row.value / totalGB) * 100).toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                  {/* Total row */}
+                  <tr className="border-t-2 border-gray-300 dark:border-gray-600 font-semibold bg-gray-100 dark:bg-gray-800">
+                    <td className="px-4 py-2">Total VRAM</td>
+                    <td className="text-right px-4 py-2">{totalGB.toFixed(2)}</td>
+                    <td className="text-right px-4 py-2">100.0%</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Trainable params info */}
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Trainable: {trainingResult.trainableParameters.toFixed(3)}B of{' '}
+                {trainingResult.totalParameters.toFixed(1)}B parameters (
+                {trainablePercent.toFixed(1)}%)
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Branch on mode: training vs inference
+  if (mode === 'training') {
+    return renderTrainingResults()
+  }
+
+  // Continue with inference mode (everything below is unchanged)
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <div className="space-y-6">
