@@ -127,7 +127,7 @@ Phases execute in numeric order: 6 → 7 → 8 → 9 → 10
 | 4. Multi-GPU Support | v1.0 | 3/3 | Complete | 2026-02-09 |
 | 5. Sharing & Comparison | v1.0 | 3/3 | Complete | 2026-02-09 |
 | 6. Fine-Tuning Calculation Engines | v1.1 | 3/3 | Complete | 2026-02-10 |
-| 7. Training State & Basic UI | v1.1 | 0/TBD | Not started | - |
+| 7. Training State & Basic UI | v1.1 | 0/2 | Planned | - |
 | 8. Memory Optimization Features | v1.1 | 0/TBD | Not started | - |
 | 9. Training Memory Visualization | v1.1 | 0/TBD | Not started | - |
 | 10. Framework Presets & Multi-GPU Training | v1.1 | 0/TBD | Not started | - |
