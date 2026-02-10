@@ -14,6 +14,18 @@ export {
   TRAINING_FRAMEWORK_OVERHEAD_GB,
 } from './constants'
 
+// DeepSpeed ZeRO engine
+export { calculateCPUOffloadMemory, calculateZeROMemoryPerGPU } from './deepspeed'
+
+// Framework presets
+export {
+  type CPUOffloadConfig,
+  FRAMEWORK_PRESETS,
+  type FrameworkPreset,
+  type FrameworkPresetConfig,
+  type ZeROStage,
+} from './frameworks'
+
 // Inference engine
 export { calculateInferenceVRAM } from './inference'
 
@@ -60,5 +72,6 @@ export type {
   TrainingOptimizationConfig,
   TrainingPrecision,
   TrainingVRAMBreakdown,
+  ZeROResult,
 } from './types'
 export { CalculationInputSchema } from './types'
