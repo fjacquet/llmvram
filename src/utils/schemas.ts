@@ -73,3 +73,36 @@ export function validateGPUs(data: unknown): GPU[] {
 export function validateModels(data: unknown): Model[] {
   return z.array(ModelSchema).parse(data)
 }
+
+// Training configuration schema for fine-tuning VRAM calculation
+export const TrainingInputSchema = z.object({
+  /** Fine-tuning method */
+  method: z.enum(['full', 'lora', 'qlora']),
+
+  /** Optimizer type — affects optimizer state memory */
+  optimizer: z.enum(['adamw', 'sgd-momentum', 'adamw-8bit', 'adafactor']),
+
+  /** Training precision — affects weight and gradient memory */
+  trainingPrecision: z.enum(['fp32', 'fp16', 'bf16']),
+
+  /** Training batch size (micro-batch per GPU) */
+  batchSize: z.number().int().min(1).max(128),
+
+  /** Sequence length for training */
+  sequenceLength: z.number().int().min(512).max(131072),
+
+  /** LoRA rank — controls adapter capacity (only used for lora/qlora methods) */
+  loraRank: z.number().int().min(4).max(256).default(16),
+
+  /** LoRA alpha — scaling factor (alpha/rank), does NOT affect VRAM */
+  loraAlpha: z.number().int().min(1).max(512).default(32),
+
+  /** Percentage of linear modules per layer that get LoRA adapters (10-100%) */
+  targetModulesPercent: z.number().int().min(10).max(100).default(30),
+})
+
+export type TrainingInput = z.infer<typeof TrainingInputSchema>
+
+export function validateTrainingInput(data: unknown): TrainingInput {
+  return TrainingInputSchema.parse(data)
+}
