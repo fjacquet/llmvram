@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 ## Current Position
 
 Phase: 6 of 10 (Fine-Tuning Calculation Engines)
-Plan: 2 of 3 complete
-Status: In progress
-Last activity: 2026-02-10 — Completed 06-02-PLAN.md (Full Fine-Tuning Engine)
+Plan: 3 of 3 complete
+Status: Phase complete
+Last activity: 2026-02-10 — Completed 06-03-PLAN.md (LoRA/QLoRA Engine)
 
-Progress: [█████████░] 95% (20/21 plans complete: v1.0 18/18, v1.1 2/3)
+Progress: [██████████] 100% (21/21 plans complete: v1.0 18/18, v1.1 3/3)
 
 ## Performance Metrics
 
@@ -33,20 +33,21 @@ Progress: [█████████░] 95% (20/21 plans complete: v1.0 18/18
 | 4. Multi-GPU Support | 3 | ~2.25h | ~45min |
 | 5. Sharing & Comparison | 3 | ~2.25h | ~45min |
 
-**Velocity (v1.1 in progress):**
-- Total plans completed: 2
-- Average duration: ~2.5 min
-- Total execution time: ~5 min
+**Velocity (v1.1 complete):**
+- Total plans completed: 3
+- Average duration: ~3.8 min
+- Total execution time: ~11.5 min
 
 **By Phase (v1.1):**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 6. Fine-Tuning Engines | 2/3 | ~5min | ~2.5min |
+| 6. Fine-Tuning Engines | 3/3 | ~11.5min | ~3.8min |
 
 **Recent Trend:**
-- v1.1 Phase 6: Rapid TDD execution (foundation: 2min, full fine-tuning engine: 2.7min)
-- Both plans completed with clean test coverage and no deviations
+- v1.1 Phase 6 complete: Rapid TDD execution (foundation: 2min, full fine-tuning: 2.7min, LoRA/QLoRA: 5.8min)
+- All plans completed with clean test coverage
+- Only 1 deviation (Rule 1 auto-fix: schema field name correction)
 
 ## Accumulated Context
 
@@ -77,6 +78,10 @@ Recent decisions affecting current work:
 - Training activations fundamentally different from inference — O(N^2) attention matrices vs O(N) KV cache (06-02)
 - Mixed precision (FP16/BF16) requires FP32 master weights; pure FP32 training does not (06-02)
 - MoE models scale activations by active parameter ratio (20% shared + 80% expert * active_ratio) (06-02)
+- LoRA adapter params = 2 * rank * hiddenSize * targetModuleCount * layers (A + B matrices) (06-03)
+- LoRA optimizer states/gradients apply ONLY to adapter parameters, not frozen base (PITFALLS.md #3) (06-03)
+- QLoRA uses fixed three-precision architecture: NF4 base (0.5 bytes), FP16 adapters (2 bytes), FP32 optimizer (8 bytes) (06-03)
+- 7B model QLoRA fits in 6-12GB range (research validation: ~10 GB total) (06-03)
 
 ### Pending Todos
 
@@ -89,6 +94,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed 06-02-PLAN.md (Full Fine-Tuning Engine: calculateOptimizerStateMemory, calculateTrainingActivationMemory, calculateFullFineTuningVRAM)
-Resume file: .planning/phases/06-fine-tuning-calculation-engines/06-02-SUMMARY.md
-Next action: Execute 06-03-PLAN.md (LoRA/QLoRA Engine) or create it if not yet planned
+Stopped at: Completed 06-03-PLAN.md (LoRA/QLoRA Engine: calculateLoRAAdapterParams, calculateLoRAFineTuningVRAM, calculateQLoRAFineTuningVRAM)
+Resume file: .planning/phases/06-fine-tuning-calculation-engines/06-03-SUMMARY.md
+Next action: Phase 6 complete. Ready for Phase 07 (Fine-Tuning UI) or other v1.1+ work.
