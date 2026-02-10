@@ -6,22 +6,51 @@
  */
 
 // Constants
-export { BYTES_PER_PARAMETER, FRAMEWORK_OVERHEAD_GB, KV_PRECISION_BYTES } from './constants'
+export {
+  BYTES_PER_PARAMETER,
+  FRAMEWORK_OVERHEAD_GB,
+  KV_PRECISION_BYTES,
+  OPTIMIZER_STATE_BYTES,
+  TRAINING_FRAMEWORK_OVERHEAD_GB,
+} from './constants'
+
 // Inference engine
 export { calculateInferenceVRAM } from './inference'
+
 // KV cache engine
 export { calculateKVCacheVRAM } from './kv-cache'
 
+// LoRA/QLoRA training engine
+export {
+  calculateLoRAAdapterParams,
+  calculateLoRAFineTuningVRAM,
+  calculateQLoRAFineTuningVRAM,
+} from './lora'
+
 // Performance engine
 export { estimatePerformance } from './performance'
+
 // Quantization engine
 export { calculateModelWeightVRAM, getBytesPerParameter } from './quantization'
+
+// Training engine
+export {
+  calculateFullFineTuningVRAM,
+  calculateOptimizerStateMemory,
+  calculateTrainingActivationMemory,
+} from './training'
+
 // Types
 export type {
   CalculationInput,
+  FineTuningMethod,
   InferenceVRAMBreakdown,
   KVCachePrecision,
+  LoRAVRAMBreakdown,
+  OptimizerType,
   PerformanceEstimate,
   QuantizationFormat,
+  TrainingPrecision,
+  TrainingVRAMBreakdown,
 } from './types'
 export { CalculationInputSchema } from './types'
