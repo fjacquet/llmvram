@@ -112,7 +112,7 @@ export function calculateTrainingActivationMemory(
   const activationBytes = new Decimal(batchSize)
     .mul(sequenceLength)
     .mul(effectiveHiddenSize)
-    .mul(model.num_layers)
+    .mul(model.num_hidden_layers)
     .mul(10) // Approximate multiplier per layer
     .mul(2) // FP16/BF16 bytes per activation
 

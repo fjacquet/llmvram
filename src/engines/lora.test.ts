@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import type { Model } from '@utils/schemas'
-import Decimal from 'decimal.js'
+import { describe, expect, it } from 'vitest'
 import {
   calculateLoRAAdapterParams,
   calculateLoRAFineTuningVRAM,
@@ -9,24 +8,28 @@ import {
 
 // Test model: Llama 2 7B
 const llama7b: Model = {
+  id: 'test-llama-7b',
   name: 'Llama 2 7B',
+  architecture: 'dense',
   num_parameters_billion: 7.0,
   hidden_size: 4096,
-  num_layers: 32,
-  num_heads: 32,
+  num_hidden_layers: 32,
+  num_attention_heads: 32,
   num_kv_heads: 32,
-  architecture: 'dense',
+  intermediate_size: 11008,
 }
 
 // Test model: Llama 2 70B
 const llama70b: Model = {
+  id: 'test-llama-70b',
   name: 'Llama 2 70B',
+  architecture: 'dense',
   num_parameters_billion: 70.0,
   hidden_size: 8192,
-  num_layers: 80,
-  num_heads: 64,
+  num_hidden_layers: 80,
+  num_attention_heads: 64,
   num_kv_heads: 8,
-  architecture: 'dense',
+  intermediate_size: 28672,
 }
 
 describe('calculateLoRAAdapterParams', () => {
@@ -239,11 +242,11 @@ describe('calculateQLoRAFineTuningVRAM', () => {
 
     // 2. Adapters in FP16 (2 bytes)
     const adapterCount = breakdown.adapterParameters.toNumber() * 1e9
-    const expectedAdapterWeights = (adapterCount * 2) / Math.pow(1024, 3)
+    const expectedAdapterWeights = (adapterCount * 2) / 1024 ** 3
     expect(breakdown.adapterWeights.toNumber()).toBeCloseTo(expectedAdapterWeights, 3)
 
     // 3. Optimizer states in FP32 (8 bytes for AdamW)
-    const expectedOptimizerStates = (adapterCount * 8) / Math.pow(1024, 3)
+    const expectedOptimizerStates = (adapterCount * 8) / 1024 ** 3
     expect(breakdown.optimizerStates.toNumber()).toBeCloseTo(expectedOptimizerStates, 3)
   })
 
