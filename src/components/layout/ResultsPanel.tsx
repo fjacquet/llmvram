@@ -2,8 +2,10 @@ import { FitIndicator } from '@components/outputs/FitIndicator'
 import { MemoryBreakdownTable } from '@components/outputs/MemoryBreakdownTable'
 import { MultiGPUBreakdownChart } from '@components/outputs/MultiGPUBreakdownChart'
 import { Recommendations } from '@components/outputs/Recommendations'
+import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownChart'
+import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
-import type { LoRAVRAMBreakdown, OffloadingConfig } from '@engines/types'
+import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
 import { useTrainingCalculation } from '@hooks/useTrainingCalculation'
@@ -282,75 +284,6 @@ export function ResultsPanel() {
       return null
     }
 
-    // Type guard to check if result is LoRA/QLoRA
-    const isLoRA = 'baseWeights' in trainingResult
-
-    // Build breakdown rows dynamically
-    interface BreakdownRow {
-      name: string
-      value: number
-      color: string
-    }
-
-    const rows: BreakdownRow[] = []
-
-    if (isLoRA) {
-      const loraResult = trainingResult as LoRAVRAMBreakdown
-      rows.push({
-        name: 'Base Model Weights',
-        value: loraResult.baseWeights.toNumber(),
-        color: '#3b82f6',
-      })
-      rows.push({
-        name: 'Adapter Weights',
-        value: loraResult.adapterWeights.toNumber(),
-        color: '#06b6d4',
-      })
-    } else {
-      rows.push({
-        name: 'Model Weights',
-        value: trainingResult.modelWeights.toNumber(),
-        color: '#3b82f6',
-      })
-    }
-
-    if (trainingResult.masterWeights.greaterThan(0)) {
-      rows.push({
-        name: 'Master Weights (FP32)',
-        value: trainingResult.masterWeights.toNumber(),
-        color: '#8b5cf6',
-      })
-    }
-
-    rows.push(
-      {
-        name: 'Gradients',
-        value: trainingResult.gradients.toNumber(),
-        color: '#ef4444',
-      },
-      {
-        name: 'Optimizer States',
-        value: trainingResult.optimizerStates.toNumber(),
-        color: '#f59e0b',
-      },
-      {
-        name: 'Activations',
-        value: trainingResult.activations.toNumber(),
-        color: '#10b981',
-      },
-      {
-        name: 'Framework Overhead',
-        value: trainingResult.frameworkOverhead.toNumber(),
-        color: '#6b7280',
-      },
-    )
-
-    const totalGB = trainingResult.total.toNumber()
-    const trainablePercent = trainingResult.trainableParameters
-      .div(trainingResult.totalParameters)
-      .mul(100)
-      .toNumber()
-
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="space-y-6">
@@ -376,60 +309,11 @@ export function ResultsPanel() {
                 </span>
               </div>
 
-              {/* Training memory breakdown table */}
-              <table className="w-full text-sm border-collapse text-gray-900 dark:text-gray-100">
-                <thead>
-                  <tr className="bg-gray-100 dark:bg-gray-800">
-                    <th className="text-left font-medium px-4 py-2 text-gray-700 dark:text-gray-300">
-                      Component
-                    </th>
-                    <th className="text-right font-medium px-4 py-2 text-gray-700 dark:text-gray-300">
-                      Size (GB)
-                    </th>
-                    <th className="text-right font-medium px-4 py-2 text-gray-700 dark:text-gray-300">
-                      % of Total
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, idx) => (
-                    <tr
-                      key={row.name}
-                      className={
-                        idx % 2 === 0
-                          ? 'bg-white dark:bg-gray-900'
-                          : 'bg-gray-50 dark:bg-gray-800/50'
-                      }
-                    >
-                      <td className="px-4 py-2 flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: row.color }}
-                          aria-hidden="true"
-                        />
-                        {row.name}
-                      </td>
-                      <td className="text-right px-4 py-2">{row.value.toFixed(2)}</td>
-                      <td className="text-right px-4 py-2">
-                        {((row.value / totalGB) * 100).toFixed(1)}%
-                      </td>
-                    </tr>
-                  ))}
-                  {/* Total row */}
-                  <tr className="border-t-2 border-gray-300 dark:border-gray-600 font-semibold bg-gray-100 dark:bg-gray-800">
-                    <td className="px-4 py-2">Total VRAM</td>
-                    <td className="text-right px-4 py-2">{totalGB.toFixed(2)}</td>
-                    <td className="text-right px-4 py-2">100.0%</td>
-                  </tr>
-                </tbody>
-              </table>
+              {/* Training breakdown chart */}
+              <TrainingBreakdownChart breakdown={trainingResult} />
 
-              {/* Trainable params info */}
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Trainable: {trainingResult.trainableParameters.toFixed(3)}B of{' '}
-                {trainingResult.totalParameters.toFixed(1)}B parameters (
-                {trainablePercent.toFixed(1)}%)
-              </div>
+              {/* Training breakdown table */}
+              <TrainingBreakdownTable breakdown={trainingResult} />
             </div>
           </div>
         </div>
