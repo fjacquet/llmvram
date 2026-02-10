@@ -1,11 +1,14 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import type {
+  FineTuningMethod,
   KVCachePrecision,
   OffloadMode,
   OffloadTarget,
+  OptimizerType,
   QuantizationFormat,
   ShardingStrategy,
+  TrainingPrecision,
 } from '@engines/types'
 import type { GPU, Model } from '@utils/schemas'
 import { validateGPUs, validateModels } from '@utils/schemas'
@@ -53,6 +56,15 @@ interface UIState {
   offloadLayers: number
   kvCacheOffload: boolean
 
+  // Training mode
+  mode: 'inference' | 'training'
+  trainingMethod: FineTuningMethod
+  optimizer: OptimizerType
+  trainingPrecision: TrainingPrecision
+  loraRank: number
+  loraAlpha: number
+  targetModulesPercent: number
+
   // UI preferences (persisted)
   isDarkMode: boolean
 
@@ -71,6 +83,13 @@ interface UIState {
   setOffloadPercentage: (percentage: number) => void
   setOffloadLayers: (layers: number) => void
   setKVCacheOffload: (enabled: boolean) => void
+  setMode: (mode: 'inference' | 'training') => void
+  setTrainingMethod: (method: FineTuningMethod) => void
+  setOptimizer: (optimizer: OptimizerType) => void
+  setTrainingPrecision: (precision: TrainingPrecision) => void
+  setLoraRank: (rank: number) => void
+  setLoraAlpha: (alpha: number) => void
+  setTargetModulesPercent: (percent: number) => void
   toggleDarkMode: () => void
 }
 
@@ -92,6 +111,13 @@ export const useUIStore = create<UIState>()(
       offloadPercentage: 0,
       offloadLayers: 0,
       kvCacheOffload: false,
+      mode: 'inference',
+      trainingMethod: 'lora',
+      optimizer: 'adamw',
+      trainingPrecision: 'bf16',
+      loraRank: 16,
+      loraAlpha: 32,
+      targetModulesPercent: 30,
       isDarkMode: false,
 
       // Actions
@@ -109,6 +135,13 @@ export const useUIStore = create<UIState>()(
       setOffloadPercentage: (percentage) => set({ offloadPercentage: percentage }),
       setOffloadLayers: (layers) => set({ offloadLayers: layers }),
       setKVCacheOffload: (enabled) => set({ kvCacheOffload: enabled }),
+      setMode: (mode) => set({ mode }),
+      setTrainingMethod: (method) => set({ trainingMethod: method }),
+      setOptimizer: (optimizer) => set({ optimizer }),
+      setTrainingPrecision: (precision) => set({ trainingPrecision: precision }),
+      setLoraRank: (rank) => set({ loraRank: rank }),
+      setLoraAlpha: (alpha) => set({ loraAlpha: alpha }),
+      setTargetModulesPercent: (percent) => set({ targetModulesPercent: percent }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
     }),
     {
