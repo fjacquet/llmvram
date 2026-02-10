@@ -48,10 +48,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can calculate QLoRA fine-tuning VRAM (4-bit base + FP16 adapters)
   4. Optimizer memory calculation accounts for FP32 precision regardless of training precision
   5. LoRA adapter parameter count scales correctly with rank, alpha, and target modules
-**Plans:** TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (to be defined during phase planning)
+- [ ] 06-01-PLAN.md -- Training types, constants, and Zod schemas
+- [ ] 06-02-PLAN.md -- TDD: Core training engine (optimizer states, activations, full fine-tuning)
+- [ ] 06-03-PLAN.md -- TDD: LoRA/QLoRA engine + barrel exports
 
 ### Phase 7: Training State & Basic UI
 **Goal:** Users can toggle into training mode and select basic configuration
@@ -123,7 +125,7 @@ Phases execute in numeric order: 6 → 7 → 8 → 9 → 10
 | 3. Core UI | v1.0 | 4/4 | Complete | 2026-02-09 |
 | 4. Multi-GPU Support | v1.0 | 3/3 | Complete | 2026-02-09 |
 | 5. Sharing & Comparison | v1.0 | 3/3 | Complete | 2026-02-09 |
-| 6. Fine-Tuning Calculation Engines | v1.1 | 0/TBD | Not started | - |
+| 6. Fine-Tuning Calculation Engines | v1.1 | 0/3 | Planned | - |
 | 7. Training State & Basic UI | v1.1 | 0/TBD | Not started | - |
 | 8. Memory Optimization Features | v1.1 | 0/TBD | Not started | - |
 | 9. Training Memory Visualization | v1.1 | 0/TBD | Not started | - |
