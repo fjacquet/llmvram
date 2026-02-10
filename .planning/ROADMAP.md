@@ -79,11 +79,12 @@ Plans:
   1. User can set gradient accumulation steps and see effective batch size calculation
   2. User can toggle gradient checkpointing and see activation memory reduction (50-80%)
   3. User can toggle Flash Attention and see KV cache reduction for training
-  4. Effective batch size calculation accounts for micro batch × accumulation steps × GPUs
-**Plans:** TBD
+  4. Effective batch size calculation accounts for micro batch x accumulation steps x GPUs
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (to be defined during phase planning)
+- [ ] 08-01-PLAN.md -- TDD: Optimization calculation engine (effective batch, checkpointing, Flash Attention)
+- [ ] 08-02-PLAN.md -- Optimization state, URL persistence, and UI components
 
 ### Phase 9: Training Memory Visualization
 **Goal:** Users can see detailed breakdown of training memory components
@@ -128,6 +129,6 @@ Phases execute in numeric order: 6 → 7 → 8 → 9 → 10
 | 5. Sharing & Comparison | v1.0 | 3/3 | Complete | 2026-02-09 |
 | 6. Fine-Tuning Calculation Engines | v1.1 | 3/3 | Complete | 2026-02-10 |
 | 7. Training State & Basic UI | v1.1 | 2/2 | Complete | 2026-02-10 |
-| 8. Memory Optimization Features | v1.1 | 0/TBD | Not started | - |
+| 8. Memory Optimization Features | v1.1 | 0/2 | Not started | - |
 | 9. Training Memory Visualization | v1.1 | 0/TBD | Not started | - |
 | 10. Framework Presets & Multi-GPU Training | v1.1 | 0/TBD | Not started | - |
