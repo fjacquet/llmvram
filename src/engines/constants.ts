@@ -3,7 +3,9 @@ import type {
   InterconnectSpec,
   InterconnectType,
   KVCachePrecision,
+  OptimizerType,
   QuantizationFormat,
+  TrainingPrecision,
 } from './types'
 
 /**
@@ -210,3 +212,102 @@ export const INTERCONNECT_SPECS: Record<InterconnectType, InterconnectSpec> = {
     recommendedMaxTPDegree: 1,
   },
 }
+
+/**
+ * Optimizer state memory per trainable parameter (in bytes)
+ *
+ * CRITICAL: Optimizer states are ALWAYS stored in FP32 for numerical stability,
+ * even during mixed precision (FP16/BF16) training. This is the most commonly
+ * underestimated component in training VRAM calculations.
+ *
+ * Memory breakdown by optimizer:
+ * - AdamW: 8 bytes/param (2 FP32 states: momentum + variance)
+ * - SGD-momentum: 4 bytes/param (1 FP32 state: momentum)
+ * - AdamW-8bit: 2 bytes/param (2 8-bit quantized states)
+ * - Adafactor: 4 bytes/param (factored approximation, memory-efficient)
+ *
+ * For LoRA/QLoRA: Only applies to adapter parameters, NOT frozen base weights.
+ * Example: 70B model with 1% LoRA adapters → 0.7B trainable params → 5.6GB optimizer states (AdamW)
+ *
+ * Reference: .planning/research/PITFALLS.md #2 (30-60% underestimation from missing this)
+ * Reference: .planning/phases/06-fine-tuning-calculation-engines/06-RESEARCH.md
+ */
+export const OPTIMIZER_STATE_BYTES: Record<OptimizerType, Decimal> = {
+  adamw: new Decimal(8), // 2 FP32 states (momentum + variance) = 2 * 4 bytes
+  'sgd-momentum': new Decimal(4), // 1 FP32 state (momentum) = 1 * 4 bytes
+  'adamw-8bit': new Decimal(2), // 2 8-bit quantized states = 2 * 1 byte
+  adafactor: new Decimal(4), // Factored approximation ~4 bytes/param
+}
+
+/**
+ * Training framework overhead (PyTorch + CUDA + autograd)
+ *
+ * Training requires more overhead than inference (1.5GB vs 1.0GB) due to:
+ * - Autograd graph storage for backward pass
+ * - Gradient accumulation buffers
+ * - Optimizer state management structures
+ * - CUDA workspace memory for training kernels
+ *
+ * Conservative 1.5GB estimate based on PyTorch training profiling.
+ *
+ * Reference: .planning/phases/06-fine-tuning-calculation-engines/06-RESEARCH.md
+ */
+export const TRAINING_FRAMEWORK_OVERHEAD_GB = new Decimal(1.5)
+
+/**
+ * Total targetable modules per transformer layer
+ *
+ * Standard transformer layer has 7 linear modules that can receive LoRA adapters:
+ * - Attention: q_proj, k_proj, v_proj, o_proj (4 modules)
+ * - MLP: gate_proj, up_proj, down_proj (3 modules)
+ *
+ * Used to calculate actual adapter count from targetModulesPercent:
+ * adapters_per_layer = (TOTAL_TARGETABLE_MODULES_PER_LAYER * targetModulesPercent / 100)
+ *
+ * Example: 30% targeting → 2.1 → round(2.1) = 2 modules per layer
+ *
+ * Reference: .planning/phases/06-fine-tuning-calculation-engines/06-RESEARCH.md
+ */
+export const TOTAL_TARGETABLE_MODULES_PER_LAYER = 7
+
+/**
+ * Gradient storage bytes per parameter by training precision
+ *
+ * Gradients are stored at the same precision as training weights:
+ * - FP32 training → FP32 gradients (4 bytes)
+ * - FP16 training → FP16 gradients (2 bytes)
+ * - BF16 training → BF16 gradients (2 bytes)
+ *
+ * Only allocated for trainable parameters. For LoRA, gradients only
+ * apply to adapter parameters (~1% of full model).
+ */
+export const GRADIENT_BYTES: Record<TrainingPrecision, Decimal> = {
+  fp32: new Decimal(4),
+  fp16: new Decimal(2),
+  bf16: new Decimal(2),
+}
+
+/**
+ * Training weight storage bytes per parameter by precision
+ *
+ * Same values as GRADIENT_BYTES, but semantically distinct for code clarity.
+ * Training weights (not frozen base) are stored at training precision.
+ */
+export const WEIGHT_BYTES: Record<TrainingPrecision, Decimal> = {
+  fp32: new Decimal(4),
+  fp16: new Decimal(2),
+  bf16: new Decimal(2),
+}
+
+/**
+ * FP32 master weight storage for mixed precision training
+ *
+ * Mixed precision training (FP16/BF16) maintains an FP32 "master copy" of
+ * weights for numerical stability during optimizer updates. The training
+ * forward/backward passes use FP16/BF16, but weight updates use FP32.
+ *
+ * Master weights = 4 bytes/param for FP16/BF16 training, 0 for FP32 training.
+ *
+ * For LoRA: Only applies to trainable adapter parameters, not frozen base.
+ */
+export const MASTER_WEIGHT_BYTES = new Decimal(4)

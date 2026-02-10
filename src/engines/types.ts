@@ -263,3 +263,111 @@ export interface OffloadedVRAMBreakdown {
   /** Estimated slowdown multiplier (e.g. 2.0 = 2x slower) */
   slowdownFactor: number
 }
+
+/**
+ * Optimizer types for fine-tuning
+ *
+ * - adamw: AdamW optimizer (standard, 2 FP32 states = 8 bytes/param)
+ * - sgd-momentum: SGD with momentum (1 FP32 state = 4 bytes/param)
+ * - adamw-8bit: 8-bit quantized AdamW (2 8-bit states = 2 bytes/param)
+ * - adafactor: Memory-efficient factored approximation (4 bytes/param)
+ *
+ * CRITICAL: Optimizer states are ALWAYS stored in FP32 for numerical stability,
+ * even during mixed precision training. See PITFALLS.md #2.
+ *
+ * Reference: .planning/phases/06-fine-tuning-calculation-engines/06-RESEARCH.md
+ */
+export type OptimizerType = 'adamw' | 'sgd-momentum' | 'adamw-8bit' | 'adafactor'
+
+/**
+ * Fine-tuning methods with different VRAM profiles
+ *
+ * - full: Full fine-tuning (all parameters trainable)
+ * - lora: Low-Rank Adaptation (adapters only, base frozen)
+ * - qlora: Quantized LoRA (4-bit base + FP16 adapters)
+ *
+ * Reference: .planning/phases/06-fine-tuning-calculation-engines/06-RESEARCH.md
+ */
+export type FineTuningMethod = 'full' | 'lora' | 'qlora'
+
+/**
+ * Training precision for weights and gradients
+ *
+ * - fp32: Full precision training (4 bytes/param)
+ * - fp16: Half precision training (2 bytes/param, requires FP32 master weights)
+ * - bf16: BFloat16 training (2 bytes/param, requires FP32 master weights)
+ *
+ * Note: Mixed precision (fp16/bf16) stores training weights in FP16/BF16 but
+ * maintains FP32 master weights for numerical stability.
+ */
+export type TrainingPrecision = 'fp32' | 'fp16' | 'bf16'
+
+/**
+ * VRAM breakdown for training workload
+ *
+ * All values in GB (gigabytes) using Decimal.js for precision.
+ *
+ * Components follow the training memory formula:
+ * Total = ModelWeights + MasterWeights + Gradients + OptimizerStates + Activations + Overhead
+ *
+ * Reference: .planning/phases/06-fine-tuning-calculation-engines/06-RESEARCH.md
+ */
+export interface TrainingVRAMBreakdown {
+  /** Model weight storage at training precision (or quantized for LoRA/QLoRA frozen base) */
+  modelWeights: Decimal
+  /**
+   * FP32 master copy for mixed precision training
+   *
+   * Zero if training in fp32. Required for fp16/bf16 training to maintain
+   * numerical stability during weight updates.
+   */
+  masterWeights: Decimal
+  /**
+   * Gradient storage (same precision as training weights)
+   *
+   * Only allocated for trainable parameters. For LoRA, this is only
+   * for adapter parameters (~1% of full model).
+   */
+  gradients: Decimal
+  /**
+   * Optimizer state storage
+   *
+   * CRITICAL: ALWAYS stored in FP32, even during mixed precision training.
+   * Size depends on optimizer type:
+   * - AdamW: 8 bytes/param (2 FP32 states: momentum + variance)
+   * - SGD-momentum: 4 bytes/param (1 FP32 state)
+   * - AdamW-8bit: 2 bytes/param (quantized)
+   * - Adafactor: 4 bytes/param (factored approximation)
+   *
+   * For LoRA/QLoRA, only applies to adapter parameters, NOT frozen base.
+   * See PITFALLS.md #2 for why this is the most common estimation error.
+   */
+  optimizerStates: Decimal
+  /** Training activation memory (batch-dependent, proportional to batch_size * seq_len * hidden_size) */
+  activations: Decimal
+  /** Framework overhead (PyTorch + CUDA context + autograd graph) */
+  frameworkOverhead: Decimal
+  /** Total VRAM requirement (sum of all components) */
+  total: Decimal
+  /** Count of trainable parameters in billions */
+  trainableParameters: Decimal
+  /** Count of total parameters in billions */
+  totalParameters: Decimal
+  /** Fine-tuning method used */
+  method: FineTuningMethod
+}
+
+/**
+ * VRAM breakdown for LoRA/QLoRA training
+ *
+ * Extends TrainingVRAMBreakdown with LoRA-specific fields showing
+ * the split between frozen base model and trainable adapters.
+ */
+export interface LoRAVRAMBreakdown extends TrainingVRAMBreakdown {
+  /** Frozen base model weights (INT4 for QLoRA, original precision for LoRA) */
+  baseWeights: Decimal
+  /** LoRA adapter weights in FP16 (q_proj, k_proj, v_proj, etc.) */
+  adapterWeights: Decimal
+  /** Adapter parameter count in billions */
+  adapterParameters: Decimal
+}
