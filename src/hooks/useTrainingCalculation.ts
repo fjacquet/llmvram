@@ -7,19 +7,22 @@
  *
  * Usage:
  * ```tsx
- * const { result, error } = useTrainingCalculation()
+ * const { result, error, zeroResult, cpuOffload } = useTrainingCalculation()
  *
  * if (error) return <ErrorMessage error={error} />
  * if (!result) return <NoSelection />
  *
- * return <TrainingBreakdown breakdown={result} />
+ * return <TrainingBreakdown breakdown={result} zeroResult={zeroResult} cpuOffload={cpuOffload} />
  * ```
  */
 
+import { calculateCPUOffloadMemory, calculateZeROMemoryPerGPU } from '@engines/deepspeed'
+import { FRAMEWORK_PRESETS, type ZeROStage } from '@engines/frameworks'
 import { calculateLoRAFineTuningVRAM, calculateQLoRAFineTuningVRAM } from '@engines/lora'
 import { calculateFullFineTuningVRAM } from '@engines/training'
-import type { LoRAVRAMBreakdown, TrainingVRAMBreakdown } from '@engines/types'
+import type { LoRAVRAMBreakdown, TrainingVRAMBreakdown, ZeROResult } from '@engines/types'
 import { useUIStore } from '@store/uiStore'
+import type Decimal from 'decimal.js'
 import { useMemo } from 'react'
 
 /**
@@ -30,6 +33,13 @@ export interface UseTrainingCalculationResult {
   result: TrainingVRAMBreakdown | LoRAVRAMBreakdown | null
   /** Error message (null if no error) */
   error: string | null
+  /** ZeRO per-GPU breakdown (null if not using DeepSpeed multi-GPU) */
+  zeroResult: ZeROResult | null
+  /** CPU offload info (null if not enabled) */
+  cpuOffload: {
+    gpuMemory: Decimal
+    cpuMemory: Decimal
+  } | null
 }
 
 /**
@@ -81,13 +91,16 @@ export function useTrainingCalculation(): UseTrainingCalculationResult {
     gradientAccumulationSteps: _gradientAccumulationSteps,
     gradientCheckpointing,
     flashAttention,
+    frameworkPreset,
+    numGPUs,
+    cpuOffloadOptimizer,
   } = useUIStore()
 
   // Calculate training VRAM with useMemo (memoized by dependencies)
-  const { result, error } = useMemo<UseTrainingCalculationResult>(() => {
+  const { result, error, zeroResult, cpuOffload } = useMemo<UseTrainingCalculationResult>(() => {
     // Early return if no model selected
     if (!selectedModel) {
-      return { result: null, error: null }
+      return { result: null, error: null, zeroResult: null, cpuOffload: null }
     }
 
     try {
@@ -141,11 +154,48 @@ export function useTrainingCalculation(): UseTrainingCalculationResult {
         }
       }
 
-      return { result: breakdown, error: null }
+      // Derive ZeRO stage from framework preset
+      const presetConfig = FRAMEWORK_PRESETS[frameworkPreset]
+      const zeroStage: ZeROStage | null = presetConfig.zeroStage
+
+      // Calculate ZeRO partitioning if using DeepSpeed with multiple GPUs
+      let zeroResult: ZeROResult | null = null
+      if (zeroStage && numGPUs > 1) {
+        zeroResult = calculateZeROMemoryPerGPU(breakdown, numGPUs, zeroStage)
+      }
+
+      // Calculate CPU offload if enabled
+      let cpuOffload: { gpuMemory: Decimal; cpuMemory: Decimal } | null = null
+      if (cpuOffloadOptimizer) {
+        // Apply to ZeRO per-GPU breakdown if available, otherwise single-GPU
+        const sourceBreakdown: TrainingVRAMBreakdown = zeroResult
+          ? {
+              method: breakdown.method,
+              totalParameters: breakdown.totalParameters,
+              trainableParameters: breakdown.trainableParameters,
+              modelWeights: zeroResult.perGPU.modelWeights,
+              masterWeights: zeroResult.perGPU.masterWeights,
+              gradients: zeroResult.perGPU.gradients,
+              optimizerStates: zeroResult.perGPU.optimizerStates,
+              activations: zeroResult.perGPU.activations,
+              frameworkOverhead: zeroResult.perGPU.frameworkOverhead,
+              total: zeroResult.perGPU.total,
+            }
+          : breakdown
+
+        cpuOffload = calculateCPUOffloadMemory(sourceBreakdown, {
+          offloadOptimizer: true,
+          offloadParameters: false,
+        })
+      }
+
+      return { result: breakdown, error: null, zeroResult, cpuOffload }
     } catch (err) {
       return {
         result: null,
         error: err instanceof Error ? err.message : String(err),
+        zeroResult: null,
+        cpuOffload: null,
       }
     }
   }, [
@@ -159,7 +209,10 @@ export function useTrainingCalculation(): UseTrainingCalculationResult {
     targetModulesPercent,
     gradientCheckpointing,
     flashAttention,
+    frameworkPreset,
+    numGPUs,
+    cpuOffloadOptimizer,
   ])
 
-  return { result, error }
+  return { result, error, zeroResult, cpuOffload }
 }

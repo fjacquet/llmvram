@@ -164,7 +164,7 @@ export const useUIStore = create<UIState>()(
       setGradientCheckpointing: (enabled) => set({ gradientCheckpointing: enabled }),
       setFlashAttention: (enabled) => set({ flashAttention: enabled }),
       setFrameworkPreset: (preset) =>
-        set((state) => {
+        set((_state) => {
           const config = FRAMEWORK_PRESETS[preset]
           const updates: Partial<UIState> = { frameworkPreset: preset }
 

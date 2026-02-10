@@ -31,14 +31,19 @@ export function TrainingBreakdownTable({ breakdown }: TrainingBreakdownTableProp
 
   if (isLoRA) {
     const loraBreakdown = breakdown as LoRAVRAMBreakdown
+    // Determine label based on QLoRA vs LoRA
+    const isQLoRA = breakdown.method === 'qlora'
+    const baseLabel = isQLoRA ? 'Base Model Weights (NF4 4-bit)' : 'Base Model Weights (frozen)'
+    const adapterLabel = isQLoRA ? 'LoRA Adapters (FP16)' : 'LoRA Adapters (trainable)'
+
     rows.push(
       {
-        name: 'Base Model Weights',
+        name: baseLabel,
         value: loraBreakdown.baseWeights,
         color: TRAINING_COLORS.baseWeights,
       },
       {
-        name: 'Adapter Weights',
+        name: adapterLabel,
         value: loraBreakdown.adapterWeights,
         color: TRAINING_COLORS.adapterWeights,
       },

@@ -82,7 +82,12 @@ export function ResultsPanel() {
   )
 
   // Call training calculation hook (unconditional - React hooks cannot be conditional)
-  const { result: trainingResult, error: trainingError } = useTrainingCalculation()
+  const {
+    result: trainingResult,
+    error: trainingError,
+    zeroResult,
+    cpuOffload,
+  } = useTrainingCalculation()
 
   // Show toast on error (only once per error change)
   useEffect(() => {
@@ -284,6 +289,13 @@ export function ResultsPanel() {
       return null
     }
 
+    // Determine which VRAM to use for FitIndicator
+    const trainingVRAMForFit = cpuOffload
+      ? cpuOffload.gpuMemory
+      : zeroResult
+        ? zeroResult.perGPU.total
+        : trainingResult.total
+
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="space-y-6">
@@ -293,7 +305,7 @@ export function ResultsPanel() {
             </h2>
             <div className="space-y-6">
               {/* Fit Indicator */}
-              <FitIndicator totalVRAM={trainingResult.total} availableVRAM={selectedGPU.vram_gb} />
+              <FitIndicator totalVRAM={trainingVRAMForFit} availableVRAM={selectedGPU.vram_gb} />
 
               {/* Training method badge */}
               <div className="flex items-center gap-2">
@@ -309,11 +321,48 @@ export function ResultsPanel() {
                 </span>
               </div>
 
+              {/* ZeRO Memory Info */}
+              {zeroResult && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                    DeepSpeed {zeroResult.zeroStage.replace('-', ' ').toUpperCase()} —{' '}
+                    {zeroResult.numGPUs} GPUs
+                  </h4>
+                  <div className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
+                    <p>Per-GPU VRAM: {zeroResult.perGPU.total.toFixed(2)} GB</p>
+                    <p>Memory reduction: {zeroResult.reductionFactor.toFixed(1)}x vs single GPU</p>
+                  </div>
+                </div>
+              )}
+
+              {/* CPU Offload Info */}
+              {cpuOffload && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-2">
+                    CPU Offloading Active
+                  </h4>
+                  <div className="text-sm text-amber-800 dark:text-amber-300 space-y-1">
+                    <p>GPU VRAM: {cpuOffload.gpuMemory.toFixed(2)} GB</p>
+                    <p>CPU RAM required: {cpuOffload.cpuMemory.toFixed(2)} GB</p>
+                    <p className="text-xs italic">
+                      15-30% throughput reduction from PCIe transfers
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Training breakdown chart */}
               <TrainingBreakdownChart breakdown={trainingResult} />
 
               {/* Training breakdown table */}
               <TrainingBreakdownTable breakdown={trainingResult} />
+
+              {/* Single-GPU baseline reference when using ZeRO */}
+              {zeroResult && (
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  Single-GPU baseline: {trainingResult.total.toFixed(2)} GB
+                </div>
+              )}
             </div>
           </div>
         </div>
