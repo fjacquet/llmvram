@@ -30,7 +30,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 6: Fine-Tuning Calculation Engines** - Pure calculation logic for full/LoRA/QLoRA training VRAM
+- [x] **Phase 6: Fine-Tuning Calculation Engines** - Pure calculation logic for full/LoRA/QLoRA training VRAM — completed 2026-02-10
 - [ ] **Phase 7: Training State & Basic UI** - Training mode toggle and configuration state management
 - [ ] **Phase 8: Memory Optimization Features** - Gradient accumulation, checkpointing, Flash Attention
 - [ ] **Phase 9: Training Memory Visualization** - Extended charts and tables with training breakdown
@@ -51,9 +51,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md -- Training types, constants, and Zod schemas
-- [ ] 06-02-PLAN.md -- TDD: Core training engine (optimizer states, activations, full fine-tuning)
-- [ ] 06-03-PLAN.md -- TDD: LoRA/QLoRA engine + barrel exports
+- [x] 06-01-PLAN.md -- Training types, constants, and Zod schemas
+- [x] 06-02-PLAN.md -- TDD: Core training engine (optimizer states, activations, full fine-tuning)
+- [x] 06-03-PLAN.md -- TDD: LoRA/QLoRA engine + barrel exports
 
 ### Phase 7: Training State & Basic UI
 **Goal:** Users can toggle into training mode and select basic configuration
@@ -125,7 +125,7 @@ Phases execute in numeric order: 6 → 7 → 8 → 9 → 10
 | 3. Core UI | v1.0 | 4/4 | Complete | 2026-02-09 |
 | 4. Multi-GPU Support | v1.0 | 3/3 | Complete | 2026-02-09 |
 | 5. Sharing & Comparison | v1.0 | 3/3 | Complete | 2026-02-09 |
-| 6. Fine-Tuning Calculation Engines | v1.1 | 0/3 | Planned | - |
+| 6. Fine-Tuning Calculation Engines | v1.1 | 3/3 | Complete | 2026-02-10 |
 | 7. Training State & Basic UI | v1.1 | 0/TBD | Not started | - |
 | 8. Memory Optimization Features | v1.1 | 0/TBD | Not started | - |
 | 9. Training Memory Visualization | v1.1 | 0/TBD | Not started | - |

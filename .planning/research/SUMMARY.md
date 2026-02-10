@@ -20,6 +20,7 @@ Key risks center on formula accuracy: optimizer states must account for FP32 pre
 **No new libraries needed.** The existing validated stack is sufficient for all fine-tuning features. Fine-tuning requires three types of extensions: (1) calculation engines with standard formulas, (2) UI components reusing existing primitives, and (3) static JSON configuration data. Research confirms no NPM libraries exist for fine-tuning VRAM estimation — implementations use hand-rolled formulas from papers and documentation.
 
 **Core technologies (all existing):**
+
 - **Decimal.js** — precision arithmetic for all training memory calculations (weights, gradients, optimizer states, activations)
 - **Zod** — validate training configurations (optimizer type, LoRA rank, batch size, gradient accumulation)
 - **React 19 + Headless UI** — training mode selectors, LoRA config panels, optimizer dropdowns
@@ -27,6 +28,7 @@ Key risks center on formula accuracy: optimizer states must account for FP32 pre
 - **Zustand** — add training state slice (mode, optimizer config, LoRA config, framework preset)
 
 **Key integration points:**
+
 - Extend `utils/schemas.ts` with `FineTuningConfigSchema`, `OptimizerConfigSchema`, `LoRAConfigSchema`
 - Create new engines: `finetuning.ts`, `lora.ts`, `optimizer.ts`, `gradient-accumulation.ts`, `framework-presets.ts`
 - Reuse existing: `quantization.ts` (for QLoRA base), model database, GPU database, URL serialization
@@ -34,6 +36,7 @@ Key risks center on formula accuracy: optimizer states must account for FP32 pre
 ### Expected Features
 
 **Must have (table stakes):**
+
 - Training mode toggle (Inference / Full FT / LoRA / QLoRA) — users cannot estimate without specifying method
 - Optimizer selection (AdamW, SGD, 8-bit Adam) — 4x memory difference between optimizers
 - Full fine-tuning calculation — model weights + gradients + optimizer states (8B/param) + activations
@@ -44,6 +47,7 @@ Key risks center on formula accuracy: optimizer states must account for FP32 pre
 - Mixed precision toggle (FP16/BF16) — reduces activations/gradients to 2 bytes
 
 **Should have (competitive differentiators):**
+
 - Framework presets (DeepSpeed ZeRO-1/2/3, Unsloth, vLLM, TGI) — one-click accurate configs
 - Gradient checkpointing toggle — 50-80% activation memory reduction (with 25-40% slowdown warning)
 - Flash Attention toggle — 50-80% KV cache reduction during training
@@ -51,6 +55,7 @@ Key risks center on formula accuracy: optimizer states must account for FP32 pre
 - Multi-GPU training estimation — DeepSpeed ZeRO stage impact (2x/4x/8x memory savings)
 
 **Defer (v2+):**
+
 - CPU offloading for training (ZeRO-Offload complexity)
 - Training cost estimation (provider-specific, high variance)
 - FSDP/Megatron strategies (DeepSpeed only for v1.1)
@@ -62,6 +67,7 @@ Key risks center on formula accuracy: optimizer states must account for FP32 pre
 The fine-tuning milestone extends the existing inference-focused architecture with parallel engines and conditional UI components. Architecture follows established patterns: pure calculation engines (Decimal.js), Zod schemas for type safety, Zustand for state, and React components split by concern. New features integrate cleanly by adding parallel engines, extending the store, and creating new input/output components that reuse existing patterns.
 
 **Major components:**
+
 1. **Calculation Engines (Pure Functions)** — `finetuning.ts` (full/LoRA/QLoRA VRAM), `lora.ts` (adapter parameter calculation), `optimizer.ts` (state memory by type), `gradient-accumulation.ts` (effective batch size), `framework-presets.ts` (optimization profiles)
 2. **Store Extensions** — Add training slice to Zustand store (mode, optimizer config, LoRA config, framework preset, gradient accumulation steps, gradient checkpointing flag)
 3. **Input Components** — `TrainingModeSelector` (radio group), `LoRAConfigPanel` (rank/alpha/targets), `OptimizerSelector` (dropdown), `GradientAccumulationInput` (steps + effective batch display), `FrameworkPresetSelector` (preset cards)
@@ -89,9 +95,11 @@ The fine-tuning milestone extends the existing inference-focused architecture wi
 Based on research, suggested phase structure prioritizes accurate calculation formulas first (avoiding critical pitfalls), then state management and basic UI, then advanced features and framework presets, and finally validation.
 
 ### Phase 1: Fine-Tuning Calculation Engine (Core)
+
 **Rationale:** Pure functions with no UI dependencies enable independent testing and formula validation before UI complexity. Addresses critical pitfalls #1, #2, #3 (KV cache reuse, optimizer precision, LoRA adapter-only states).
 
 **Delivers:**
+
 - `engines/finetuning.ts` — `calculateFineTuningVRAM()` for full/LoRA/QLoRA modes
 - `engines/lora.ts` — `calculateLoRAParams()` for adapter parameter calculation
 - `engines/optimizer.ts` — `calculateOptimizerMemory()` for AdamW/SGD/8-bit variants
@@ -106,9 +114,11 @@ Based on research, suggested phase structure prioritizes accurate calculation fo
 ---
 
 ### Phase 2: Training State & UI Foundation
+
 **Rationale:** Extend store and add basic UI before advanced features. Training mode selector enables conditional rendering for all subsequent phases. Framework presets data prepared early for preset selector in Phase 4.
 
 **Delivers:**
+
 - Extended Zod schemas (`FineTuningConfigSchema`, `OptimizerConfigSchema`, `LoRAConfigSchema`)
 - Zustand store training slice (mode, optimizer, LoRA config, framework preset, gradient accumulation, checkpointing)
 - `TrainingModeSelector` component (Inference / Full FT / LoRA / QLoRA radio group)
@@ -124,9 +134,11 @@ Based on research, suggested phase structure prioritizes accurate calculation fo
 ---
 
 ### Phase 3: Advanced Training Inputs
+
 **Rationale:** After core calculations work (Phase 1) and state management exists (Phase 2), add advanced input components. LoRA config panel and gradient accumulation calculator provide fine-grained control.
 
 **Delivers:**
+
 - `LoRAConfigPanel` component (rank, alpha, target modules, presets)
 - `OptimizerSelector` component (dropdown with memory impact shown)
 - `GradientAccumulationInput` component (steps input + effective batch size display)
@@ -142,9 +154,11 @@ Based on research, suggested phase structure prioritizes accurate calculation fo
 ---
 
 ### Phase 4: Memory Visualization & Output
+
 **Rationale:** After inputs exist (Phase 3), extend output components to display training memory breakdown. Memory visualization helps users understand where VRAM goes (optimizer states, gradients, activations).
 
 **Delivers:**
+
 - Extended `VRAMBreakdownChart` with training slices (optimizer states, gradients, activations, LoRA adapters)
 - Extended `MemoryBreakdownTable` with training rows (trainable params, frozen params, optimizer type)
 - `FrameworkOptimizationBadge` component (show active optimizations from preset)
@@ -159,9 +173,11 @@ Based on research, suggested phase structure prioritizes accurate calculation fo
 ---
 
 ### Phase 5: Framework Presets & Multi-GPU
+
 **Rationale:** After single-GPU training works (Phases 1-4), add framework-specific optimizations and multi-GPU support. DeepSpeed ZeRO requires careful stage modeling (2x/4x/8x, not divide-by-N).
 
 **Delivers:**
+
 - `engines/framework-presets.ts` — `applyFrameworkOptimizations()` for vLLM/TGI/Unsloth/DeepSpeed
 - `FrameworkPresetSelector` component (preset cards with optimization badges)
 - `GradientAccumulationCalculator` — `recommendGradientAccumulation()` for memory-constrained scenarios
@@ -177,9 +193,11 @@ Based on research, suggested phase structure prioritizes accurate calculation fo
 ---
 
 ### Phase 6: Validation & Polish
+
 **Rationale:** Final phase validates all formulas against ground truth, cross-checks other calculators, and tests edge cases. Target <15% error vs real training runs.
 
 **Delivers:**
+
 - Ground truth benchmarks (Llama 7B LoRA, Llama 7B QLoRA, Llama 70B ZeRO-3)
 - Cross-validation against Modal calculator, HuggingFace Accelerate estimator, DeepSpeed config generator
 - Edge case testing (MoE models, GQA models, long sequences, large ranks)
@@ -203,9 +221,11 @@ Based on research, suggested phase structure prioritizes accurate calculation fo
 ### Research Flags
 
 Phases likely needing deeper research during planning:
+
 - **Phase 5 (Multi-GPU):** DeepSpeed ZeRO-3 memory partitioning formulas inferred from documentation, not explicitly stated. Needs validation against real multi-GPU training runs. Communication overhead percentages vary by interconnect (10-25% range in sources).
 
 Phases with standard patterns (skip research-phase):
+
 - **Phase 1 (Engines):** Formulas well-documented in HuggingFace, DeepSpeed, QLoRA papers. No ambiguity.
 - **Phase 2 (State/UI):** Follows existing Zustand store pattern, React component structure.
 - **Phase 3 (Inputs):** Reuses Headless UI primitives (radio groups, dropdowns, toggles).
@@ -243,27 +263,32 @@ Areas where research was inconclusive or needs validation during implementation:
 ### Primary (HIGH confidence)
 
 **Technology Stack:**
+
 - [Decimal.js vs BigNumber.js](https://medium.com/@josephgathumbi/decimal-js-vs-c1471b362181) — validated Decimal.js sufficiency
 - [npm-compare: JavaScript Arbitrary-Precision Libraries](https://npm-compare.com/big.js,bignumber.js,decimal.js,decimal.js-light) — Decimal.js most feature-complete
 - [Top React Chart Libraries 2026](https://aglowiditsolutions.com/blog/react-chart-libraries/) — Recharts still recommended
 
 **Fine-Tuning Formulas:**
+
 - [Modal: How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning) — formula verification for full fine-tuning with AdamW
 - [HuggingFace Model Memory Anatomy](https://huggingface.co/docs/transformers/main/en/model_memory_anatomy) — official memory breakdown
 - [Memory Requirements (HBM, GPU RAM)](https://apxml.com/courses/how-to-build-a-large-language-model/chapter-18-hardware-considerations-llm-training/memory-requirements-hbm-gpu-ram) — optimizer states precision
 
 **LoRA & QLoRA:**
+
 - [LoRA Paper](https://arxiv.org/abs/2106.09685) — original LoRA architecture
 - [QLoRA Paper](https://arxiv.org/abs/2305.14314) — QLoRA 4-bit NF4 quantization
 - [Making LLMs even more accessible with bitsandbytes, 4-bit quantization and QLoRA](https://huggingface.co/blog/4bit-transformers-bitsandbytes) — official QLoRA integration
 - [LoRA fine-tuning Hyperparameters Guide](https://docs.unsloth.ai/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide) — rank/alpha recommendations
 
 **DeepSpeed ZeRO:**
+
 - [Zero Redundancy Optimizer - DeepSpeed](https://www.deepspeed.ai/tutorials/zero/) — official ZeRO stage explanations
 - [Memory Requirements — DeepSpeed](https://deepspeed.readthedocs.io/en/latest/memory.html) — per-stage memory formulas
 - [ZeRO-Offload - DeepSpeed](https://www.deepspeed.ai/tutorials/zero-offload/) — CPU offloading mechanics
 
 **Framework Documentation:**
+
 - [Unsloth GitHub](https://github.com/unslothai/unsloth) — 2x faster, 70% less VRAM claims
 - [vLLM PagedAttention Paper](https://arxiv.org/abs/2309.06180) — inference-only optimizations
 - [HuggingFace TGI Documentation](https://huggingface.co/docs/text-generation-inference/en/index) — TGI optimization techniques
@@ -271,27 +296,33 @@ Areas where research was inconclusive or needs validation during implementation:
 ### Secondary (MEDIUM confidence)
 
 **Gradient Accumulation & Checkpointing:**
+
 - [Gradient Accumulation: Increase Batch Size Without Explicitly Increasing Batch Size](https://blog.dailydoseofds.com/p/gradient-accumulation-increase-batch) — activation memory only
 - [Current and New Activation Checkpointing Techniques in PyTorch](https://pytorch.org/blog/activation-checkpointing-techniques/) — selective checkpointing
 - [Small Batch Size Training for Language Models (2025)](https://arxiv.org/abs/2507.07101) — gradient accumulation research
 
 **Flash Attention:**
+
 - [FlashAttention: Fast and Memory-Efficient Exact Attention](https://arxiv.org/abs/2205.14135) — 10-20x memory savings at 2K-4K seq lengths
 - [Out of the box acceleration and memory savings](https://pytorch.org/blog/out-of-the-box-acceleration/) — PyTorch integration
 
 **Mixed Precision:**
+
 - [Mixed Precision Training in LLMs: FP16, BF16, FP8, and Beyond](https://medium.com/@dpratishraj7991/mixed-precision-training-in-llms-fp16-bf16-fp8-and-beyond-b4af13ca846f) — master weights in FP32
 - [How can using FP16, BF16, or FP8 mixed precision speed up my model training?](https://www.runpod.io/articles/guides/fp16-bf16-fp8-mixed-precision-speed-up-my-model-training) — 20-30% savings, not 50%
 
 ### Tertiary (LOW confidence, needs validation)
 
 **Training Throughput:**
+
 - Sources vary widely on speedup/slowdown percentages (Unsloth 2x, DeepSpeed ZeRO-3 20-40% slower, gradient checkpointing 25-40% slower). Defer to v2+ when benchmarking data available.
 
 **CPU Offloading Performance:**
+
 - Claims range from "10-30x slower" to "15-30% slower" depending on PCIe bandwidth. Needs hardware-specific validation.
 
 **Unsloth Proprietary Optimizations:**
+
 - 70% memory reduction claim validated against user reports, not source code. Use conservative estimate.
 
 ---

@@ -88,10 +88,12 @@ TDD execution with atomic commits:
 ## Files Created/Modified
 
 **Created:**
+
 - `src/engines/lora.ts` - Core LoRA/QLoRA VRAM calculation engine with 3 exported functions
 - `src/engines/lora.test.ts` - Comprehensive test suite with 13 tests
 
 **Modified:**
+
 - `src/engines/index.ts` - Added training and LoRA exports (functions, types, constants)
 - `src/engines/training.ts` - Fixed num_layers → num_hidden_layers
 - `src/engines/training.test.ts` - Fixed test models to use correct schema fields
@@ -105,6 +107,7 @@ None - followed plan exactly as specified with TDD methodology
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed incorrect Model schema field names**
+
 - **Found during:** GREEN phase implementation
 - **Issue:** Test models and training.ts used `num_layers`, `num_heads` but Model schema defines `num_hidden_layers`, `num_attention_heads`. TypeScript build failed.
 - **Fix:** Updated all test models in lora.test.ts and training.test.ts to use correct schema fields. Updated training.ts calculateTrainingActivationMemory to use `model.num_hidden_layers`.
@@ -132,15 +135,18 @@ None - no external service configuration required
 ## Self-Check: PASSED
 
 All created files verified:
+
 - FOUND: src/engines/lora.ts
 - FOUND: src/engines/lora.test.ts
 
 All commits verified:
+
 - FOUND: 45e1be2 (RED - failing tests)
 - FOUND: b792588 (GREEN - passing implementation + schema fixes)
 - FOUND: 5b484ca (barrel exports)
 
 All tests verified:
+
 ```
 Test Files  16 passed (16)
      Tests  213 passed (213)
@@ -152,6 +158,7 @@ Biome lint: PASSED
 Production build: PASSED
 
 Key validations:
+
 - ✅ 7B LoRA adapter params (rank=16, 50% targets): ~16.8M (0.24% of base)
 - ✅ 7B LoRA total VRAM: ~19.8 GB (fits 24GB GPU)
 - ✅ 7B QLoRA total VRAM: ~10 GB (within 6-12GB research range)
