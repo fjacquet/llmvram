@@ -126,11 +126,13 @@ Plans:
   3. Multi-GPU training estimation shows correct ZeRO stage memory reduction (2x/4x/8x)
   4. QLoRA mode displays separate memory for 4-bit base model and 16-bit adapters
   5. User can enable CPU offloading for optimizer states in training mode
-**Plans:** TBD
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD (to be defined during phase planning)
+- [ ] 10-01-PLAN.md -- TDD: Framework preset types + DeepSpeed ZeRO calculation engine
+- [ ] 10-02-PLAN.md -- Framework preset state management + URL persistence + auto-apply
+- [ ] 10-03-PLAN.md -- UI components + training calculation hook + ResultsPanel integration
 
 ## Progress
 
@@ -148,4 +150,4 @@ Phases execute in numeric order: 6 → 7 → 8 → 9 → 10
 | 7. Training State & Basic UI | v1.1 | 2/2 | Complete | 2026-02-10 |
 | 8. Memory Optimization Features | v1.1 | 3/3 | Complete | 2026-02-10 |
 | 9. Training Memory Visualization | v1.1 | 0/1 | Planning complete | - |
-| 10. Framework Presets & Multi-GPU Training | v1.1 | 0/TBD | Not started | - |
+| 10. Framework Presets & Multi-GPU Training | v1.1 | 0/3 | Planning complete | - |
