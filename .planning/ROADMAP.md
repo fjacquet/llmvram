@@ -31,7 +31,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 6: Fine-Tuning Calculation Engines** - Pure calculation logic for full/LoRA/QLoRA training VRAM — completed 2026-02-10
-- [ ] **Phase 7: Training State & Basic UI** - Training mode toggle and configuration state management
+- [x] **Phase 7: Training State & Basic UI** - Training mode toggle and configuration state management — completed 2026-02-10
 - [ ] **Phase 8: Memory Optimization Features** - Gradient accumulation, checkpointing, Flash Attention
 - [ ] **Phase 9: Training Memory Visualization** - Extended charts and tables with training breakdown
 - [ ] **Phase 10: Framework Presets & Multi-GPU Training** - Framework-specific optimizations and distributed training
@@ -68,8 +68,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 07-01-PLAN.md -- Training state & URL persistence
-- [ ] 07-02-PLAN.md -- Training UI components & InputPanel integration
+- [x] 07-01-PLAN.md -- Training state & URL persistence
+- [x] 07-02-PLAN.md -- Training UI components & InputPanel integration
 
 ### Phase 8: Memory Optimization Features
 **Goal:** Users can optimize training memory through gradient accumulation and checkpointing
@@ -127,7 +127,7 @@ Phases execute in numeric order: 6 → 7 → 8 → 9 → 10
 | 4. Multi-GPU Support | v1.0 | 3/3 | Complete | 2026-02-09 |
 | 5. Sharing & Comparison | v1.0 | 3/3 | Complete | 2026-02-09 |
 | 6. Fine-Tuning Calculation Engines | v1.1 | 3/3 | Complete | 2026-02-10 |
-| 7. Training State & Basic UI | v1.1 | 0/2 | Planned | - |
+| 7. Training State & Basic UI | v1.1 | 2/2 | Complete | 2026-02-10 |
 | 8. Memory Optimization Features | v1.1 | 0/TBD | Not started | - |
 | 9. Training Memory Visualization | v1.1 | 0/TBD | Not started | - |
 | 10. Framework Presets & Multi-GPU Training | v1.1 | 0/TBD | Not started | - |

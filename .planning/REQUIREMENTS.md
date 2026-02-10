@@ -87,13 +87,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FTCORE-01 | Phase 7 | Pending |
+| FTCORE-01 | Phase 7 | Complete |
 | FTCORE-02 | Phase 6 | Complete |
 | FTCORE-03 | Phase 6 | Complete |
 | FTCORE-04 | Phase 9 | Pending |
 | FTCORE-05 | Phase 6 | Complete |
 | FTCORE-06 | Phase 6 | Complete |
-| FTCORE-07 | Phase 7 | Pending |
+| FTCORE-07 | Phase 7 | Complete |
 | OPTIM-01 | Phase 8 | Pending |
 | OPTIM-02 | Phase 8 | Pending |
 | OPTIM-03 | Phase 8 | Pending |
