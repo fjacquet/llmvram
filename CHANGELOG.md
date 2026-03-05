@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-03-05
+
+### Added
+
+- Apple M5 Max (128 GB, 614 GB/s) to GPU database (now 20 GPUs)
+- Interconnect-aware tensor parallelism scaling efficiency: NVLink-5 (97%), NVLink-4 (92%), PCIe-5 (78%), PCIe-4 (65%) — replaces flat 12% TP overhead
+- `scalingEfficiency` and `interconnectBandwidthGBps` fields on `MultiGPUVRAMBreakdown` result
+- Multi-GPU throughput scaling: tokens/sec now multiplied by `numGPUs × scalingEfficiency` to reflect real communication cost
+- ShardingStrategySelector badge shows TP efficiency % alongside bandwidth (e.g. "NVLINK-4: 900 GB/s · 92% TP efficiency")
+- MultiGPUBreakdownChart displays interconnect summary row with bandwidth, efficiency, and effective tokens/sec
+- FitIndicator cluster view for multi-GPU: shows "Using X GB of N × Y GB = Z GB" instead of single-GPU capacity
+
+### Changed
+
+- `calculateMultiGPUVRAM` now requires a `GPU` argument to resolve interconnect type
+- `calculateTensorParallelVRAM` derives comm overhead from interconnect bandwidth instead of flat constant
+- `estimatePerformance` accepts optional `multiGPUResult` and scales throughput accordingly
+- Worker and hook calculation order: VRAM → offloading → multi-GPU → performance (ensures multi-GPU result is available for performance scaling)
+- Recommendations use actual `scalingEfficiency` from breakdown instead of hardcoded 0.85
+
 ## [1.1.0] - 2026-03-05
 
 ### Added
