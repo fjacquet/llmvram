@@ -145,10 +145,12 @@ export function Recommendations({
   // 5. Use multiple GPUs
   const totalGB = breakdown.total.toNumber()
 
+  // Effective scaling efficiency: use actual value from breakdown, or conservative default
+  const scalingEfficiency = multiGPUBreakdown?.scalingEfficiency ?? 0.85
+
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
   if (numGPUs > 1 && multiGPUBreakdown && multiGPUBreakdown.totalPerGPU.greaterThan(gpu.vram_gb)) {
-    // Estimate needed GPUs with 85% efficiency (account for replication/overhead)
-    const gpusNeeded = Math.ceil(totalGB / (gpu.vram_gb * 0.85))
+    const gpusNeeded = Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency))
 
     recommendations.push({
       title: 'Add more GPUs',
@@ -157,8 +159,7 @@ export function Recommendations({
     })
   } else if (numGPUs === 1) {
     // Case B: Single GPU -> show multi-GPU recommendation
-    // Estimate needed GPUs with 85% efficiency (account for replication/overhead)
-    const gpusNeeded = Math.ceil(totalGB / (gpu.vram_gb * 0.85))
+    const gpusNeeded = Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency))
 
     if (gpusNeeded > 1) {
       recommendations.push({

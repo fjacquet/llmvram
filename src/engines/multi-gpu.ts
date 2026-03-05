@@ -8,7 +8,6 @@ import {
   NCCL_BUFFER_PER_PEER_GB,
   PP_ACTIVATION_STASHING_OVERHEAD,
   PP_COMMUNICATION_OVERHEAD,
-  TP_COMMUNICATION_OVERHEAD,
 } from './constants'
 import type {
   InferenceVRAMBreakdown,
@@ -47,12 +46,14 @@ function calculateReplicatedMemory(model: Model, modelWeightsGB: Decimal): Decim
  *
  * TP shards model weights, KV cache, and activations across GPUs.
  * Embeddings and layer norms are replicated.
+ * Communication overhead is derived from the GPU's interconnect bandwidth.
  *
  * @param singleGPU - Single-GPU VRAM breakdown
  * @param model - Model configuration
  * @param gpuVramGB - GPU VRAM capacity in GB
  * @param numGPUs - Number of GPUs
  * @param isMoE - Whether model is MoE architecture
+ * @param interconnectType - Resolved interconnect type for bandwidth-aware overhead
  * @returns Multi-GPU VRAM breakdown
  */
 function calculateTensorParallelVRAM(
@@ -61,7 +62,11 @@ function calculateTensorParallelVRAM(
   gpuVramGB: number,
   numGPUs: number,
   isMoE: boolean,
+  interconnectType: InterconnectType,
 ): MultiGPUVRAMBreakdown {
+  const interconnectSpec = INTERCONNECT_SPECS[interconnectType]
+  const scalingEfficiency = interconnectSpec.tpScalingEfficiency
+
   // Calculate replicated memory (embeddings + layer norms)
   const replicatedMemory = calculateReplicatedMemory(model, singleGPU.modelWeights)
 
@@ -81,9 +86,11 @@ function calculateTensorParallelVRAM(
   const ncclBuffers = NCCL_BUFFER_PER_PEER_GB.mul(numGPUs - 1)
   const frameworkOverheadPerGPU = singleGPU.frameworkOverhead.add(ncclBuffers)
 
-  // Communication overhead: 12% of weights per GPU (15% extra for MoE)
+  // Communication overhead: derived from interconnect bandwidth (1 - scalingEfficiency)
+  // PCIe-4: 35%, PCIe-5: 22%, NVLink-4: 8%, NVLink-5: 3% (15% extra for MoE)
+  const commOverheadFraction = new Decimal(1 - scalingEfficiency)
   const moeMultiplier = isMoE ? new Decimal(1).add(MOE_MULTI_GPU_OVERHEAD) : new Decimal(1)
-  const communicationOverhead = weightsPerGPU.mul(TP_COMMUNICATION_OVERHEAD).mul(moeMultiplier)
+  const communicationOverhead = weightsPerGPU.mul(commOverheadFraction).mul(moeMultiplier)
 
   // Total per GPU
   const totalPerGPU = weightsPerGPU
@@ -110,6 +117,8 @@ function calculateTensorParallelVRAM(
     totalPerGPU,
     utilizationPercent,
     singleGPUBaseline: singleGPU.total,
+    scalingEfficiency,
+    interconnectBandwidthGBps: interconnectSpec.bandwidthGBps,
   }
 }
 
@@ -177,6 +186,9 @@ function calculatePipelineParallelVRAM(
     totalPerGPU,
     utilizationPercent,
     singleGPUBaseline: singleGPU.total,
+    // PP has lower communication overhead than TP; use flat 95% efficiency
+    scalingEfficiency: 1 - PP_COMMUNICATION_OVERHEAD.toNumber(),
+    interconnectBandwidthGBps: 0,
   }
 }
 
@@ -191,6 +203,7 @@ function calculatePipelineParallelVRAM(
  * @param gpuVramGB - GPU VRAM capacity in GB
  * @param numGPUs - Number of GPUs (1-8)
  * @param strategy - Sharding strategy
+ * @param gpu - GPU configuration (used to derive interconnect bandwidth for TP overhead)
  * @returns Multi-GPU VRAM breakdown
  *
  * @throws Error if numGPUs < 1 or > 8
@@ -204,8 +217,9 @@ function calculatePipelineParallelVRAM(
  *   batchSize: 1,
  * })
  *
- * const multiGPU = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 4, 'tensor-parallel')
+ * const multiGPU = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 4, 'tensor-parallel', h100)
  * // multiGPU.totalPerGPU: ~15 GB per GPU (vs 42 GB single GPU)
+ * // multiGPU.scalingEfficiency: 0.92 (NVLink-4)
  * ```
  */
 export function calculateMultiGPUVRAM(
@@ -214,6 +228,7 @@ export function calculateMultiGPUVRAM(
   gpuVramGB: number,
   numGPUs: number,
   strategy: ShardingStrategy,
+  gpu: GPU,
 ): MultiGPUVRAMBreakdown {
   // Validate numGPUs range
   if (numGPUs < 1 || numGPUs > 8) {
@@ -239,14 +254,24 @@ export function calculateMultiGPUVRAM(
       totalPerGPU: singleGPU.total,
       utilizationPercent,
       singleGPUBaseline: singleGPU.total,
+      scalingEfficiency: 1.0,
+      interconnectBandwidthGBps: 0,
     }
   }
 
   // Multi-GPU calculation
   const isMoE = model.architecture === 'moe'
+  const interconnectType = resolveInterconnect(gpu)
 
   if (strategy === 'tensor-parallel') {
-    return calculateTensorParallelVRAM(singleGPU, model, gpuVramGB, numGPUs, isMoE)
+    return calculateTensorParallelVRAM(
+      singleGPU,
+      model,
+      gpuVramGB,
+      numGPUs,
+      isMoE,
+      interconnectType,
+    )
   } else {
     return calculatePipelineParallelVRAM(singleGPU, model, gpuVramGB, numGPUs, isMoE)
   }

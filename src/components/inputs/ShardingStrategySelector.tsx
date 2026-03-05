@@ -110,13 +110,15 @@ export function ShardingStrategySelector() {
           'No interconnect detected. Multi-GPU may not be supported for this GPU.'
         ) : interconnectType.startsWith('nvlink') ? (
           <>
-            {interconnectType.toUpperCase()}: {interconnectSpec.bandwidthGBps} GB/s -- Excellent for
+            {interconnectType.toUpperCase()}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
+            {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — Excellent for
             TP up to {interconnectSpec.recommendedMaxTPDegree} GPUs
           </>
         ) : (
           <>
-            {interconnectType.toUpperCase()}: {interconnectSpec.bandwidthGBps} GB/s -- TP
-            recommended up to {interconnectSpec.recommendedMaxTPDegree} GPUs
+            {interconnectType.toUpperCase()}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
+            {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — TP recommended
+            up to {interconnectSpec.recommendedMaxTPDegree} GPUs
           </>
         )}
       </div>

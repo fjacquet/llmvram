@@ -2,7 +2,7 @@ import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { BYTES_PER_GB } from './constants'
 import { calculateModelWeightVRAM } from './quantization'
-import type { PerformanceEstimate, QuantizationFormat } from './types'
+import type { MultiGPUVRAMBreakdown, PerformanceEstimate, QuantizationFormat } from './types'
 
 /**
  * Performance estimation parameters
@@ -16,6 +16,8 @@ export interface PerformanceParams {
   quantization: QuantizationFormat
   /** Number of concurrent sequences (batch size) */
   batchSize: number
+  /** Optional multi-GPU result; when provided, tokens/sec is scaled by numGPUs × scalingEfficiency */
+  multiGPUResult?: MultiGPUVRAMBreakdown | null
 }
 
 /**
@@ -50,7 +52,7 @@ export interface PerformanceParams {
  * ```
  */
 export function estimatePerformance(params: PerformanceParams): PerformanceEstimate {
-  const { model, gpu, quantization, batchSize } = params
+  const { model, gpu, quantization, batchSize, multiGPUResult } = params
 
   // 1. Calculate model size in bytes (for memory-bound estimate)
   const modelSizeGB = calculateModelWeightVRAM(model.num_parameters_billion, quantization)
@@ -81,7 +83,14 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   }
 
   // 4. Roofline decision: performance is min of memory-bound and compute-bound
-  const tokensPerSecond = Decimal.min(memoryBoundTPS, computeBoundTPS)
+  let tokensPerSecond = Decimal.min(memoryBoundTPS, computeBoundTPS)
+
+  // 4b. Apply multi-GPU scaling: effective TPS = single-GPU TPS × numGPUs × scalingEfficiency
+  if (multiGPUResult && multiGPUResult.numGPUs > 1) {
+    tokensPerSecond = tokensPerSecond
+      .mul(multiGPUResult.numGPUs)
+      .mul(multiGPUResult.scalingEfficiency)
+  }
 
   // 5. Bottleneck analysis (5% tolerance to avoid flip-flopping at boundary)
   const tolerance = 0.95

@@ -402,11 +402,12 @@ export function ResultsPanel() {
             </button>
           </div>
           <div className="space-y-6">
-            {/* Fit Indicator - shows per-GPU utilization for multi-GPU, on-device for offloading */}
+            {/* Fit Indicator - shows total cluster view for multi-GPU, per-GPU for single */}
             {result.multiGPU ? (
               <FitIndicator
-                totalVRAM={result.multiGPU.totalPerGPU}
-                availableVRAM={selectedGPU.vram_gb}
+                totalVRAM={result.vram.total}
+                availableVRAM={selectedGPU.vram_gb * result.multiGPU.numGPUs}
+                numGPUs={result.multiGPU.numGPUs}
               />
             ) : (
               <FitIndicator
@@ -442,7 +443,11 @@ export function ResultsPanel() {
 
             {/* Multi-GPU Breakdown Chart */}
             {result.multiGPU && (
-              <MultiGPUBreakdownChart breakdown={result.multiGPU} gpuVRAM={selectedGPU.vram_gb} />
+              <MultiGPUBreakdownChart
+                breakdown={result.multiGPU}
+                gpuVRAM={selectedGPU.vram_gb}
+                effectiveTokPerSec={result.performance.tokensPerSecond.toNumber()}
+              />
             )}
 
             {/* Interconnect Warning */}
