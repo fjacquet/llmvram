@@ -82,8 +82,8 @@ src/
 ├── workers/                    # Web Workers
 │   └── calculation.worker.ts   # Offloads engine calculations to background thread
 ├── data/                       # Static databases
-│   ├── gpus.json               # 19 curated GPUs (NVIDIA, AMD, Apple Silicon)
-│   └── models.json             # 37 curated models (sorted alphabetically by name)
+│   ├── gpus.json               # 19 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
+│   └── models.json             # 56 curated models (sorted alphabetically by name) + context_length, license, hf_url
 └── test/                       # Test infrastructure
     └── setup.ts                # @testing-library/jest-dom + cleanup
 scripts/
@@ -280,6 +280,17 @@ export function validateModels(data: unknown): Model[] { ... }
 
 Types in `src/types/` re-export from schemas. All data is validated through Zod at boundaries.
 
+### Optional metadata fields
+
+Both schemas include optional display/linking fields that do not affect calculations:
+
+| Schema | Field | Type | Purpose |
+|--------|-------|------|---------|
+| `ModelSchema` | `context_length` | `number` | Max token context (shown in selector) |
+| `ModelSchema` | `license` | `string` | License identifier (shown in selector) |
+| `ModelSchema` | `hf_url` | `string (URL)` | HuggingFace model card link |
+| `GPUSchema` | `spec_url` | `string (URL)` | Vendor spec sheet link |
+
 ---
 
 ## Component Architecture
@@ -366,7 +377,7 @@ Main Thread                    Worker Thread
 | `src/engines/quantization.ts` | 22 quantization formats |
 | `src/engines/multi-gpu.ts` | Multi-GPU distribution |
 | `src/utils/schemas.ts` | Zod schemas (type source of truth) |
-| `src/data/models.json` | 37 curated models (alphabetically sorted) |
+| `src/data/models.json` | 56 curated models (alphabetically sorted) |
 | `src/data/gpus.json` | 19 curated GPUs |
 | `src/store/urlSerializer.ts` | URL hash state persistence |
 | `src/workers/calculation.worker.ts` | Background calculation thread |
