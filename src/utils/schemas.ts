@@ -31,6 +31,9 @@ export const GPUSchema = z.object({
 
   // Classification
   tier: z.enum(['datacenter', 'consumer', 'apple-silicon']),
+
+  // Metadata (optional, for linking to spec sheets)
+  spec_url: z.string().url().optional(),
 })
 
 // Model Schema based on HuggingFace config.json fields
@@ -51,6 +54,11 @@ export const ModelSchema = z.object({
   // MoE fields (optional, only for MoE architectures)
   num_experts: z.number().int().positive().optional(),
   num_experts_per_token: z.number().int().positive().optional(),
+
+  // Metadata fields (optional, for display and linking)
+  context_length: z.number().int().positive().optional(),
+  license: z.string().optional(),
+  hf_url: z.string().url().optional(),
 })
 
 // Export inferred types

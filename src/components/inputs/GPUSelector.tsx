@@ -156,11 +156,16 @@ export function GPUSelector() {
                               >
                                 {gpu.name}
                               </span>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 shrink-0 ml-2">
                                 <span
                                   className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
                                 >
                                   {gpu.vram_gb} GB
+                                </span>
+                                <span
+                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
+                                >
+                                  {gpu.memory_bandwidth_gbps} GB/s
                                 </span>
                                 <span
                                   className={`text-xs px-1.5 py-0.5 rounded ${active ? 'bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'}`}
@@ -209,11 +214,16 @@ export function GPUSelector() {
                               >
                                 {gpu.name}
                               </span>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 shrink-0 ml-2">
                                 <span
                                   className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
                                 >
                                   {gpu.vram_gb} GB
+                                </span>
+                                <span
+                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
+                                >
+                                  {gpu.memory_bandwidth_gbps} GB/s
                                 </span>
                                 <span
                                   className={`text-xs px-1.5 py-0.5 rounded ${active ? 'bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'}`}
@@ -262,11 +272,16 @@ export function GPUSelector() {
                               >
                                 {gpu.name}
                               </span>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 shrink-0 ml-2">
                                 <span
                                   className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
                                 >
                                   {gpu.vram_gb} GB
+                                </span>
+                                <span
+                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
+                                >
+                                  {gpu.memory_bandwidth_gbps} GB/s
                                 </span>
                                 <span
                                   className={`text-xs px-1.5 py-0.5 rounded ${active ? 'bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'}`}
@@ -315,11 +330,16 @@ export function GPUSelector() {
                               >
                                 {gpu.name}
                               </span>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 shrink-0 ml-2">
                                 <span
                                   className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
                                 >
                                   {gpu.vram_gb} GB
+                                </span>
+                                <span
+                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
+                                >
+                                  {gpu.memory_bandwidth_gbps} GB/s
                                 </span>
                                 <span
                                   className={`text-xs px-1.5 py-0.5 rounded ${active ? 'bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'}`}
@@ -364,6 +384,28 @@ export function GPUSelector() {
           </ComboboxOptions>
         </div>
       </Combobox>
+
+      {/* Selected GPU metadata */}
+      {selectedGPU && (
+        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 px-1">
+          <div className="flex items-center gap-3">
+            <span>{selectedGPU.memory_bandwidth_gbps} GB/s</span>
+            <span>{selectedGPU.memory_type}</span>
+            {selectedGPU.fp16_tflops && <span>{selectedGPU.fp16_tflops} TFLOPS</span>}
+            {selectedGPU.tdp_watts && <span>{selectedGPU.tdp_watts}W TDP</span>}
+          </div>
+          {selectedGPU.spec_url && (
+            <a
+              href={selectedGPU.spec_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Spec sheet ↗
+            </a>
+          )}
+        </div>
+      )}
 
       {/* Custom GPU form */}
       {showCustomForm && (

@@ -60,6 +60,12 @@ export function ModelSelector() {
     setShowCustomForm(false)
   }
 
+  function formatCtx(tokens: number): string {
+    if (tokens >= 1_000_000) return `${(tokens / 1_048_576).toFixed(0)}M ctx`
+    if (tokens >= 1000) return `${Math.round(tokens / 1024)}K ctx`
+    return `${tokens} ctx`
+  }
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-1">
@@ -124,19 +130,28 @@ export function ModelSelector() {
                           >
                             {model.name}
                           </span>
-                          <span
-                            className={`text-xs ml-2 ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
-                          >
-                            ({model.num_parameters_billion}B)
-                          </span>
+                          <div className="flex items-center gap-2 ml-2 shrink-0">
+                            {model.architecture === 'moe' && (
+                              <span
+                                className={`text-xs px-1 rounded ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
+                              >
+                                MoE
+                              </span>
+                            )}
+                            {model.context_length && (
+                              <span
+                                className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
+                              >
+                                {formatCtx(model.context_length)}
+                              </span>
+                            )}
+                            <span
+                              className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
+                            >
+                              {model.num_parameters_billion}B
+                            </span>
+                          </div>
                         </div>
-                        {model.architecture === 'moe' && (
-                          <span
-                            className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
-                          >
-                            MoE
-                          </span>
-                        )}
                         {selected && (
                           <span
                             className={`absolute inset-y-0 left-0 flex items-center pl-3 ${
@@ -171,6 +186,26 @@ export function ModelSelector() {
           </ComboboxOptions>
         </div>
       </Combobox>
+
+      {/* Selected model metadata */}
+      {selectedModel && (
+        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 px-1">
+          <div className="flex items-center gap-3">
+            {selectedModel.context_length && <span>{formatCtx(selectedModel.context_length)}</span>}
+            {selectedModel.license && <span className="uppercase">{selectedModel.license}</span>}
+          </div>
+          {selectedModel.hf_url && (
+            <a
+              href={selectedModel.hf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              HuggingFace ↗
+            </a>
+          )}
+        </div>
+      )}
 
       {/* Custom model form */}
       {showCustomForm && (
