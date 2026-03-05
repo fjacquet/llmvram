@@ -15,6 +15,8 @@ import {
 interface MultiGPUBreakdownChartProps {
   breakdown: MultiGPUVRAMBreakdown
   gpuVRAM: number
+  /** Effective tokens/sec after multi-GPU scaling (optional, shown in summary) */
+  effectiveTokPerSec?: number
 }
 
 const COLORS = {
@@ -94,7 +96,11 @@ function BarChartLegend({ payload }: CustomLegendProps) {
   )
 }
 
-export function MultiGPUBreakdownChart({ breakdown, gpuVRAM }: MultiGPUBreakdownChartProps) {
+export function MultiGPUBreakdownChart({
+  breakdown,
+  gpuVRAM,
+  effectiveTokPerSec,
+}: MultiGPUBreakdownChartProps) {
   const isDarkMode = useUIStore((s) => s.isDarkMode)
 
   // Create data array with one entry per GPU
@@ -199,6 +205,19 @@ export function MultiGPUBreakdownChart({ breakdown, gpuVRAM }: MultiGPUBreakdown
           <span className="font-medium">Utilization:</span>{' '}
           {breakdown.utilizationPercent.toFixed(1)}%
         </p>
+        {breakdown.strategy === 'tensor-parallel' && breakdown.interconnectBandwidthGBps > 0 && (
+          <p>
+            <span className="font-medium">Interconnect:</span> {breakdown.interconnectBandwidthGBps}{' '}
+            GB/s · {Math.round(breakdown.scalingEfficiency * 100)}% TP scaling efficiency
+          </p>
+        )}
+        {effectiveTokPerSec !== undefined && breakdown.numGPUs > 1 && (
+          <p>
+            <span className="font-medium">Effective throughput:</span> ~
+            {effectiveTokPerSec.toFixed(0)} tok/s ({breakdown.numGPUs}× GPUs ×{' '}
+            {Math.round(breakdown.scalingEfficiency * 100)}% efficiency)
+          </p>
+        )}
       </div>
     </div>
   )

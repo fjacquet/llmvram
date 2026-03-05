@@ -190,26 +190,31 @@ export const INTERCONNECT_SPECS: Record<InterconnectType, InterconnectSpec> = {
     type: 'nvlink-4',
     bandwidthGBps: 900,
     recommendedMaxTPDegree: 8,
+    tpScalingEfficiency: 0.92, // 900 GB/s — excellent scaling
   },
   'nvlink-5': {
     type: 'nvlink-5',
     bandwidthGBps: 1800,
     recommendedMaxTPDegree: 8,
+    tpScalingEfficiency: 0.97, // 1800 GB/s — near-linear scaling
   },
   'pcie-4': {
     type: 'pcie-4',
     bandwidthGBps: 64,
     recommendedMaxTPDegree: 2,
+    tpScalingEfficiency: 0.65, // 64 GB/s — significant communication drag
   },
   'pcie-5': {
     type: 'pcie-5',
     bandwidthGBps: 128,
     recommendedMaxTPDegree: 4,
+    tpScalingEfficiency: 0.78, // 128 GB/s — noticeable drag
   },
   none: {
     type: 'none',
     bandwidthGBps: 0,
     recommendedMaxTPDegree: 1,
+    tpScalingEfficiency: 0.0, // no multi-GPU support
   },
 }
 

@@ -87,7 +87,14 @@ describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
       kvQuantization: 'fp16',
     })
 
-    const result = calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 4, 'tensor-parallel')
+    const result = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      4,
+      'tensor-parallel',
+      h100,
+    )
 
     // Verify structure
     expect(result.numGPUs).toBe(4)
@@ -121,9 +128,13 @@ describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
     const expectedFrameworkOverhead = singleGPU.frameworkOverhead.add(new Decimal(0.6))
     expect(result.perGPU.frameworkOverhead.toString()).toBe(expectedFrameworkOverhead.toString())
 
-    // Verify communication overhead (12% of weights per GPU)
-    const expectedCommOverhead = result.perGPU.modelWeights.mul(0.12)
+    // Verify communication overhead: NVLink-4 has 8% overhead (1 - 0.92 tpScalingEfficiency)
+    const expectedCommOverhead = result.perGPU.modelWeights.mul(1 - 0.92)
     expect(result.perGPU.communicationOverhead.toString()).toBe(expectedCommOverhead.toString())
+
+    // Verify interconnect fields
+    expect(result.scalingEfficiency).toBe(0.92)
+    expect(result.interconnectBandwidthGBps).toBe(900)
 
     // Verify total per GPU
     const expectedTotal = result.perGPU.modelWeights
@@ -154,16 +165,23 @@ describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
       kvQuantization: 'fp16',
     })
 
-    const result = calculateMultiGPUVRAM(singleGPU, mixtral8x7b, h100.vram_gb, 4, 'tensor-parallel')
+    const result = calculateMultiGPUVRAM(
+      singleGPU,
+      mixtral8x7b,
+      h100.vram_gb,
+      4,
+      'tensor-parallel',
+      h100,
+    )
 
     // MoE should have 15% extra communication overhead
-    // communicationOverhead = weightsPerGPU * 0.12 * 1.15
-    const expectedCommOverhead = result.perGPU.modelWeights.mul(0.12).mul(1.15)
+    // communicationOverhead = weightsPerGPU * (1 - 0.92) * 1.15 for NVLink-4
+    const expectedCommOverhead = result.perGPU.modelWeights.mul(1 - 0.92).mul(1.15)
     expect(result.perGPU.communicationOverhead.toString()).toBe(expectedCommOverhead.toString())
 
     // MoE communication overhead should be higher than dense model equivalent
     expect(result.perGPU.communicationOverhead.toNumber()).toBeGreaterThan(
-      result.perGPU.modelWeights.mul(0.12).toNumber(),
+      result.perGPU.modelWeights.mul(1 - 0.92).toNumber(),
     )
   })
 
@@ -175,7 +193,14 @@ describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
       batchSize: 1,
     })
 
-    const result = calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 4, 'tensor-parallel')
+    const result = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      4,
+      'tensor-parallel',
+      h100,
+    )
 
     expect(result.perGPU.modelWeights).toBeInstanceOf(Decimal)
     expect(result.perGPU.kvCache).toBeInstanceOf(Decimal)
@@ -200,7 +225,14 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
       kvQuantization: 'fp16',
     })
 
-    const result = calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 4, 'pipeline-parallel')
+    const result = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      4,
+      'pipeline-parallel',
+      h100,
+    )
 
     expect(result.strategy).toBe('pipeline-parallel')
 
@@ -244,13 +276,21 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
       kvQuantization: 'fp16',
     })
 
-    const tpResult = calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 4, 'tensor-parallel')
+    const tpResult = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      4,
+      'tensor-parallel',
+      h100,
+    )
     const ppResult = calculateMultiGPUVRAM(
       singleGPU,
       llama70b,
       h100.vram_gb,
       4,
       'pipeline-parallel',
+      h100,
     )
 
     // TP divides KV cache, PP does not
@@ -263,9 +303,9 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
 
     // NOTE: For this specific scenario (small KV cache relative to model size),
     // TP actually uses MORE memory per GPU than PP because:
-    // - TP pays for weight replication (~1.18 GB), NCCL buffers (0.6 GB), and higher comm overhead (12% vs 5%)
-    // - PP pays for full KV cache (~1.25 GB) but saves on replication/NCCL/comm overhead
-    // The tradeoff depends on KV cache size (seq length, batch size) vs model size
+    // - TP pays for weight replication (~1.18 GB), NCCL buffers (0.6 GB), and comm overhead (8% for NVLink-4 vs 5% for PP)
+    // - PP pays for full KV cache (~0.015 GB here, tiny) but saves on replication/NCCL
+    // Net: TP overhead dominates for small KV cache; TP > PP in total per-GPU memory
     expect(tpResult.totalPerGPU.toNumber()).toBeGreaterThan(ppResult.totalPerGPU.toNumber())
   })
 })
@@ -280,7 +320,14 @@ describe('calculateMultiGPUVRAM - Single GPU', () => {
       kvQuantization: 'fp16',
     })
 
-    const result = calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 1, 'tensor-parallel')
+    const result = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      1,
+      'tensor-parallel',
+      h100,
+    )
 
     expect(result.numGPUs).toBe(1)
     expect(result.replicatedMemory.toNumber()).toBe(0)
@@ -302,13 +349,21 @@ describe('calculateMultiGPUVRAM - Single GPU', () => {
       batchSize: 1,
     })
 
-    const tpResult = calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 1, 'tensor-parallel')
+    const tpResult = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      1,
+      'tensor-parallel',
+      h100,
+    )
     const ppResult = calculateMultiGPUVRAM(
       singleGPU,
       llama70b,
       h100.vram_gb,
       1,
       'pipeline-parallel',
+      h100,
     )
 
     expect(tpResult.totalPerGPU.toString()).toBe(ppResult.totalPerGPU.toString())
@@ -325,7 +380,7 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
     })
 
     expect(() => {
-      calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 0, 'tensor-parallel')
+      calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 0, 'tensor-parallel', h100)
     }).toThrow()
   })
 
@@ -338,7 +393,7 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
     })
 
     expect(() => {
-      calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 9, 'tensor-parallel')
+      calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 9, 'tensor-parallel', h100)
     }).toThrow()
   })
 
@@ -350,7 +405,14 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
       batchSize: 1,
     })
 
-    const result = calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 8, 'tensor-parallel')
+    const result = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      8,
+      'tensor-parallel',
+      h100,
+    )
 
     expect(result.numGPUs).toBe(8)
     // NCCL buffers: 0.2 GB * 7 peers = 1.4 GB
@@ -358,6 +420,108 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
       singleGPU.frameworkOverhead.add(1.4).toNumber(),
       10,
     )
+  })
+})
+
+describe('calculateMultiGPUVRAM - Bandwidth-aware overhead', () => {
+  it('uses lower comm overhead for NVLink-4 (8%) vs PCIe-4 (35%)', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'gptq',
+      sequenceLength: 4096,
+      batchSize: 1,
+      kvQuantization: 'fp16',
+    })
+
+    const nvlinkResult = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      4,
+      'tensor-parallel',
+      h100, // nvlink-4
+    )
+    const pcieResult = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      rtx4090.vram_gb,
+      4,
+      'tensor-parallel',
+      rtx4090, // pcie-4
+    )
+
+    // NVLink-4: 8% overhead, PCIe-4: 35% overhead
+    expect(nvlinkResult.scalingEfficiency).toBe(0.92)
+    expect(pcieResult.scalingEfficiency).toBe(0.65)
+    expect(nvlinkResult.interconnectBandwidthGBps).toBe(900)
+    expect(pcieResult.interconnectBandwidthGBps).toBe(64)
+
+    // NVLink should have much lower communication overhead
+    expect(nvlinkResult.perGPU.communicationOverhead.toNumber()).toBeLessThan(
+      pcieResult.perGPU.communicationOverhead.toNumber(),
+    )
+
+    // Verify exact overhead fractions
+    const nvlinkCommFrac = nvlinkResult.perGPU.communicationOverhead.div(
+      nvlinkResult.perGPU.modelWeights,
+    )
+    expect(nvlinkCommFrac.toNumber()).toBeCloseTo(1 - 0.92, 10)
+
+    const pcieCommFrac = pcieResult.perGPU.communicationOverhead.div(pcieResult.perGPU.modelWeights)
+    expect(pcieCommFrac.toNumber()).toBeCloseTo(1 - 0.65, 10)
+  })
+
+  it('returns scalingEfficiency=1.0 for single GPU passthrough', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+      kvQuantization: 'fp16',
+    })
+
+    const result = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      1,
+      'tensor-parallel',
+      h100,
+    )
+
+    expect(result.scalingEfficiency).toBe(1.0)
+    expect(result.interconnectBandwidthGBps).toBe(0)
+  })
+
+  it('PP always returns flat 95% scaling efficiency regardless of interconnect', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+      kvQuantization: 'fp16',
+    })
+
+    const ppH100 = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      4,
+      'pipeline-parallel',
+      h100,
+    )
+    const ppRTX = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      rtx4090.vram_gb,
+      4,
+      'pipeline-parallel',
+      rtx4090,
+    )
+
+    // PP efficiency is always 0.95 (flat, regardless of interconnect)
+    expect(ppH100.scalingEfficiency).toBeCloseTo(0.95, 10)
+    expect(ppRTX.scalingEfficiency).toBeCloseTo(0.95, 10)
   })
 })
 

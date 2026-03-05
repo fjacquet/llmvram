@@ -109,6 +109,8 @@ function reconstructMultiGPUBreakdown(
     totalPerGPU: string
     utilizationPercent: string
     singleGPUBaseline: string
+    scalingEfficiency: number
+    interconnectBandwidthGBps: number
   } | null,
 ): MultiGPUVRAMBreakdown | null {
   if (!serialized) return null
@@ -127,6 +129,8 @@ function reconstructMultiGPUBreakdown(
     totalPerGPU: new Decimal(serialized.totalPerGPU),
     utilizationPercent: new Decimal(serialized.utilizationPercent),
     singleGPUBaseline: new Decimal(serialized.singleGPUBaseline),
+    scalingEfficiency: serialized.scalingEfficiency,
+    interconnectBandwidthGBps: serialized.interconnectBandwidthGBps,
   }
 }
 
@@ -302,13 +306,6 @@ export function useInferenceCalculation(
           kvQuantization,
         })
 
-        const performance = performanceModule.estimatePerformance({
-          model,
-          gpu,
-          quantization,
-          batchSize,
-        })
-
         // Offloading calculation (if enabled)
         let offloading = null
         if (offloadingConfig?.enabled) {
@@ -319,7 +316,7 @@ export function useInferenceCalculation(
           )
         }
 
-        // Multi-GPU calculation (only when numGPUs > 1)
+        // Multi-GPU calculation (before performance so scaling can be applied)
         // IMPORTANT: If offloading is active, use the offloaded onDevice breakdown as the base
         let multiGPU = null
         let interconnectWarning = null
@@ -333,6 +330,7 @@ export function useInferenceCalculation(
             gpu.vram_gb,
             effectiveNumGPUs,
             effectiveStrategy,
+            gpu,
           )
           const validation = multiGPUModule.validateInterconnect(
             gpu,
@@ -341,6 +339,14 @@ export function useInferenceCalculation(
           )
           interconnectWarning = validation.warning
         }
+
+        const performance = performanceModule.estimatePerformance({
+          model,
+          gpu,
+          quantization,
+          batchSize,
+          multiGPUResult: multiGPU,
+        })
 
         setResult({ vram, performance, offloading, multiGPU, interconnectWarning })
         setLoading(false)

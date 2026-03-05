@@ -152,15 +152,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         kvQuantization,
       })
 
-      // 2. Estimate performance
-      const performance = estimatePerformance({
-        model,
-        gpu,
-        quantization,
-        batchSize,
-      })
-
-      // 3. Offloading calculation (if enabled)
+      // 2. Offloading calculation (if enabled)
       let offloadingResult = null
 
       if (offloadingEnabled) {
@@ -180,7 +172,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         )
       }
 
-      // 4. Multi-GPU calculation (only when numGPUs > 1)
+      // 3. Multi-GPU calculation (before performance so scaling can be applied)
       // IMPORTANT: If offloading is active, use the offloaded onDevice breakdown as the base
       let multiGPUResult = null
       let interconnectWarning = null
@@ -194,11 +186,21 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
           gpu.vram_gb,
           numGPUs,
           shardingStrategy,
+          gpu,
         )
 
         const validation = validateInterconnect(gpu, numGPUs, shardingStrategy)
         interconnectWarning = validation.warning
       }
+
+      // 4. Estimate performance (scaled by multi-GPU efficiency when applicable)
+      const performance = estimatePerformance({
+        model,
+        gpu,
+        quantization,
+        batchSize,
+        multiGPUResult,
+      })
 
       // 5. Serialize Decimal values to strings for structured cloning
       const response: CalculationSuccessResponse = {
@@ -252,6 +254,8 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
                 totalPerGPU: multiGPUResult.totalPerGPU.toString(),
                 utilizationPercent: multiGPUResult.utilizationPercent.toString(),
                 singleGPUBaseline: multiGPUResult.singleGPUBaseline.toString(),
+                scalingEfficiency: multiGPUResult.scalingEfficiency,
+                interconnectBandwidthGBps: multiGPUResult.interconnectBandwidthGBps,
               }
             : null,
           interconnectWarning,

@@ -154,6 +154,8 @@ export interface InterconnectSpec {
   type: InterconnectType
   bandwidthGBps: number
   recommendedMaxTPDegree: number
+  /** Fraction of linear scaling achieved in tensor parallelism (0–1). Accounts for all-reduce overhead. */
+  tpScalingEfficiency: number
 }
 
 /**
@@ -189,6 +191,10 @@ export interface MultiGPUVRAMBreakdown {
   utilizationPercent: Decimal
   /** Single-GPU baseline for comparison */
   singleGPUBaseline: Decimal
+  /** TP scaling efficiency for this interconnect (0–1 fraction, e.g. 0.92 for NVLink-4) */
+  scalingEfficiency: number
+  /** Interconnect bandwidth in GB/s (0 for single GPU) */
+  interconnectBandwidthGBps: number
 }
 
 /**

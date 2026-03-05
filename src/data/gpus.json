@@ -234,6 +234,19 @@
     "spec_url": "https://www.apple.com/newsroom/2024/03/apple-introduces-m3-ultra-the-most-capable-apple-silicon-chip-ever-built/"
   },
   {
+    "id": "apple-m5-max",
+    "name": "Apple M5 Max",
+    "manufacturer": "apple",
+    "vram_gb": 128,
+    "memory_bandwidth_gbps": 614,
+    "memory_type": "Unified",
+    "bus_width": 0,
+    "fp16_tflops": 35,
+    "tier": "apple-silicon",
+    "interconnect": "unified",
+    "spec_url": "https://www.apple.com/newsroom/2026/03/apple-debuts-m5-pro-and-m5-max-to-supercharge-the-most-demanding-pro-workflows/"
+  },
+  {
     "id": "apple-m4-max",
     "name": "Apple M4 Max",
     "manufacturer": "apple",

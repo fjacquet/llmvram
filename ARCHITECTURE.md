@@ -82,7 +82,7 @@ src/
 ├── workers/                    # Web Workers
 │   └── calculation.worker.ts   # Offloads engine calculations to background thread
 ├── data/                       # Static databases
-│   ├── gpus.json               # 19 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
+│   ├── gpus.json               # 20 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
 │   └── models.json             # 56 curated models (sorted alphabetically by name) + context_length, license, hf_url
 └── test/                       # Test infrastructure
     └── setup.ts                # @testing-library/jest-dom + cleanup
@@ -201,23 +201,31 @@ Estimates inference speed using the roofline model:
 - Compute-bound: `FLOPS / (2 × params × 1e9)`
 - TTFT: `0.5 × decode_speed` (2x slower prefill due to quadratic attention)
 - 5% tolerance for bottleneck classification
+- **Multi-GPU scaling:** when `multiGPUResult` is provided, effective throughput = `single_gpu_toks × numGPUs × scalingEfficiency`
 
 ### Multi-GPU Engine (`multi-gpu.ts`)
 
-Distributes memory across GPUs with strategy-specific overhead:
+Distributes memory across GPUs with strategy-specific overhead. Requires a `GPU` object to resolve interconnect type.
 
 **Tensor Parallelism:**
 
 - Shards weights, KV cache, and activations across GPUs
 - Replicates embeddings and layer norms (~3% of weights)
 - NCCL buffers: 0.2 GB per peer GPU
-- 12% communication overhead (15% for MoE due to expert routing)
+- **Bandwidth-aware comm overhead** derived from `INTERCONNECT_SPECS[gpu.interconnect].tpScalingEfficiency`:
+  - NVLink-5 (1800 GB/s): 3% overhead (97% efficiency)
+  - NVLink-4 (900 GB/s): 8% overhead (92% efficiency)
+  - PCIe-5 (128 GB/s): 22% overhead (78% efficiency)
+  - PCIe-4 (64 GB/s): 35% overhead (65% efficiency)
+  - MoE: overhead multiplied by 1.15× for expert routing
+- Returns `scalingEfficiency` and `interconnectBandwidthGBps` for downstream use
 
 **Pipeline Parallelism:**
 
 - Assigns layer ranges to GPUs
 - Does NOT divide KV cache (each GPU needs full context)
-- 5% overhead, lower communication cost
+- Flat 5% overhead regardless of interconnect (point-to-point, not all-reduce)
+- Returns `scalingEfficiency: 0.95`
 
 ### Offloading Engine (`offloading.ts`)
 
@@ -378,6 +386,6 @@ Main Thread                    Worker Thread
 | `src/engines/multi-gpu.ts` | Multi-GPU distribution |
 | `src/utils/schemas.ts` | Zod schemas (type source of truth) |
 | `src/data/models.json` | 56 curated models (alphabetically sorted) |
-| `src/data/gpus.json` | 19 curated GPUs |
+| `src/data/gpus.json` | 20 curated GPUs |
 | `src/store/urlSerializer.ts` | URL hash state persistence |
 | `src/workers/calculation.worker.ts` | Background calculation thread |

@@ -4,6 +4,8 @@ import type { ReactElement } from 'react'
 interface FitIndicatorProps {
   totalVRAM: Decimal
   availableVRAM: number
+  /** When > 1, labels show "X GPUs × Y GB = Z GB" instead of plain "Y GB" */
+  numGPUs?: number
 }
 
 interface StatusTier {
@@ -16,7 +18,7 @@ interface StatusTier {
   icon: ReactElement
 }
 
-export function FitIndicator({ totalVRAM, availableVRAM }: FitIndicatorProps) {
+export function FitIndicator({ totalVRAM, availableVRAM, numGPUs }: FitIndicatorProps) {
   const percentage = totalVRAM.div(availableVRAM).mul(100).toNumber()
 
   // Status icons as inline SVG
@@ -106,7 +108,16 @@ export function FitIndicator({ totalVRAM, availableVRAM }: FitIndicatorProps) {
 
         {/* Usage text */}
         <div className="text-sm text-gray-600 dark:text-gray-300">
-          Using {totalGB.toFixed(2)} GB of {availableVRAM} GB
+          {numGPUs && numGPUs > 1 ? (
+            <>
+              Using {totalGB.toFixed(2)} GB of {numGPUs} × {availableVRAM / numGPUs} GB ={' '}
+              {availableVRAM} GB
+            </>
+          ) : (
+            <>
+              Using {totalGB.toFixed(2)} GB of {availableVRAM} GB
+            </>
+          )}
         </div>
 
         {/* Progress bar */}
