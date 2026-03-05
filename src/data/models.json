@@ -8,7 +8,10 @@
     "num_hidden_layers": 40,
     "num_attention_heads": 64,
     "num_kv_heads": 64,
-    "intermediate_size": 22528
+    "intermediate_size": 22528,
+    "context_length": 131072,
+    "license": "CC-BY-NC-4.0",
+    "hf_url": "https://huggingface.co/CohereForAI/c4ai-command-r-v01"
   },
   {
     "id": "cohere-command-r-plus",
@@ -19,7 +22,10 @@
     "num_hidden_layers": 64,
     "num_attention_heads": 96,
     "num_kv_heads": 96,
-    "intermediate_size": 53248
+    "intermediate_size": 53248,
+    "context_length": 131072,
+    "license": "CC-BY-NC-4.0",
+    "hf_url": "https://huggingface.co/CohereForAI/c4ai-command-r-plus"
   },
   {
     "id": "deepseek-deepseek-coder-33b",
@@ -30,7 +36,10 @@
     "num_hidden_layers": 62,
     "num_attention_heads": 56,
     "num_kv_heads": 56,
-    "intermediate_size": 18432
+    "intermediate_size": 18432,
+    "context_length": 16384,
+    "license": "DeepSeek",
+    "hf_url": "https://huggingface.co/deepseek-ai/deepseek-coder-33b-instruct"
   },
   {
     "id": "deepseek-deepseek-coder-v2-lite",
@@ -43,7 +52,54 @@
     "num_kv_heads": 2,
     "intermediate_size": 10944,
     "num_experts": 64,
-    "num_experts_per_token": 6
+    "num_experts_per_token": 6,
+    "context_length": 163840,
+    "license": "DeepSeek",
+    "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct"
+  },
+  {
+    "id": "deepseek-r1",
+    "name": "DeepSeek R1",
+    "architecture": "moe",
+    "num_parameters_billion": 671,
+    "hidden_size": 7168,
+    "num_hidden_layers": 61,
+    "num_attention_heads": 128,
+    "num_kv_heads": 128,
+    "intermediate_size": 18432,
+    "num_experts": 256,
+    "num_experts_per_token": 8,
+    "context_length": 131072,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1"
+  },
+  {
+    "id": "deepseek-r1-distill-llama-70b",
+    "name": "DeepSeek R1 Distill LLaMA 70B",
+    "architecture": "dense",
+    "num_parameters_billion": 70.6,
+    "hidden_size": 8192,
+    "num_hidden_layers": 80,
+    "num_attention_heads": 64,
+    "num_kv_heads": 8,
+    "intermediate_size": 28672,
+    "context_length": 131072,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
+  },
+  {
+    "id": "deepseek-r1-distill-qwen-32b",
+    "name": "DeepSeek R1 Distill Qwen 32B",
+    "architecture": "dense",
+    "num_parameters_billion": 32.8,
+    "hidden_size": 5120,
+    "num_hidden_layers": 64,
+    "num_attention_heads": 40,
+    "num_kv_heads": 8,
+    "intermediate_size": 27648,
+    "context_length": 131072,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
   },
   {
     "id": "deepseek-deepseek-v2-lite",
@@ -56,7 +112,10 @@
     "num_kv_heads": 2,
     "intermediate_size": 10944,
     "num_experts": 64,
-    "num_experts_per_token": 6
+    "num_experts_per_token": 6,
+    "context_length": 131072,
+    "license": "DeepSeek",
+    "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite-Chat"
   },
   {
     "id": "mistralai-devstral-2-123b",
@@ -67,7 +126,10 @@
     "num_hidden_layers": 88,
     "num_attention_heads": 96,
     "num_kv_heads": 8,
-    "intermediate_size": 28672
+    "intermediate_size": 28672,
+    "context_length": 131072,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mistralai/Devstral-2-123B"
   },
   {
     "id": "tiiuae-falcon-40b",
@@ -78,7 +140,10 @@
     "num_hidden_layers": 60,
     "num_attention_heads": 128,
     "num_kv_heads": 128,
-    "intermediate_size": 32768
+    "intermediate_size": 32768,
+    "context_length": 2048,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/tiiuae/falcon-40b"
   },
   {
     "id": "google-gemma-2-9b",
@@ -89,7 +154,10 @@
     "num_hidden_layers": 42,
     "num_attention_heads": 16,
     "num_kv_heads": 8,
-    "intermediate_size": 14336
+    "intermediate_size": 14336,
+    "context_length": 8192,
+    "license": "Gemma",
+    "hf_url": "https://huggingface.co/google/gemma-2-9b-it"
   },
   {
     "id": "google-gemma-2b",
@@ -100,7 +168,66 @@
     "num_hidden_layers": 18,
     "num_attention_heads": 8,
     "num_kv_heads": 1,
-    "intermediate_size": 16384
+    "intermediate_size": 16384,
+    "context_length": 8192,
+    "license": "Gemma",
+    "hf_url": "https://huggingface.co/google/gemma-2b-it"
+  },
+  {
+    "id": "google-gemma-3-12b",
+    "name": "Gemma 3 12B",
+    "architecture": "dense",
+    "num_parameters_billion": 12.2,
+    "hidden_size": 3840,
+    "num_hidden_layers": 48,
+    "num_attention_heads": 16,
+    "num_kv_heads": 8,
+    "intermediate_size": 15360,
+    "context_length": 131072,
+    "license": "Gemma",
+    "hf_url": "https://huggingface.co/google/gemma-3-12b-it"
+  },
+  {
+    "id": "google-gemma-3-1b",
+    "name": "Gemma 3 1B",
+    "architecture": "dense",
+    "num_parameters_billion": 1,
+    "hidden_size": 1152,
+    "num_hidden_layers": 26,
+    "num_attention_heads": 4,
+    "num_kv_heads": 1,
+    "intermediate_size": 6912,
+    "context_length": 32768,
+    "license": "Gemma",
+    "hf_url": "https://huggingface.co/google/gemma-3-1b-it"
+  },
+  {
+    "id": "google-gemma-3-27b",
+    "name": "Gemma 3 27B",
+    "architecture": "dense",
+    "num_parameters_billion": 27.4,
+    "hidden_size": 5376,
+    "num_hidden_layers": 62,
+    "num_attention_heads": 32,
+    "num_kv_heads": 16,
+    "intermediate_size": 21504,
+    "context_length": 131072,
+    "license": "Gemma",
+    "hf_url": "https://huggingface.co/google/gemma-3-27b-it"
+  },
+  {
+    "id": "google-gemma-3-4b",
+    "name": "Gemma 3 4B",
+    "architecture": "dense",
+    "num_parameters_billion": 4.3,
+    "hidden_size": 2560,
+    "num_hidden_layers": 34,
+    "num_attention_heads": 8,
+    "num_kv_heads": 4,
+    "intermediate_size": 10240,
+    "context_length": 131072,
+    "license": "Gemma",
+    "hf_url": "https://huggingface.co/google/gemma-3-4b-it"
   },
   {
     "id": "google-gemma-7b",
@@ -111,7 +238,10 @@
     "num_hidden_layers": 28,
     "num_attention_heads": 16,
     "num_kv_heads": 16,
-    "intermediate_size": 24576
+    "intermediate_size": 24576,
+    "context_length": 8192,
+    "license": "Gemma",
+    "hf_url": "https://huggingface.co/google/gemma-7b-it"
   },
   {
     "id": "zai-org-glm-4.7",
@@ -124,7 +254,10 @@
     "num_kv_heads": 8,
     "intermediate_size": 12288,
     "num_experts": 160,
-    "num_experts_per_token": 8
+    "num_experts_per_token": 8,
+    "context_length": 131072,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/THUDM/GLM-4.7"
   },
   {
     "id": "zai-org-glm-4.7-flash",
@@ -137,7 +270,42 @@
     "num_kv_heads": 20,
     "intermediate_size": 10240,
     "num_experts": 64,
-    "num_experts_per_token": 4
+    "num_experts_per_token": 4,
+    "context_length": 131072,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/THUDM/GLM-4.7-Flash"
+  },
+  {
+    "id": "openai-gpt-oss-120b",
+    "name": "GPT OSS 120B",
+    "architecture": "moe",
+    "num_parameters_billion": 120.4,
+    "hidden_size": 2880,
+    "num_hidden_layers": 36,
+    "num_attention_heads": 64,
+    "num_kv_heads": 8,
+    "intermediate_size": 2880,
+    "num_experts": 128,
+    "num_experts_per_token": 4,
+    "context_length": 131072,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/openai/gpt-oss-120b"
+  },
+  {
+    "id": "openai-gpt-oss-20b",
+    "name": "GPT OSS 20B",
+    "architecture": "moe",
+    "num_parameters_billion": 21.5,
+    "hidden_size": 2880,
+    "num_hidden_layers": 24,
+    "num_attention_heads": 64,
+    "num_kv_heads": 8,
+    "intermediate_size": 2880,
+    "num_experts": 32,
+    "num_experts_per_token": 4,
+    "context_length": 131072,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/openai/gpt-oss-20b"
   },
   {
     "id": "moonshotai-kimi-k2-instruct",
@@ -150,7 +318,10 @@
     "num_kv_heads": 64,
     "intermediate_size": 18432,
     "num_experts": 384,
-    "num_experts_per_token": 8
+    "num_experts_per_token": 8,
+    "context_length": 131072,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/moonshotai/Kimi-K2-Instruct"
   },
   {
     "id": "moonshotai-kimi-k2.5",
@@ -163,7 +334,10 @@
     "num_kv_heads": 64,
     "intermediate_size": 18432,
     "num_experts": 384,
-    "num_experts_per_token": 8
+    "num_experts_per_token": 8,
+    "context_length": 131072,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/moonshotai/Kimi-K2.5"
   },
   {
     "id": "meta-llama-llama-2-13b",
@@ -174,7 +348,10 @@
     "num_hidden_layers": 40,
     "num_attention_heads": 40,
     "num_kv_heads": 40,
-    "intermediate_size": 13824
+    "intermediate_size": 13824,
+    "context_length": 4096,
+    "license": "Llama-2",
+    "hf_url": "https://huggingface.co/meta-llama/Llama-2-13b-chat-hf"
   },
   {
     "id": "meta-llama-llama-2-70b",
@@ -185,7 +362,10 @@
     "num_hidden_layers": 80,
     "num_attention_heads": 64,
     "num_kv_heads": 8,
-    "intermediate_size": 28672
+    "intermediate_size": 28672,
+    "context_length": 4096,
+    "license": "Llama-2",
+    "hf_url": "https://huggingface.co/meta-llama/Llama-2-70b-chat-hf"
   },
   {
     "id": "meta-llama-llama-2-7b",
@@ -196,7 +376,24 @@
     "num_hidden_layers": 32,
     "num_attention_heads": 32,
     "num_kv_heads": 32,
-    "intermediate_size": 11008
+    "intermediate_size": 11008,
+    "context_length": 4096,
+    "license": "Llama-2",
+    "hf_url": "https://huggingface.co/meta-llama/Llama-2-7b-chat-hf"
+  },
+  {
+    "id": "meta-llama-llama-3-8b",
+    "name": "LLaMA 3 8B",
+    "architecture": "dense",
+    "num_parameters_billion": 8,
+    "hidden_size": 4096,
+    "num_hidden_layers": 32,
+    "num_attention_heads": 32,
+    "num_kv_heads": 8,
+    "intermediate_size": 14336,
+    "context_length": 8192,
+    "license": "Llama-3",
+    "hf_url": "https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct"
   },
   {
     "id": "meta-llama-llama-3.1-405b",
@@ -207,7 +404,10 @@
     "num_hidden_layers": 126,
     "num_attention_heads": 128,
     "num_kv_heads": 8,
-    "intermediate_size": 53248
+    "intermediate_size": 53248,
+    "context_length": 131072,
+    "license": "Llama-3.1",
+    "hf_url": "https://huggingface.co/meta-llama/Meta-Llama-3.1-405B-Instruct"
   },
   {
     "id": "meta-llama-llama-3.1-70b",
@@ -218,7 +418,10 @@
     "num_hidden_layers": 80,
     "num_attention_heads": 64,
     "num_kv_heads": 8,
-    "intermediate_size": 28672
+    "intermediate_size": 28672,
+    "context_length": 131072,
+    "license": "Llama-3.1",
+    "hf_url": "https://huggingface.co/meta-llama/Meta-Llama-3.1-70B-Instruct"
   },
   {
     "id": "meta-llama-llama-3.1-8b",
@@ -229,7 +432,24 @@
     "num_hidden_layers": 32,
     "num_attention_heads": 32,
     "num_kv_heads": 8,
-    "intermediate_size": 14336
+    "intermediate_size": 14336,
+    "context_length": 131072,
+    "license": "Llama-3.1",
+    "hf_url": "https://huggingface.co/meta-llama/Meta-Llama-3.1-8B-Instruct"
+  },
+  {
+    "id": "meta-llama-llama-3.2-11b-vision",
+    "name": "LLaMA 3.2 11B Vision",
+    "architecture": "dense",
+    "num_parameters_billion": 10.7,
+    "hidden_size": 4096,
+    "num_hidden_layers": 32,
+    "num_attention_heads": 32,
+    "num_kv_heads": 8,
+    "intermediate_size": 14336,
+    "context_length": 131072,
+    "license": "Llama-3.2",
+    "hf_url": "https://huggingface.co/meta-llama/Llama-3.2-11B-Vision-Instruct"
   },
   {
     "id": "meta-llama-llama-3.2-3b",
@@ -240,7 +460,84 @@
     "num_hidden_layers": 28,
     "num_attention_heads": 24,
     "num_kv_heads": 8,
-    "intermediate_size": 8192
+    "intermediate_size": 8192,
+    "context_length": 131072,
+    "license": "Llama-3.2",
+    "hf_url": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct"
+  },
+  {
+    "id": "meta-llama-llama-3.2-90b-vision",
+    "name": "LLaMA 3.2 90B Vision",
+    "architecture": "dense",
+    "num_parameters_billion": 88.6,
+    "hidden_size": 8192,
+    "num_hidden_layers": 80,
+    "num_attention_heads": 64,
+    "num_kv_heads": 8,
+    "intermediate_size": 28672,
+    "context_length": 131072,
+    "license": "Llama-3.2",
+    "hf_url": "https://huggingface.co/meta-llama/Llama-3.2-90B-Vision-Instruct"
+  },
+  {
+    "id": "meta-llama-llama-3.3-70b",
+    "name": "LLaMA 3.3 70B",
+    "architecture": "dense",
+    "num_parameters_billion": 70.6,
+    "hidden_size": 8192,
+    "num_hidden_layers": 80,
+    "num_attention_heads": 64,
+    "num_kv_heads": 8,
+    "intermediate_size": 28672,
+    "context_length": 131072,
+    "license": "Llama-3.3",
+    "hf_url": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct"
+  },
+  {
+    "id": "meta-llama-llama-4-maverick",
+    "name": "Llama 4 Maverick 17B 128E",
+    "architecture": "moe",
+    "num_parameters_billion": 401.6,
+    "hidden_size": 5120,
+    "num_hidden_layers": 48,
+    "num_attention_heads": 40,
+    "num_kv_heads": 8,
+    "intermediate_size": 8192,
+    "num_experts": 128,
+    "num_experts_per_token": 1,
+    "context_length": 1048576,
+    "license": "Llama-4",
+    "hf_url": "https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct"
+  },
+  {
+    "id": "meta-llama-llama-4-scout",
+    "name": "Llama 4 Scout 17B 16E",
+    "architecture": "moe",
+    "num_parameters_billion": 109,
+    "hidden_size": 5120,
+    "num_hidden_layers": 48,
+    "num_attention_heads": 40,
+    "num_kv_heads": 8,
+    "intermediate_size": 8192,
+    "num_experts": 16,
+    "num_experts_per_token": 1,
+    "context_length": 10485760,
+    "license": "Llama-4",
+    "hf_url": "https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct"
+  },
+  {
+    "id": "mistralai-magistral-small-2507",
+    "name": "Magistral Small 2507",
+    "architecture": "dense",
+    "num_parameters_billion": 23.6,
+    "hidden_size": 5120,
+    "num_hidden_layers": 40,
+    "num_attention_heads": 32,
+    "num_kv_heads": 8,
+    "intermediate_size": 32768,
+    "context_length": 131072,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mistralai/Magistral-Small-2507"
   },
   {
     "id": "minimax-m2.1",
@@ -253,7 +550,24 @@
     "num_kv_heads": 8,
     "intermediate_size": 1536,
     "num_experts": 256,
-    "num_experts_per_token": 8
+    "num_experts_per_token": 8,
+    "context_length": 1000192,
+    "license": "MiniMax",
+    "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M2.1"
+  },
+  {
+    "id": "mistralai-ministral-3-14b-reasoning",
+    "name": "Ministral 3 14B Reasoning",
+    "architecture": "dense",
+    "num_parameters_billion": 13.9,
+    "hidden_size": 5120,
+    "num_hidden_layers": 40,
+    "num_attention_heads": 32,
+    "num_kv_heads": 8,
+    "intermediate_size": 16384,
+    "context_length": 131072,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mistralai/Ministral-3-14B-Reasoning-2512"
   },
   {
     "id": "mistralai-mistral-7b-v0.1",
@@ -264,7 +578,10 @@
     "num_hidden_layers": 32,
     "num_attention_heads": 32,
     "num_kv_heads": 8,
-    "intermediate_size": 14336
+    "intermediate_size": 14336,
+    "context_length": 32768,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mistralai/Mistral-7B-v0.1"
   },
   {
     "id": "mistralai-mistral-7b-v0.3",
@@ -275,7 +592,26 @@
     "num_hidden_layers": 32,
     "num_attention_heads": 32,
     "num_kv_heads": 8,
-    "intermediate_size": 14336
+    "intermediate_size": 14336,
+    "context_length": 32768,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3"
+  },
+  {
+    "id": "mistralai-mistral-large-3-675b",
+    "name": "Mistral Large 3 675B",
+    "architecture": "moe",
+    "num_parameters_billion": 675,
+    "hidden_size": 7168,
+    "num_hidden_layers": 61,
+    "num_attention_heads": 128,
+    "num_kv_heads": 128,
+    "intermediate_size": 16384,
+    "num_experts": 128,
+    "num_experts_per_token": 4,
+    "context_length": 294912,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512"
   },
   {
     "id": "mistralai-mixtral-8x22b-v0.1",
@@ -288,7 +624,10 @@
     "num_kv_heads": 8,
     "intermediate_size": 16384,
     "num_experts": 8,
-    "num_experts_per_token": 2
+    "num_experts_per_token": 2,
+    "context_length": 65536,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mistralai/Mixtral-8x22B-Instruct-v0.1"
   },
   {
     "id": "mistralai-mixtral-8x7b-instruct-v0.1",
@@ -301,7 +640,10 @@
     "num_kv_heads": 8,
     "intermediate_size": 14336,
     "num_experts": 8,
-    "num_experts_per_token": 2
+    "num_experts_per_token": 2,
+    "context_length": 32768,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1"
   },
   {
     "id": "mistralai-mixtral-8x7b-v0.1",
@@ -314,7 +656,10 @@
     "num_kv_heads": 8,
     "intermediate_size": 14336,
     "num_experts": 8,
-    "num_experts_per_token": 2
+    "num_experts_per_token": 2,
+    "context_length": 32768,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mistralai/Mixtral-8x7B-v0.1"
   },
   {
     "id": "mosaicml-mpt-30b",
@@ -325,7 +670,10 @@
     "num_hidden_layers": 48,
     "num_attention_heads": 64,
     "num_kv_heads": 64,
-    "intermediate_size": 28672
+    "intermediate_size": 28672,
+    "context_length": 8192,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mosaicml/mpt-30b-instruct"
   },
   {
     "id": "microsoft-phi-3-medium-4k",
@@ -336,7 +684,10 @@
     "num_hidden_layers": 40,
     "num_attention_heads": 40,
     "num_kv_heads": 10,
-    "intermediate_size": 17920
+    "intermediate_size": 17920,
+    "context_length": 4096,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/microsoft/Phi-3-medium-4k-instruct"
   },
   {
     "id": "microsoft-phi-3-mini-4k",
@@ -347,7 +698,10 @@
     "num_hidden_layers": 32,
     "num_attention_heads": 32,
     "num_kv_heads": 32,
-    "intermediate_size": 8192
+    "intermediate_size": 8192,
+    "context_length": 4096,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct"
   },
   {
     "id": "microsoft-phi-3-small-8k",
@@ -358,7 +712,24 @@
     "num_hidden_layers": 32,
     "num_attention_heads": 32,
     "num_kv_heads": 8,
-    "intermediate_size": 14336
+    "intermediate_size": 14336,
+    "context_length": 8192,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/microsoft/Phi-3-small-8k-instruct"
+  },
+  {
+    "id": "microsoft-phi-3.5-mini",
+    "name": "Phi 3.5 Mini Instruct",
+    "architecture": "dense",
+    "num_parameters_billion": 3.8,
+    "hidden_size": 3072,
+    "num_hidden_layers": 32,
+    "num_attention_heads": 32,
+    "num_kv_heads": 32,
+    "intermediate_size": 8192,
+    "context_length": 131072,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/microsoft/Phi-3.5-mini-instruct"
   },
   {
     "id": "qwen-qwen2.5-14b",
@@ -369,7 +740,10 @@
     "num_hidden_layers": 48,
     "num_attention_heads": 40,
     "num_kv_heads": 8,
-    "intermediate_size": 13696
+    "intermediate_size": 13696,
+    "context_length": 131072,
+    "license": "Qwen",
+    "hf_url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct"
   },
   {
     "id": "qwen-qwen2.5-32b",
@@ -380,7 +754,10 @@
     "num_hidden_layers": 64,
     "num_attention_heads": 40,
     "num_kv_heads": 8,
-    "intermediate_size": 27648
+    "intermediate_size": 27648,
+    "context_length": 131072,
+    "license": "Qwen",
+    "hf_url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct"
   },
   {
     "id": "qwen-qwen2.5-72b",
@@ -391,7 +768,10 @@
     "num_hidden_layers": 80,
     "num_attention_heads": 64,
     "num_kv_heads": 8,
-    "intermediate_size": 29568
+    "intermediate_size": 29568,
+    "context_length": 131072,
+    "license": "Qwen",
+    "hf_url": "https://huggingface.co/Qwen/Qwen2.5-72B-Instruct"
   },
   {
     "id": "qwen-qwen2.5-7b",
@@ -402,7 +782,10 @@
     "num_hidden_layers": 28,
     "num_attention_heads": 28,
     "num_kv_heads": 4,
-    "intermediate_size": 18944
+    "intermediate_size": 18944,
+    "context_length": 131072,
+    "license": "Qwen",
+    "hf_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct"
   },
   {
     "id": "qwen-qwen3-235b-a22b",
@@ -415,7 +798,10 @@
     "num_kv_heads": 4,
     "intermediate_size": 12288,
     "num_experts": 128,
-    "num_experts_per_token": 8
+    "num_experts_per_token": 8,
+    "context_length": 131072,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/Qwen/Qwen3-235B-A22B"
   },
   {
     "id": "01-ai-yi-34b",
@@ -426,6 +812,9 @@
     "num_hidden_layers": 60,
     "num_attention_heads": 56,
     "num_kv_heads": 8,
-    "intermediate_size": 20480
+    "intermediate_size": 20480,
+    "context_length": 200704,
+    "license": "Yi",
+    "hf_url": "https://huggingface.co/01-ai/Yi-34B-Chat"
   }
 ]

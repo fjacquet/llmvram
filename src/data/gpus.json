@@ -11,7 +11,8 @@
     "fp32_tflops": 51,
     "tdp_watts": 350,
     "interconnect": "nvlink-4",
-    "tier": "datacenter"
+    "tier": "datacenter",
+    "spec_url": "https://www.nvidia.com/en-us/data-center/h100/"
   },
   {
     "id": "nvidia-h100-80gb-sxm",
@@ -25,7 +26,8 @@
     "fp32_tflops": 51,
     "tdp_watts": 700,
     "interconnect": "nvlink-4",
-    "tier": "datacenter"
+    "tier": "datacenter",
+    "spec_url": "https://www.nvidia.com/en-us/data-center/h100/"
   },
   {
     "id": "nvidia-h200-141gb",
@@ -39,7 +41,8 @@
     "fp32_tflops": 51,
     "tdp_watts": 700,
     "interconnect": "nvlink-4",
-    "tier": "datacenter"
+    "tier": "datacenter",
+    "spec_url": "https://www.nvidia.com/en-us/data-center/h200/"
   },
   {
     "id": "nvidia-b200-192gb",
@@ -53,7 +56,8 @@
     "fp32_tflops": 90,
     "tdp_watts": 1000,
     "interconnect": "nvlink-5",
-    "tier": "datacenter"
+    "tier": "datacenter",
+    "spec_url": "https://www.nvidia.com/en-us/data-center/b200/"
   },
   {
     "id": "nvidia-a100-80gb-pcie",
@@ -67,7 +71,8 @@
     "fp32_tflops": 19.5,
     "tdp_watts": 300,
     "interconnect": "nvlink",
-    "tier": "datacenter"
+    "tier": "datacenter",
+    "spec_url": "https://www.nvidia.com/en-us/data-center/a100/"
   },
   {
     "id": "nvidia-a100-80gb-sxm",
@@ -81,7 +86,8 @@
     "fp32_tflops": 19.5,
     "tdp_watts": 400,
     "interconnect": "nvlink",
-    "tier": "datacenter"
+    "tier": "datacenter",
+    "spec_url": "https://www.nvidia.com/en-us/data-center/a100/"
   },
   {
     "id": "nvidia-l40s",
@@ -95,7 +101,8 @@
     "fp32_tflops": 91.6,
     "tdp_watts": 350,
     "interconnect": "none",
-    "tier": "datacenter"
+    "tier": "datacenter",
+    "spec_url": "https://www.nvidia.com/en-us/data-center/l40s/"
   },
   {
     "id": "nvidia-rtx-pro-6000-server",
@@ -109,7 +116,8 @@
     "fp32_tflops": 120,
     "tdp_watts": 600,
     "interconnect": "none",
-    "tier": "datacenter"
+    "tier": "datacenter",
+    "spec_url": "https://www.nvidia.com/en-us/design-visualization/rtx-pro-6000/"
   },
   {
     "id": "nvidia-rtx-5090",
@@ -123,7 +131,8 @@
     "fp32_tflops": 159,
     "tdp_watts": 575,
     "interconnect": "none",
-    "tier": "consumer"
+    "tier": "consumer",
+    "spec_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/50-series/rtx-5090/"
   },
   {
     "id": "nvidia-rtx-4090",
@@ -137,7 +146,8 @@
     "fp32_tflops": 82.6,
     "tdp_watts": 450,
     "interconnect": "none",
-    "tier": "consumer"
+    "tier": "consumer",
+    "spec_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4090/"
   },
   {
     "id": "nvidia-rtx-3090",
@@ -151,7 +161,8 @@
     "fp32_tflops": 35.6,
     "tdp_watts": 350,
     "interconnect": "none",
-    "tier": "consumer"
+    "tier": "consumer",
+    "spec_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/30-series/rtx-3090-3090ti/"
   },
   {
     "id": "nvidia-gb10",
@@ -165,7 +176,8 @@
     "fp32_tflops": 31,
     "tdp_watts": 140,
     "interconnect": "none",
-    "tier": "consumer"
+    "tier": "consumer",
+    "spec_url": "https://www.nvidia.com/en-us/products/workstations/dgx-spark/"
   },
   {
     "id": "amd-mi300x",
@@ -179,7 +191,8 @@
     "fp32_tflops": 163,
     "tdp_watts": 750,
     "interconnect": "infinity-fabric",
-    "tier": "datacenter"
+    "tier": "datacenter",
+    "spec_url": "https://www.amd.com/en/products/accelerators/instinct/mi300/mi300x.html"
   },
   {
     "id": "apple-m1-ultra",
@@ -191,7 +204,8 @@
     "bus_width": 0,
     "fp16_tflops": 21,
     "tier": "apple-silicon",
-    "interconnect": "unified"
+    "interconnect": "unified",
+    "spec_url": "https://www.apple.com/newsroom/2022/03/apple-unveils-m1-ultra-the-worlds-most-powerful-chip-for-a-personal-computer/"
   },
   {
     "id": "apple-m2-ultra",
@@ -203,7 +217,8 @@
     "bus_width": 0,
     "fp16_tflops": 27,
     "tier": "apple-silicon",
-    "interconnect": "unified"
+    "interconnect": "unified",
+    "spec_url": "https://www.apple.com/newsroom/2023/06/apple-introduces-m2-ultra/"
   },
   {
     "id": "apple-m3-ultra",
@@ -215,7 +230,8 @@
     "bus_width": 0,
     "fp16_tflops": 40,
     "tier": "apple-silicon",
-    "interconnect": "unified"
+    "interconnect": "unified",
+    "spec_url": "https://www.apple.com/newsroom/2024/03/apple-introduces-m3-ultra-the-most-capable-apple-silicon-chip-ever-built/"
   },
   {
     "id": "apple-m4-max",
@@ -227,7 +243,8 @@
     "bus_width": 0,
     "fp16_tflops": 29,
     "tier": "apple-silicon",
-    "interconnect": "unified"
+    "interconnect": "unified",
+    "spec_url": "https://www.apple.com/newsroom/2024/10/apple-introduces-m4-pro-and-m4-max/"
   },
   {
     "id": "apple-m3-max",
@@ -239,7 +256,8 @@
     "bus_width": 0,
     "fp16_tflops": 29,
     "tier": "apple-silicon",
-    "interconnect": "unified"
+    "interconnect": "unified",
+    "spec_url": "https://www.apple.com/newsroom/2023/10/apple-introduces-m3-m3-pro-and-m3-max/"
   },
   {
     "id": "apple-m2-max",
@@ -251,7 +269,8 @@
     "bus_width": 0,
     "fp16_tflops": 13.6,
     "tier": "apple-silicon",
-    "interconnect": "unified"
+    "interconnect": "unified",
+    "spec_url": "https://www.apple.com/newsroom/2023/01/apple-introduces-m2-pro-and-m2-max/"
   },
   {
     "id": "apple-m1-max",
@@ -263,6 +282,7 @@
     "bus_width": 0,
     "fp16_tflops": 10.4,
     "tier": "apple-silicon",
-    "interconnect": "unified"
+    "interconnect": "unified",
+    "spec_url": "https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max/"
   }
 ]
