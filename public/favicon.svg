@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="#1e1b4b"/>
+  <!-- GPU chip body -->
+  <rect x="7" y="9" width="18" height="14" rx="2" fill="#6366f1"/>
+  <!-- Chip grid lines -->
+  <line x1="11" y1="9" x2="11" y2="23" stroke="#4338ca" stroke-width="0.5"/>
+  <line x1="15" y1="9" x2="15" y2="23" stroke="#4338ca" stroke-width="0.5"/>
+  <line x1="19" y1="9" x2="19" y2="23" stroke="#4338ca" stroke-width="0.5"/>
+  <line x1="7" y1="13" x2="25" y2="13" stroke="#4338ca" stroke-width="0.5"/>
+  <line x1="7" y1="17" x2="25" y2="17" stroke="#4338ca" stroke-width="0.5"/>
+  <line x1="7" y1="21" x2="25" y2="21" stroke="#4338ca" stroke-width="0.5"/>
+  <!-- Memory pins top -->
+  <rect x="9" y="6" width="2" height="3" rx="0.5" fill="#a5b4fc"/>
+  <rect x="13" y="6" width="2" height="3" rx="0.5" fill="#a5b4fc"/>
+  <rect x="17" y="6" width="2" height="3" rx="0.5" fill="#a5b4fc"/>
+  <rect x="21" y="6" width="2" height="3" rx="0.5" fill="#a5b4fc"/>
+  <!-- Memory pins bottom -->
+  <rect x="9" y="23" width="2" height="3" rx="0.5" fill="#a5b4fc"/>
+  <rect x="13" y="23" width="2" height="3" rx="0.5" fill="#a5b4fc"/>
+  <rect x="17" y="23" width="2" height="3" rx="0.5" fill="#a5b4fc"/>
+  <rect x="21" y="23" width="2" height="3" rx="0.5" fill="#a5b4fc"/>
+  <!-- Center highlight -->
+  <rect x="13" y="12" width="6" height="8" rx="1" fill="#818cf8" opacity="0.7"/>
+</svg>
