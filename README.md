@@ -20,15 +20,15 @@ Browser-based tool for estimating VRAM requirements and performance when running
 | Vendor | GPUs |
 |--------|------|
 | **NVIDIA Datacenter** | H100 PCIe/SXM, H200, B200, A100 PCIe/SXM, L40S, RTX PRO 6000 |
-| **NVIDIA Consumer** | RTX 5090, RTX 4090, RTX 3090 |
+| **NVIDIA Consumer** | RTX 5090, RTX 4090, RTX 3090, DGX Spark (GB10) |
 | **AMD** | MI300X |
-| **Apple Silicon** | M1/M2/M3 Ultra, M2/M3/M4 Max |
+| **Apple Silicon** | M1/M2/M3 Ultra, M1/M2/M3/M4/M5 Max |
 
 Plus custom GPU input for any hardware.
 
 ## Model Database
 
-37 curated models including LLaMA 2/3, Mistral, Mixtral, Qwen, DeepSeek, Gemma, Phi, Command-R, Falcon, Yi, GLM, Kimi K2/K2.5, and more. Plus custom model input.
+57 curated models including LLaMA 2/3/4, Mistral, Mixtral, Qwen, DeepSeek, Gemma, Phi, Command-R, Falcon, Yi, GLM, Kimi K2/K2.5, GPT OSS, and more. Plus custom model input.
 
 ## Quick Start
 

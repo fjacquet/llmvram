@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-03-19
+
+### Added
+
+- Mistral Small 4 119B model to curated database (57 models total)
+- Favicon and logo assets
+
+### Fixed
+
+- 5 broken GPU spec sheet URLs (RTX PRO 6000, M3 Ultra, M3 Max, M2 Max, M1 Max)
+- `flatted` 3.3.3 → 3.4.2 to resolve high-severity DoS vulnerability (GHSA-25h7-pfq9-p65f)
+
+### Changed
+
+- Upgraded Zod v3 → v4.3.6
+
+### Documentation
+
+- Added GPU specs reference and VRAM calculation pitfalls to `docs/`
+
 ## [1.2.0] - 2026-03-05
 
 ### Added
