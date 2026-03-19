@@ -117,7 +117,7 @@
     "tdp_watts": 600,
     "interconnect": "none",
     "tier": "datacenter",
-    "spec_url": "https://www.nvidia.com/en-us/design-visualization/rtx-pro-6000/"
+    "spec_url": "https://www.nvidia.com/en-us/data-center/rtx-pro-6000-blackwell-server-edition/"
   },
   {
     "id": "nvidia-rtx-5090",
@@ -231,7 +231,7 @@
     "fp16_tflops": 40,
     "tier": "apple-silicon",
     "interconnect": "unified",
-    "spec_url": "https://www.apple.com/newsroom/2024/03/apple-introduces-m3-ultra-the-most-capable-apple-silicon-chip-ever-built/"
+    "spec_url": "https://www.apple.com/newsroom/2025/03/apple-reveals-m3-ultra-taking-apple-silicon-to-a-new-extreme/"
   },
   {
     "id": "apple-m5-max",
@@ -270,7 +270,7 @@
     "fp16_tflops": 29,
     "tier": "apple-silicon",
     "interconnect": "unified",
-    "spec_url": "https://www.apple.com/newsroom/2023/10/apple-introduces-m3-m3-pro-and-m3-max/"
+    "spec_url": "https://www.apple.com/newsroom/2023/10/apple-unveils-m3-m3-pro-and-m3-max-the-most-advanced-chips-for-a-personal-computer/"
   },
   {
     "id": "apple-m2-max",
@@ -283,7 +283,7 @@
     "fp16_tflops": 13.6,
     "tier": "apple-silicon",
     "interconnect": "unified",
-    "spec_url": "https://www.apple.com/newsroom/2023/01/apple-introduces-m2-pro-and-m2-max/"
+    "spec_url": "https://www.apple.com/newsroom/2023/01/apple-unveils-m2-pro-and-m2-max-next-generation-chips-for-next-level-workflows/"
   },
   {
     "id": "apple-m1-max",
@@ -296,6 +296,6 @@
     "fp16_tflops": 10.4,
     "tier": "apple-silicon",
     "interconnect": "unified",
-    "spec_url": "https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max/"
+    "spec_url": "https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/"
   }
 ]
