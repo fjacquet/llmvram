@@ -614,6 +614,22 @@
     "hf_url": "https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512"
   },
   {
+    "id": "mistralai-mistral-small-4-119b",
+    "name": "Mistral Small 4 119B",
+    "architecture": "moe",
+    "num_parameters_billion": 119.4,
+    "hidden_size": 4096,
+    "num_hidden_layers": 36,
+    "num_attention_heads": 32,
+    "num_kv_heads": 32,
+    "intermediate_size": 12288,
+    "num_experts": 128,
+    "num_experts_per_token": 4,
+    "context_length": 1048576,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603"
+  },
+  {
     "id": "mistralai-mixtral-8x22b-v0.1",
     "name": "Mixtral 8x22B v0.1",
     "architecture": "moe",
