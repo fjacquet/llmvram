@@ -28,7 +28,7 @@ Plus custom GPU input for any hardware.
 
 ## Model Database
 
-63 curated models including LLaMA 2/3/4, Mistral, Mixtral, Qwen, DeepSeek, Gemma, Phi, Command-R, Falcon, Yi, GLM, Kimi K2/K2.5, GPT OSS, Nemotron, and more. Plus custom model input.
+64 curated models including LLaMA 2/3/4, Mistral, Mixtral, Qwen, DeepSeek, Gemma, Phi, Command-R, Falcon, Yi, GLM, Kimi K2/K2.5, GPT OSS, Nemotron, MiniMax, and more. Plus custom model input.
 
 ## Quick Start
 

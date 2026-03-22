@@ -556,6 +556,22 @@
     "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M2.1"
   },
   {
+    "id": "minimax-m2.7",
+    "name": "MiniMax M2.7",
+    "architecture": "moe",
+    "num_parameters_billion": 228,
+    "hidden_size": 3072,
+    "num_hidden_layers": 62,
+    "num_attention_heads": 48,
+    "num_kv_heads": 8,
+    "intermediate_size": 1536,
+    "num_experts": 256,
+    "num_experts_per_token": 8,
+    "context_length": 204800,
+    "license": "MiniMax",
+    "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M2.7"
+  },
+  {
     "id": "mistralai-ministral-3-14b-reasoning",
     "name": "Ministral 3 14B Reasoning",
     "architecture": "dense",
