@@ -70,7 +70,7 @@ export interface InferenceVRAMBreakdown {
 export interface PerformanceEstimate {
   /** Throughput during decoding phase (tokens/sec) */
   tokensPerSecond: Decimal
-  /** Prefill latency (time to process prompt) in milliseconds */
+  /** Prefill latency (time to process prompt) in seconds — multiply by 1000 for ms display */
   timeToFirstToken: Decimal
   /** True if performance limited by TFLOPS (small batch, short sequence) */
   isComputeBound: boolean

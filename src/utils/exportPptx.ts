@@ -426,5 +426,10 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     },
   )
 
-  await pptx.writeFile({ fileName: `llmvram-${model.name.replace(/\s+/g, '-')}.pptx` })
+  const safeName =
+    model.name
+      .replace(/\s+/g, '-')
+      .replace(/[/\\:*?"<>|]+/g, '_')
+      .replace(/^[-_]+|[-_]+$/g, '') || 'model'
+  await pptx.writeFile({ fileName: `llmvram-${safeName}.pptx` })
 }
