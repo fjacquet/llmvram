@@ -76,6 +76,9 @@ interface UIState {
   // Interconnect override (for GPUs with multiple interconnect options)
   interconnectOverride: string | null
 
+  // Concurrent users (for KV cache sizing in deployment scenarios)
+  concurrentUsers: number
+
   // UI preferences (persisted)
   isDarkMode: boolean
 
@@ -107,6 +110,8 @@ interface UIState {
   setFlashAttention: (enabled: boolean) => void
   setFrameworkPreset: (preset: FrameworkPreset) => void
   setCpuOffloadOptimizer: (enabled: boolean) => void
+  setConcurrentUsers: (n: number) => void
+  setIsDarkMode: (dark: boolean) => void
   toggleDarkMode: () => void
 }
 
@@ -117,6 +122,7 @@ export const useUIStore = create<UIState>()(
       selectedModel: null,
       selectedGPU: null,
       interconnectOverride: null,
+      concurrentUsers: 1,
       quantization: 'fp16',
       sequenceLength: 4096,
       batchSize: 1,
@@ -141,7 +147,10 @@ export const useUIStore = create<UIState>()(
       flashAttention: false,
       frameworkPreset: 'none',
       cpuOffloadOptimizer: false,
-      isDarkMode: false,
+      isDarkMode:
+        typeof window !== 'undefined'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          : false,
 
       // Actions
       setSelectedModel: (model) => set({ selectedModel: model }),
@@ -198,6 +207,8 @@ export const useUIStore = create<UIState>()(
           return updates
         }),
       setCpuOffloadOptimizer: (enabled) => set({ cpuOffloadOptimizer: enabled }),
+      setConcurrentUsers: (n) => set({ concurrentUsers: n }),
+      setIsDarkMode: (dark) => set({ isDarkMode: dark }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
     }),
     {

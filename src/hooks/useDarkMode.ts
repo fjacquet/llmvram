@@ -11,6 +11,7 @@ import { useEffect } from 'react'
 export function useDarkMode() {
   const isDarkMode = useUIStore((state) => state.isDarkMode)
   const toggleDarkMode = useUIStore((state) => state.toggleDarkMode)
+  const setIsDarkMode = useUIStore((state) => state.setIsDarkMode)
 
   useEffect(() => {
     if (isDarkMode) {
@@ -19,6 +20,14 @@ export function useDarkMode() {
       document.documentElement.classList.remove('dark')
     }
   }, [isDarkMode])
+
+  // Track live OS theme changes and mirror them in the store
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e: MediaQueryListEvent) => setIsDarkMode(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [setIsDarkMode])
 
   return { isDarkMode, toggleDarkMode }
 }

@@ -8,11 +8,13 @@ const { mockStore } = vi.hoisted(() => {
   interface MockState {
     isDarkMode: boolean
     toggleDarkMode: () => void
+    setIsDarkMode: (dark: boolean) => void
   }
 
   const mockStore = create<MockState>((set) => ({
     isDarkMode: false,
     toggleDarkMode: () => set((s) => ({ isDarkMode: !s.isDarkMode })),
+    setIsDarkMode: (dark: boolean) => set({ isDarkMode: dark }),
   }))
 
   return { mockStore }
@@ -29,6 +31,17 @@ describe('useDarkMode', () => {
   beforeEach(() => {
     mockStore.setState({ isDarkMode: false })
     document.documentElement.classList.remove('dark')
+    // jsdom does not implement matchMedia — provide a minimal stub
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    })
   })
 
   it('should return isDarkMode and toggleDarkMode', () => {

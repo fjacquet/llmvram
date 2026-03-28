@@ -158,6 +158,7 @@ export function calculateInferenceVRAM(params: {
   batchSize: number
   kvQuantization?: KVCachePrecision
   numGPUs?: number
+  concurrentUsers?: number
 }): InferenceVRAMBreakdown {
   const {
     model,
@@ -166,16 +167,18 @@ export function calculateInferenceVRAM(params: {
     batchSize,
     kvQuantization = 'fp16',
     numGPUs = 1,
+    concurrentUsers,
   } = params
 
   // 1. Model weights (uses TOTAL params for MoE, not active)
   const modelWeights = calculateModelWeightVRAM(model.num_parameters_billion, quantization)
 
   // 2. KV cache (applies GQA/MQA reduction automatically)
+  // concurrentUsers drives KV cache sizing — each active session holds its full context
   const kvCache = calculateKVCacheVRAM({
     model,
     sequenceLength,
-    batchSize,
+    batchSize: concurrentUsers ?? batchSize,
     kvPrecision: kvQuantization,
   })
 

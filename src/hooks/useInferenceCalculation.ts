@@ -214,6 +214,7 @@ export function useInferenceCalculation(
   numGPUs?: number,
   shardingStrategy?: ShardingStrategy,
   offloadingConfig?: OffloadingConfig,
+  concurrentUsers?: number,
 ): UseInferenceCalculationResult {
   const [result, setResult] = useState<UseInferenceCalculationResult['result']>(null)
   const [loading, setLoading] = useState(false)
@@ -282,6 +283,7 @@ export function useInferenceCalculation(
           batchSize,
           kvQuantization,
           numGPUs: numGPUs ?? 1,
+          concurrentUsers: concurrentUsers ?? batchSize,
           shardingStrategy: shardingStrategy ?? 'tensor-parallel',
           offloadingEnabled: offloadingConfig?.enabled ?? false,
           offloadTarget: offloadingConfig?.target ?? 'cpu-ram',
@@ -312,6 +314,7 @@ export function useInferenceCalculation(
           sequenceLength,
           batchSize,
           kvQuantization,
+          concurrentUsers: concurrentUsers ?? batchSize,
         })
 
         // Offloading calculation (if enabled)
@@ -374,6 +377,7 @@ export function useInferenceCalculation(
     numGPUs,
     shardingStrategy,
     offloadingConfig,
+    concurrentUsers,
   ])
 
   return { result, loading, error }
