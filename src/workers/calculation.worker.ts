@@ -101,6 +101,8 @@ interface CalculationSuccessResponse {
       totalPerGPU: string
       utilizationPercent: string
       singleGPUBaseline: string
+      scalingEfficiency: number
+      interconnectBandwidthGBps: number
     } | null
     interconnectWarning: string | null
   }

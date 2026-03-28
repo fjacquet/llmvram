@@ -27,6 +27,7 @@ import type {
   QuantizationFormat,
   ShardingStrategy,
 } from '@engines/types'
+import { useUIStore } from '@store/uiStore'
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { useEffect, useState } from 'react'

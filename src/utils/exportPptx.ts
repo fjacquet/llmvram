@@ -355,7 +355,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
   metricBoxes.forEach(({ label, value }, idx) => {
     const xPos = boxXPositions[idx] ?? 0.4
     // Background rounded rectangle
-    slide4.addShape(pptx.ShapeType.ROUNDED_RECTANGLE, {
+    slide4.addShape('roundRect', {
       x: xPos,
       y: 0.9,
       w: 3.8,
