@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-03-28
+
+### Added
+
+- **PWA / offline support**: app is now installable as a Progressive Web App and loads fully from cache without a network connection
+  - Service worker (Workbox, `registerType: autoUpdate`) precaches all build assets on first visit; subsequent loads serve from cache
+  - Web App Manifest (`manifest.webmanifest`): standalone display mode, indigo theme, icons at 64/192/512px + maskable variant
+  - `start_url` / `scope` derived automatically from Vite `base` — works as `/` locally and `/llmvram/` on GitHub Pages with no extra config
+  - Apple PWA meta tags (`apple-touch-icon`, `apple-mobile-web-app-capable`, `status-bar-style`) for iOS home screen install
+  - Dual `theme-color` meta tags (light: `#6366f1`, dark: `#4f46e5`) for browser chrome theming
+
+### Fixed
+
+- Pinned `serialize-javascript` to `^7.0.5` via npm `overrides` to resolve two high-severity build-time vulnerabilities in the `vite-plugin-pwa → workbox-build → @rollup/plugin-terser` chain (GHSA-5c6j-r48x-rmvq, GHSA-qj8w-gfj5-8c6v)
+
 ## [1.3.0] - 2026-03-28
 
 ### Added
