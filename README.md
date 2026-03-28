@@ -1,5 +1,12 @@
 # LLM VRAM Calculator
 
+[![CI](https://github.com/fjacquet/llmvram/actions/workflows/ci.yml/badge.svg?branch=maincd)](https://github.com/fjacquet/llmvram/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+
 Browser-based tool for estimating VRAM requirements and performance when running large language models on various GPU configurations. Pure client-side with no backend dependency.
 
 ## Features
@@ -7,13 +14,16 @@ Browser-based tool for estimating VRAM requirements and performance when running
 - **VRAM Estimation**: Model weights, KV cache, activations, and framework overhead
 - **22 Quantization Formats**: FP32, FP16, BF16, INT8, INT4, NF4, GPTQ, AWQ, GGUF Q2-Q8, NVFP4/6
 - **KV Cache Quantization**: Independent from weight quantization (FP16, FP8, INT8, INT4)
-- **Multi-GPU Support**: Tensor and pipeline parallelism with NCCL overhead and interconnect validation
+- **Concurrent Users**: Size KV cache for 1–256 simultaneous sessions; shows per-user tok/s and TTFT
+- **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink-5/4, PCIe-5/4)
+- **Interconnect Selector**: Pick the active interconnect variant for GPUs with multiple options
 - **Offloading**: CPU/RAM and NVMe offloading simulation with performance impact
 - **Performance Estimation**: Tokens/sec, time-to-first-token, bottleneck analysis (roofline model)
 - **Configuration Comparison**: Save and diff up to 3 configurations side-by-side
 - **URL Sharing**: LZ-String compressed state in URL hash for shareable links
 - **MoE Architecture**: Correct handling of total vs active parameters
-- **Dark Mode**: System-aware with manual toggle
+- **Export**: PDF and PowerPoint (PPTX) export of the full analysis
+- **Dark Mode**: Follows OS `prefers-color-scheme` on first visit, tracks live changes, manual toggle
 
 ## Supported Hardware
 

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-03-28
+
+### Added
+
+- **Concurrent users** parameter (1–256) for KV cache sizing: models the full load of simultaneous active sessions whose context must fit in VRAM at the same time
+- Per-user speed (tok/s) and per-user TTFT (ms) metrics shown in the performance panel when `concurrentUsers > 1`
+- **Interconnect variant selector**: GPUs with multiple interconnect options (e.g. NVLink-4 vs PCIe-5) now show a radio group to select the active variant, updating tensor parallelism efficiency accordingly
+- **PPTX export**: export the full analysis (VRAM breakdown, performance, multi-GPU, and configuration summary) as a PowerPoint presentation with charts
+- **OS dark mode sync**: `isDarkMode` now defaults to `prefers-color-scheme` on first visit and tracks live OS theme changes via a `matchMedia` listener — no page reload needed
+
+### Fixed
+
+- **PDF export** now works correctly with Tailwind v4: replaced `html2pdf.js` (bundles `html2canvas` v1.4.1 which cannot parse `oklch()`) with `html2canvas-pro` + `jspdf`; captures the full `#calculator-section` (InputPanel + ResultsPanel) using `windowWidth: 800` to force single-column layout in the PDF without affecting the live UI; dark mode is temporarily stripped before capture for correct contrast
+
 ## [1.2.3] - 2026-03-22
 
 ### Added

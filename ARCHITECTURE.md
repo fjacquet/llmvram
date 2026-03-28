@@ -18,7 +18,7 @@ LLM VRAM Calculator is a browser-based Single Page Application (SPA) for estimat
 | Recharts | 3.x | Donut chart and data visualization |
 | Decimal.js | 10.x | Precision arithmetic for all calculations |
 | LZ-String | 1.x | URL state compression |
-| Zod | 3.x | Schema validation (single source of truth for types) |
+| Zod | 4.x | Schema validation (single source of truth for types) |
 | Biome | 2.x | Linting and formatting |
 | Vitest | 4.x | Unit testing (jsdom environment) |
 
@@ -42,10 +42,12 @@ src/
 │   ├── inputs/                 # Configuration controls
 │   │   ├── ModelSelector.tsx    # Model search + custom model form
 │   │   ├── GPUSelector.tsx      # GPU search + custom GPU form
+│   │   ├── InterconnectSelector.tsx    # Interconnect variant picker (GPUs with multiple options)
 │   │   ├── QuantizationPicker.tsx      # Weight quantization selector
 │   │   ├── KVQuantizationPicker.tsx    # KV cache quantization selector
 │   │   ├── SequenceLengthInput.tsx     # Log-scale slider (512-131K)
 │   │   ├── BatchSizeInput.tsx          # Batch size (1-64)
+│   │   ├── ConcurrentUsersInput.tsx    # Concurrent users (1-256) for KV cache sizing
 │   │   ├── GPUCountSelector.tsx        # Number of GPUs (1-8)
 │   │   ├── ShardingStrategySelector.tsx # Tensor/pipeline parallelism
 │   │   └── OffloadingPanel.tsx         # CPU/NVMe offloading controls
@@ -75,6 +77,7 @@ src/
 │   └── useURLSync.ts               # URL hash persistence with debounce
 ├── utils/                      # Shared utilities
 │   ├── schemas.ts              # Zod schemas (GPU, Model) — type source of truth
+│   ├── exportPptx.ts           # PPTX export (pptxgenjs) — VRAM/perf/config slides
 │   ├── gpus.ts                 # GPU data loading and lookup helpers
 │   └── models.ts               # Model data loading and lookup helpers
 ├── types/                      # TypeScript type re-exports
@@ -83,7 +86,7 @@ src/
 │   └── calculation.worker.ts   # Offloads engine calculations to background thread
 ├── data/                       # Static databases
 │   ├── gpus.json               # 20 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
-│   └── models.json             # 56 curated models (sorted alphabetically by name) + context_length, license, hf_url
+│   └── models.json             # 64 curated models (sorted alphabetically by name) + context_length, license, hf_url
 └── test/                       # Test infrastructure
     └── setup.ts                # @testing-library/jest-dom + cleanup
 scripts/
@@ -110,7 +113,7 @@ flowchart TB
     end
 
     subgraph Store["ZUSTAND STORE (uiStore.ts)"]
-        State["selectedModel, selectedGPU\nquantization, kvQuantization\nsequenceLength, batchSize\nnumGPUs, shardingStrategy\noffloading config"]
+        State["selectedModel, selectedGPU\nquantization, kvQuantization\nsequenceLength, batchSize\nconcurrentUsers, numGPUs\nshardingStrategy, offloading config\nisDarkMode, interconnectOverride"]
         URL["URL Hash Updated\n(LZ-String compressed, 300ms debounce)"]
     end
 
@@ -175,9 +178,9 @@ Calculates model weight memory for 22 quantization formats:
 
 Calculates KV cache memory accounting for GQA/MQA architectures:
 
-**Formula:** `kv_cache_GB = 2 × layers × hidden_size × seq_len × batch × precision × gqa_ratio / 1e9`
+**Formula:** `kv_cache_GB = 2 × layers × hidden_size × seq_len × concurrentUsers × precision × gqa_ratio / 1e9`
 
-Where `gqa_ratio = num_kv_heads / num_attention_heads` (defaults to 1.0 for MHA)
+Where `gqa_ratio = num_kv_heads / num_attention_heads` (defaults to 1.0 for MHA). The `concurrentUsers` parameter (default: 1, range: 1–256) replaces `batchSize` for KV cache sizing so the estimate reflects the total context that must reside in VRAM for all active sessions simultaneously.
 
 Supports independent KV cache quantization (FP16, FP8, INT8, INT4).
 
@@ -248,7 +251,9 @@ Single store with all calculator state:
 - Sequence length, batch size
 - Multi-GPU config (count, sharding strategy)
 - Offloading settings
-- Dark mode preference (persisted to localStorage)
+- Concurrent users count (1–256)
+- Interconnect override for GPUs with multiple options
+- Dark mode preference: defaults to `prefers-color-scheme` on first visit, tracks live OS changes via `matchMedia`, persisted to localStorage
 
 ### URL Persistence (`urlSerializer.ts`)
 
@@ -312,10 +317,12 @@ flowchart TB
                 subgraph Left["InputPanel.tsx (sticky on desktop)"]
                     MS["ModelSelector"]
                     GS["GPUSelector"]
+                    IS["InterconnectSelector"]
                     QP["QuantizationPicker"]
                     KVQ["KVQuantizationPicker"]
                     SL["SequenceLengthInput"]
                     BS["BatchSizeInput"]
+                    CU["ConcurrentUsersInput"]
                     GC["GPUCountSelector"]
                     SS["ShardingStrategySelector"]
                     OP["OffloadingPanel"]
@@ -385,7 +392,7 @@ Main Thread                    Worker Thread
 | `src/engines/quantization.ts` | 22 quantization formats |
 | `src/engines/multi-gpu.ts` | Multi-GPU distribution |
 | `src/utils/schemas.ts` | Zod schemas (type source of truth) |
-| `src/data/models.json` | 56 curated models (alphabetically sorted) |
+| `src/data/models.json` | 64 curated models (alphabetically sorted) |
 | `src/data/gpus.json` | 20 curated GPUs |
 | `src/store/urlSerializer.ts` | URL hash state persistence |
 | `src/workers/calculation.worker.ts` | Background calculation thread |
