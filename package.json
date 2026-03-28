@@ -36,6 +36,9 @@
     "zod": "^4.3.6",
     "zustand": "^5.0.9"
   },
+  "overrides": {
+    "serialize-javascript": "^7.0.5"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.5",
     "@tailwindcss/vite": "^4.1.18",
