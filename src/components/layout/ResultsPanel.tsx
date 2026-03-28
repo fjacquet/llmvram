@@ -12,7 +12,8 @@ import { useTrainingCalculation } from '@hooks/useTrainingCalculation'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
-import { useEffect, useMemo } from 'react'
+import { exportPptx } from '@utils/exportPptx'
+import { useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 
 /**
@@ -44,6 +45,42 @@ export function ResultsPanel() {
 
   // Read comparison store for save functionality
   const { snapshots, addSnapshot } = useComparisonStore()
+
+  const resultsDivRef = useRef<HTMLDivElement>(null)
+
+  const handleExportPDF = async () => {
+    if (!resultsDivRef.current) return
+    const html2pdf = (await import('html2pdf.js')).default
+    // biome-ignore lint/suspicious/noExplicitAny: html2pdf.js types don't include pagebreak
+    const opts: any = {
+      margin: 0.4,
+      filename: `llmvram-${selectedModel?.name ?? 'estimate'}.pdf`,
+      image: { type: 'jpeg', quality: 0.97 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: 'avoid-all' },
+    }
+    html2pdf().set(opts).from(resultsDivRef.current).save()
+  }
+
+  const handleExportPptx = async () => {
+    if (!result || !selectedModel || !selectedGPU) return
+    try {
+      await exportPptx({
+        model: selectedModel,
+        gpu: selectedGPU,
+        quantization,
+        numGPUs,
+        sequenceLength,
+        batchSize,
+        vram: result.vram,
+        performance: result.performance,
+        multiGPU: result.multiGPU,
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'PPTX export failed')
+    }
+  }
 
   // Build offloading config if enabled (memoized to prevent render loops)
   const offloadingConfig = useMemo<OffloadingConfig | undefined>(
@@ -377,7 +414,10 @@ export function ResultsPanel() {
 
   // Continue with inference mode (everything below is unchanged)
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+    <div
+      ref={resultsDivRef}
+      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
+    >
       <div className="space-y-6">
         {/* VRAM Section */}
         <div>
@@ -385,28 +425,44 @@ export function ResultsPanel() {
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
               VRAM Requirements
             </h2>
-            <button
-              type="button"
-              onClick={handleSaveToComparison}
-              disabled={snapshots.length >= 3}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {snapshots.length >= 3 ? (
-                'Max 3 saved'
-              ) : (
-                <>
-                  <PlusIcon className="h-4 w-4" />
-                  Save to Compare
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportPDF}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
+              >
+                Export PDF
+              </button>
+              <button
+                type="button"
+                onClick={handleExportPptx}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
+              >
+                Export PPTX
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveToComparison}
+                disabled={snapshots.length >= 3}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {snapshots.length >= 3 ? (
+                  'Max 3 saved'
+                ) : (
+                  <>
+                    <PlusIcon className="h-4 w-4" />
+                    Save to Compare
+                  </>
+                )}
+              </button>
+            </div>
           </div>
           <div className="space-y-6">
-            {/* Fit Indicator - shows total cluster view for multi-GPU, per-GPU for single */}
+            {/* Fit Indicator - shows per-GPU utilization for multi-GPU, total for single */}
             {result.multiGPU ? (
               <FitIndicator
-                totalVRAM={result.vram.total}
-                availableVRAM={selectedGPU.vram_gb * result.multiGPU.numGPUs}
+                totalVRAM={result.multiGPU.totalPerGPU}
+                availableVRAM={selectedGPU.vram_gb}
                 numGPUs={result.multiGPU.numGPUs}
               />
             ) : (
@@ -489,7 +545,7 @@ export function ResultsPanel() {
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Time to First Token</p>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {result.performance.timeToFirstToken.toFixed(1)} ms
+                  {result.performance.timeToFirstToken.mul(1000).toFixed(1)} ms
                 </p>
               </div>
               <div>

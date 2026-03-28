@@ -1,6 +1,6 @@
 import type { Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
-import { BYTES_PER_GB, FRAMEWORK_OVERHEAD_GB } from './constants'
+import { BYTES_PER_GB, FRAMEWORK_OVERHEAD_GB, PER_GPU_FRAMEWORK_OVERHEAD_GB } from './constants'
 import { calculateKVCacheVRAM } from './kv-cache'
 import { calculateModelWeightVRAM } from './quantization'
 import type { InferenceVRAMBreakdown, KVCachePrecision, QuantizationFormat } from './types'
@@ -157,8 +157,16 @@ export function calculateInferenceVRAM(params: {
   sequenceLength: number
   batchSize: number
   kvQuantization?: KVCachePrecision
+  numGPUs?: number
 }): InferenceVRAMBreakdown {
-  const { model, quantization, sequenceLength, batchSize, kvQuantization = 'fp16' } = params
+  const {
+    model,
+    quantization,
+    sequenceLength,
+    batchSize,
+    kvQuantization = 'fp16',
+    numGPUs = 1,
+  } = params
 
   // 1. Model weights (uses TOTAL params for MoE, not active)
   const modelWeights = calculateModelWeightVRAM(model.num_parameters_billion, quantization)
@@ -174,8 +182,10 @@ export function calculateInferenceVRAM(params: {
   // 3. Activation memory (uses active params for MoE)
   const activations = calculateActivationMemory(model, sequenceLength, batchSize)
 
-  // 4. Framework overhead (PyTorch + CUDA)
-  const frameworkOverhead = FRAMEWORK_OVERHEAD_GB
+  // 4. Framework overhead (PyTorch + CUDA), scaled by GPU count
+  const frameworkOverhead = FRAMEWORK_OVERHEAD_GB.add(
+    PER_GPU_FRAMEWORK_OVERHEAD_GB.mul(Math.max(0, numGPUs - 1)),
+  )
 
   // 5. Total VRAM
   const total = modelWeights.add(kvCache).add(activations).add(frameworkOverhead)

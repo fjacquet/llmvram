@@ -150,6 +150,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         sequenceLength,
         batchSize,
         kvQuantization,
+        numGPUs,
       })
 
       // 2. Offloading calculation (if enabled)

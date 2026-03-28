@@ -9,7 +9,7 @@ import type {
 } from './types'
 
 /**
- * Framework overhead for PyTorch + CUDA runtime
+ * Framework overhead for PyTorch + CUDA runtime (base, single GPU)
  *
  * Conservative 1GB estimate covering:
  * - PyTorch JIT compilation and runtime (200-400MB)
@@ -19,6 +19,17 @@ import type {
  * Reference: INFER-04 in .planning/phases/02-inference-engine/02-RESEARCH.md
  */
 export const FRAMEWORK_OVERHEAD_GB = new Decimal(1.0)
+
+/**
+ * Additional framework overhead per extra GPU (beyond the first)
+ *
+ * Each additional GPU needs its own CUDA context (~300MB) and NCCL library
+ * instance (~200MB), adding ~0.5GB per extra GPU in multi-GPU setups.
+ *
+ * Formula: total = FRAMEWORK_OVERHEAD_GB + PER_GPU_FRAMEWORK_OVERHEAD_GB × (N-1)
+ * Examples: 1 GPU = 1.0 GB, 2 GPUs = 1.5 GB, 4 GPUs = 2.5 GB
+ */
+export const PER_GPU_FRAMEWORK_OVERHEAD_GB = new Decimal(0.5)
 
 /**
  * Bytes per parameter for each quantization format
@@ -361,3 +372,19 @@ export const FLASH_ATTENTION_LONG_RETENTION = new Decimal(0.3)
  */
 export const FLASH_ATTENTION_SHORT_THRESHOLD = 2048
 export const FLASH_ATTENTION_LONG_THRESHOLD = 8192
+
+/**
+ * Human-readable labels for GPU interconnect types
+ *
+ * Used in the InterconnectSelector UI to display bandwidth info alongside
+ * each interconnect option. Keyed by the interconnect enum value.
+ */
+export const INTERCONNECT_LABELS: Partial<Record<string, string>> = {
+  'nvlink-4': 'NVLink 4 — 900 GB/s',
+  'nvlink-5': 'NVLink 5 — 1800 GB/s',
+  'pcie-5': 'PCIe 5 — 128 GB/s',
+  'pcie-4': 'PCIe 4 — 64 GB/s',
+  'infinity-fabric': 'Infinity Fabric',
+  unified: 'Unified Memory',
+  none: 'None (single GPU)',
+}

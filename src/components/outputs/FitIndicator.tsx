@@ -110,8 +110,7 @@ export function FitIndicator({ totalVRAM, availableVRAM, numGPUs }: FitIndicator
         <div className="text-sm text-gray-600 dark:text-gray-300">
           {numGPUs && numGPUs > 1 ? (
             <>
-              Using {totalGB.toFixed(2)} GB of {numGPUs} × {availableVRAM / numGPUs} GB ={' '}
-              {availableVRAM} GB
+              Using {totalGB.toFixed(2)} GB per GPU of {availableVRAM} GB ({numGPUs} GPUs)
             </>
           ) : (
             <>

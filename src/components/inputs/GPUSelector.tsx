@@ -407,6 +407,9 @@ export function GPUSelector() {
         </div>
       )}
 
+      {/* Interconnect variant selector (only shown for GPUs with multiple options) */}
+      <InterconnectSelector />
+
       {/* Custom GPU form */}
       {showCustomForm && (
         <div className="mt-4 p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50 space-y-3">

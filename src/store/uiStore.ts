@@ -73,12 +73,16 @@ interface UIState {
   frameworkPreset: FrameworkPreset
   cpuOffloadOptimizer: boolean
 
+  // Interconnect override (for GPUs with multiple interconnect options)
+  interconnectOverride: string | null
+
   // UI preferences (persisted)
   isDarkMode: boolean
 
   // Actions
   setSelectedModel: (model: Model | null) => void
   setSelectedGPU: (gpu: GPU | null) => void
+  setInterconnectOverride: (v: string | null) => void
   setQuantization: (quantization: QuantizationFormat) => void
   setSequenceLength: (sequenceLength: number) => void
   setBatchSize: (batchSize: number) => void
@@ -112,6 +116,7 @@ export const useUIStore = create<UIState>()(
       // Default state
       selectedModel: null,
       selectedGPU: null,
+      interconnectOverride: null,
       quantization: 'fp16',
       sequenceLength: 4096,
       batchSize: 1,
@@ -140,7 +145,8 @@ export const useUIStore = create<UIState>()(
 
       // Actions
       setSelectedModel: (model) => set({ selectedModel: model }),
-      setSelectedGPU: (gpu) => set({ selectedGPU: gpu }),
+      setSelectedGPU: (gpu) => set({ selectedGPU: gpu, interconnectOverride: null }),
+      setInterconnectOverride: (v) => set({ interconnectOverride: v }),
       setQuantization: (quantization) => set({ quantization }),
       setSequenceLength: (sequenceLength) => set({ sequenceLength }),
       setBatchSize: (batchSize) => set({ batchSize }),
