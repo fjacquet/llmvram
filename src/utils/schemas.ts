@@ -28,6 +28,20 @@ export const GPUSchema = z.object({
       'unified',
     ])
     .optional(),
+  interconnect_options: z
+    .array(
+      z.enum([
+        'none',
+        'nvlink',
+        'nvlink-4',
+        'nvlink-5',
+        'pcie-4',
+        'pcie-5',
+        'infinity-fabric',
+        'unified',
+      ]),
+    )
+    .optional(),
 
   // Classification
   tier: z.enum(['datacenter', 'consumer', 'apple-silicon']),

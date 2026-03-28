@@ -73,12 +73,19 @@ interface UIState {
   frameworkPreset: FrameworkPreset
   cpuOffloadOptimizer: boolean
 
+  // Interconnect override (for GPUs with multiple interconnect options)
+  interconnectOverride: string | null
+
+  // Concurrent users (for KV cache sizing in deployment scenarios)
+  concurrentUsers: number
+
   // UI preferences (persisted)
   isDarkMode: boolean
 
   // Actions
   setSelectedModel: (model: Model | null) => void
   setSelectedGPU: (gpu: GPU | null) => void
+  setInterconnectOverride: (v: string | null) => void
   setQuantization: (quantization: QuantizationFormat) => void
   setSequenceLength: (sequenceLength: number) => void
   setBatchSize: (batchSize: number) => void
@@ -103,6 +110,8 @@ interface UIState {
   setFlashAttention: (enabled: boolean) => void
   setFrameworkPreset: (preset: FrameworkPreset) => void
   setCpuOffloadOptimizer: (enabled: boolean) => void
+  setConcurrentUsers: (n: number) => void
+  setIsDarkMode: (dark: boolean) => void
   toggleDarkMode: () => void
 }
 
@@ -112,6 +121,8 @@ export const useUIStore = create<UIState>()(
       // Default state
       selectedModel: null,
       selectedGPU: null,
+      interconnectOverride: null,
+      concurrentUsers: 1,
       quantization: 'fp16',
       sequenceLength: 4096,
       batchSize: 1,
@@ -136,11 +147,15 @@ export const useUIStore = create<UIState>()(
       flashAttention: false,
       frameworkPreset: 'none',
       cpuOffloadOptimizer: false,
-      isDarkMode: false,
+      isDarkMode:
+        typeof window !== 'undefined'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          : false,
 
       // Actions
       setSelectedModel: (model) => set({ selectedModel: model }),
-      setSelectedGPU: (gpu) => set({ selectedGPU: gpu }),
+      setSelectedGPU: (gpu) => set({ selectedGPU: gpu, interconnectOverride: null }),
+      setInterconnectOverride: (v) => set({ interconnectOverride: v }),
       setQuantization: (quantization) => set({ quantization }),
       setSequenceLength: (sequenceLength) => set({ sequenceLength }),
       setBatchSize: (batchSize) => set({ batchSize }),
@@ -192,6 +207,8 @@ export const useUIStore = create<UIState>()(
           return updates
         }),
       setCpuOffloadOptimizer: (enabled) => set({ cpuOffloadOptimizer: enabled }),
+      setConcurrentUsers: (n) => set({ concurrentUsers: n }),
+      setIsDarkMode: (dark) => set({ isDarkMode: dark }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
     }),
     {

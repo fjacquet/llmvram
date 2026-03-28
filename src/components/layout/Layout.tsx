@@ -69,7 +69,7 @@ export function Layout() {
 
         {/* Conditional content based on active tab */}
         {activeTab === 'calculator' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div id="calculator-section" className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-5">
               <div className="lg:sticky lg:top-6">
                 <InputPanel />

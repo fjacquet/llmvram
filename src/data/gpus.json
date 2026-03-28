@@ -41,6 +41,7 @@
     "fp32_tflops": 51,
     "tdp_watts": 700,
     "interconnect": "nvlink-4",
+    "interconnect_options": ["nvlink-4", "pcie-5"],
     "tier": "datacenter",
     "spec_url": "https://www.nvidia.com/en-us/data-center/h200/"
   },
@@ -175,7 +176,8 @@
     "fp16_tflops": 213,
     "fp32_tflops": 31,
     "tdp_watts": 140,
-    "interconnect": "none",
+    "interconnect": "nvlink-5",
+    "interconnect_options": ["nvlink-5", "pcie-5"],
     "tier": "consumer",
     "spec_url": "https://www.nvidia.com/en-us/products/workstations/dgx-spark/"
   },

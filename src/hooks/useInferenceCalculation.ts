@@ -27,6 +27,7 @@ import type {
   QuantizationFormat,
   ShardingStrategy,
 } from '@engines/types'
+import { useUIStore } from '@store/uiStore'
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { useEffect, useState } from 'react'
@@ -213,10 +214,13 @@ export function useInferenceCalculation(
   numGPUs?: number,
   shardingStrategy?: ShardingStrategy,
   offloadingConfig?: OffloadingConfig,
+  concurrentUsers?: number,
 ): UseInferenceCalculationResult {
   const [result, setResult] = useState<UseInferenceCalculationResult['result']>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const interconnectOverride = useUIStore((s) => s.interconnectOverride)
 
   useEffect(() => {
     // Early return if model or GPU not selected
@@ -226,6 +230,11 @@ export function useInferenceCalculation(
       setError(null)
       return
     }
+
+    // Apply interconnect override when user selects a variant different from the GPU default
+    const effectiveGPU = interconnectOverride
+      ? { ...gpu, interconnect: interconnectOverride as GPU['interconnect'] }
+      : gpu
 
     setLoading(true)
     setError(null)
@@ -268,12 +277,13 @@ export function useInferenceCalculation(
         type: 'CALCULATE_INFERENCE',
         payload: {
           model,
-          gpu,
+          gpu: effectiveGPU,
           quantization,
           sequenceLength,
           batchSize,
           kvQuantization,
           numGPUs: numGPUs ?? 1,
+          concurrentUsers: concurrentUsers ?? batchSize,
           shardingStrategy: shardingStrategy ?? 'tensor-parallel',
           offloadingEnabled: offloadingConfig?.enabled ?? false,
           offloadTarget: offloadingConfig?.target ?? 'cpu-ram',
@@ -304,6 +314,7 @@ export function useInferenceCalculation(
           sequenceLength,
           batchSize,
           kvQuantization,
+          concurrentUsers: concurrentUsers ?? batchSize,
         })
 
         // Offloading calculation (if enabled)
@@ -327,13 +338,13 @@ export function useInferenceCalculation(
           multiGPU = multiGPUModule.calculateMultiGPUVRAM(
             baseBreakdown,
             model,
-            gpu.vram_gb,
+            effectiveGPU.vram_gb,
             effectiveNumGPUs,
             effectiveStrategy,
-            gpu,
+            effectiveGPU,
           )
           const validation = multiGPUModule.validateInterconnect(
-            gpu,
+            effectiveGPU,
             effectiveNumGPUs,
             effectiveStrategy,
           )
@@ -342,7 +353,7 @@ export function useInferenceCalculation(
 
         const performance = performanceModule.estimatePerformance({
           model,
-          gpu,
+          gpu: effectiveGPU,
           quantization,
           batchSize,
           multiGPUResult: multiGPU,
@@ -358,6 +369,7 @@ export function useInferenceCalculation(
   }, [
     model,
     gpu,
+    interconnectOverride,
     quantization,
     sequenceLength,
     batchSize,
@@ -365,6 +377,7 @@ export function useInferenceCalculation(
     numGPUs,
     shardingStrategy,
     offloadingConfig,
+    concurrentUsers,
   ])
 
   return { result, loading, error }

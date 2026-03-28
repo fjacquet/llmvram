@@ -36,6 +36,7 @@ interface CalculationRequest {
     batchSize: number
     kvQuantization?: KVCachePrecision
     numGPUs: number
+    concurrentUsers: number
     shardingStrategy: ShardingStrategy
     offloadingEnabled: boolean
     offloadTarget: string
@@ -101,6 +102,8 @@ interface CalculationSuccessResponse {
       totalPerGPU: string
       utilizationPercent: string
       singleGPUBaseline: string
+      scalingEfficiency: number
+      interconnectBandwidthGBps: number
     } | null
     interconnectWarning: string | null
   }
@@ -134,6 +137,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         batchSize,
         kvQuantization,
         numGPUs,
+        concurrentUsers,
         shardingStrategy,
         offloadingEnabled,
         offloadTarget,
@@ -150,6 +154,8 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         sequenceLength,
         batchSize,
         kvQuantization,
+        numGPUs,
+        concurrentUsers,
       })
 
       // 2. Offloading calculation (if enabled)

@@ -12,7 +12,8 @@ import { useTrainingCalculation } from '@hooks/useTrainingCalculation'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
-import { useEffect, useMemo } from 'react'
+import { exportPptx } from '@utils/exportPptx'
+import { useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 
 /**
@@ -40,10 +41,91 @@ export function ResultsPanel() {
     offloadPercentage,
     offloadLayers,
     kvCacheOffload,
+    concurrentUsers,
   } = useUIStore()
 
   // Read comparison store for save functionality
   const { snapshots, addSnapshot } = useComparisonStore()
+
+  const resultsDivRef = useRef<HTMLDivElement>(null)
+
+  const handleExportPDF = async () => {
+    // Capture the full calculator section (InputPanel + ResultsPanel) so the PDF
+    // includes both the assumptions and the results without duplicating content in the UI.
+    const captureEl = document.getElementById('calculator-section')
+    if (!captureEl) return
+    try {
+      // html2canvas-pro supports oklch colors (Tailwind v4)
+      const [{ default: html2canvasPro }, { jsPDF }] = await Promise.all([
+        import('html2canvas-pro'),
+        import('jspdf'),
+      ])
+
+      // Force light mode so the capture uses correct contrast
+      const root = document.documentElement
+      const wasDark = root.classList.contains('dark')
+      if (wasDark) root.classList.remove('dark')
+
+      let canvas: HTMLCanvasElement
+      try {
+        canvas = await html2canvasPro(captureEl, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#f9fafb', // gray-50 — matches page background
+          logging: false,
+          // windowWidth: 800 tells the renderer to use the mobile breakpoint:
+          // lg:grid-cols-12 collapses to grid-cols-1, panels stack vertically.
+          // This is a render-time option — the live app and mobile users are unaffected.
+          windowWidth: 800,
+        })
+      } finally {
+        if (wasDark) root.classList.add('dark')
+      }
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.97)
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' })
+
+      const margin = 28.8 // 0.4 in × 72 pt/in
+      const pageW = pdf.internal.pageSize.getWidth()
+      const pageH = pdf.internal.pageSize.getHeight()
+      const imgW = pageW - margin * 2
+      const imgH = (canvas.height / canvas.width) * imgW
+
+      // Slice the full-height image across multiple pages
+      let heightLeft = imgH - (pageH - margin * 2)
+      pdf.addImage(imgData, 'JPEG', margin, margin, imgW, imgH)
+
+      while (heightLeft > 0) {
+        pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', margin, margin - (imgH - heightLeft), imgW, imgH)
+        heightLeft -= pageH - margin * 2
+      }
+
+      pdf.save(`llmvram-${selectedModel?.name ?? 'estimate'}.pdf`)
+      toast.success('PDF exported')
+    } catch (err) {
+      toast.error(`PDF export failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  const handleExportPptx = async () => {
+    if (!result || !selectedModel || !selectedGPU) return
+    try {
+      await exportPptx({
+        model: selectedModel,
+        gpu: selectedGPU,
+        quantization,
+        numGPUs,
+        sequenceLength,
+        batchSize,
+        vram: result.vram,
+        performance: result.performance,
+        multiGPU: result.multiGPU,
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'PPTX export failed')
+    }
+  }
 
   // Build offloading config if enabled (memoized to prevent render loops)
   const offloadingConfig = useMemo<OffloadingConfig | undefined>(
@@ -68,7 +150,7 @@ export function ResultsPanel() {
     ],
   )
 
-  // Call the calculation hook with multi-GPU and offloading params
+  // Call the calculation hook with multi-GPU, offloading, and concurrent users params
   const { result, loading, error } = useInferenceCalculation(
     selectedModel,
     selectedGPU,
@@ -79,6 +161,7 @@ export function ResultsPanel() {
     numGPUs,
     shardingStrategy,
     offloadingConfig,
+    concurrentUsers,
   )
 
   // Call training calculation hook (unconditional - React hooks cannot be conditional)
@@ -377,7 +460,10 @@ export function ResultsPanel() {
 
   // Continue with inference mode (everything below is unchanged)
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+    <div
+      ref={resultsDivRef}
+      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
+    >
       <div className="space-y-6">
         {/* VRAM Section */}
         <div>
@@ -385,28 +471,44 @@ export function ResultsPanel() {
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
               VRAM Requirements
             </h2>
-            <button
-              type="button"
-              onClick={handleSaveToComparison}
-              disabled={snapshots.length >= 3}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {snapshots.length >= 3 ? (
-                'Max 3 saved'
-              ) : (
-                <>
-                  <PlusIcon className="h-4 w-4" />
-                  Save to Compare
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportPDF}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
+              >
+                Export PDF
+              </button>
+              <button
+                type="button"
+                onClick={handleExportPptx}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
+              >
+                Export PPTX
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveToComparison}
+                disabled={snapshots.length >= 3}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {snapshots.length >= 3 ? (
+                  'Max 3 saved'
+                ) : (
+                  <>
+                    <PlusIcon className="h-4 w-4" />
+                    Save to Compare
+                  </>
+                )}
+              </button>
+            </div>
           </div>
           <div className="space-y-6">
-            {/* Fit Indicator - shows total cluster view for multi-GPU, per-GPU for single */}
+            {/* Fit Indicator - shows per-GPU utilization for multi-GPU, total for single */}
             {result.multiGPU ? (
               <FitIndicator
-                totalVRAM={result.vram.total}
-                availableVRAM={selectedGPU.vram_gb * result.multiGPU.numGPUs}
+                totalVRAM={result.multiGPU.totalPerGPU}
+                availableVRAM={selectedGPU.vram_gb}
                 numGPUs={result.multiGPU.numGPUs}
               />
             ) : (
@@ -489,7 +591,7 @@ export function ResultsPanel() {
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Time to First Token</p>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {result.performance.timeToFirstToken.toFixed(1)} ms
+                  {result.performance.timeToFirstToken.mul(1000).toFixed(1)} ms
                 </p>
               </div>
               <div>
@@ -511,6 +613,40 @@ export function ResultsPanel() {
                 </p>
               </div>
             </div>
+
+            {/* Per-user metrics (only visible when concurrentUsers > 1) */}
+            {concurrentUsers > 1 && (
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+                  Multi-user metrics ({concurrentUsers} concurrent users)
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Per-user speed</p>
+                    <p className="text-base font-semibold text-gray-900 dark:text-white">
+                      {result.performance.tokensPerSecond
+                        .mul(batchSize)
+                        .div(concurrentUsers)
+                        .toFixed(1)}{' '}
+                      tok/s
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Per-user TTFT (est.)
+                    </p>
+                    <p className="text-base font-semibold text-gray-900 dark:text-white">
+                      {result.performance.timeToFirstToken
+                        .mul(concurrentUsers)
+                        .div(batchSize)
+                        .mul(1000)
+                        .toFixed(1)}{' '}
+                      ms
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
