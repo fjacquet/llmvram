@@ -121,6 +121,21 @@
     "spec_url": "https://www.nvidia.com/en-us/data-center/rtx-pro-6000-blackwell-server-edition/"
   },
   {
+    "id": "nvidia-rtx-6000-ada",
+    "name": "NVIDIA RTX 6000 Ada",
+    "manufacturer": "nvidia",
+    "vram_gb": 48,
+    "memory_bandwidth_gbps": 960,
+    "memory_type": "GDDR6",
+    "bus_width": 384,
+    "fp16_tflops": 182.2,
+    "fp32_tflops": 91.1,
+    "tdp_watts": 300,
+    "interconnect": "none",
+    "tier": "datacenter",
+    "spec_url": "https://www.nvidia.com/en-us/products/workstations/rtx-6000/"
+  },
+  {
     "id": "nvidia-rtx-5090",
     "name": "NVIDIA RTX 5090",
     "manufacturer": "nvidia",
