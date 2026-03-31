@@ -556,6 +556,22 @@
     "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M2.1"
   },
   {
+    "id": "minimax-m2.5",
+    "name": "MiniMax M2.5",
+    "architecture": "moe",
+    "num_parameters_billion": 229,
+    "hidden_size": 3072,
+    "num_hidden_layers": 62,
+    "num_attention_heads": 48,
+    "num_kv_heads": 8,
+    "intermediate_size": 1536,
+    "num_experts": 256,
+    "num_experts_per_token": 8,
+    "context_length": 196608,
+    "license": "MiniMax",
+    "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M2.5"
+  },
+  {
     "id": "minimax-m2.7",
     "name": "MiniMax M2.7",
     "architecture": "moe",
