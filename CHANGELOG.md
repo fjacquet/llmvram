@@ -7,9 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-06-03
+
 ### Added
 
 - NVIDIA RTX 6000 Ada (48 GB GDDR6, 960 GB/s, 91.1 TFLOPS FP32, 300 W) to GPU database (closes #11, #12)
+- MiniMax M2.5 to the model database
+
+### Fixed
+
+- PPTX export: sanitize the generated filename to avoid invalid characters
+- Corrected the `timeToFirstToken` unit documentation
+
+### Security
+
+- Resolved all `npm audit` advisories flagged by the CI security job (`--audit-level=high`) via lockfile bumps: vitest / @vitest/ui / @vitest/coverage-v8 (critical), fast-uri, @babel/plugin-transform-modules-systemjs, lodash, vite (high), dompurify, postcss, brace-expansion, ws (moderate) — Dependabot #13, #14, #16, #17 and #21
+
+### Changed
+
+- Hardened CI: added `permissions: contents: read` to the workflow (CodeQL alerts #1, #2)
+- Upgraded GitHub Actions to their latest major versions
 
 ## [1.4.0] - 2026-03-28
 
