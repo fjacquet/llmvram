@@ -5,8 +5,11 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
+// Base path: defaults to the GitHub Pages project path so `npm run build`
+// (used by the central web-deploy/web-ci workflows) produces correct asset URLs.
+// Override with VITE_BASE=/ for local/preview builds.
 export default defineConfig({
-  base: '/',
+  base: process.env.VITE_BASE ?? '/llmvram/',
   plugins: [
     react(),
     tailwindcss(),
