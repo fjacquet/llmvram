@@ -1,46 +1,10 @@
-name: Continuous Integration
-
+name: CI
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
 permissions:
   contents: read
-
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-      - run: npm ci
-      - name: Run tests
-        run: npx vitest run
-      - name: Run type checking
-        run: npm run typecheck
-      - name: Run linting
-        run: npm run lint
-
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-      - run: npm ci
-      - name: Run npm audit
-        # Advisory: Snyk (below) is already non-blocking. npm audit hard-fails on
-        # transitive CVEs with no per-PR Dependabot fix, so keep it informational
-        # rather than red-lighting dependency PRs on unrelated tree CVEs.
-        continue-on-error: true
-        run: npm audit --audit-level=high
-      - name: Run Snyk security scan
-        run: npx snyk test --severity-threshold=high
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        continue-on-error: true
+  ci:
+    uses: fjacquet/ci/.github/workflows/web-ci.yml@v1
+    with: { node-version: "24" }
