@@ -2,9 +2,9 @@ name: Continuous Integration
 
 on:
   push:
-    branches: [maincd]
+    branches: [maincd, main]
   pull_request:
-    branches: [maincd]
+    branches: [maincd, main]
 
 permissions:
   contents: read

@@ -1,6 +1,6 @@
 # LLM VRAM Calculator
 
-[![CI](https://github.com/fjacquet/llmvram/actions/workflows/ci.yml/badge.svg?branch=maincd)](https://github.com/fjacquet/llmvram/actions/workflows/ci.yml)
+[![CI](https://github.com/fjacquet/llmvram/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fjacquet/llmvram/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
