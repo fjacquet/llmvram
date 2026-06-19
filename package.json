@@ -38,7 +38,8 @@
     "zustand": "^5.0.9"
   },
   "overrides": {
-    "serialize-javascript": "^7.0.5"
+    "serialize-javascript": "^7.0.5",
+    "esbuild": "^0.28.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.5",
