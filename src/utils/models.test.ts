@@ -12,14 +12,16 @@ describe('Model Database Validation', () => {
     expect(result.length).toBe(modelsData.length)
   })
 
-  it('should include LLaMA 2 variants', () => {
-    const llama2Models = modelsData.filter((m) => m.name.includes('LLaMA 2'))
-    expect(llama2Models.length).toBeGreaterThanOrEqual(3)
+  it('should include Gemma 4 variants', () => {
+    const gemma4Models = modelsData.filter((m) => m.name.includes('Gemma 4'))
+    expect(gemma4Models.length).toBeGreaterThanOrEqual(3)
   })
 
-  it('should include LLaMA 3 variants', () => {
-    const llama3Models = modelsData.filter((m) => m.name.includes('LLaMA 3'))
-    expect(llama3Models.length).toBeGreaterThanOrEqual(3)
+  it('should include LLaMA 3 / Llama 4 variants', () => {
+    const llamaModels = modelsData.filter(
+      (m) => m.name.includes('LLaMA 3') || m.name.includes('Llama 4'),
+    )
+    expect(llamaModels.length).toBeGreaterThanOrEqual(3)
   })
 
   it('should include Mistral models', () => {
@@ -27,14 +29,14 @@ describe('Model Database Validation', () => {
     expect(mistralModels.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('should include Mixtral MoE models with correct total parameters', () => {
-    const mixtral8x7b = modelsData.find((m) => m.id.includes('mixtral-8x7b'))
-    expect(mixtral8x7b).toBeDefined()
-    expect(mixtral8x7b?.architecture).toBe('moe')
-    // Must be 46.7B (total), NOT 13B (active) - research pitfall #1
-    expect(mixtral8x7b?.num_parameters_billion).toBeCloseTo(46.7, 1)
-    expect(mixtral8x7b?.num_experts).toBe(8)
-    expect(mixtral8x7b?.num_experts_per_token).toBe(2)
+  it('should store MoE models with TOTAL parameters, not active', () => {
+    const qwenMoe = modelsData.find((m) => m.id === 'qwen-qwen3.6-35b-a3b')
+    expect(qwenMoe).toBeDefined()
+    expect(qwenMoe?.architecture).toBe('moe')
+    // 36.0B total (all experts), NOT ~3B active - research pitfall #1
+    expect(qwenMoe?.num_parameters_billion).toBeCloseTo(36.0, 1)
+    expect(qwenMoe?.num_experts).toBe(256)
+    expect(qwenMoe?.num_experts_per_token).toBe(8)
   })
 
   it('should include Qwen models', () => {
@@ -42,9 +44,9 @@ describe('Model Database Validation', () => {
     expect(qwenModels.length).toBeGreaterThanOrEqual(3)
   })
 
-  it('should include Phi models', () => {
-    const phiModels = modelsData.filter((m) => m.name.includes('Phi'))
-    expect(phiModels.length).toBeGreaterThanOrEqual(2)
+  it('should include Kimi models', () => {
+    const kimiModels = modelsData.filter((m) => m.name.includes('Kimi'))
+    expect(kimiModels.length).toBeGreaterThanOrEqual(2)
   })
 
   it('should include DeepSeek models', () => {
@@ -57,9 +59,9 @@ describe('Model Database Validation', () => {
     expect(gemmaModels.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('should include Command-R models', () => {
-    const commandRModels = modelsData.filter((m) => m.name.includes('Command-R'))
-    expect(commandRModels.length).toBeGreaterThanOrEqual(2)
+  it('should include GLM models', () => {
+    const glmModels = modelsData.filter((m) => m.name.includes('GLM'))
+    expect(glmModels.length).toBeGreaterThanOrEqual(2)
   })
 
   it('should have valid parameter counts', () => {
@@ -95,16 +97,16 @@ describe('Model Database Validation', () => {
 
   it('should specify num_kv_heads for GQA models', () => {
     const llama3_8b = modelsData.find((m) => m.id.includes('llama-3.1-8b'))
-    const mistral7b = modelsData.find((m) => m.id.includes('mistral-7b'))
+    const qwen27b = modelsData.find((m) => m.id === 'qwen-qwen3.6-27b')
 
-    // LLaMA 3.1 and Mistral use GQA with num_kv_heads < num_attention_heads
+    // LLaMA 3.1 and Qwen3.6 use GQA with num_kv_heads < num_attention_heads
     if (llama3_8b) {
       expect(llama3_8b.num_kv_heads).toBeDefined()
       expect(llama3_8b.num_kv_heads).toBeLessThan(llama3_8b.num_attention_heads)
     }
-    if (mistral7b) {
-      expect(mistral7b.num_kv_heads).toBeDefined()
-      expect(mistral7b.num_kv_heads).toBeLessThan(mistral7b.num_attention_heads)
+    if (qwen27b) {
+      expect(qwen27b.num_kv_heads).toBeDefined()
+      expect(qwen27b.num_kv_heads).toBeLessThan(qwen27b.num_attention_heads)
     }
   })
 
@@ -144,5 +146,11 @@ describe('Model Database Validation', () => {
         expect(model.num_kv_heads).toBeLessThanOrEqual(model.num_attention_heads)
       }
     })
+  })
+
+  it('should be sorted alphabetically by name (code-unit order)', () => {
+    const names = modelsData.map((m) => m.name)
+    const sorted = [...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    expect(names).toEqual(sorted)
   })
 })
