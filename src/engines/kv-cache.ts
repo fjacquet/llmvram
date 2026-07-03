@@ -19,7 +19,7 @@ import type { KVCachePrecision } from './types'
  * KV_bytes = 2 * num_layers * hidden_size * seq_len * batch * precision_bytes * gqa_ratio
  *
  * @param params - Calculation parameters
- * @param params.model - Model configuration (must include num_hidden_layers, hidden_size, num_attention_heads, optionally num_kv_heads)
+ * @param params.model - Model configuration (must include num_hidden_layers, hidden_size, num_attention_heads, optionally num_kv_heads, kv_cache_elements_per_token)
  * @param params.sequenceLength - Maximum sequence length (prompt + generation)
  * @param params.batchSize - Number of concurrent sequences
  * @param params.kvPrecision - KV cache quantization precision (default: fp16)
@@ -45,6 +45,18 @@ export function calculateKVCacheVRAM(params: {
   kvPrecision: KVCachePrecision
 }): Decimal {
   const { model, sequenceLength, batchSize, kvPrecision } = params
+
+  // Exotic-attention override (MLA, mamba/linear hybrids, explicit head_dim):
+  // the model declares its exact per-token cache size; precision applies identically.
+  // Constant-state memory (mamba SSM / linear-attention state) does not scale with
+  // sequence length and is intentionally excluded.
+  if (model.kv_cache_elements_per_token) {
+    return new Decimal(model.kv_cache_elements_per_token)
+      .mul(sequenceLength)
+      .mul(batchSize)
+      .mul(KV_PRECISION_BYTES[kvPrecision])
+      .div(BYTES_PER_GB)
+  }
 
   // GQA ratio: (num_kv_heads ?? num_attention_heads) / num_attention_heads
   // - If num_kv_heads is undefined, fallback to num_attention_heads (standard MHA, ratio = 1.0)

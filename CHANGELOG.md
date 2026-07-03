@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Exact KV-cache VRAM math for exotic-attention models via a new
+  `kv_cache_elements_per_token` model field (verified from HuggingFace `config.json` on
+  2026-07-03): MLA (DeepSeek R1/V4, Kimi K2 family, GLM 5.2), linear/mamba hybrids
+  (Kimi Linear, Nemotron 3 family), and explicit-head_dim GQA (MiniMax M2.x/M3) —
+  16 models. Headline: DeepSeek R1 KV cache at 4K context drops from ~6.7 GB
+  (25× overestimate) to ~0.27 GB.
+
+### Fixed
+
+- Nemotron 3 Ultra 550B A55B layer count corrected to 108 (48 mamba + 48 MoE +
+  12 attention per `layers_block_type`); previously stored as 128.
+
 ## [1.5.0] - 2026-07-03
 
 ### Added

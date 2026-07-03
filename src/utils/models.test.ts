@@ -153,4 +153,41 @@ describe('Model Database Validation', () => {
     const sorted = [...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
     expect(names).toEqual(sorted)
   })
+
+  it('sets kv_cache_elements_per_token on exactly the exotic-attention models', () => {
+    const EXOTIC_KV: Record<string, number> = {
+      'deepseek-r1': 35136,
+      'deepseek-v4-flash': 24768,
+      'deepseek-v4-pro': 35136,
+      'moonshotai-kimi-k2-thinking': 35136,
+      'moonshotai-kimi-k2-instruct': 35136,
+      'moonshotai-kimi-k2.5': 35136,
+      'moonshotai-kimi-linear-48b-a3b': 4032,
+      'zai-org-glm-5.2': 44928,
+      'minimax-m3': 61440,
+      'minimax-m2.1': 126976,
+      'minimax-m2.5': 126976,
+      'minimax-m2.7': 126976,
+      'nvidia-nemotron-3-nano-4b': 8192,
+      'nvidia-nemotron-3-nano-30b-a3b': 3072,
+      'nvidia-nemotron-3-super-120b-a12b': 4096,
+      'nvidia-nemotron-3-ultra-550b-a55b': 6144,
+    }
+    for (const [id, expected] of Object.entries(EXOTIC_KV)) {
+      const model = modelsData.find((m) => m.id === id) as
+        | { kv_cache_elements_per_token?: number }
+        | undefined
+      expect(model, `model ${id} missing from database`).toBeDefined()
+      expect(model?.kv_cache_elements_per_token, `wrong value for ${id}`).toBe(expected)
+    }
+    const withField = modelsData.filter(
+      (m) => (m as { kv_cache_elements_per_token?: number }).kv_cache_elements_per_token,
+    )
+    expect(withField.length).toBe(Object.keys(EXOTIC_KV).length)
+  })
+
+  it('stores the corrected Nemotron Ultra layer count (108, not 128)', () => {
+    const ultra = modelsData.find((m) => m.id === 'nvidia-nemotron-3-ultra-550b-a55b')
+    expect(ultra?.num_hidden_layers).toBe(108)
+  })
 })
