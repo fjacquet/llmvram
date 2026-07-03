@@ -47,6 +47,22 @@ const mqaModel: Model = {
   intermediate_size: 11008,
 }
 
+const mlaModel: Model = {
+  id: 'test-mla-deepseek-r1',
+  name: 'Test DeepSeek R1 (MLA)',
+  architecture: 'moe',
+  num_parameters_billion: 671,
+  hidden_size: 7168,
+  num_hidden_layers: 61,
+  num_attention_heads: 128,
+  num_kv_heads: 128, // nominal dummy value — override field takes precedence
+  intermediate_size: 18432,
+  num_experts: 256,
+  num_experts_per_token: 8,
+  // MLA: 61 layers × (kv_lora_rank 512 + qk_rope_head_dim 64) = 35136
+  kv_cache_elements_per_token: 35136,
+}
+
 describe('calculateKVCacheVRAM', () => {
   it('applies GQA reduction correctly - 8x smaller cache for Llama 3 70B vs MHA equivalent', () => {
     const params = {
@@ -217,5 +233,50 @@ describe('calculateKVCacheVRAM', () => {
 
     // fp16 should be 4x int4 (2 bytes vs 0.5 bytes)
     expect(fp16.div(int4).toNumber()).toBeCloseTo(4.0, 10)
+  })
+
+  it('uses kv_cache_elements_per_token override when present (MLA exact value)', () => {
+    const result = calculateKVCacheVRAM({
+      model: mlaModel,
+      sequenceLength: 4096,
+      batchSize: 1,
+      kvPrecision: 'fp16',
+    })
+    // 35136 × 4096 × 1 × 2 bytes / 1024³ = 0.26806640625 GB exactly
+    expect(result.toNumber()).toBe(0.26806640625)
+  })
+
+  it('override is much smaller than the nominal GQA formula for MLA models', () => {
+    const nominal: Model = { ...mlaModel, kv_cache_elements_per_token: undefined }
+    const overridden = calculateKVCacheVRAM({
+      model: mlaModel,
+      sequenceLength: 4096,
+      batchSize: 1,
+      kvPrecision: 'fp16',
+    })
+    const gqaFormula = calculateKVCacheVRAM({
+      model: nominal,
+      sequenceLength: 4096,
+      batchSize: 1,
+      kvPrecision: 'fp16',
+    })
+    // GQA formula: 2×61×7168 = 874496 elem/token vs MLA 35136 → ~24.9× reduction
+    expect(gqaFormula.div(overridden).toNumber()).toBeCloseTo(874496 / 35136, 3)
+  })
+
+  it('override path applies KV precision scaling (int8 = half of fp16)', () => {
+    const fp16 = calculateKVCacheVRAM({
+      model: mlaModel,
+      sequenceLength: 4096,
+      batchSize: 2,
+      kvPrecision: 'fp16',
+    })
+    const int8 = calculateKVCacheVRAM({
+      model: mlaModel,
+      sequenceLength: 4096,
+      batchSize: 2,
+      kvPrecision: 'int8',
+    })
+    expect(int8.mul(2).toNumber()).toBeCloseTo(fp16.toNumber(), 10)
   })
 })

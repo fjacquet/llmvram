@@ -63,6 +63,11 @@ export const ModelSchema = z.object({
   // GQA field (optional - fallback to num_attention_heads if missing)
   num_kv_heads: z.number().int().positive().optional(),
 
+  // Exotic-attention override: total cached elements per token across ALL layers
+  // (MLA latent dims, hybrid attention-layers-only, explicit head_dim). When present,
+  // the KV-cache engine uses it directly instead of the GQA formula.
+  kv_cache_elements_per_token: z.number().int().positive().optional(),
+
   intermediate_size: z.number().int().positive(),
 
   // MoE fields (optional, only for MoE architectures)
