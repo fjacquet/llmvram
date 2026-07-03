@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Current-generation models to the database (verified from HuggingFace `config.json` on
+  2026-07-03): Gemma 4 (31B, 12B, 26B A4B), Qwen3.6 (27B, 35B A3B), DeepSeek V4 (Flash,
+  Pro), GLM 5.2, Kimi K2 Thinking, Kimi Linear 48B A3B, Mistral Medium 3.5 128B,
+  MiniMax M3, and Nemotron 3 Ultra 550B A55B (13 models).
+
+### Removed
+
+- Obsolete (2023–early-2024) models from the database: LLaMA 2 (7B/13B/70B), Mistral 7B
+  (v0.1/v0.3), Mixtral (8x7B ×2, 8x22B), Gemma 2B/7B, Gemma 2 9B, Phi 3 (Mini/Small/
+  Medium) and Phi 3.5, MPT 30B, Falcon 40B, Yi 34B, LLaMA 3 8B, DeepSeek Coder 33B,
+  DeepSeek V2 Lite, DeepSeek Coder V2 Lite, Command-R / Command-R Plus, and the
+  Llama-based Nemotron mids (3.1 Nano 8B, 3.3 Super 49B) — 26 models. Model count: 52.
+
 ## [1.4.1] - 2026-06-03
 
 ### Added
