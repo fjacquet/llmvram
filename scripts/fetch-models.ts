@@ -1,57 +1,40 @@
 import { writeFile } from 'node:fs/promises'
 import { type Model, validateModels } from '../src/utils/schemas'
 
-// Model IDs to fetch (matches the 30+ models from Plan 03)
+// Model IDs to fetch — current-generation curated roster (2026-07-03 refresh).
+// NOTE: multimodal models (Gemma 4, Qwen3.6, MiniMax M3, Mistral 3) expose the
+// transformer fields under config.json `text_config`, which this script does not read;
+// and several models are gated or custom-code. Treat fetched output as a starting point
+// and hand-curate num_parameters_billion / MoE fields against models.json.
 const MODEL_IDS = [
-  // LLaMA 2 (3 models)
-  'meta-llama/Llama-2-7b-hf',
-  'meta-llama/Llama-2-13b-hf',
-  'meta-llama/Llama-2-70b-hf',
+  // Gemma 4 (Google)
+  'google/gemma-4-31B-it',
+  'google/gemma-4-12B-it',
+  'google/gemma-4-26B-A4B-it',
 
-  // LLaMA 3.1 (4 models)
-  'meta-llama/Llama-3.1-8B',
-  'meta-llama/Llama-3.1-70B',
-  'meta-llama/Llama-3.1-405B',
-  'meta-llama/Llama-3.2-3B',
+  // Qwen3.6 (Alibaba)
+  'Qwen/Qwen3.6-27B',
+  'Qwen/Qwen3.6-35B-A3B',
 
-  // Mistral (2 models)
-  'mistralai/Mistral-7B-v0.1',
-  'mistralai/Mistral-7B-v0.3',
+  // DeepSeek V4
+  'deepseek-ai/DeepSeek-V4-Flash',
+  'deepseek-ai/DeepSeek-V4-Pro',
 
-  // Mixtral MoE (3 models)
-  'mistralai/Mixtral-8x7B-v0.1',
-  'mistralai/Mixtral-8x22B-v0.1',
-  'mistralai/Mixtral-8x7B-Instruct-v0.1',
+  // GLM (Z.ai)
+  'zai-org/GLM-5.2',
 
-  // Qwen (4 models)
-  'Qwen/Qwen2.5-7B',
-  'Qwen/Qwen2.5-14B',
-  'Qwen/Qwen2.5-32B',
-  'Qwen/Qwen2.5-72B',
+  // Kimi (Moonshot)
+  'moonshotai/Kimi-K2-Thinking',
+  'moonshotai/Kimi-Linear-48B-A3B-Instruct',
 
-  // Phi (3 models)
-  'microsoft/Phi-3-mini-4k-instruct',
-  'microsoft/Phi-3-small-8k-instruct',
-  'microsoft/Phi-3-medium-4k-instruct',
+  // Mistral
+  'mistralai/Mistral-Medium-3.5-128B',
 
-  // DeepSeek (3 models)
-  'deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct',
-  'deepseek-ai/DeepSeek-V2-Lite',
-  'deepseek-ai/deepseek-coder-33b-instruct',
+  // MiniMax
+  'MiniMaxAI/MiniMax-M3',
 
-  // Gemma (3 models)
-  'google/gemma-2b',
-  'google/gemma-7b',
-  'google/gemma-2-9b',
-
-  // Command-R (2 models)
-  'CohereForAI/c4ai-command-r-v01',
-  'CohereForAI/c4ai-command-r-plus',
-
-  // Additional (3 models)
-  '01-ai/Yi-34B',
-  'tiiuae/falcon-40b',
-  'mosaicml/mpt-30b',
+  // NVIDIA Nemotron
+  'nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16',
 ]
 
 interface HFConfig {
