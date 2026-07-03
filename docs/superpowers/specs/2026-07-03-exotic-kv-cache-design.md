@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-03
 **Status:** Approved (design); data verified from live HuggingFace config.json
-**Scope:** One optional schema field + one engine branch + curated data values for 15
+**Scope:** One optional schema field + one engine branch + curated data values for 16
 models. No UI changes, no multi-GPU changes.
 
 ## Problem
