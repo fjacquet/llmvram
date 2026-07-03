@@ -6,6 +6,9 @@ import { type Model, validateModels } from '../src/utils/schemas'
 // transformer fields under config.json `text_config`, which this script does not read;
 // and several models are gated or custom-code. Treat fetched output as a starting point
 // and hand-curate num_parameters_billion / MoE fields against models.json.
+// `kv_cache_elements_per_token` is also hand-curated (MLA latent dims, hybrid
+// layer mixes, and explicit head_dim are not derivable from top-level config
+// fields) — this script never writes it.
 const MODEL_IDS = [
   // Gemma 4 (Google)
   'google/gemma-4-31B-it',
