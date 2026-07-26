@@ -1,0 +1,11 @@
+# OSV-Scanner configuration.
+#
+# Auto-discovered by osv-scanner in the directory holding the lockfile it is
+# scanning. It does NOT propagate to child directories -- each directory with a
+# lockfile needs its own copy.
+# https://google.github.io/osv-scanner/configuration/
+
+[[PackageOverrides]]
+group = "dev"
+vulnerability.ignore = true
+reason = "Dev-only dependencies: not shipped in the production bundle"
