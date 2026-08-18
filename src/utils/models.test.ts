@@ -65,9 +65,11 @@ describe('Model Database Validation', () => {
   })
 
   it('should have valid parameter counts', () => {
+    // ModelSchema already enforces `> 0`; this catches a unit slip (params written in
+    // millions, or a stray digit). Stated as a rationale, not as "bigger than today's
+    // biggest model" — the latter needs raising every time a larger model lands.
     modelsData.forEach((model) => {
-      expect(model.num_parameters_billion).toBeGreaterThan(0)
-      expect(model.num_parameters_billion).toBeLessThan(2000) // Sanity check (Kimi K2 has 1026B total MoE params)
+      expect(model.num_parameters_billion).toBeLessThan(100_000)
     })
   })
 
@@ -162,7 +164,15 @@ describe('Model Database Validation', () => {
       'moonshotai-kimi-k2-thinking': 35136,
       'moonshotai-kimi-k2-instruct': 35136,
       'moonshotai-kimi-k2.5': 35136,
+      'moonshotai-kimi-k2.6': 35136, // MLA: 61 layers x (kv_lora_rank 512 + qk_rope 64)
+      'moonshotai-kimi-k2.7-code': 35136, // MLA: 61 x 576
+      'moonshotai-kimi-k3': 13824, // MLA: 24 of 93 layers x 576 (69 KDA layers cache-free)
       'moonshotai-kimi-linear-48b-a3b': 4032,
+      'inclusionai-ling-3.0-flash': 4032, // MLA: 7 of 42 layers x 576
+      'inclusionai-ling-3.0-tiny': 3456, // MLA: 6 of 24 layers x 576
+      'liquidai-lfm2.5-2.6b': 8192, // GQA: 8 of 30 layers x (8 kv heads x 64 head_dim x 2)
+      'qwen-qwen3.8-27b': 32768, // GQA: 16 of 64 layers x (4 kv heads x 256 head_dim x 2)
+      'qwen-qwen3.8-2.4t-a95b': 47104, // GQA: 23 of 92 layers x 2048
       'zai-org-glm-5.2': 44928,
       'minimax-m3': 61440,
       'minimax-m2.1': 126976,
@@ -170,20 +180,21 @@ describe('Model Database Validation', () => {
       'minimax-m2.7': 126976,
       'nvidia-nemotron-3-nano-4b': 8192,
       'nvidia-nemotron-3-nano-30b-a3b': 3072,
+      'nvidia-nemotron-3.5-lightning-30b-a3b': 3072,
       'nvidia-nemotron-3-super-120b-a12b': 4096,
       'nvidia-nemotron-3-ultra-550b-a55b': 6144,
     }
-    for (const [id, expected] of Object.entries(EXOTIC_KV)) {
-      const model = modelsData.find((m) => m.id === id) as
-        | { kv_cache_elements_per_token?: number }
-        | undefined
-      expect(model, `model ${id} missing from database`).toBeDefined()
-      expect(model?.kv_cache_elements_per_token, `wrong value for ${id}`).toBe(expected)
-    }
-    const withField = modelsData.filter(
-      (m) => (m as { kv_cache_elements_per_token?: number }).kv_cache_elements_per_token,
+    // One assertion in both directions: every id in the map carries that value, and no
+    // model outside the map carries the field at all. Names the offending model on failure.
+    const actual = Object.fromEntries(
+      modelsData
+        .filter((m) => 'kv_cache_elements_per_token' in m)
+        .map((m) => [
+          m.id,
+          (m as { kv_cache_elements_per_token: number }).kv_cache_elements_per_token,
+        ]),
     )
-    expect(withField.length).toBe(Object.keys(EXOTIC_KV).length)
+    expect(actual).toEqual(EXOTIC_KV)
   })
 
   it('stores the corrected Nemotron Ultra layer count (108, not 128)', () => {

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- August-2026 model refresh (52 → 54 models), every field read from the live HuggingFace
+  `config.json` on 2026-08-18: **Kimi K3** (2779.9B MoE, 93 layers, 896 experts, 1M context),
+  **Kimi K2.6**, **Kimi K2.7 Code**, **Qwen3.8 27B**, **Qwen3.8 2.4T A95B** (2446.2B MoE),
+  **Nemotron 3.5 Lightning 30B A3B**, **Ling 3.0 Flash**, **Ling 3.0 Tiny**, **LFM2.5 2.6B**.
+- `kv_cache_elements_per_token` for all nine, counting only the cache-bearing layers:
+  Kimi K3 caches on 24 of 93 layers (69 KDA layers are cache-free), Qwen3.8 27B on 16 of 64,
+  Qwen3.8 2.4T on 23 of 92, Nemotron 3.5 Lightning on 6 of 52, Ling 3.0 Flash on 7 of 42,
+  Ling 3.0 Tiny on 6 of 24, LFM2.5 on 8 of 30.
+
+### Changed
+
+- DeepSeek V4 Flash and V4 Pro now link to the current `-0731` / `-0813` checkpoints
+  (architecture unchanged).
+- `scripts/fetch-models.ts` roster synced to the August generation, so `npm run refresh:models`
+  can re-verify the new entries against upstream `config.json`.
+- Parameter-count sanity bound in the model-database test restated as a unit check
+  (`< 100_000`) instead of a bound that had to be raised for each larger model.
+- The `kv_cache_elements_per_token` assertion is now a single `toEqual` over the whole
+  id→value mapping, and each override records its derivation inline.
+
+### Removed
+
+- Retired the 2024 generation: Qwen 2.5 (7B / 14B / 32B / 72B) and
+  LLaMA 3.2 (3B / 11B Vision / 90B Vision).
+
 ## [1.6.0] - 2026-07-03
 
 ### Added
