@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import { type Model, validateModels } from '../src/utils/schemas'
 
-// Model IDs to fetch — current-generation curated roster (2026-07-03 refresh).
+// Model IDs to fetch — current-generation curated roster (2026-08-18 refresh).
 // NOTE: multimodal models (Gemma 4, Qwen3.6, MiniMax M3, Mistral 3) expose the
 // transformer fields under config.json `text_config`, which this script does not read;
 // and several models are gated or custom-code. Treat fetched output as a starting point
@@ -15,20 +15,29 @@ const MODEL_IDS = [
   'google/gemma-4-12B-it',
   'google/gemma-4-26B-A4B-it',
 
-  // Qwen3.6 (Alibaba)
+  // Qwen3.8 / Qwen3.6 (Alibaba)
+  'Qwen/Qwen3.8-27B',
+  'Qwen/Qwen3.8-2.4T-A95B',
   'Qwen/Qwen3.6-27B',
   'Qwen/Qwen3.6-35B-A3B',
 
   // DeepSeek V4
-  'deepseek-ai/DeepSeek-V4-Flash',
-  'deepseek-ai/DeepSeek-V4-Pro',
+  'deepseek-ai/DeepSeek-V4-Flash-0731',
+  'deepseek-ai/DeepSeek-V4-Pro-0813',
 
   // GLM (Z.ai)
   'zai-org/GLM-5.2',
 
   // Kimi (Moonshot)
+  'moonshotai/Kimi-K3',
+  'moonshotai/Kimi-K2.6',
+  'moonshotai/Kimi-K2.7-Code',
   'moonshotai/Kimi-K2-Thinking',
   'moonshotai/Kimi-Linear-48B-A3B-Instruct',
+
+  // Ling (inclusionAI)
+  'inclusionAI/Ling-3.0-flash',
+  'inclusionAI/Ling-3.0-tiny',
 
   // Mistral
   'mistralai/Mistral-Medium-3.5-128B',
@@ -37,7 +46,11 @@ const MODEL_IDS = [
   'MiniMaxAI/MiniMax-M3',
 
   // NVIDIA Nemotron
+  'nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16',
   'nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16',
+
+  // Liquid AI
+  'LiquidAI/LFM2.5-2.6B',
 ]
 
 interface HFConfig {
