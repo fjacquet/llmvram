@@ -9,14 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- August-2026 model refresh (52 → 54 models), every field read from the live HuggingFace
-  `config.json` on 2026-08-18: **Kimi K3** (2779.9B MoE, 93 layers, 896 experts, 1M context),
+- August-2026 model refresh (52 → 54 models), read on 2026-08-18 from the live HuggingFace
+  `config.json` for the transformer fields and from the model API's `safetensors.total` for
+  parameter counts: **Kimi K3** (2779.9B MoE, 93 layers, 896 experts, 1M context),
   **Kimi K2.6**, **Kimi K2.7 Code**, **Qwen3.8 27B**, **Qwen3.8 2.4T A95B** (2446.2B MoE),
   **Nemotron 3.5 Lightning 30B A3B**, **Ling 3.0 Flash**, **Ling 3.0 Tiny**, **LFM2.5 2.6B**.
 - `kv_cache_elements_per_token` for all nine, counting only the cache-bearing layers:
-  Kimi K3 caches on 24 of 93 layers (69 KDA layers are cache-free), Qwen3.8 27B on 16 of 64,
-  Qwen3.8 2.4T on 23 of 92, Nemotron 3.5 Lightning on 6 of 52, Ling 3.0 Flash on 7 of 42,
-  Ling 3.0 Tiny on 6 of 24, LFM2.5 on 8 of 30.
+  Kimi K3 caches on 24 of 93 layers (69 KDA layers are cache-free), Kimi K2.6 and
+  Kimi K2.7 Code on all 61, Qwen3.8 27B on 16 of 64, Qwen3.8 2.4T on 23 of 92,
+  Nemotron 3.5 Lightning on 6 of 52, Ling 3.0 Flash on 7 of 42, Ling 3.0 Tiny on 6 of 24,
+  LFM2.5 on 8 of 30.
 
 ### Changed
 
