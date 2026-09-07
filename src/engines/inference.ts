@@ -89,6 +89,60 @@ export function calculateMoEActiveParams(model: Model): number {
 }
 
 /**
+ * Expected parameters read per decode step for a batch of `batchSize` sequences
+ *
+ * At batch 1 a MoE model reads only the experts its single token routes to, which is
+ * exactly what `calculateMoEActiveParams` returns. At larger batches the sequences route
+ * independently, so the union of touched experts grows: the chance a given expert is
+ * missed by all B tokens is `(1 - k/E)^B`, leaving an expected touched fraction of
+ * `1 - (1 - k/E)^B`. Bytes read per decode step therefore climb from the active count
+ * toward the full expert set, which is why batched MoE throughput does NOT scale
+ * linearly with batch size.
+ *
+ * This governs the MEMORY side of the decode roofline only. Compute still scales with
+ * active parameters per token, because each token computes only its own experts however
+ * many others are resident in the step.
+ *
+ * Dense models read every parameter regardless of batch, so the batch-1 figure (the
+ * total) stands.
+ *
+ * @example
+ * ```typescript
+ * calculateMoEBatchedParams(kimiK2, 1)  // 32 — identical to calculateMoEActiveParams
+ * calculateMoEBatchedParams(kimiK2, 64) // ~743 — most experts touched at least once
+ * ```
+ */
+export function calculateMoEBatchedParams(model: Model, batchSize: number): number {
+  const activeParams = calculateMoEActiveParams(model)
+
+  if (
+    model.architecture !== 'moe' ||
+    !model.num_experts ||
+    !model.num_experts_per_token ||
+    batchSize <= 1
+  ) {
+    return activeParams
+  }
+
+  const total = new Decimal(model.num_parameters_billion)
+  const singleTokenFraction = new Decimal(model.num_experts_per_token).div(model.num_experts)
+
+  // k >= E means every token already touches every expert; there is nothing to grow into.
+  if (singleTokenFraction.greaterThanOrEqualTo(1)) return total.toNumber()
+
+  // Split the total into the part every token reads and the part routing selects, using
+  // the batch-1 figure as the anchor: active = nonExpert + expertTotal * (k/E).
+  const expertTotal = total.sub(activeParams).div(new Decimal(1).sub(singleTokenFraction))
+  const nonExpertParams = total.sub(expertTotal)
+
+  const batchFraction = new Decimal(1).sub(new Decimal(1).sub(singleTokenFraction).pow(batchSize))
+  const batched = nonExpertParams.add(expertTotal.mul(batchFraction))
+
+  // Never below the batch-1 figure, never above the full weight set.
+  return Decimal.min(Decimal.max(batched, activeParams), total).toNumber()
+}
+
+/**
  * Calculate activation memory for forward pass
  *
  * Activations are intermediate tensors stored during the forward pass.
@@ -130,17 +184,17 @@ export function calculateActivationMemory(
   }
 
   // Peak activations are bounded by the prefill chunk, not the context window.
-  // Decode activations are one token wide; prefill is processed PREFILL_CHUNK_TOKENS
-  // at a time, so activations plateau once the prompt exceeds one chunk.
-  const activeTokens = Math.min(sequenceLength, PREFILL_CHUNK_TOKENS)
+  // PREFILL_CHUNK_TOKENS mirrors vLLM's `max_num_batched_tokens`, which is a budget for
+  // ONE scheduler step across the whole batch — not a per-sequence allowance. So the
+  // tokens in flight are the batch's total demand capped by that budget, which makes peak
+  // activation memory nearly batch-independent. The KV cache, sized separately, is what
+  // still scales with batch.
+  const activeTokens = Math.min(batchSize * sequenceLength, PREFILL_CHUNK_TOKENS)
 
-  // batch * chunk_tokens * intermediate_size * 4
+  // min(batch * seq, chunk_tokens) * intermediate_size * 4
   // The factor 4 is 2 bytes (bf16 activations) x ~2 live buffers per layer.
   // NOT FP32 storage, despite what this comment used to claim.
-  const activationBytes = new Decimal(batchSize)
-    .mul(activeTokens)
-    .mul(effectiveIntermediateSize)
-    .mul(4)
+  const activationBytes = new Decimal(activeTokens).mul(effectiveIntermediateSize).mul(4)
 
   return activationBytes.div(BYTES_PER_GB)
 }

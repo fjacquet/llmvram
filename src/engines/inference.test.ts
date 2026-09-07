@@ -1,10 +1,12 @@
 import type { Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
+import { PREFILL_CHUNK_TOKENS } from './constants'
 import {
   calculateActivationMemory,
   calculateInferenceVRAM,
   calculateMoEActiveParams,
+  calculateMoEBatchedParams,
 } from './inference'
 
 // Test fixtures - inline model definitions for test isolation
@@ -122,19 +124,31 @@ describe('calculateActivationMemory', () => {
     })
 
     it('plateaus above the prefill chunk instead of growing with the context window', () => {
-      const at8k = calculateActivationMemory(llama7b, 8192, 1)
+      const atChunk = calculateActivationMemory(llama7b, PREFILL_CHUNK_TOKENS, 1)
       const at128k = calculateActivationMemory(llama7b, 131072, 1)
       const at1m = calculateActivationMemory(llama7b, 1048576, 1)
 
-      expect(at128k.toString()).toBe(at8k.toString())
-      expect(at1m.toString()).toBe(at8k.toString())
+      expect(at128k.toString()).toBe(atChunk.toString())
+      expect(at1m.toString()).toBe(atChunk.toString())
     })
 
-    it('still scales with batch size above the chunk', () => {
-      const batch1 = calculateActivationMemory(llama7b, 1048576, 1)
-      const batch4 = calculateActivationMemory(llama7b, 1048576, 4)
-
+    it('scales with batch size only while the batch fits the token budget', () => {
+      // The chunk mirrors vLLM's max_num_batched_tokens, a budget for one scheduler step
+      // across the whole batch. Below it, doubling the batch doubles the tokens in flight.
+      const seq = 512
+      const batch1 = calculateActivationMemory(llama7b, seq, 1)
+      const batch4 = calculateActivationMemory(llama7b, seq, 4)
       expect(batch4.div(batch1).toNumber()).toBeCloseTo(4, 9)
+    })
+
+    it('stops scaling with batch size once the budget is saturated', () => {
+      // 1M tokens saturates the budget at batch 1 already, so more concurrent sequences
+      // cannot put more tokens through a single step — they wait for the next one.
+      const batch1 = calculateActivationMemory(llama7b, 1048576, 1)
+      const batch64 = calculateActivationMemory(llama7b, 1048576, 64)
+
+      expect(batch64.toString()).toBe(batch1.toString())
+      expect(batch1.toNumber()).toBeCloseTo((PREFILL_CHUNK_TOKENS * 11008 * 4) / 1024 ** 3, 6)
     })
   })
 })
@@ -441,5 +455,40 @@ describe('calculateMoEActiveParams - three-tier resolution', () => {
   it('tier 3: MoE with missing expert fields returns the full parameter count', () => {
     const incomplete: Model = { ...qwen35bA3b, num_experts: undefined }
     expect(calculateMoEActiveParams(incomplete)).toBe(36)
+  })
+})
+
+describe('calculateMoEBatchedParams', () => {
+  it('equals the batch-1 active count at batch 1', () => {
+    expect(calculateMoEBatchedParams(mixtral8x7b, 1)).toBeCloseTo(
+      calculateMoEActiveParams(mixtral8x7b),
+      9,
+    )
+  })
+
+  it('grows toward the full expert set as the batch widens', () => {
+    // Mixtral 8x7B: k/E = 2/8, so expertTotal = (46.7 - 12.877132544) / 0.75 = 45.097156608
+    // and nonExpert = 1.602843392. At batch 4 the touched fraction is 1 - 0.75^4 = 0.68359375,
+    // giving 1.602843392 + 45.097156608 * 0.68359375 = 32.430977792
+    expect(calculateMoEBatchedParams(mixtral8x7b, 4)).toBeCloseTo(32.430977792, 9)
+  })
+
+  it('is monotonically increasing in batch size', () => {
+    const values = [1, 2, 4, 16, 64].map((b) => calculateMoEBatchedParams(mixtral8x7b, b))
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i] ?? 0).toBeGreaterThan(values[i - 1] ?? 0)
+    }
+  })
+
+  it('never exceeds the full parameter count', () => {
+    expect(calculateMoEBatchedParams(mixtral8x7b, 4096)).toBeLessThanOrEqual(
+      mixtral8x7b.num_parameters_billion,
+    )
+    expect(calculateMoEBatchedParams(mixtral8x7b, 4096)).toBeCloseTo(46.7, 6)
+  })
+
+  it('returns the total for a dense model at any batch size', () => {
+    expect(calculateMoEBatchedParams(llama70b, 1)).toBe(70.0)
+    expect(calculateMoEBatchedParams(llama70b, 128)).toBe(70.0)
   })
 })

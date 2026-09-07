@@ -380,12 +380,20 @@ export const FLASH_ATTENTION_LONG_THRESHOLD = 8192
  * activation memory is bounded by the chunk size, NOT by the context window. Without
  * this bound a 1M-token context reports tens of GB of activations, which is fiction.
  *
- * Value is vLLM's default `max_num_batched_tokens` for UsageContext.LLM_CLASS on GPUs
- * below 70 GiB (16384 above; 2048 for the OpenAI API server context).
+ * Value is vLLM's default `max_num_batched_tokens` for UsageContext.LLM_CLASS on GPUs of
+ * 70 GiB and above (8192 below; 2048 for the OpenAI API server context). We take the
+ * larger branch deliberately: 18 of the 24 GPUs in the database are at or above 70 GiB,
+ * and on the smaller cards the effect is to overstate activations rather than understate
+ * them. The VRAM engine takes no GPU argument — it computes a requirement independent of
+ * the hardware it is later compared against — so this stays a single constant rather than
+ * a branch.
+ *
+ * Note this is a budget for ONE scheduler step across the whole batch, not a per-sequence
+ * allowance; `calculateActivationMemory` caps `batchSize * sequenceLength` with it.
  *
  * Reference: https://docs.vllm.ai/en/stable/configuration/optimization
  */
-export const PREFILL_CHUNK_TOKENS = 8192
+export const PREFILL_CHUNK_TOKENS = 16384
 
 /**
  * Human-readable labels for GPU interconnect types

@@ -12,6 +12,17 @@ const existingModelsByUrl = new Map<string, Model>(
   existingModels.filter((m) => m.hf_url).map((m) => [m.hf_url as string, m as Model]),
 )
 
+// Fallback lookup by display name, for the case the hf_url key cannot cover: a model
+// rehomed to a different org keeps its name but changes its URL, so the url map misses
+// and a hand-verified active_parameters_billion would vanish without a word.
+const curatedActiveParamsByName = new Map<string, number>(
+  existingModels
+    .filter((m): m is typeof m & { active_parameters_billion: number } =>
+      Object.hasOwn(m, 'active_parameters_billion'),
+    )
+    .map((m) => [m.name, m.active_parameters_billion]),
+)
+
 // Model IDs to fetch — current-generation curated roster (2026-08-18 refresh).
 // NOTE: multimodal models (Gemma 4, Qwen3.6, MiniMax M3, Mistral 3) expose the
 // transformer fields under config.json `text_config`, which this script does not read;
@@ -127,8 +138,20 @@ async function fetchModelConfig(modelId: string): Promise<Model> {
   // This assignment must stay last: curated models.json always places
   // active_parameters_billion after hf_url (and, when present, context_length/license).
   const existing = existingModelsByUrl.get(model.hf_url)
-  if (existing?.active_parameters_billion) {
+  if (existing?.active_parameters_billion !== undefined) {
     model.active_parameters_billion = existing.active_parameters_billion
+  } else if (curatedActiveParamsByName.get(model.name) !== undefined) {
+    // The lookup is keyed on hf_url, which is not stable: a model rehomed to a new org
+    // (THUDM/GLM-4.7 -> zai-org/GLM-4.7 happened in this database) misses the map and
+    // silently drops a hand-verified value, dropping the model to the derived tier and
+    // moving its decode throughput by an order of magnitude. Match by name as a second
+    // chance, and say so — a refresh must never lose one of these quietly.
+    const byName = curatedActiveParamsByName.get(model.name)
+    model.active_parameters_billion = byName
+    console.warn(
+      `WARN ${model.name}: hf_url changed (${model.hf_url}); carried active_parameters_billion=` +
+        `${byName} forward by name. Verify the new URL is correct.`,
+    )
   }
 
   return model
@@ -144,7 +167,9 @@ async function fetchModelConfig(modelId: string): Promise<Model> {
  * formula built on it produces false positives on correct, verified values.
  */
 function checkActiveParamsConsistency(model: Model): void {
-  if (!model.active_parameters_billion) return
+  // `=== undefined`, not falsy: a hand-edited 0 must reach the non-positive branch below
+  // rather than being skipped as "absent".
+  if (model.active_parameters_billion === undefined) return
 
   if (model.active_parameters_billion >= model.num_parameters_billion) {
     console.warn(

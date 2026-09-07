@@ -18,6 +18,7 @@ const PRESETS = [
 // Slider is log2-scaled. The floor is fixed; the ceiling is 1M for almost every model,
 // extended only for a model whose native context is larger (Llama 4 Scout at 10M).
 const MIN_LOG = 9 // log2(512)
+const LOG_STEP = 0.1
 const DEFAULT_MAX_TOKENS = 1_048_576
 
 function formatTokens(value: number): string {
@@ -37,17 +38,25 @@ export function SequenceLengthInput() {
 
   const nativeContext = selectedModel?.context_length
   const maxTokens = Math.min(Math.max(DEFAULT_MAX_TOKENS, nativeContext ?? 0), MAX_SEQUENCE_LENGTH)
-  const maxLog = Math.log2(maxTokens)
+  // A range input only exposes values of min + n*step, so a fractional ceiling is
+  // unreachable: log2(10,485,760) = 23.3219 would top out at 23.3, i.e. 10,301,796 tokens,
+  // and the advertised maximum could never be selected. Round the ceiling UP to the step
+  // grid and clamp the resulting token count back to maxTokens.
+  const maxLog = MIN_LOG + Math.ceil((Math.log2(maxTokens) - MIN_LOG) / LOG_STEP) * LOG_STEP
 
   // The user's value is never rewritten — not on model change, not when it exceeds the
   // model's native context. RoPE/YaRN extension is a real workload, custom models carry
   // no context_length at all, and silently clamping would destroy a shared URL.
   const sliderValue = Math.min(Math.log2(sequenceLength), maxLog)
   const exceedsNative = nativeContext !== undefined && sequenceLength > nativeContext
+  // The value can outrun the track when the model changes under it (set 4M on a 10M-context
+  // model, then select a 128K one). The thumb pins to the right while the readout keeps the
+  // real value, so say that out loud rather than letting the two silently disagree.
+  const exceedsSliderMax = sequenceLength > maxTokens
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const logValue = Number.parseFloat(e.target.value)
-    setSequenceLength(Math.round(2 ** logValue))
+    setSequenceLength(Math.min(Math.round(2 ** logValue), maxTokens))
   }
 
   const formatValue = (value: number): string => `${formatTokens(value)} tokens`
@@ -122,6 +131,14 @@ export function SequenceLengthInput() {
           </button>
         ))}
       </div>
+
+      {exceedsSliderMax && (
+        <output className="block text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md px-2 py-1.5">
+          {formatTokens(sequenceLength)} tokens is above this slider's range (max{' '}
+          {formatTokens(maxTokens)}). The value is kept and still used in every calculation, but the
+          slider cannot show it — moving the slider will replace it.
+        </output>
+      )}
 
       {exceedsNative && (
         <output className="block text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md px-2 py-1.5">

@@ -2,6 +2,7 @@ import type { Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { BYTES_PER_GB, TRAINING_FRAMEWORK_OVERHEAD_GB } from './constants'
+import { calculateMoEActiveParams } from './inference'
 import {
   calculateFullFineTuningVRAM,
   calculateOptimizerStateMemory,
@@ -367,5 +368,48 @@ describe('calculateFullFineTuningVRAM', () => {
       2,
     )
     expect(withoutParams.total.toNumber()).toBeCloseTo(withFalseParams.total.toNumber(), 2)
+  })
+})
+
+describe('MoE active-parameter consistency with the inference engine', () => {
+  // A3B-style model: 35B total, 3B active. The old training heuristic
+  // (0.2 + 0.8 * 8/256 = 0.225) disagreed with the inference engine's 3/35 = 0.0857 by
+  // 2.6x on the same model — two engines, two answers to "what is active here?".
+  const a3b: Model = {
+    id: 'test-a3b',
+    name: 'Test 35B A3B',
+    architecture: 'moe',
+    num_parameters_billion: 35.0,
+    active_parameters_billion: 3.0,
+    hidden_size: 2048,
+    num_hidden_layers: 40,
+    num_attention_heads: 32,
+    intermediate_size: 512,
+    num_experts: 256,
+    num_experts_per_token: 8,
+  }
+
+  it('uses the inference engine active ratio, not a separate heuristic', () => {
+    const result = calculateTrainingActivationMemory(a3b, 1, 2048)
+
+    // 3.0 / 35.0 = 0.0857..., so effective hidden = floor(2048 * 0.0857) = 175
+    // 1 * 2048 * 175 * 40 * 10 * 2 / 1024^3
+    const expected = (2048 * 175 * 40 * 10 * 2) / 1024 ** 3
+    expect(result.toNumber()).toBeCloseTo(expected, 9)
+
+    // The repudiated heuristic would have given floor(2048 * 0.225) = 460 instead.
+    const underOldHeuristic = (2048 * 460 * 40 * 10 * 2) / 1024 ** 3
+    expect(result.toNumber()).not.toBeCloseTo(underOldHeuristic, 3)
+  })
+
+  it('agrees with calculateMoEActiveParams on the ratio', () => {
+    const inferenceRatio = calculateMoEActiveParams(a3b) / a3b.num_parameters_billion
+    const dense: Model = { ...a3b, architecture: 'dense' }
+
+    const moe = calculateTrainingActivationMemory(a3b, 1, 2048).toNumber()
+    const full = calculateTrainingActivationMemory(dense, 1, 2048).toNumber()
+
+    // floor() on the hidden size makes this approximate, hence the loose tolerance.
+    expect(moe / full).toBeCloseTo(inferenceRatio, 3)
   })
 })

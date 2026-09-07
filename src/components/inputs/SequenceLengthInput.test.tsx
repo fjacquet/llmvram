@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The real uiStore wraps its state in zustand's `persist` middleware, which throws in
@@ -88,6 +88,44 @@ describe('SequenceLengthInput', () => {
     })
     render(<SequenceLengthInput />)
     const slider = screen.getByRole('slider', { name: /sequence length/i })
-    expect(Number(slider.getAttribute('max'))).toBeCloseTo(Math.log2(10485760), 3)
+    const max = Number(slider.getAttribute('max'))
+
+    // The ceiling is rounded up to the step grid so the advertised maximum is actually
+    // reachable: a range input only exposes min + n*step, so the exact log2(10,485,760)
+    // of 23.3219 would top out at 23.3 — i.e. 10,301,796 tokens, never the full 10M.
+    expect(max).toBeGreaterThanOrEqual(Math.log2(10485760))
+    const step = Number(slider.getAttribute('step'))
+    const min = Number(slider.getAttribute('min'))
+    expect(Number.isInteger(Math.round((max - min) / step))).toBe(true)
+    expect((max - min) / step - Math.round((max - min) / step)).toBeCloseTo(0, 6)
+  })
+
+  it('clamps a slider drag at the top of the track to the real maximum', () => {
+    useUIStore.setState({
+      selectedModel: { ...model128k, id: 'm-10m', context_length: 10485760 },
+    })
+    render(<SequenceLengthInput />)
+    const slider = screen.getByRole('slider', { name: /sequence length/i })
+
+    fireEvent.change(slider, { target: { value: slider.getAttribute('max') } })
+
+    // 2^23.4 overshoots; the value lands exactly on the advertised maximum, not past it.
+    expect(useUIStore.getState().sequenceLength).toBe(10485760)
+  })
+
+  it('says so when the stored value is above the slider range', () => {
+    useUIStore.setState({
+      selectedModel: { ...model128k, id: 'm-10m', context_length: 10485760 },
+      sequenceLength: 4194304,
+    })
+    const { rerender } = render(<SequenceLengthInput />)
+
+    // Switching to a model with a smaller context leaves the value outstanding: the thumb
+    // pins to the right while the readout keeps 4M, so the mismatch must be stated.
+    useUIStore.setState({ selectedModel: model128k })
+    rerender(<SequenceLengthInput />)
+
+    expect(screen.getByText(/above this slider's range/i)).toBeInTheDocument()
+    expect(useUIStore.getState().sequenceLength).toBe(4194304)
   })
 })

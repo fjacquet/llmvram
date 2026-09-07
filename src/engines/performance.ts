@@ -1,7 +1,7 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { BYTES_PER_GB, PREFILL_MFU } from './constants'
-import { calculateMoEActiveParams } from './inference'
+import { calculateMoEActiveParams, calculateMoEBatchedParams } from './inference'
 import { calculateModelWeightVRAM } from './quantization'
 import type { MultiGPUVRAMBreakdown, PerformanceEstimate, QuantizationFormat } from './types'
 
@@ -62,11 +62,14 @@ export interface PerformanceParams {
 export function estimatePerformance(params: PerformanceParams): PerformanceEstimate {
   const { model, gpu, quantization, sequenceLength, batchSize, multiGPUResult } = params
 
-  // 1. Bytes read per decode token. MoE decode touches only the active experts, so
-  //    this uses active params — but it must still route through the quantization
-  //    helper, because bytes depend on precision. Never hardcode `x 2` here.
+  // 1. Bytes read per decode step. MoE decode touches only the experts the step's tokens
+  //    route to, so this uses active params — but it must still route through the
+  //    quantization helper, because bytes depend on precision. Never hardcode `x 2` here.
+  //    At batch > 1 the sequences route independently and the union of touched experts
+  //    grows, so the memory side uses the batched figure rather than the batch-1 one.
   const activeParams = calculateMoEActiveParams(model)
-  const modelSizeGB = calculateModelWeightVRAM(activeParams, quantization)
+  const decodeParams = calculateMoEBatchedParams(model, batchSize)
+  const modelSizeGB = calculateModelWeightVRAM(decodeParams, quantization)
   const modelSizeBytes = modelSizeGB.mul(BYTES_PER_GB)
 
   // 2. Memory-bound tokens/sec (dominant for LLM inference)
@@ -74,7 +77,9 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   const memoryBoundTPS = bandwidthBytesPerSec.div(modelSizeBytes).mul(batchSize)
 
   // 3. Compute-bound tokens/sec. FLOPs are precision-independent: ~2 FLOPs per
-  //    active parameter (one multiply, one add).
+  //    active parameter (one multiply, one add). This stays on the batch-1 figure:
+  //    each token computes only its own experts, however many others the step has
+  //    resident. Only the memory term above widens with batch.
   const flopsPerToken = new Decimal(activeParams).mul(2e9)
 
   let computeBoundTPS: Decimal
@@ -142,10 +147,10 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   let prefillEstimateDegraded = false
   let timeToFirstToken: Decimal
 
-  const gpuTFLOPS = gpu.fp16_tflops ?? gpu.fp32_tflops ?? 0
-
-  if (gpuTFLOPS > 0) {
-    let effectiveFLOPS = new Decimal(gpuTFLOPS).mul(1e12).mul(PREFILL_MFU)
+  // Same FLOPS figure and same guard as the decode roofline above — one source, so a
+  // change to the selection policy cannot desynchronise the two rooflines.
+  if (decodeGpuTFLOPS > 0) {
+    let effectiveFLOPS = new Decimal(decodeGpuTFLOPS).mul(1e12).mul(PREFILL_MFU)
 
     if (multiGPUResult && multiGPUResult.numGPUs > 1) {
       effectiveFLOPS = effectiveFLOPS

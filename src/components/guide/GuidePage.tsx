@@ -393,9 +393,11 @@ export function GuidePage() {
           </li>
           <li>
             <strong>Time to First Token (TTFT)</strong> — Latency for the first output token.
-            Dominated by prompt processing (prefill), so it grows with prompt length: past roughly
-            100K tokens the quadratic attention term overtakes the linear weight term and TTFT rises
-            faster than the prompt does.
+            Dominated by prompt processing (prefill), so it grows with prompt length: past a
+            crossover the quadratic attention term overtakes the linear weight term and TTFT rises
+            faster than the prompt does. The crossover is model-dependent — roughly active
+            parameters divided by (layers x hidden size), which is about 107K tokens for Llama 3 70B
+            but only about 37K for Qwen3.6 35B A3B.
           </li>
           <li>
             <strong>Bottleneck</strong> — Whether the workload is memory-bandwidth bound (yellow),
@@ -595,8 +597,10 @@ export function GuidePage() {
           <GlossaryTerm term="TTFT (Time to First Token)">
             Latency from prompt submission to the first generated token, dominated by processing the
             entire prompt (prefill phase). TTFT grows with prompt length: a linear weight-processing
-            term dominates short prompts, but past roughly 100K tokens the quadratic
-            causal-attention term takes over and TTFT rises faster than the prompt does.
+            term dominates short prompts, but past a crossover of roughly active parameters divided
+            by (layers x hidden size) the quadratic causal-attention term takes over and TTFT rises
+            faster than the prompt does. That crossover ranges from about 37K tokens (Qwen3.6 35B
+            A3B) to about 107K (Llama 3 70B) across the model database.
           </GlossaryTerm>
           <GlossaryTerm term="VRAM">
             Video Random Access Memory — the high-bandwidth memory on a GPU. All model weights, KV

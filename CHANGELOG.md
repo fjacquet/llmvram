@@ -21,18 +21,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Activation memory scaled with the full context window, reporting 68 GB at 1M tokens for
-  a 27.8B dense model. It is now bounded by the 8,192-token prefill chunk (vLLM's default
-  `max_num_batched_tokens`), dropping that figure to 0.53 GB. **For dense models, VRAM
-  figures above 8,192 tokens decrease; figures at or below 8,192 are unchanged.** MoE
-  models are also affected at every sequence length, because the corrected
+  a 27.8B dense model. It is now bounded by the prefill chunk — vLLM's
+  `max_num_batched_tokens`, 16,384 — dropping that figure to 1.06 GB. That budget covers
+  one scheduler step across the whole batch rather than each sequence, so activation
+  memory is now nearly batch-independent; the KV cache is what still grows with batch.
+  **For dense models at batch size 1, figures at or below 16,384 tokens are unchanged.**
+  MoE models are affected at every sequence length, because the corrected
   `calculateMoEActiveParams` feeds both this activation figure and the decode throughput
-  fix below — measured at 2,048 tokens,
-  activation memory for all 33 MoE models fell to between 13.2% and 65.8% of its previous
-  value, though the absolute magnitudes stay tiny (e.g. Kimi K2: 0.030 GB → 0.004 GB).
+  fix below.
 - Decode throughput divided memory bandwidth by total rather than active parameters,
   making every MoE model report roughly its expert ratio too slow. **MoE tokens/sec
   figures increase substantially — on the NVIDIA GB10 (273 GB/s), the reference case
-  (Qwen3.6 35B A3B) goes from 3.8 to roughly 45 tok/s.**
+  (Qwen3.6 35B A3B) goes from 3.8 to roughly 45 tok/s.** Above batch 1 the sequences route
+  to different experts, so bytes read per step follow the expected union of touched
+  experts, `1 - (1 - k/E)^batch`, rather than scaling linearly with the batch: exact at
+  batch 1, converging on the full weight set as the batch widens.
+- Training activation memory carried its own MoE heuristic (20% shared / 80% in experts),
+  which disagreed with the inference engine by 2.6x on the same model — Qwen3.6 35B A3B
+  resolved to a 0.086 active ratio for inference and 0.225 for training. Both engines now
+  read `calculateMoEActiveParams`.
 - Time to first token had no dependence on sequence length; it is now modelled from
   prefill FLOPs (a linear weight term plus a quadratic causal-attention term).
   **All TTFT figures change.** On LLaMA 3.1 70B / H100 SXM, 2,048 tokens now reports
