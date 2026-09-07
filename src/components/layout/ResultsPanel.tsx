@@ -13,8 +13,21 @@ import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
 import { exportPptx } from '@utils/exportPptx'
+import type Decimal from 'decimal.js'
 import { useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
+
+/**
+ * Format a duration given in seconds.
+ *
+ * A 1M-token prefill takes tens of seconds; rendering that as "45230.0 ms" is
+ * unreadable, so switch units at one second.
+ */
+function formatDuration(seconds: Decimal): string {
+  const ms = seconds.mul(1000)
+  if (ms.lessThan(1000)) return `${ms.toFixed(1)} ms`
+  return `${seconds.toFixed(2)} s`
+}
 
 /**
  * Results panel - the critical integration point
@@ -581,7 +594,7 @@ export function ResultsPanel() {
             Performance Estimate
           </h2>
           <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Decode Speed</p>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -591,8 +604,13 @@ export function ResultsPanel() {
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Time to First Token</p>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {result.performance.timeToFirstToken.mul(1000).toFixed(1)} ms
+                  {formatDuration(result.performance.timeToFirstToken)}
                 </p>
+                {result.performance.prefillEstimateDegraded && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    rough estimate — no FLOPS data for this GPU
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Bottleneck</p>
@@ -611,6 +629,21 @@ export function ResultsPanel() {
                       ? 'Memory bandwidth'
                       : 'Compute'}
                 </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Prompt Processing</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {result.performance.prefillSeconds
+                    ? formatDuration(result.performance.prefillSeconds)
+                    : 'n/a'}
+                </p>
+                {result.performance.prefillSeconds && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {result.performance.prefillBottleneck === 'attention'
+                      ? 'attention-dominated (quadratic)'
+                      : 'weight-dominated (linear)'}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -636,12 +669,9 @@ export function ResultsPanel() {
                       Per-user TTFT (est.)
                     </p>
                     <p className="text-base font-semibold text-gray-900 dark:text-white">
-                      {result.performance.timeToFirstToken
-                        .mul(concurrentUsers)
-                        .div(batchSize)
-                        .mul(1000)
-                        .toFixed(1)}{' '}
-                      ms
+                      {formatDuration(
+                        result.performance.timeToFirstToken.mul(concurrentUsers).div(batchSize),
+                      )}
                     </p>
                   </div>
                 </div>

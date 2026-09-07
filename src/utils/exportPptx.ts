@@ -336,7 +336,10 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     color: C.darkBlue,
   })
 
-  const ttftMs = performance.timeToFirstToken.mul(1000).toFixed(1)
+  const ttftSeconds = performance.timeToFirstToken
+  const ttftLabel = ttftSeconds.mul(1000).lessThan(1000)
+    ? `${ttftSeconds.mul(1000).toFixed(1)} ms`
+    : `${ttftSeconds.toFixed(2)} s`
   const bottleneckLabel =
     performance.bottleneck === 'memory'
       ? 'Memory Bandwidth'
@@ -347,7 +350,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
   // Three metric boxes
   const metricBoxes: { label: string; value: string }[] = [
     { label: 'Decode Speed', value: `${performance.tokensPerSecond.toFixed(1)} tok/s` },
-    { label: 'Time to First Token', value: `${ttftMs} ms` },
+    { label: 'Time to First Token', value: ttftLabel },
     { label: 'Bottleneck', value: bottleneckLabel },
   ]
   const boxXPositions = [0.4, 4.6, 8.8] as const
@@ -405,7 +408,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       ],
       [
         { text: 'Time to First Token', options: { fill: C.altRowFill } },
-        { text: `${ttftMs} ms`, options: { fill: C.altRowFill } },
+        { text: ttftLabel, options: { fill: C.altRowFill } },
       ],
       [
         { text: 'Bottleneck', options: { fill: C.whiteFill } },
