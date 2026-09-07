@@ -487,6 +487,30 @@ describe('calculateMoEBatchedParams', () => {
     expect(calculateMoEBatchedParams(mixtral8x7b, 4096)).toBeCloseTo(46.7, 6)
   })
 
+  it('holds its bounds when the anchor implies a negative non-expert share', () => {
+    // total * (k/E) can exceed the stated active count, which makes the derived
+    // expertTotal larger than the model and nonExpertParams negative. The clamps must
+    // still hold: never below the batch-1 figure, never above the full weight set.
+    const skewed: Model = {
+      ...mixtral8x7b,
+      id: 'test-skewed-moe',
+      name: 'Skewed MoE',
+      num_parameters_billion: 100,
+      active_parameters_billion: 10,
+      num_experts: 8,
+      num_experts_per_token: 4,
+    }
+
+    const values = [1, 2, 4, 8, 64].map((b) => calculateMoEBatchedParams(skewed, b))
+
+    expect(values[0]).toBeCloseTo(10, 9)
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i] ?? 0).toBeGreaterThanOrEqual(values[i - 1] ?? 0)
+      expect(values[i] ?? 0).toBeLessThanOrEqual(100)
+    }
+    expect(values[values.length - 1] ?? 0).toBeCloseTo(100, 6)
+  })
+
   it('returns the total for a dense model at any batch size', () => {
     expect(calculateMoEBatchedParams(llama70b, 1)).toBe(70.0)
     expect(calculateMoEBatchedParams(llama70b, 128)).toBe(70.0)

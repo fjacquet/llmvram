@@ -12,15 +12,22 @@ const existingModelsByUrl = new Map<string, Model>(
   existingModels.filter((m) => m.hf_url).map((m) => [m.hf_url as string, m as Model]),
 )
 
-// Fallback lookup by display name, for the case the hf_url key cannot cover: a model
-// rehomed to a different org keeps its name but changes its URL, so the url map misses
-// and a hand-verified active_parameters_billion would vanish without a word.
-const curatedActiveParamsByName = new Map<string, number>(
+// Fallback lookup keyed on the repo name alone — the last path segment of hf_url, without
+// the org. This is the one identifier that survives the case the url map cannot cover: a
+// model rehomed to a different org (THUDM/GLM-4.7 -> zai-org/GLM-4.7) keeps its repo name
+// and changes only the owner, so the full-url lookup misses and a hand-verified
+// active_parameters_billion would vanish without a word.
+//
+// Not keyed on the display name: curated names are hand-written with spaces ("GLM 4.7")
+// while this script derives them from the repo ("GLM-4.7"), so a name key would never hit.
+function repoNameOf(url: string): string {
+  return url.split('/').pop() ?? url
+}
+
+const curatedActiveParamsByRepoName = new Map<string, number>(
   existingModels
-    .filter((m): m is typeof m & { active_parameters_billion: number } =>
-      Object.hasOwn(m, 'active_parameters_billion'),
-    )
-    .map((m) => [m.name, m.active_parameters_billion]),
+    .filter((m) => m.hf_url !== undefined && m.active_parameters_billion !== undefined)
+    .map((m) => [repoNameOf(m.hf_url as string), m.active_parameters_billion as number]),
 )
 
 // Model IDs to fetch — current-generation curated roster (2026-08-18 refresh).
@@ -138,19 +145,21 @@ async function fetchModelConfig(modelId: string): Promise<Model> {
   // This assignment must stay last: curated models.json always places
   // active_parameters_billion after hf_url (and, when present, context_length/license).
   const existing = existingModelsByUrl.get(model.hf_url)
+  const byRepoName = curatedActiveParamsByRepoName.get(repoNameOf(model.hf_url))
+
   if (existing?.active_parameters_billion !== undefined) {
     model.active_parameters_billion = existing.active_parameters_billion
-  } else if (curatedActiveParamsByName.get(model.name) !== undefined) {
-    // The lookup is keyed on hf_url, which is not stable: a model rehomed to a new org
-    // (THUDM/GLM-4.7 -> zai-org/GLM-4.7 happened in this database) misses the map and
-    // silently drops a hand-verified value, dropping the model to the derived tier and
-    // moving its decode throughput by an order of magnitude. Match by name as a second
-    // chance, and say so — a refresh must never lose one of these quietly.
-    const byName = curatedActiveParamsByName.get(model.name)
-    model.active_parameters_billion = byName
+  } else if (byRepoName !== undefined) {
+    // The primary lookup is keyed on the full hf_url, which is not stable: a model rehomed
+    // to a new org (THUDM/GLM-4.7 -> zai-org/GLM-4.7 happened in this database) misses the
+    // map and silently drops a hand-verified value, dropping the model to the derived tier
+    // and moving its decode throughput by an order of magnitude. Match on the repo name as
+    // a second chance, and say so — a refresh must never lose one of these quietly.
+    model.active_parameters_billion = byRepoName
     console.warn(
-      `WARN ${model.name}: hf_url changed (${model.hf_url}); carried active_parameters_billion=` +
-        `${byName} forward by name. Verify the new URL is correct.`,
+      `WARN ${model.name}: owner changed for ${repoNameOf(model.hf_url)}; carried ` +
+        `active_parameters_billion=${byRepoName} forward by repo name. ` +
+        `Verify ${model.hf_url} is the right repo.`,
     )
   }
 
