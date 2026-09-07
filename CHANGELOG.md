@@ -24,8 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a 27.8B dense model. It is now bounded by the 8,192-token prefill chunk (vLLM's default
   `max_num_batched_tokens`), dropping that figure to 0.53 GB. **For dense models, VRAM
   figures above 8,192 tokens decrease; figures at or below 8,192 are unchanged.** MoE
-  models are also affected at every sequence length, since this change and the decode
-  throughput fix below both feed `calculateMoEActiveParams` — measured at 2,048 tokens,
+  models are also affected at every sequence length, because the corrected
+  `calculateMoEActiveParams` feeds both this activation figure and the decode throughput
+  fix below — measured at 2,048 tokens,
   activation memory for all 33 MoE models fell to between 13.2% and 65.8% of its previous
   value, though the absolute magnitudes stay tiny (e.g. Kimi K2: 0.030 GB → 0.004 GB).
 - Decode throughput divided memory bandwidth by total rather than active parameters,
