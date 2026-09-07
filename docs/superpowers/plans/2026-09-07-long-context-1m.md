@@ -230,9 +230,16 @@ describe('calculateMoEActiveParams - three-tier resolution', () => {
   })
 
   it('tier 2: never returns more than the total parameter count', () => {
-    // Bad data: derived expert params exceed the declared total
-    const inconsistent: Model = { ...qwen35bA3b, num_parameters_billion: 10 }
-    expect(calculateMoEActiveParams(inconsistent)).toBeLessThanOrEqual(10)
+    // Bad data: derived expert params (32.2B) exceed the declared total, AND the active
+    // ratio is high enough that expertParams * ratio alone would still overshoot.
+    // Both clamps have to fire: nonExpert floors at 0, then the sum caps at the total.
+    // (A low ratio like 8/256 would pass without exercising the outer clamp at all.)
+    const inconsistent: Model = {
+      ...qwen35bA3b,
+      num_parameters_billion: 10,
+      num_experts_per_token: 128,
+    }
+    expect(calculateMoEActiveParams(inconsistent)).toBe(10)
   })
 
   it('tier 3: dense models return the full parameter count', () => {
@@ -1297,6 +1304,8 @@ Run: `npm run dev`
 
 Check by hand: select a dense model with a GPU that has `fp16_tflops`, set the sequence to 1M, and confirm the panel shows a multi-second "Prompt Processing" value labelled *attention-dominated*, and that at 2K it shows a sub-second value labelled *weight-dominated*.
 
+**Expect MoE throughput to be short of its final value at this point.** Task 7 has not run yet, so every MoE model is still on the tier-2 derivation: Qwen3.6 35B A3B resolves to 4.79B active, giving roughly 350 tok/s rather than the ~558 it will show once its verified `active_parameters_billion: 3` lands. That gap is expected here and is not a defect in the prefill work.
+
 - [ ] **Step 5: Verify the suite**
 
 Run: `npx vitest run && rtk proxy npm run lint && rtk proxy npm run typecheck`
@@ -1410,6 +1419,8 @@ Call it for each fetched model, and carry `active_parameters_billion` through fr
 
 Run: `npx vitest run && rtk proxy npm run lint && rtk proxy npm run typecheck`
 Expected: PASS, no errors.
+
+**Re-check any exact-value MoE activation assertion here.** `calculateActivationMemory` scales `intermediate_size` by `activeParams / total`, so an MoE activation figure moves **twice** across this plan: once in Task 2 when the 20/80 heuristic became the tier-2 derivation, and again here when tier 1 takes over for the models given a verified value. A test Task 2 just corrected may need correcting again — recompute from the new ratio rather than widening the assertion.
 
 Then spot-check the engine end to end:
 
