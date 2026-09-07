@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-07
+
 ### Added
 
 - **NVIDIA GB300 (Blackwell Ultra) 288GB** to the GPU database: 288 GB HBM3e, 8000 GB/s,
