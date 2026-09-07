@@ -13,21 +13,9 @@ import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
 import { exportPptx } from '@utils/exportPptx'
-import type Decimal from 'decimal.js'
+import { formatDuration } from '@utils/formatDuration'
 import { useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
-
-/**
- * Format a duration given in seconds.
- *
- * A 1M-token prefill takes tens of seconds; rendering that as "45230.0 ms" is
- * unreadable, so switch units at one second.
- */
-function formatDuration(seconds: Decimal): string {
-  const ms = seconds.mul(1000)
-  if (ms.lessThan(1000)) return `${ms.toFixed(1)} ms`
-  return `${seconds.toFixed(2)} s`
-}
 
 /**
  * Results panel - the critical integration point

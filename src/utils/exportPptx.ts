@@ -3,6 +3,7 @@ import type {
   MultiGPUVRAMBreakdown,
   PerformanceEstimate,
 } from '@engines/types'
+import { formatDuration } from '@utils/formatDuration'
 import type { GPU, Model } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 
@@ -336,24 +337,36 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     color: C.darkBlue,
   })
 
-  const ttftSeconds = performance.timeToFirstToken
-  const ttftLabel = ttftSeconds.mul(1000).lessThan(1000)
-    ? `${ttftSeconds.mul(1000).toFixed(1)} ms`
-    : `${ttftSeconds.toFixed(2)} s`
+  const ttftLabel = formatDuration(performance.timeToFirstToken)
   const bottleneckLabel =
     performance.bottleneck === 'memory'
       ? 'Memory Bandwidth'
       : performance.bottleneck === 'compute'
         ? 'Compute'
         : 'Balanced'
+  const prefillRegimeLabel =
+    performance.prefillBottleneck === 'attention'
+      ? 'attention-dominated (quadratic)'
+      : 'weight-dominated (linear)'
+  const prefillLabel = performance.prefillSeconds
+    ? `${formatDuration(performance.prefillSeconds)} — ${prefillRegimeLabel}`
+    : 'n/a'
+  const prefillTableLabel = performance.prefillEstimateDegraded
+    ? `${prefillLabel} (rough estimate — no FLOPS data for this GPU)`
+    : prefillLabel
 
-  // Three metric boxes
+  // Four metric boxes
   const metricBoxes: { label: string; value: string }[] = [
     { label: 'Decode Speed', value: `${performance.tokensPerSecond.toFixed(1)} tok/s` },
     { label: 'Time to First Token', value: ttftLabel },
     { label: 'Bottleneck', value: bottleneckLabel },
+    {
+      label: 'Prompt Processing',
+      value: performance.prefillSeconds ? formatDuration(performance.prefillSeconds) : 'n/a',
+    },
   ]
-  const boxXPositions = [0.4, 4.6, 8.8] as const
+  const boxXPositions = [0.4, 3.6, 6.8, 10.0] as const
+  const boxWidth = 2.9
 
   metricBoxes.forEach(({ label, value }, idx) => {
     const xPos = boxXPositions[idx] ?? 0.4
@@ -361,7 +374,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     slide4.addShape('roundRect', {
       x: xPos,
       y: 0.9,
-      w: 3.8,
+      w: boxWidth,
       h: 2.2,
       fill: C.metricBoxFill,
       line: { color: 'BFC9FF', pt: 1 },
@@ -371,7 +384,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     slide4.addText(label, {
       x: xPos + 0.15,
       y: 1.0,
-      w: 3.5,
+      w: boxWidth - 0.3,
       h: 0.4,
       fontSize: 12,
       color: C.darkBlue,
@@ -382,9 +395,9 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     slide4.addText(value, {
       x: xPos + 0.15,
       y: 1.5,
-      w: 3.5,
+      w: boxWidth - 0.3,
       h: 1.0,
-      fontSize: 18,
+      fontSize: 14,
       color: C.darkBlue,
       bold: true,
       align: 'center',
@@ -415,8 +428,12 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
         { text: bottleneckLabel, options: { fill: C.whiteFill } },
       ],
       [
-        { text: 'GPU Memory Bandwidth', options: { fill: C.altRowFill } },
-        { text: `${gpu.memory_bandwidth_gbps} GB/s`, options: { fill: C.altRowFill } },
+        { text: 'Prompt Processing', options: { fill: C.altRowFill } },
+        { text: prefillTableLabel, options: { fill: C.altRowFill } },
+      ],
+      [
+        { text: 'GPU Memory Bandwidth', options: { fill: C.whiteFill } },
+        { text: `${gpu.memory_bandwidth_gbps} GB/s`, options: { fill: C.whiteFill } },
       ],
     ],
     {
