@@ -2,9 +2,15 @@ import { writeFile } from 'node:fs/promises'
 import existingModels from '../src/data/models.json' with { type: 'json' }
 import { type Model, validateModels } from '../src/utils/schemas'
 
-// Lookup of already-curated models by id, used to carry forward hand-verified
+// Lookup of already-curated models by hf_url, used to carry forward hand-verified
 // fields (active_parameters_billion) that this script cannot derive on its own.
-const existingModelsById = new Map<string, Model>(existingModels.map((m) => [m.id, m as Model]))
+// Keyed by hf_url rather than id: curated ids are hand-shortened (e.g.
+// "google-gemma-4-26b-a4b" vs the generated "google-gemma-4-26b-a4b-it"), so an
+// id-based lookup would silently miss most entries. hf_url always matches
+// `https://huggingface.co/${modelId}` exactly.
+const existingModelsByUrl = new Map<string, Model>(
+  existingModels.filter((m) => m.hf_url).map((m) => [m.hf_url as string, m as Model]),
+)
 
 // Model IDs to fetch — current-generation curated roster (2026-08-18 refresh).
 // NOTE: multimodal models (Gemma 4, Qwen3.6, MiniMax M3, Mistral 3) expose the
@@ -113,7 +119,7 @@ async function fetchModelConfig(modelId: string): Promise<Model> {
 
   // Carry forward a hand-verified active_parameters_billion from the curated
   // models.json so a refresh never drops a value this script cannot derive itself.
-  const existing = existingModelsById.get(model.id)
+  const existing = existingModelsByUrl.get(`https://huggingface.co/${modelId}`)
   if (existing?.active_parameters_billion) {
     model.active_parameters_billion = existing.active_parameters_billion
   }
