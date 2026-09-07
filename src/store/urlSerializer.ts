@@ -10,6 +10,7 @@ import type {
   TrainingPrecision,
 } from '@engines/types'
 import type { GPU, Model } from '@utils/schemas'
+import { MAX_SEQUENCE_LENGTH } from '@utils/schemas'
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { z } from 'zod'
 
@@ -43,7 +44,7 @@ export const URLStateSchema = z.object({
     .optional(),
   // Calculation parameters (short keys)
   q: z.string(), // quantization
-  sl: z.number(), // sequenceLength
+  sl: z.number().int().min(512).max(MAX_SEQUENCE_LENGTH), // sequenceLength
   bs: z.number(), // batchSize
   kvq: z.string(), // kvQuantization
   ng: z.number(), // numGPUs

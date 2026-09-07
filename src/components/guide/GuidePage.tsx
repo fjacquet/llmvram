@@ -242,9 +242,9 @@ export function GuidePage() {
         <P>
           The maximum context window in tokens, up to 1M (and beyond, for a model whose native
           context is larger). Uses a logarithmic slider for easy navigation across the wide range.
-          Preset buttons for common values: 512, 2K, 8K, 32K, 128K, 256K, 512K, 1M. A marker on the
-          slider shows the selected model&apos;s native context; going past it doesn&apos;t clamp
-          the value, but the calculator warns that it requires RoPE scaling. Longer sequences
+          Preset buttons for common values: 512, 2K, 4K, 8K, 32K, 128K, 256K, 512K, 1M. A marker on
+          the slider shows the selected model&apos;s native context; going past it doesn&apos;t
+          clamp the value, but the calculator warns that it requires RoPE scaling. Longer sequences
           dramatically increase KV cache memory.
         </P>
 

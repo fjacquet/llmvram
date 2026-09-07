@@ -117,9 +117,16 @@ async function fetchModelConfig(modelId: string): Promise<Model> {
     model.num_experts_per_token = config.num_experts_per_tok
   }
 
+  // hf_url is always derivable from the fetched modelId — set it here so the field
+  // order below matches the curated file (num_experts_per_token, hf_url,
+  // active_parameters_billion), keeping active_parameters_billion last.
+  model.hf_url = `https://huggingface.co/${modelId}`
+
   // Carry forward a hand-verified active_parameters_billion from the curated
   // models.json so a refresh never drops a value this script cannot derive itself.
-  const existing = existingModelsByUrl.get(`https://huggingface.co/${modelId}`)
+  // This assignment must stay last: curated models.json always places
+  // active_parameters_billion after hf_url (and, when present, context_length/license).
+  const existing = existingModelsByUrl.get(model.hf_url)
   if (existing?.active_parameters_billion) {
     model.active_parameters_billion = existing.active_parameters_billion
   }

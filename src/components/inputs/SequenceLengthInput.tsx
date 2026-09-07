@@ -6,6 +6,7 @@ import { MAX_SEQUENCE_LENGTH } from '@utils/schemas'
 const PRESETS = [
   { value: 512, label: '512' },
   { value: 2048, label: '2K' },
+  { value: 4096, label: '4K' },
   { value: 8192, label: '8K' },
   { value: 32768, label: '32K' },
   { value: 131072, label: '128K' },
