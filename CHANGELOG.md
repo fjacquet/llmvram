@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **NVIDIA GB300 (Blackwell Ultra) 288GB** to the GPU database: 288 GB HBM3e, 8000 GB/s,
+  8192-bit bus, 1400 W TDP, NVLink 5. Per-GPU figures derived from the GB300 NVL72 spec
+  sheet divided by its 72 GPUs — FP16/BF16 360 PFLOPS (with sparsity) / 72 = 5000 TFLOPS,
+  FP32 6 PFLOPS / 72 = 83 TFLOPS. The sparsity convention matches the existing B200 entry,
+  so the two compare like with like; note the FP32 figure sits just below B200's 90.
+- **NVIDIA GB300 Desktop Superchip (DGX Station)** — the workstation part behind NVIDIA DGX
+  Station and Dell Pro Max with GB300, distinct from the rack B300 above. Dell's product page
+  lists 496 GB LPDDR5X + 252 GB HBM3e = 748 GB coherent (NVIDIA markets "up to 784 GB" against
+  the 288 GB HBM3e nameplate); NVIDIA's DGX Station page gives the tiers as 252 GB HBM3e at
+  7.1 TB/s and 496 GB LPDDR5X at 396 GB/s. `memory_bandwidth_gbps` is a single value and the
+  performance engine divides by it, so there is no honest number spanning those two: the entry
+  encodes the fast tier only — `vram_gb: 252`, 7100 GB/s — and the 496 GB LPDDR5X is
+  documented in the README rather than folded into `vram_gb`. `tdp_watts` omitted;
+  Dell states a 1600 W system PSU, not a chip TDP.
+
 ## [1.7.0] - 2026-08-18
 
 ### Added

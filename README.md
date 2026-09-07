@@ -31,12 +31,18 @@ Browser-based tool for estimating VRAM requirements and performance when running
 
 | Vendor | GPUs |
 |--------|------|
-| **NVIDIA Datacenter** | H100 PCIe/SXM, H200, B200, A100 PCIe/SXM, L40S, RTX PRO 6000, RTX 6000 Ada |
-| **NVIDIA Consumer** | RTX 5090, RTX 4090, RTX 3090, DGX Spark (GB10) |
+| **NVIDIA Datacenter** | H100 PCIe/SXM, H200, B200, GB300 (Blackwell Ultra), A100 PCIe/SXM, L40S, RTX PRO 6000, RTX 6000 Ada |
+| **NVIDIA Consumer** | RTX 5090, RTX 4090, RTX 3090, DGX Station (GB300 Desktop Superchip), DGX Spark (GB10) |
 | **AMD** | MI300X |
 | **Apple Silicon** | M1/M2/M3 Ultra, M1/M2/M3/M4/M5 Max |
 
 Plus custom GPU input for any hardware.
+
+> **Note on the GB300 Desktop Superchip** (NVIDIA DGX Station, Dell Pro Max with GB300): the
+> machine exposes 748 GB of coherent memory — 252 GB HBM3e at 7.1 TB/s plus 496 GB LPDDR5X at
+> 396 GB/s. The calculator models a single memory pool, so this entry encodes only
+> the 252 GB HBM3e tier. A model that spills past 252 GB will still load on the real hardware,
+> but it runs at LPDDR5X speed, not the throughput shown here.
 
 ## Model Database
 
