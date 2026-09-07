@@ -1,6 +1,11 @@
 import type { Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
-import { BYTES_PER_GB, FRAMEWORK_OVERHEAD_GB, PER_GPU_FRAMEWORK_OVERHEAD_GB } from './constants'
+import {
+  BYTES_PER_GB,
+  FRAMEWORK_OVERHEAD_GB,
+  PER_GPU_FRAMEWORK_OVERHEAD_GB,
+  PREFILL_CHUNK_TOKENS,
+} from './constants'
 import { calculateKVCacheVRAM } from './kv-cache'
 import { calculateModelWeightVRAM } from './quantization'
 import type { InferenceVRAMBreakdown, KVCachePrecision, QuantizationFormat } from './types'
@@ -60,8 +65,8 @@ export function calculateMoEActiveParams(model: Model): number {
  * For MoE models, uses active parameters (not total) since only active experts
  * contribute to activations.
  *
- * Formula: batchSize * sequenceLength * intermediateSize * 4 / BYTES_PER_GB
- * The factor of 4 is for FP32 activation storage (standard precision).
+ * Formula: batch * min(sequenceLength, PREFILL_CHUNK_TOKENS) * intermediateSize * 4 / BYTES_PER_GB
+ * The factor of 4 is 2 bytes (bf16) x ~2 live buffers per layer, not FP32 storage.
  *
  * @param model - Model configuration
  * @param sequenceLength - Maximum sequence length
@@ -92,11 +97,18 @@ export function calculateActivationMemory(
     effectiveIntermediateSize = Math.floor(model.intermediate_size * paramRatio)
   }
 
-  // Activation memory: batch * seq_len * intermediate_size * 4 (FP32 bytes)
+  // Peak activations are bounded by the prefill chunk, not the context window.
+  // Decode activations are one token wide; prefill is processed PREFILL_CHUNK_TOKENS
+  // at a time, so activations plateau once the prompt exceeds one chunk.
+  const activeTokens = Math.min(sequenceLength, PREFILL_CHUNK_TOKENS)
+
+  // batch * chunk_tokens * intermediate_size * 4
+  // The factor 4 is 2 bytes (bf16 activations) x ~2 live buffers per layer.
+  // NOT FP32 storage, despite what this comment used to claim.
   const activationBytes = new Decimal(batchSize)
-    .mul(sequenceLength)
+    .mul(activeTokens)
     .mul(effectiveIntermediateSize)
-    .mul(4) // FP32 bytes per activation
+    .mul(4)
 
   return activationBytes.div(BYTES_PER_GB)
 }

@@ -374,6 +374,20 @@ export const FLASH_ATTENTION_SHORT_THRESHOLD = 2048
 export const FLASH_ATTENTION_LONG_THRESHOLD = 8192
 
 /**
+ * Prefill chunk size in tokens
+ *
+ * Inference engines process a long prompt in chunks rather than in one pass, so peak
+ * activation memory is bounded by the chunk size, NOT by the context window. Without
+ * this bound a 1M-token context reports tens of GB of activations, which is fiction.
+ *
+ * Value is vLLM's default `max_num_batched_tokens` for UsageContext.LLM_CLASS on GPUs
+ * below 70 GiB (16384 above; 2048 for the OpenAI API server context).
+ *
+ * Reference: https://docs.vllm.ai/en/stable/configuration/optimization
+ */
+export const PREFILL_CHUNK_TOKENS = 8192
+
+/**
  * Human-readable labels for GPU interconnect types
  *
  * Used in the InterconnectSelector UI to display bandwidth info alongside

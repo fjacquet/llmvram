@@ -108,6 +108,33 @@ describe('calculateActivationMemory', () => {
     const ratio = quadrupled.div(base)
     expect(ratio.toNumber()).toBeCloseTo(4.0, 10)
   })
+
+  describe('calculateActivationMemory - prefill chunk bound', () => {
+    it('is unchanged at or below the prefill chunk', () => {
+      const at4k = calculateActivationMemory(llama7b, 4096, 1)
+      const at8k = calculateActivationMemory(llama7b, 8192, 1)
+
+      // 1 * 4096 * 11008 * 4 / 1024^3
+      expect(at4k.toNumber()).toBeCloseTo((4096 * 11008 * 4) / 1024 ** 3, 6)
+      expect(at8k.toNumber()).toBeCloseTo((8192 * 11008 * 4) / 1024 ** 3, 6)
+    })
+
+    it('plateaus above the prefill chunk instead of growing with the context window', () => {
+      const at8k = calculateActivationMemory(llama7b, 8192, 1)
+      const at128k = calculateActivationMemory(llama7b, 131072, 1)
+      const at1m = calculateActivationMemory(llama7b, 1048576, 1)
+
+      expect(at128k.toString()).toBe(at8k.toString())
+      expect(at1m.toString()).toBe(at8k.toString())
+    })
+
+    it('still scales with batch size above the chunk', () => {
+      const batch1 = calculateActivationMemory(llama7b, 1048576, 1)
+      const batch4 = calculateActivationMemory(llama7b, 1048576, 4)
+
+      expect(batch4.div(batch1).toNumber()).toBeCloseTo(4, 9)
+    })
+  })
 })
 
 describe('calculateMoEActiveParams', () => {
