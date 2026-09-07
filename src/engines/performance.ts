@@ -79,14 +79,16 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
 
   let computeBoundTPS: Decimal
 
-  // Handle missing FLOPS: If both fp16 and fp32 are undefined, never compute-bound
-  if (gpu.fp16_tflops !== undefined || gpu.fp32_tflops !== undefined) {
+  // Handle missing/non-positive FLOPS: a GPU with no usable FLOPS figure (undefined,
+  // zero, or negative — e.g. a user-entered custom-FLOPS value of 0) can never be
+  // compute-bound; treat it the same as "no FLOPS data" rather than dividing by zero.
+  const decodeGpuTFLOPS = gpu.fp16_tflops ?? gpu.fp32_tflops ?? 0
+  if (decodeGpuTFLOPS > 0) {
     // Prefer FP16 FLOPS (more relevant for inference), fallback to FP32
-    const gpuTFLOPS = gpu.fp16_tflops ?? gpu.fp32_tflops ?? 0
-    const gpuFLOPS = new Decimal(gpuTFLOPS).mul(1e12)
+    const gpuFLOPS = new Decimal(decodeGpuTFLOPS).mul(1e12)
     computeBoundTPS = gpuFLOPS.div(flopsPerToken).mul(batchSize)
   } else {
-    // No FLOPS data: set to Infinity (memory-bound only)
+    // No usable FLOPS data: set to Infinity (memory-bound only)
     computeBoundTPS = new Decimal(Infinity)
   }
 
@@ -140,8 +142,9 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   let prefillEstimateDegraded = false
   let timeToFirstToken: Decimal
 
-  if (gpu.fp16_tflops !== undefined || gpu.fp32_tflops !== undefined) {
-    const gpuTFLOPS = gpu.fp16_tflops ?? gpu.fp32_tflops ?? 0
+  const gpuTFLOPS = gpu.fp16_tflops ?? gpu.fp32_tflops ?? 0
+
+  if (gpuTFLOPS > 0) {
     let effectiveFLOPS = new Decimal(gpuTFLOPS).mul(1e12).mul(PREFILL_MFU)
 
     if (multiGPUResult && multiGPUResult.numGPUs > 1) {
@@ -153,8 +156,9 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     prefillSeconds = linearFLOPs.add(attentionFLOPs).div(effectiveFLOPS)
     timeToFirstToken = prefillSeconds.add(new Decimal(1).div(tokensPerSecond))
   } else {
-    // No FLOPS data: prefill time is not computable. Fall back to the previous
-    // heuristic rather than returning Infinity, and mark the estimate degraded.
+    // No usable FLOPS data (missing, zero, or negative): prefill time is not
+    // computable. Fall back to the previous heuristic rather than returning
+    // Infinity or NaN, and mark the estimate degraded.
     prefillEstimateDegraded = true
     timeToFirstToken = new Decimal(1).div(tokensPerSecond.mul(0.5))
   }

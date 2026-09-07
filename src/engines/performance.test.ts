@@ -2,6 +2,7 @@ import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { estimatePerformance } from './performance'
+import type { MultiGPUVRAMBreakdown } from './types'
 
 // Test fixtures
 const h100_80gb_sxm: GPU = {
@@ -105,7 +106,7 @@ describe('estimatePerformance', () => {
     // TTFT is now prefill (compute-bound) + one decode step, not a fixed multiple of
     // decode speed. At T=2048 the linear term dominates:
     //   linearFLOPs = 2 * 70e9 * 2048 = 2.8672e14
-    //   attentionFLOPs = 2 * 80 * 2048^2 * 8192 ≈ 5.494e12 (small next to linear)
+    //   attentionFLOPs = 2 * 80 * 2048^2 * 8192 ≈ 5.498e12 (small next to linear)
     //   effectiveFLOPS = 989e12 * 0.45 (PREFILL_MFU) = 4.4505e14
     //   prefillSeconds ≈ 2.9221e14 / 4.4505e14 ≈ 0.6566 s
     //   decodeSeconds = 1 / 23.9286 ≈ 0.0418 s
@@ -180,8 +181,8 @@ describe('estimatePerformance', () => {
     //   memoryBoundTPS = 3350e9 / (70e9 * 2) = 23.928571428571428571 tok/s (batch=1)
     //   decodeSeconds  = 1 / 23.928571428571428571 = 0.041791044776119403 s
     //   linearFLOPs    = 2 * 70e9 * 2048               = 286,720,000,000,000
-    //   attentionFLOPs = 2 * 80 * 2048^2 * 8192         =   5,494,281,338,880
-    //   totalFLOPs     = linearFLOPs + attentionFLOPs   = 292,214,281,338,880
+    //   attentionFLOPs = 2 * 80 * 2048^2 * 8192         =   5,497,558,138,880
+    //   totalFLOPs     = linearFLOPs + attentionFLOPs   = 292,217,558,138,880
     //   effectiveFLOPS = 989e12 * 0.45 (PREFILL_MFU)    = 445,050,000,000,000
     //   prefillSeconds = totalFLOPs / effectiveFLOPS    ≈ 0.656594895267678 s
     //   TTFT           = prefillSeconds + decodeSeconds ≈ 0.698385940043797 s
@@ -508,6 +509,84 @@ describe('estimatePerformance - prefill model', () => {
     expect(result.prefillEstimateDegraded).toBe(true)
     expect(result.timeToFirstToken.isFinite()).toBe(true)
     expect(result.timeToFirstToken.greaterThan(0)).toBe(true)
+  })
+
+  it('degrades gracefully instead of dividing by zero when fp16_tflops is 0', () => {
+    // A GPU with fp16_tflops: 0 (e.g. a user-entered custom-FLOPS value of 0) must not
+    // pass the "FLOPS data present" guard — otherwise effectiveFLOPS is 0 and
+    // prefillSeconds becomes Infinity with prefillEstimateDegraded left false.
+    const zeroFlopsGPU: GPU = { ...h100_80gb_sxm, fp16_tflops: 0, fp32_tflops: undefined }
+    const result = estimatePerformance({
+      model: llama7b,
+      gpu: zeroFlopsGPU,
+      quantization: 'fp16',
+      sequenceLength: 131072,
+      batchSize: 1,
+    })
+
+    expect(result.prefillSeconds).toBeNull()
+    expect(result.prefillEstimateDegraded).toBe(true)
+    expect(result.timeToFirstToken.isFinite()).toBe(true)
+    expect(result.timeToFirstToken.greaterThan(0)).toBe(true)
+  })
+})
+
+describe('estimatePerformance - multi-GPU scaling', () => {
+  // performance.ts applies `× numGPUs × scalingEfficiency` independently to decode
+  // (tokensPerSecond) and to prefill (via effectiveFLOPS) — two hand-copied blocks with
+  // no shared helper. This test binds them together so drift between the two would fail
+  // a test instead of passing green.
+  const multiGPUResult: MultiGPUVRAMBreakdown = {
+    numGPUs: 2,
+    strategy: 'tensor-parallel',
+    perGPU: {
+      modelWeights: new Decimal(0),
+      kvCache: new Decimal(0),
+      activations: new Decimal(0),
+      frameworkOverhead: new Decimal(0),
+      communicationOverhead: new Decimal(0),
+      total: new Decimal(0),
+    },
+    replicatedMemory: new Decimal(0),
+    totalPerGPU: new Decimal(0),
+    utilizationPercent: new Decimal(0),
+    singleGPUBaseline: new Decimal(0),
+    scalingEfficiency: 0.9,
+    interconnectBandwidthGBps: 900,
+  }
+
+  it('scales tokensPerSecond and prefillSeconds by the same numGPUs × scalingEfficiency factor', () => {
+    const singleGPU = estimatePerformance({
+      model: llama7b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 131072,
+      batchSize: 1,
+    })
+
+    const multiGPU = estimatePerformance({
+      model: llama7b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 131072,
+      batchSize: 1,
+      multiGPUResult,
+    })
+
+    const factor = multiGPUResult.numGPUs * multiGPUResult.scalingEfficiency
+
+    const tpsRatio = multiGPU.tokensPerSecond.div(singleGPU.tokensPerSecond).toNumber()
+    expect(tpsRatio).toBeCloseTo(factor, 9)
+
+    // Prefill time scales inversely with effectiveFLOPS (more FLOPS => less time), so the
+    // single-GPU / multi-GPU ratio (not multi-GPU / single-GPU) equals the same factor.
+    const singlePrefill = singleGPU.prefillSeconds
+    const multiPrefill = multiGPU.prefillSeconds
+    if (singlePrefill === null || multiPrefill === null) {
+      throw new Error('expected prefillSeconds to be computable for this GPU')
+    }
+    const prefillRatio = singlePrefill.div(multiPrefill).toNumber()
+    expect(prefillRatio).toBeCloseTo(factor, 9)
   })
 })
 
