@@ -63,9 +63,14 @@ export function calculateMoEActiveParams(model: Model): number {
   // dense/shared FFN width (DeepSeek R1: 18432 against a real moe_intermediate_size of
   // 2048). For those architectures this derivation is a rough fallback, not a faithful
   // per-expert count. In practice it currently only runs for the two models without an
-  // explicit `active_parameters_billion` (DeepSeek V4 Flash and Pro), and both of those
-  // do store a plausibly per-expert width; every other MoE entry supplies a verified
-  // Tier 1 value and never reaches this branch.
+  // explicit `active_parameters_billion` (DeepSeek V4 Flash and Pro), and for those two
+  // the stored width IS the per-expert one — verified against their config.json, whose
+  // `moe_intermediate_size` reads 2048 and 3072 respectively. A separate defect does
+  // remain for them: their stored `num_parameters_billion` (158.1 / 861.6) sits well
+  // below the real total, so `expertParams` exceeds it, `nonExpertParams` clamps to 0,
+  // and the shared expert (`n_shared_experts: 1`) goes uncounted — leaving 6.5B and
+  // 24.2B, roughly 15-25% low. Every other MoE entry supplies a verified Tier 1 value
+  // and never reaches this branch.
   // Expert parameters are layers x experts x 3 projections (gate, up, down) x hidden x
   // intermediate_size, under the (architecture-dependent) assumption above.
   const expertParams = new Decimal(model.num_hidden_layers)
