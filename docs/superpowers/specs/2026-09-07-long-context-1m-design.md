@@ -143,6 +143,15 @@ TTFT           = prefillSeconds + 1 / tokensPerSecond
 - the memory-bound decode roofline, and
 - the linear term of `prefillFLOPs`.
 
+**These two consume `activeParams` differently, and conflating them would silently break
+every quantized MoE model:**
+
+- Decode reads *bytes*, so it must keep routing through the quantization helper:
+  `calculateModelWeightVRAM(activeParams, quantization).mul(BYTES_PER_GB)`. Do **not**
+  hardcode `activeParams × 2`.
+- Prefill's linear term counts *FLOPs*, which are precision-independent:
+  `2 × activeParams × T`, with no quantization factor.
+
 Weight VRAM continues to use **total** parameters. The CLAUDE.md MoE rule ("all expert
 weights must fit in VRAM") is unaffected — only throughput changes.
 
@@ -203,6 +212,11 @@ MiniMax M2.7, MiniMax M3, Mistral Large 3 675B, Mistral Small 4 119B.
 This is the bulk of the data work and is sized here deliberately rather than discovered
 during implementation.
 
+**When verification fails** — several of these (Kimi K3 at 2,779.9B, Qwen3.8 2.4T A95B,
+DeepSeek V4 Pro) may have no public `config.json` reachable from `hf_url` — leave
+`active_parameters_billion` **absent** for that model and let B2 tier 2 derive it. Do not
+guess, and do not block the other entries on it. Record which models ended up on tier 2.
+
 `src/data/models.json` must stay sorted alphabetically by `name` after editing.
 
 ### B4. Refresh-script consistency check
@@ -258,8 +272,14 @@ Fixed in this change. All three files are already being touched, and leaving a l
 
 ### C5. Tests
 
-- `inference.test.ts`, `inference.integration.test.ts` — only cases above 8,192 tokens
-  move, thanks to the preserved `× 4`. New cases: activation plateau at 8K / 128K / 1M.
+- `inference.test.ts`, `inference.integration.test.ts` — churn measured, not assumed:
+  exactly **one** existing case uses a sequence length above 8,192
+  (`inference.integration.test.ts:243`, "long context: 131K tokens"). Its assertions are
+  ratios and lower bounds (`kvCacheRatio > 0.3`), which only strengthen when activations
+  shrink, so it should keep passing on value. It does call `estimatePerformance` and will
+  need the new `sequenceLength` argument. (`optimizations.test.ts` uses 16,384 twice, but
+  on the training flash-attention path, which this change does not touch.) New cases:
+  activation plateau at 8K / 128K / 1M.
 - `performance.test.ts` — substantial rewrite; the signature and formula both change.
   New cases: quadratic TTFT growth, `linear` → `attention` crossover, MoE throughput on
   active params, GPU with no FLOPS data.
