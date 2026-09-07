@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-09-07
+
 ### Added
 
 - Sequence lengths up to 10,485,760 tokens, with 256K / 512K / 1M presets, a marker for
