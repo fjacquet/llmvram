@@ -14,7 +14,8 @@
     "context_length": 131072,
     "license": "MIT",
     "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1",
-    "kv_cache_elements_per_token": 35136
+    "kv_cache_elements_per_token": 35136,
+    "active_parameters_billion": 37
   },
   {
     "id": "deepseek-r1-distill-llama-70b",
@@ -106,7 +107,8 @@
     "num_experts_per_token": 8,
     "context_length": 131072,
     "license": "MIT",
-    "hf_url": "https://huggingface.co/THUDM/GLM-4.7"
+    "hf_url": "https://huggingface.co/THUDM/GLM-4.7",
+    "active_parameters_billion": 38.8
   },
   {
     "id": "zai-org-glm-4.7-flash",
@@ -122,7 +124,8 @@
     "num_experts_per_token": 4,
     "context_length": 131072,
     "license": "MIT",
-    "hf_url": "https://huggingface.co/THUDM/GLM-4.7-Flash"
+    "hf_url": "https://huggingface.co/THUDM/GLM-4.7-Flash",
+    "active_parameters_billion": 3
   },
   {
     "id": "zai-org-glm-5.2",
@@ -139,7 +142,8 @@
     "context_length": 1048576,
     "license": "MIT",
     "hf_url": "https://huggingface.co/zai-org/GLM-5.2",
-    "kv_cache_elements_per_token": 44928
+    "kv_cache_elements_per_token": 44928,
+    "active_parameters_billion": 51.2
   },
   {
     "id": "openai-gpt-oss-120b",
@@ -155,7 +159,8 @@
     "num_experts_per_token": 4,
     "context_length": 131072,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/openai/gpt-oss-120b"
+    "hf_url": "https://huggingface.co/openai/gpt-oss-120b",
+    "active_parameters_billion": 5.1
   },
   {
     "id": "openai-gpt-oss-20b",
@@ -171,7 +176,8 @@
     "num_experts_per_token": 4,
     "context_length": 131072,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/openai/gpt-oss-20b"
+    "hf_url": "https://huggingface.co/openai/gpt-oss-20b",
+    "active_parameters_billion": 3.6
   },
   {
     "id": "google-gemma-3-12b",
@@ -257,7 +263,8 @@
     "num_experts_per_token": 8,
     "context_length": 262144,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/google/gemma-4-26B-A4B-it"
+    "hf_url": "https://huggingface.co/google/gemma-4-26B-A4B-it",
+    "active_parameters_billion": 4
   },
   {
     "id": "google-gemma-4-31b",
@@ -288,7 +295,8 @@
     "context_length": 131072,
     "license": "MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2-Instruct",
-    "kv_cache_elements_per_token": 35136
+    "kv_cache_elements_per_token": 35136,
+    "active_parameters_billion": 32
   },
   {
     "id": "moonshotai-kimi-k2-thinking",
@@ -305,7 +313,8 @@
     "context_length": 262144,
     "license": "Modified MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2-Thinking",
-    "kv_cache_elements_per_token": 35136
+    "kv_cache_elements_per_token": 35136,
+    "active_parameters_billion": 32
   },
   {
     "id": "moonshotai-kimi-k2.5",
@@ -322,7 +331,8 @@
     "context_length": 131072,
     "license": "MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2.5",
-    "kv_cache_elements_per_token": 35136
+    "kv_cache_elements_per_token": 35136,
+    "active_parameters_billion": 32
   },
   {
     "id": "moonshotai-kimi-k2.6",
@@ -339,7 +349,8 @@
     "context_length": 262144,
     "license": "Modified MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2.6",
-    "kv_cache_elements_per_token": 35136
+    "kv_cache_elements_per_token": 35136,
+    "active_parameters_billion": 32
   },
   {
     "id": "moonshotai-kimi-k2.7-code",
@@ -356,7 +367,8 @@
     "context_length": 262144,
     "license": "Modified MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2.7-Code",
-    "kv_cache_elements_per_token": 35136
+    "kv_cache_elements_per_token": 35136,
+    "active_parameters_billion": 32
   },
   {
     "id": "moonshotai-kimi-k3",
@@ -373,7 +385,8 @@
     "context_length": 1048576,
     "license": "Modified MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K3",
-    "kv_cache_elements_per_token": 13824
+    "kv_cache_elements_per_token": 13824,
+    "active_parameters_billion": 104
   },
   {
     "id": "moonshotai-kimi-linear-48b-a3b",
@@ -390,7 +403,8 @@
     "context_length": 1048576,
     "license": "MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct",
-    "kv_cache_elements_per_token": 4032
+    "kv_cache_elements_per_token": 4032,
+    "active_parameters_billion": 3
   },
   {
     "id": "liquidai-lfm2.5-2.6b",
@@ -478,7 +492,8 @@
     "context_length": 262144,
     "license": "MIT",
     "hf_url": "https://huggingface.co/inclusionAI/Ling-3.0-flash",
-    "kv_cache_elements_per_token": 4032
+    "kv_cache_elements_per_token": 4032,
+    "active_parameters_billion": 5.1
   },
   {
     "id": "inclusionai-ling-3.0-tiny",
@@ -495,7 +510,8 @@
     "context_length": 131072,
     "license": "MIT",
     "hf_url": "https://huggingface.co/inclusionAI/Ling-3.0-tiny",
-    "kv_cache_elements_per_token": 3456
+    "kv_cache_elements_per_token": 3456,
+    "active_parameters_billion": 1.3
   },
   {
     "id": "meta-llama-llama-4-maverick",
@@ -511,7 +527,8 @@
     "num_experts_per_token": 1,
     "context_length": 1048576,
     "license": "Llama-4",
-    "hf_url": "https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct"
+    "hf_url": "https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+    "active_parameters_billion": 17
   },
   {
     "id": "meta-llama-llama-4-scout",
@@ -527,7 +544,8 @@
     "num_experts_per_token": 1,
     "context_length": 10485760,
     "license": "Llama-4",
-    "hf_url": "https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct"
+    "hf_url": "https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+    "active_parameters_billion": 17
   },
   {
     "id": "mistralai-magistral-small-2507",
@@ -558,7 +576,8 @@
     "context_length": 1000192,
     "license": "MiniMax",
     "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M2.1",
-    "kv_cache_elements_per_token": 126976
+    "kv_cache_elements_per_token": 126976,
+    "active_parameters_billion": 10.3
   },
   {
     "id": "minimax-m2.5",
@@ -575,7 +594,8 @@
     "context_length": 196608,
     "license": "MiniMax",
     "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M2.5",
-    "kv_cache_elements_per_token": 126976
+    "kv_cache_elements_per_token": 126976,
+    "active_parameters_billion": 11.3
   },
   {
     "id": "minimax-m2.7",
@@ -592,7 +612,8 @@
     "context_length": 204800,
     "license": "MiniMax",
     "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M2.7",
-    "kv_cache_elements_per_token": 126976
+    "kv_cache_elements_per_token": 126976,
+    "active_parameters_billion": 10.3
   },
   {
     "id": "minimax-m3",
@@ -609,7 +630,8 @@
     "context_length": 1048576,
     "license": "MiniMax",
     "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M3",
-    "kv_cache_elements_per_token": 61440
+    "kv_cache_elements_per_token": 61440,
+    "active_parameters_billion": 23
   },
   {
     "id": "mistralai-ministral-3-14b-reasoning",
@@ -639,7 +661,8 @@
     "num_experts_per_token": 4,
     "context_length": 294912,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512"
+    "hf_url": "https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512",
+    "active_parameters_billion": 41
   },
   {
     "id": "mistralai-mistral-medium-3.5-128b",
@@ -669,7 +692,8 @@
     "num_experts_per_token": 4,
     "context_length": 1048576,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603"
+    "hf_url": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603",
+    "active_parameters_billion": 7.1
   },
   {
     "id": "nvidia-nemotron-3-nano-30b-a3b",
@@ -686,7 +710,8 @@
     "context_length": 262144,
     "license": "other",
     "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
-    "kv_cache_elements_per_token": 3072
+    "kv_cache_elements_per_token": 3072,
+    "active_parameters_billion": 3
   },
   {
     "id": "nvidia-nemotron-3-nano-4b",
@@ -718,7 +743,8 @@
     "context_length": 262144,
     "license": "other",
     "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16",
-    "kv_cache_elements_per_token": 4096
+    "kv_cache_elements_per_token": 4096,
+    "active_parameters_billion": 12
   },
   {
     "id": "nvidia-nemotron-3-ultra-550b-a55b",
@@ -735,7 +761,8 @@
     "context_length": 262144,
     "license": "other",
     "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16",
-    "kv_cache_elements_per_token": 6144
+    "kv_cache_elements_per_token": 6144,
+    "active_parameters_billion": 55
   },
   {
     "id": "nvidia-nemotron-3.5-lightning-30b-a3b",
@@ -752,7 +779,8 @@
     "context_length": 262144,
     "license": "other",
     "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16",
-    "kv_cache_elements_per_token": 3072
+    "kv_cache_elements_per_token": 3072,
+    "active_parameters_billion": 3
   },
   {
     "id": "nvidia-llama-3.1-nemotron-ultra-253b",
@@ -782,7 +810,8 @@
     "num_experts_per_token": 8,
     "context_length": 131072,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/Qwen/Qwen3-235B-A22B"
+    "hf_url": "https://huggingface.co/Qwen/Qwen3-235B-A22B",
+    "active_parameters_billion": 22
   },
   {
     "id": "qwen-qwen3.6-27b",
@@ -812,7 +841,8 @@
     "num_experts_per_token": 8,
     "context_length": 262144,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+    "hf_url": "https://huggingface.co/Qwen/Qwen3.6-35B-A3B",
+    "active_parameters_billion": 3
   },
   {
     "id": "qwen-qwen3.8-2.4t-a95b",
@@ -829,7 +859,8 @@
     "context_length": 262144,
     "license": "Qwen",
     "hf_url": "https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B",
-    "kv_cache_elements_per_token": 47104
+    "kv_cache_elements_per_token": 47104,
+    "active_parameters_billion": 95
   },
   {
     "id": "qwen-qwen3.8-27b",

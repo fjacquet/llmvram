@@ -1,5 +1,10 @@
 import { writeFile } from 'node:fs/promises'
+import existingModels from '../src/data/models.json' with { type: 'json' }
 import { type Model, validateModels } from '../src/utils/schemas'
+
+// Lookup of already-curated models by id, used to carry forward hand-verified
+// fields (active_parameters_billion) that this script cannot derive on its own.
+const existingModelsById = new Map<string, Model>(existingModels.map((m) => [m.id, m as Model]))
 
 // Model IDs to fetch — current-generation curated roster (2026-08-18 refresh).
 // NOTE: multimodal models (Gemma 4, Qwen3.6, MiniMax M3, Mistral 3) expose the
@@ -106,7 +111,43 @@ async function fetchModelConfig(modelId: string): Promise<Model> {
     model.num_experts_per_token = config.num_experts_per_tok
   }
 
+  // Carry forward a hand-verified active_parameters_billion from the curated
+  // models.json so a refresh never drops a value this script cannot derive itself.
+  const existing = existingModelsById.get(model.id)
+  if (existing?.active_parameters_billion) {
+    model.active_parameters_billion = existing.active_parameters_billion
+  }
+
   return model
+}
+
+/**
+ * Warn when a curated active_parameters_billion diverges from what the model's own
+ * dimensions imply. Catches a stale hand-entered value on refresh without ever
+ * overwriting a verified one.
+ */
+function checkActiveParamsConsistency(model: Model): void {
+  if (!model.active_parameters_billion) return
+  if (!model.num_experts || !model.num_experts_per_token) return
+
+  const expertParams =
+    (model.num_hidden_layers *
+      model.num_experts *
+      3 *
+      model.hidden_size *
+      model.intermediate_size) /
+    1e9
+  const nonExpert = Math.max(model.num_parameters_billion - expertParams, 0)
+  const derived = nonExpert + expertParams * (model.num_experts_per_token / model.num_experts)
+
+  const divergence =
+    Math.abs(derived - model.active_parameters_billion) / model.active_parameters_billion
+  if (divergence > 0.25) {
+    console.warn(
+      `WARN ${model.name}: active_parameters_billion=${model.active_parameters_billion} ` +
+        `but dimensions imply ~${derived.toFixed(1)}B (${(divergence * 100).toFixed(0)}% apart)`,
+    )
+  }
 }
 
 function estimateParameterCount(config: HFConfig): number {
@@ -145,6 +186,7 @@ async function main() {
   for (const modelId of MODEL_IDS) {
     try {
       const model = await fetchModelConfig(modelId)
+      checkActiveParamsConsistency(model)
       models.push(model)
     } catch (error) {
       const errorMsg = `Failed to fetch ${modelId}: ${error}`
