@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Sequence lengths up to 10,485,760 tokens, with 256K / 512K / 1M presets, a marker for
+  the selected model's native context, and a warning (never a clamp) when the requested
+  context exceeds it.
+- `active_parameters_billion` on MoE models, verified per model (31 of 33 MoE models
+  carry a verified value; DeepSeek V4 Flash and DeepSeek V4 Pro fall back to a derived
+  estimate).
+- Prompt-processing time in the results panel, labelled by whether the linear weight term
+  or the quadratic attention term dominates.
+
+### Fixed
+
+- Activation memory scaled with the full context window, reporting 68 GB at 1M tokens for
+  a 27B dense model. It is now bounded by the 8,192-token prefill chunk (vLLM's default
+  `max_num_batched_tokens`), dropping that figure to 0.53 GB. **VRAM figures above 8,192
+  tokens decrease; figures at or below 8,192 are unchanged.**
+- Decode throughput divided memory bandwidth by total rather than active parameters,
+  making every MoE model report roughly its expert ratio too slow. **MoE tokens/sec
+  figures increase substantially — the reference case (Qwen3.6 35B A3B) goes from
+  3.8 to roughly 45 tok/s.**
+- Time to first token had no dependence on sequence length; it is now modelled from
+  prefill FLOPs (a linear weight term plus a quadratic causal-attention term).
+  **All TTFT figures change.** On LLaMA 3.1 70B / H100 SXM, 2,048 tokens now reports
+  656.6 ms in the `linear` regime and 1,048,576 tokens reports 3,568 s in the
+  `attention` regime.
+- The comparison view stored seconds in a field rendered as milliseconds, showing 0.53 s
+  as "1 ms".
+
 ## [1.8.0] - 2026-09-07
 
 ### Added

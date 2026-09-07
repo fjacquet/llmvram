@@ -17,10 +17,15 @@ Browser-based tool for estimating VRAM requirements and performance when running
 - **22 Quantization Formats**: FP32, FP16, BF16, INT8, INT4, NF4, GPTQ, AWQ, GGUF Q2-Q8, NVFP4/6
 - **KV Cache Quantization**: Independent from weight quantization (FP16, FP8, INT8, INT4)
 - **Concurrent Users**: Size KV cache for 1–256 simultaneous sessions; shows per-user tok/s and TTFT
+- **Long Context**: Sequence lengths up to 1,048,576 tokens (and beyond for models with a larger
+  native context, up to 10,485,760), with a native-context marker and a warning — never a clamp —
+  when the requested length exceeds it
 - **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink-5/4, PCIe-5/4)
 - **Interconnect Selector**: Pick the active interconnect variant for GPUs with multiple options
 - **Offloading**: CPU/RAM and NVMe offloading simulation with performance impact
-- **Performance Estimation**: Tokens/sec, time-to-first-token, bottleneck analysis (roofline model)
+- **Performance Estimation**: Tokens/sec (using active parameters for MoE models),
+  prompt-processing time and time-to-first-token modelled from prefill FLOPs (linear weight term
+  plus quadratic attention term), bottleneck analysis (roofline model)
 - **Configuration Comparison**: Save and diff up to 3 configurations side-by-side
 - **URL Sharing**: LZ-String compressed state in URL hash for shareable links
 - **MoE Architecture**: Correct handling of total vs active parameters
