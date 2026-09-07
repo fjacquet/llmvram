@@ -402,3 +402,14 @@ export const INTERCONNECT_LABELS: Partial<Record<string, string>> = {
   unified: 'Unified Memory',
   none: 'None (single GPU)',
 }
+
+/**
+ * Model FLOPs Utilization during prefill
+ *
+ * Prefill is compute-bound and reaches far higher utilization than decode: the
+ * literature reports 40-60% MFU for prefill against 1-5% for batch-1 decode.
+ * 0.45 sits inside that range.
+ *
+ * Used as: prefillSeconds = prefillFLOPs / (gpuFLOPS * PREFILL_MFU)
+ */
+export const PREFILL_MFU = new Decimal(0.45)

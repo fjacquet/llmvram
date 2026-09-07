@@ -70,8 +70,14 @@ export interface InferenceVRAMBreakdown {
 export interface PerformanceEstimate {
   /** Throughput during decoding phase (tokens/sec) */
   tokensPerSecond: Decimal
-  /** Prefill latency (time to process prompt) in seconds — multiply by 1000 for ms display */
+  /** Latency to the first output token, in seconds — multiply by 1000 for ms display */
   timeToFirstToken: Decimal
+  /** Prompt-processing time in seconds; null when the GPU has no FLOPS data */
+  prefillSeconds: Decimal | null
+  /** Which prefill term dominates: the linear 2*N*T term or the quadratic attention term */
+  prefillBottleneck: 'linear' | 'attention'
+  /** True when TTFT fell back to the pre-prefill-model heuristic for lack of FLOPS data */
+  prefillEstimateDegraded: boolean
   /** True if performance limited by TFLOPS (small batch, short sequence) */
   isComputeBound: boolean
   /** True if performance limited by memory bandwidth (large batch, long sequence) */

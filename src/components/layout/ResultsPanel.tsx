@@ -320,7 +320,7 @@ export function ResultsPanel() {
         activations: result.vram.activations.toNumber(),
         frameworkOverhead: result.vram.frameworkOverhead.toNumber(),
         tokensPerSecond: result.performance.tokensPerSecond.toNumber(),
-        timeToFirstToken: result.performance.timeToFirstToken.toNumber(),
+        timeToFirstToken: result.performance.timeToFirstToken.mul(1000).toNumber(),
         bottleneck: result.performance.bottleneck,
         fits: !doesNotFit,
         perGPUTotal: result.multiGPU?.totalPerGPU.toNumber() ?? null,

@@ -1,6 +1,7 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
-import { BYTES_PER_GB } from './constants'
+import { BYTES_PER_GB, PREFILL_MFU } from './constants'
+import { calculateMoEActiveParams } from './inference'
 import { calculateModelWeightVRAM } from './quantization'
 import type { MultiGPUVRAMBreakdown, PerformanceEstimate, QuantizationFormat } from './types'
 
@@ -16,6 +17,8 @@ export interface PerformanceParams {
   quantization: QuantizationFormat
   /** Number of concurrent sequences (batch size) */
   batchSize: number
+  /** Prompt length in tokens — drives prefill time and therefore TTFT */
+  sequenceLength: number
   /** Optional multi-GPU result; when provided, tokens/sec is scaled by numGPUs × scalingEfficiency */
   multiGPUResult?: MultiGPUVRAMBreakdown | null
 }
@@ -31,11 +34,15 @@ export interface PerformanceParams {
  *
  * Performance is the minimum of these two bounds (hence "roofline").
  *
- * **TTFT (Time To First Token)** is estimated as 2x slower than decode because prefill
- * processes the entire prompt at once with quadratic attention, while decode is linear.
+ * **TTFT (Time To First Token)** is modeled as a compute-bound prefill pass over the
+ * prompt, plus one decode step. Prefill FLOPs have two terms: a linear
+ * `2 * activeParams * T` term (same per-token cost as decode, precision-independent)
+ * and a quadratic causal-attention term `2 * layers * T^2 * hidden`. Dividing by
+ * `gpuFLOPS * PREFILL_MFU` gives prefill seconds; when the GPU exposes no FLOPS data,
+ * TTFT falls back to the previous heuristic and the estimate is marked degraded.
  *
- * @param params - Model, GPU, quantization, and batch size
- * @returns Performance estimate with tokens/sec, TTFT, and bottleneck analysis
+ * @param params - Model, GPU, quantization, batch size, and prompt sequence length
+ * @returns Performance estimate with tokens/sec, TTFT, prefill breakdown, and bottleneck analysis
  *
  * @example
  * ```ts
@@ -44,30 +51,31 @@ export interface PerformanceParams {
  *   model: llama3_70b,
  *   gpu: h100_80gb_sxm,
  *   quantization: 'fp16',
- *   batchSize: 1
+ *   batchSize: 1,
+ *   sequenceLength: 2048,
  * })
  * // perf.tokensPerSecond ≈ 23.9 (memory-bound)
  * // perf.bottleneck === 'memory'
- * // perf.timeToFirstToken ≈ 0.083 seconds
+ * // perf.prefillBottleneck === 'linear'
  * ```
  */
 export function estimatePerformance(params: PerformanceParams): PerformanceEstimate {
-  const { model, gpu, quantization, batchSize, multiGPUResult } = params
+  const { model, gpu, quantization, sequenceLength, batchSize, multiGPUResult } = params
 
-  // 1. Calculate model size in bytes (for memory-bound estimate)
-  const modelSizeGB = calculateModelWeightVRAM(model.num_parameters_billion, quantization)
+  // 1. Bytes read per decode token. MoE decode touches only the active experts, so
+  //    this uses active params — but it must still route through the quantization
+  //    helper, because bytes depend on precision. Never hardcode `x 2` here.
+  const activeParams = calculateMoEActiveParams(model)
+  const modelSizeGB = calculateModelWeightVRAM(activeParams, quantization)
   const modelSizeBytes = modelSizeGB.mul(BYTES_PER_GB)
 
   // 2. Memory-bound tokens/sec (dominant for LLM inference)
-  // Each decode token requires reading all model weights once
-  // Throughput = (bandwidth in bytes/sec) / (model size in bytes) * batch
   const bandwidthBytesPerSec = new Decimal(gpu.memory_bandwidth_gbps).mul(1e9)
   const memoryBoundTPS = bandwidthBytesPerSec.div(modelSizeBytes).mul(batchSize)
 
-  // 3. Compute-bound tokens/sec
-  // Forward pass requires ~2 FLOPs per parameter (1 multiply + 1 add)
-  // Throughput = (GPU FLOPS) / (FLOPs per token) * batch
-  const flopsPerToken = new Decimal(model.num_parameters_billion).mul(2e9)
+  // 3. Compute-bound tokens/sec. FLOPs are precision-independent: ~2 FLOPs per
+  //    active parameter (one multiply, one add).
+  const flopsPerToken = new Decimal(activeParams).mul(2e9)
 
   let computeBoundTPS: Decimal
 
@@ -112,13 +120,51 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     isComputeBound = true
   }
 
-  // 6. TTFT estimation (prefill is 2x slower than decode)
-  // TTFT = 1 / (decode_speed * 0.5)
-  const timeToFirstToken = new Decimal(1).div(tokensPerSecond.mul(0.5))
+  // 6. Prefill model. Prefill is compute-bound — a different roofline regime from the
+  //    bandwidth-bound decode above. Two terms:
+  //      linear:    2 * activeParams * T          (precision-independent FLOPs)
+  //      attention: 2 * layers * T^2 * hidden      (1/2 * 4 * T^2 * D * L, causal)
+  //    Batch is NOT applied: TTFT is a per-request latency for one sequence of T tokens.
+  const promptTokens = new Decimal(sequenceLength)
+  const linearFLOPs = new Decimal(activeParams).mul(2e9).mul(promptTokens)
+  const attentionFLOPs = new Decimal(2)
+    .mul(model.num_hidden_layers)
+    .mul(promptTokens.pow(2))
+    .mul(model.hidden_size)
+
+  const prefillBottleneck: 'linear' | 'attention' = attentionFLOPs.greaterThan(linearFLOPs)
+    ? 'attention'
+    : 'linear'
+
+  let prefillSeconds: Decimal | null = null
+  let prefillEstimateDegraded = false
+  let timeToFirstToken: Decimal
+
+  if (gpu.fp16_tflops !== undefined || gpu.fp32_tflops !== undefined) {
+    const gpuTFLOPS = gpu.fp16_tflops ?? gpu.fp32_tflops ?? 0
+    let effectiveFLOPS = new Decimal(gpuTFLOPS).mul(1e12).mul(PREFILL_MFU)
+
+    if (multiGPUResult && multiGPUResult.numGPUs > 1) {
+      effectiveFLOPS = effectiveFLOPS
+        .mul(multiGPUResult.numGPUs)
+        .mul(multiGPUResult.scalingEfficiency)
+    }
+
+    prefillSeconds = linearFLOPs.add(attentionFLOPs).div(effectiveFLOPS)
+    timeToFirstToken = prefillSeconds.add(new Decimal(1).div(tokensPerSecond))
+  } else {
+    // No FLOPS data: prefill time is not computable. Fall back to the previous
+    // heuristic rather than returning Infinity, and mark the estimate degraded.
+    prefillEstimateDegraded = true
+    timeToFirstToken = new Decimal(1).div(tokensPerSecond.mul(0.5))
+  }
 
   return {
     tokensPerSecond,
     timeToFirstToken,
+    prefillSeconds,
+    prefillBottleneck,
+    prefillEstimateDegraded,
     isMemoryBound,
     isComputeBound,
     bottleneck,

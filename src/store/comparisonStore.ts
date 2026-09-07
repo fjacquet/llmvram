@@ -31,7 +31,7 @@ export interface ConfigSnapshot {
     activations: number // GB
     frameworkOverhead: number // GB
     tokensPerSecond: number
-    timeToFirstToken: number // ms
+    timeToFirstToken: number // ms — producers must multiply the engine's seconds by 1000
     bottleneck: string // 'compute' | 'memory' | 'balanced'
     fits: boolean // Whether model fits on GPU(s)
     // Multi-GPU (if applicable)

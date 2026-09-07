@@ -54,6 +54,17 @@ describe('comparisonStore', () => {
     expect(snapshots[0]?.timestamp).toBeGreaterThan(0)
   })
 
+  it('addSnapshot stores results verbatim', () => {
+    const base = makeSnapshot('ttft units')
+    useComparisonStore.getState().addSnapshot({
+      ...base,
+      results: { ...base.results, timeToFirstToken: 527 },
+    })
+
+    const stored = useComparisonStore.getState().snapshots[0]
+    expect(stored?.results.timeToFirstToken).toBe(527)
+  })
+
   it('should evict oldest when adding beyond maxSnapshots (3)', () => {
     const store = useComparisonStore.getState()
     store.addSnapshot(makeSnapshot('First'))

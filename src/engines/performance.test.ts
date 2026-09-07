@@ -55,6 +55,17 @@ const tiny_1b_model: Model = {
   intermediate_size: 8192,
 }
 
+const llama7b: Model = {
+  id: 'test-llama-7b',
+  name: 'Test Llama 7B',
+  architecture: 'dense',
+  num_parameters_billion: 7,
+  hidden_size: 4096,
+  num_hidden_layers: 32,
+  num_attention_heads: 32,
+  intermediate_size: 11008,
+}
+
 const gpu_no_flops: GPU = {
   id: 'test-gpu-no-flops',
   name: 'Test GPU No FLOPS',
@@ -71,13 +82,14 @@ describe('estimatePerformance', () => {
   it('should identify memory-bound scenario for typical LLM inference', () => {
     // LLaMA 3 70B FP16 on H100 80GB SXM
     // Model size: 70B * 2 bytes = 140GB = ~130.39 GiB
-    // Memory-bound TPS: 3350 GB/s / 130.39 GB ≈ 25.7 tokens/sec
+    // Memory-bound TPS: 3350 GB/s / 130.39 GB ≈ 23.93 tokens/sec
     // Compute-bound TPS: 989 TFLOPS / (70B * 2) = 989e12 / 140e9 ≈ 7064 tokens/sec
-    // Result: memory-bound (~25.7 tok/s)
+    // Result: memory-bound (~23.93 tok/s)
     const result = estimatePerformance({
       model: llama3_70b,
       gpu: h100_80gb_sxm,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -90,9 +102,16 @@ describe('estimatePerformance', () => {
     expect(result.isMemoryBound).toBe(true)
     expect(result.isComputeBound).toBe(false)
 
-    // Verify TTFT is positive and reasonable (< 0.1 seconds)
-    expect(result.timeToFirstToken.toNumber()).toBeGreaterThan(0)
-    expect(result.timeToFirstToken.toNumber()).toBeLessThan(0.1)
+    // TTFT is now prefill (compute-bound) + one decode step, not a fixed multiple of
+    // decode speed. At T=2048 the linear term dominates:
+    //   linearFLOPs = 2 * 70e9 * 2048 = 2.8672e14
+    //   attentionFLOPs = 2 * 80 * 2048^2 * 8192 ≈ 5.494e12 (small next to linear)
+    //   effectiveFLOPS = 989e12 * 0.45 (PREFILL_MFU) = 4.4505e14
+    //   prefillSeconds ≈ 2.9221e14 / 4.4505e14 ≈ 0.6566 s
+    //   decodeSeconds = 1 / 23.9286 ≈ 0.0418 s
+    //   TTFT ≈ 0.6984 s
+    expect(result.timeToFirstToken.toNumber()).toBeGreaterThan(0.6)
+    expect(result.timeToFirstToken.toNumber()).toBeLessThan(0.8)
   })
 
   it('should show higher throughput for GPTQ quantized models', () => {
@@ -104,6 +123,7 @@ describe('estimatePerformance', () => {
       model: llama3_70b,
       gpu: h100_80gb_sxm,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -111,6 +131,7 @@ describe('estimatePerformance', () => {
       model: llama3_70b,
       gpu: h100_80gb_sxm,
       quantization: 'gptq',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -132,6 +153,7 @@ describe('estimatePerformance', () => {
       model: llama3_70b,
       gpu: h100_80gb_sxm,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -139,6 +161,7 @@ describe('estimatePerformance', () => {
       model: llama3_70b,
       gpu: h100_80gb_sxm,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 4,
     })
 
@@ -149,19 +172,29 @@ describe('estimatePerformance', () => {
     expect(ratio).toBeLessThan(1.05)
   })
 
-  it('should estimate TTFT at 0.5x decode speed', () => {
+  it('should estimate TTFT using the two-term compute-bound prefill model', () => {
+    // TTFT is no longer a fixed multiple of decode speed — it is prefill time
+    // (compute-bound roofline) plus one decode step.
+    //
+    // LLaMA 3 70B FP16 on H100 80GB SXM, sequenceLength = 2048:
+    //   memoryBoundTPS = 3350e9 / (70e9 * 2) = 23.928571428571428571 tok/s (batch=1)
+    //   decodeSeconds  = 1 / 23.928571428571428571 = 0.041791044776119403 s
+    //   linearFLOPs    = 2 * 70e9 * 2048               = 286,720,000,000,000
+    //   attentionFLOPs = 2 * 80 * 2048^2 * 8192         =   5,494,281,338,880
+    //   totalFLOPs     = linearFLOPs + attentionFLOPs   = 292,214,281,338,880
+    //   effectiveFLOPS = 989e12 * 0.45 (PREFILL_MFU)    = 445,050,000,000,000
+    //   prefillSeconds = totalFLOPs / effectiveFLOPS    ≈ 0.656594895267678 s
+    //   TTFT           = prefillSeconds + decodeSeconds ≈ 0.698385940043797 s
     const result = estimatePerformance({
       model: llama3_70b,
       gpu: h100_80gb_sxm,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
-    // TTFT should be 1 / (tokensPerSecond * 0.5) = 2 / tokensPerSecond
-    const expectedTTFT = new Decimal(2).div(result.tokensPerSecond)
-    const ttftRatio = result.timeToFirstToken.div(expectedTTFT).toNumber()
-
-    expect(ttftRatio).toBeCloseTo(1.0, 2)
+    expect(result.prefillSeconds?.toNumber()).toBeCloseTo(0.656594895267678, 9)
+    expect(result.timeToFirstToken.toNumber()).toBeCloseTo(0.698385940043797, 9)
   })
 
   it('should handle missing FLOPS data gracefully', () => {
@@ -170,6 +203,7 @@ describe('estimatePerformance', () => {
       model: llama3_8b,
       gpu: gpu_no_flops,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -193,6 +227,7 @@ describe('estimatePerformance', () => {
       model: tiny_1b_model,
       gpu: h100_80gb_sxm,
       quantization: 'int4',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -210,6 +245,7 @@ describe('estimatePerformance', () => {
       model: llama3_70b,
       gpu: h100_80gb_sxm,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -255,6 +291,7 @@ describe('estimatePerformance', () => {
       model: tiny_1b_model,
       gpu: low_flops_gpu,
       quantization: 'int4',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -304,6 +341,7 @@ describe('estimatePerformance', () => {
       model: model_10b,
       gpu: balanced_gpu,
       quantization: 'int4',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -322,11 +360,13 @@ describe('estimatePerformance', () => {
       model: llama3_70b,
       gpu: h100_80gb_sxm,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
     expect(result.tokensPerSecond).toBeInstanceOf(Decimal)
     expect(result.timeToFirstToken).toBeInstanceOf(Decimal)
+    expect(result.prefillSeconds).toBeInstanceOf(Decimal)
   })
 
   it('should produce reasonable TTFT for various throughput levels', () => {
@@ -335,6 +375,7 @@ describe('estimatePerformance', () => {
       model: llama3_8b,
       gpu: h100_80gb_sxm,
       quantization: 'int4',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -343,6 +384,7 @@ describe('estimatePerformance', () => {
       model: llama3_70b,
       gpu: h100_80gb_sxm,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -374,6 +416,7 @@ describe('estimatePerformance', () => {
       model: llama3_8b,
       gpu: slow_gpu,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -383,5 +426,138 @@ describe('estimatePerformance', () => {
 
     // Slow GPU should have low throughput (< 10 tok/s)
     expect(result.tokensPerSecond.toNumber()).toBeLessThan(10)
+  })
+})
+
+describe('estimatePerformance - prefill model', () => {
+  it('TTFT grows with sequence length', () => {
+    const short = estimatePerformance({
+      model: llama7b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 1024,
+      batchSize: 1,
+    })
+    const long = estimatePerformance({
+      model: llama7b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 131072,
+      batchSize: 1,
+    })
+
+    expect(long.timeToFirstToken.greaterThan(short.timeToFirstToken)).toBe(true)
+  })
+
+  it('grows super-linearly once the quadratic attention term dominates', () => {
+    const at256k = estimatePerformance({
+      model: llama7b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 262144,
+      batchSize: 1,
+    })
+    const at512k = estimatePerformance({
+      model: llama7b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 524288,
+      batchSize: 1,
+    })
+
+    const ratio = at512k.prefillSeconds?.div(at256k.prefillSeconds ?? 1).toNumber() ?? 0
+    expect(ratio).toBeGreaterThan(2)
+  })
+
+  it('reports the linear term as the bottleneck at short context', () => {
+    const result = estimatePerformance({
+      model: llama7b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 1024,
+      batchSize: 1,
+    })
+
+    expect(result.prefillBottleneck).toBe('linear')
+    expect(result.prefillEstimateDegraded).toBe(false)
+  })
+
+  it('reports the attention term as the bottleneck at 1M context', () => {
+    const result = estimatePerformance({
+      model: llama7b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 1048576,
+      batchSize: 1,
+    })
+
+    expect(result.prefillBottleneck).toBe('attention')
+  })
+
+  it('degrades gracefully when the GPU has no FLOPS data', () => {
+    const noFlopsGPU: GPU = { ...h100_80gb_sxm, fp16_tflops: undefined, fp32_tflops: undefined }
+    const result = estimatePerformance({
+      model: llama7b,
+      gpu: noFlopsGPU,
+      quantization: 'fp16',
+      sequenceLength: 131072,
+      batchSize: 1,
+    })
+
+    expect(result.prefillSeconds).toBeNull()
+    expect(result.prefillEstimateDegraded).toBe(true)
+    expect(result.timeToFirstToken.isFinite()).toBe(true)
+    expect(result.timeToFirstToken.greaterThan(0)).toBe(true)
+  })
+})
+
+describe('estimatePerformance - MoE active parameters', () => {
+  const moe36bA3b: Model = {
+    id: 'test-moe-36b-a3b',
+    name: 'Test MoE 36B A3B',
+    architecture: 'moe',
+    num_parameters_billion: 36,
+    hidden_size: 2048,
+    num_hidden_layers: 40,
+    num_attention_heads: 16,
+    num_kv_heads: 2,
+    intermediate_size: 512,
+    num_experts: 256,
+    num_experts_per_token: 8,
+    active_parameters_billion: 3,
+  }
+
+  it('decode throughput uses active parameters, not the total', () => {
+    const result = estimatePerformance({
+      model: moe36bA3b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 1024,
+      batchSize: 1,
+    })
+
+    // bandwidth 3350 GB/s / (3B active x 2 bytes) — orders of magnitude above
+    // the 3350e9 / (36e9 x 2) = ~46 tok/s the total-parameter formula gave.
+    expect(result.tokensPerSecond.toNumber()).toBeGreaterThan(400)
+  })
+
+  it('decode throughput respects weight quantization', () => {
+    const fp16 = estimatePerformance({
+      model: moe36bA3b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 1024,
+      batchSize: 1,
+    })
+    const int4 = estimatePerformance({
+      model: moe36bA3b,
+      gpu: h100_80gb_sxm,
+      quantization: 'gptq',
+      sequenceLength: 1024,
+      batchSize: 1,
+    })
+
+    // Fewer bytes read per token means more tokens per second
+    expect(int4.tokensPerSecond.greaterThan(fp16.tokensPerSecond)).toBe(true)
   })
 })
