@@ -128,30 +128,26 @@ async function fetchModelConfig(modelId: string): Promise<Model> {
 }
 
 /**
- * Warn when a curated active_parameters_billion diverges from what the model's own
- * dimensions imply. Catches a stale hand-entered value on refresh without ever
- * overwriting a verified one.
+ * Warn when a curated active_parameters_billion is impossible regardless of
+ * architecture: at or above the model's total, or non-positive. Catches a
+ * stale/mistyped hand-entered value on refresh without ever overwriting a
+ * verified one. This intentionally does not attempt a dimension-based derivation:
+ * `intermediate_size` in this database is not per-expert across all architectures
+ * (e.g. it holds the dense/shared FFN width for DeepSeek-style models), so any
+ * formula built on it produces false positives on correct, verified values.
  */
 function checkActiveParamsConsistency(model: Model): void {
   if (!model.active_parameters_billion) return
-  if (!model.num_experts || !model.num_experts_per_token) return
 
-  const expertParams =
-    (model.num_hidden_layers *
-      model.num_experts *
-      3 *
-      model.hidden_size *
-      model.intermediate_size) /
-    1e9
-  const nonExpert = Math.max(model.num_parameters_billion - expertParams, 0)
-  const derived = nonExpert + expertParams * (model.num_experts_per_token / model.num_experts)
-
-  const divergence =
-    Math.abs(derived - model.active_parameters_billion) / model.active_parameters_billion
-  if (divergence > 0.25) {
+  if (model.active_parameters_billion >= model.num_parameters_billion) {
     console.warn(
       `WARN ${model.name}: active_parameters_billion=${model.active_parameters_billion} ` +
-        `but dimensions imply ~${derived.toFixed(1)}B (${(divergence * 100).toFixed(0)}% apart)`,
+        `is >= num_parameters_billion=${model.num_parameters_billion}`,
+    )
+  } else if (model.active_parameters_billion <= 0) {
+    console.warn(
+      `WARN ${model.name}: active_parameters_billion=${model.active_parameters_billion} ` +
+        `must be positive`,
     )
   }
 }
