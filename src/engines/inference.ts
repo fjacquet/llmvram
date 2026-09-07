@@ -54,9 +54,17 @@ export function calculateMoEActiveParams(model: Model): number {
     return model.num_parameters_billion
   }
 
-  // Tier 2: derive from stored dimensions. Our MoE entries store the PER-EXPERT
-  // intermediate_size (Qwen3.6 35B A3B: 512, not 17408), so expert parameters are
-  // layers x experts x 3 projections (gate, up, down) x hidden x per-expert intermediate.
+  // Tier 2: derive from stored dimensions. This assumes `intermediate_size` holds the
+  // PER-EXPERT width (true for Gemma- and MiniMax-class entries, e.g. Qwen3.6 35B A3B:
+  // 512, not 17408) — but that premise does NOT hold for DeepSeek, Kimi, GLM, Qwen3-235B,
+  // Nemotron, Mistral, Ling, or Llama-4-Maverick, where the field instead holds the
+  // dense/shared FFN width (DeepSeek R1: 18432 against a real moe_intermediate_size of
+  // 2048). For those architectures this derivation is a rough fallback, not a faithful
+  // per-expert count. In practice it currently only runs for the two models without an
+  // explicit `active_parameters_billion` (DeepSeek V4 Flash and Pro); every other MoE
+  // entry supplies a verified Tier 1 value and never reaches this branch.
+  // Expert parameters are layers x experts x 3 projections (gate, up, down) x hidden x
+  // intermediate_size, under the (architecture-dependent) assumption above.
   const expertParams = new Decimal(model.num_hidden_layers)
     .mul(model.num_experts)
     .mul(3)

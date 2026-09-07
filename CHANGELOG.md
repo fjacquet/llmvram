@@ -21,13 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Activation memory scaled with the full context window, reporting 68 GB at 1M tokens for
-  a 27B dense model. It is now bounded by the 8,192-token prefill chunk (vLLM's default
-  `max_num_batched_tokens`), dropping that figure to 0.53 GB. **VRAM figures above 8,192
-  tokens decrease; figures at or below 8,192 are unchanged.**
+  a 27.8B dense model. It is now bounded by the 8,192-token prefill chunk (vLLM's default
+  `max_num_batched_tokens`), dropping that figure to 0.53 GB. **For dense models, VRAM
+  figures above 8,192 tokens decrease; figures at or below 8,192 are unchanged.** MoE
+  models are also affected at every sequence length, since this change and the decode
+  throughput fix below both feed `calculateMoEActiveParams` — measured at 2,048 tokens,
+  activation memory for all 33 MoE models fell to between 13.2% and 65.8% of its previous
+  value, though the absolute magnitudes stay tiny (e.g. Kimi K2: 0.030 GB → 0.004 GB).
 - Decode throughput divided memory bandwidth by total rather than active parameters,
   making every MoE model report roughly its expert ratio too slow. **MoE tokens/sec
-  figures increase substantially — the reference case (Qwen3.6 35B A3B) goes from
-  3.8 to roughly 45 tok/s.**
+  figures increase substantially — on the NVIDIA GB10 (273 GB/s), the reference case
+  (Qwen3.6 35B A3B) goes from 3.8 to roughly 45 tok/s.**
 - Time to first token had no dependence on sequence length; it is now modelled from
   prefill FLOPs (a linear weight term plus a quadratic causal-attention term).
   **All TTFT figures change.** On LLaMA 3.1 70B / H100 SXM, 2,048 tokens now reports
