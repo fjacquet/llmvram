@@ -13,8 +13,9 @@ Models in `src/data/models.json` already declare context windows far beyond what
 calculator can express. Nine entries carry `context_length >= 1,000,192`, and Llama 4
 Scout carries `10,485,760`. Meanwhile:
 
-- `schemas.ts` caps `sequenceLength` at `131072` in **two** places — the inference
-  schema and `TrainingInputSchema`.
+- `sequenceLength` is capped at `131072` in **two** schemas, in two different files:
+  `CalculationInputSchema` (`src/engines/types.ts:92`, inference) and
+  `TrainingInputSchema` (`src/utils/schemas.ts:119`, training).
 - `SequenceLengthInput.tsx` has `MAX_LOG = 17` (131,072), presets stopping at 128K, and
   a hardcoded `128K` end label.
 
@@ -228,9 +229,17 @@ hand-verified value.
 
 ### C1. Caps
 
-Both `.max(131072)` occurrences in `src/utils/schemas.ts` — the inference schema and
-`TrainingInputSchema.sequenceLength` — are raised to a shared
-`MAX_SEQUENCE_LENGTH = 10_485_760`.
+Both `.max(131072)` caps are raised to a shared `MAX_SEQUENCE_LENGTH = 10_485_760`.
+They live in **two different files** (corrected during planning — an earlier draft of
+this spec placed both in `schemas.ts`):
+
+- `src/engines/types.ts:92` — `CalculationInputSchema.sequenceLength` (inference). Its
+  doc comment at line 87 ("Sequence length: 512 to 131072 (128K context)") also needs
+  updating.
+- `src/utils/schemas.ts:119` — `TrainingInputSchema.sequenceLength` (training).
+
+`src/utils/schemas.js` and `src/utils/schemas.d.ts` carry the same literal but are
+gitignored build artifacts (`.gitignore` lines 43–44) — do not edit them.
 
 ### C2. `SequenceLengthInput.tsx` — dynamic hint, not dynamic clamp
 
