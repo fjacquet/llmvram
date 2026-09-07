@@ -8,6 +8,7 @@ import {
   TRAINING_FRAMEWORK_OVERHEAD_GB,
   WEIGHT_BYTES,
 } from './constants'
+import { calculateMoEActiveParams } from './inference'
 import { applyFlashAttention, applyGradientCheckpointing } from './optimizations'
 import type { OptimizerType, TrainingPrecision, TrainingVRAMBreakdown } from './types'
 
@@ -66,7 +67,8 @@ export function calculateOptimizerStateMemory(
  * - Factor of 10: approximate multiplier per layer (attention QKV + MLP + residuals)
  * - Factor of 2: bytes per element (FP16/BF16 activations)
  *
- * For MoE models: scales with active parameter ratio (only active experts contribute)
+ * For MoE models: scales with the active parameter ratio from `calculateMoEActiveParams`
+ * (only active experts contribute), so training and inference share one definition.
  *
  * IMPORTANT: This is NOT the same as inference activation memory. Do NOT reuse
  * calculateActivationMemory from inference.ts.
@@ -101,12 +103,15 @@ export function calculateTrainingActivationMemory(
 ): Decimal {
   let effectiveHiddenSize = model.hidden_size
 
-  // For MoE models, scale hidden size by active parameter ratio
+  // For MoE models, scale hidden size by the active parameter ratio. This uses the same
+  // `calculateMoEActiveParams` the inference engine uses, so both engines agree on what
+  // "active" means for a given model; scaling hidden_size by that ratio remains a proxy,
+  // but it is no longer a second, contradictory definition. (The former 20%-shared /
+  // 80%-in-experts heuristic gave Qwen3.6 35B A3B a ratio of 0.225 against a verified
+  // 0.086 — a 2.6x disagreement with the inference path on the same model.)
   if (model.architecture === 'moe' && model.num_experts && model.num_experts_per_token) {
-    const activeRatio = model.num_experts_per_token / model.num_experts
-    // Approximate: 20% shared, 80% in experts
-    const effectiveActiveRatio = 0.2 + 0.8 * activeRatio
-    effectiveHiddenSize = Math.floor(model.hidden_size * effectiveActiveRatio)
+    const activeRatio = calculateMoEActiveParams(model) / model.num_parameters_billion
+    effectiveHiddenSize = Math.max(Math.floor(model.hidden_size * activeRatio), 1)
   }
 
   // Activation memory: batch * seq * hidden * layers * 10 * 2 (FP16/BF16 bytes)

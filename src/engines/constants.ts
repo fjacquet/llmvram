@@ -374,6 +374,28 @@ export const FLASH_ATTENTION_SHORT_THRESHOLD = 2048
 export const FLASH_ATTENTION_LONG_THRESHOLD = 8192
 
 /**
+ * Prefill chunk size in tokens
+ *
+ * Inference engines process a long prompt in chunks rather than in one pass, so peak
+ * activation memory is bounded by the chunk size, NOT by the context window. Without
+ * this bound a 1M-token context reports tens of GB of activations, which is fiction.
+ *
+ * Value is vLLM's default `max_num_batched_tokens` for UsageContext.LLM_CLASS on GPUs of
+ * 70 GiB and above (8192 below; 2048 for the OpenAI API server context). We take the
+ * larger branch deliberately: 18 of the 24 GPUs in the database are at or above 70 GiB,
+ * and on the smaller cards the effect is to overstate activations rather than understate
+ * them. The VRAM engine takes no GPU argument — it computes a requirement independent of
+ * the hardware it is later compared against — so this stays a single constant rather than
+ * a branch.
+ *
+ * Note this is a budget for ONE scheduler step across the whole batch, not a per-sequence
+ * allowance; `calculateActivationMemory` caps `batchSize * sequenceLength` with it.
+ *
+ * Reference: https://docs.vllm.ai/en/stable/configuration/optimization
+ */
+export const PREFILL_CHUNK_TOKENS = 16384
+
+/**
  * Human-readable labels for GPU interconnect types
  *
  * Used in the InterconnectSelector UI to display bandwidth info alongside
@@ -388,3 +410,14 @@ export const INTERCONNECT_LABELS: Partial<Record<string, string>> = {
   unified: 'Unified Memory',
   none: 'None (single GPU)',
 }
+
+/**
+ * Model FLOPs Utilization during prefill
+ *
+ * Prefill is compute-bound and reaches far higher utilization than decode: the
+ * literature reports 40-60% MFU for prefill against 1-5% for batch-1 decode.
+ * 0.45 sits inside that range.
+ *
+ * Used as: prefillSeconds = prefillFLOPs / (gpuFLOPS * PREFILL_MFU)
+ */
+export const PREFILL_MFU = new Decimal(0.45)

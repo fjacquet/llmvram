@@ -75,6 +75,9 @@ function reconstructVRAMBreakdown(serialized: {
 function reconstructPerformanceEstimate(serialized: {
   tokensPerSecond: string
   timeToFirstToken: string
+  prefillSeconds: string | null
+  prefillBottleneck: 'linear' | 'attention'
+  prefillEstimateDegraded: boolean
   isComputeBound: boolean
   isMemoryBound: boolean
   bottleneck: 'compute' | 'memory' | 'balanced'
@@ -82,6 +85,10 @@ function reconstructPerformanceEstimate(serialized: {
   return {
     tokensPerSecond: new Decimal(serialized.tokensPerSecond),
     timeToFirstToken: new Decimal(serialized.timeToFirstToken),
+    prefillSeconds:
+      serialized.prefillSeconds === null ? null : new Decimal(serialized.prefillSeconds),
+    prefillBottleneck: serialized.prefillBottleneck,
+    prefillEstimateDegraded: serialized.prefillEstimateDegraded,
     isComputeBound: serialized.isComputeBound,
     isMemoryBound: serialized.isMemoryBound,
     bottleneck: serialized.bottleneck,
@@ -355,6 +362,7 @@ export function useInferenceCalculation(
           model,
           gpu: effectiveGPU,
           quantization,
+          sequenceLength,
           batchSize,
           multiGPUResult: multiGPU,
         })

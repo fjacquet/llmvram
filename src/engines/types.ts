@@ -1,3 +1,4 @@
+import { MAX_SEQUENCE_LENGTH } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 import { z } from 'zod'
 
@@ -70,8 +71,14 @@ export interface InferenceVRAMBreakdown {
 export interface PerformanceEstimate {
   /** Throughput during decoding phase (tokens/sec) */
   tokensPerSecond: Decimal
-  /** Prefill latency (time to process prompt) in seconds — multiply by 1000 for ms display */
+  /** Latency to the first output token, in seconds — multiply by 1000 for ms display */
   timeToFirstToken: Decimal
+  /** Prompt-processing time in seconds; null when the GPU has no FLOPS data */
+  prefillSeconds: Decimal | null
+  /** Which prefill term dominates: the linear 2*N*T term or the quadratic attention term */
+  prefillBottleneck: 'linear' | 'attention'
+  /** True when TTFT fell back to the pre-prefill-model heuristic for lack of FLOPS data */
+  prefillEstimateDegraded: boolean
   /** True if performance limited by TFLOPS (small batch, short sequence) */
   isComputeBound: boolean
   /** True if performance limited by memory bandwidth (large batch, long sequence) */
@@ -84,12 +91,12 @@ export interface PerformanceEstimate {
  * Input parameters for VRAM calculation
  *
  * Validates ranges from research (INFER-06):
- * - Sequence length: 512 to 131072 (128K context)
+ * - Sequence length: 512 to 10,485,760 (10M context — the largest in the model database)
  * - Batch size: 1 to 64 (typical inference range)
  */
 export const CalculationInputSchema = z.object({
   /** Maximum sequence length (prompt + generation) */
-  sequenceLength: z.number().int().min(512).max(131072),
+  sequenceLength: z.number().int().min(512).max(MAX_SEQUENCE_LENGTH),
   /** Number of concurrent sequences */
   batchSize: z.number().int().min(1).max(64),
   /** Model weight quantization format */

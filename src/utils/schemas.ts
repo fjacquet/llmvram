@@ -1,5 +1,16 @@
 import { z } from 'zod'
 
+/**
+ * Maximum expressible sequence length, in tokens
+ *
+ * Set by the largest context window in the model database (Llama 4 Scout,
+ * 10,485,760). This is the bound on what the calculator can *express*, not on what
+ * is advisable — the UI marks each model's native context separately and warns
+ * rather than clamping, because RoPE/YaRN extension beyond native context is a real
+ * workload.
+ */
+export const MAX_SEQUENCE_LENGTH = 10_485_760
+
 // GPU Schema based on research (dbgpu fields)
 export const GPUSchema = z.object({
   id: z.string().min(1),
@@ -74,6 +85,12 @@ export const ModelSchema = z.object({
   num_experts: z.number().int().positive().optional(),
   num_experts_per_token: z.number().int().positive().optional(),
 
+  // Active parameters per token for MoE models (e.g. 3 for a 36B "A3B" model).
+  // Used for decode throughput and prefill FLOPs only — weight VRAM always uses
+  // num_parameters_billion, because every expert must be resident.
+  // Absent means "derive it"; see calculateMoEActiveParams tier 2.
+  active_parameters_billion: z.number().positive().optional(),
+
   // Metadata fields (optional, for display and linking)
   context_length: z.number().int().positive().optional(),
   license: z.string().optional(),
@@ -116,7 +133,7 @@ export const TrainingInputSchema = z.object({
   batchSize: z.number().int().min(1).max(128),
 
   /** Sequence length for training */
-  sequenceLength: z.number().int().min(512).max(131072),
+  sequenceLength: z.number().int().min(512).max(MAX_SEQUENCE_LENGTH),
 
   /** LoRA rank — controls adapter capacity (only used for lora/qlora methods) */
   loraRank: z.number().int().min(4).max(256).default(16),

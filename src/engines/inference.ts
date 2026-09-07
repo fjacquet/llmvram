@@ -1,6 +1,11 @@
 import type { Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
-import { BYTES_PER_GB, FRAMEWORK_OVERHEAD_GB, PER_GPU_FRAMEWORK_OVERHEAD_GB } from './constants'
+import {
+  BYTES_PER_GB,
+  FRAMEWORK_OVERHEAD_GB,
+  PER_GPU_FRAMEWORK_OVERHEAD_GB,
+  PREFILL_CHUNK_TOKENS,
+} from './constants'
 import { calculateKVCacheVRAM } from './kv-cache'
 import { calculateModelWeightVRAM } from './quantization'
 import type { InferenceVRAMBreakdown, KVCachePrecision, QuantizationFormat } from './types'
@@ -8,9 +13,14 @@ import type { InferenceVRAMBreakdown, KVCachePrecision, QuantizationFormat } fro
 /**
  * Calculate active parameters for MoE models
  *
- * MoE models have two parameter pools:
- * - Shared parameters (embeddings, layer norms, output head): ~20% of total
- * - Expert parameters (FFN layers): ~80% of total
+ * Three-tier resolution:
+ * 1. Explicit `active_parameters_billion` on the model, when present (e.g. verified
+ *    from the model card).
+ * 2. Otherwise, derive it from the stored per-expert dimensions: expert parameters are
+ *    layers x experts x 3 projections (gate, up, down) x hidden x per-expert intermediate,
+ *    with the remainder treated as non-expert (shared) parameters.
+ * 3. Dense models, or MoE models missing the expert fields needed for derivation, return
+ *    the full parameter count.
  *
  * Only a subset of experts are active per token (num_experts_per_token / num_experts).
  * This function returns the effective parameter count for activation memory sizing.
@@ -23,32 +33,113 @@ import type { InferenceVRAMBreakdown, KVCachePrecision, QuantizationFormat } fro
  *
  * @example
  * ```ts
- * // Mixtral 8x7B: 46.7B total, 8 experts, 2 active per token
- * // Shared: 46.7 * 0.2 = 9.34B
- * // Expert contribution: 46.7 * 0.8 * (2/8) = 9.34B
- * // Total active: 9.34 + 9.34 = 18.68B
- * calculateMoEActiveParams(mixtral) // ~18.68
+ * // Tier 1 - explicit field wins
+ * calculateMoEActiveParams({ ...qwen35bA3b, active_parameters_billion: 3 }) // 3
  *
- * // Dense model (no MoE)
- * calculateMoEActiveParams(llama70b) // 70.0 (unchanged)
+ * // Tier 2 - derived from per-expert dimensions
+ * calculateMoEActiveParams(qwen35bA3b) // ~4.79
+ *
+ * // Tier 3 - dense model
+ * calculateMoEActiveParams(llama70b) // 70.0
  * ```
  */
 export function calculateMoEActiveParams(model: Model): number {
-  // Dense model or missing MoE fields - return full param count
+  // Tier 1: explicit value verified from the model card
+  if (model.active_parameters_billion) {
+    return model.active_parameters_billion
+  }
+
+  // Tier 3: dense model, or MoE fields incomplete
   if (model.architecture === 'dense' || !model.num_experts || !model.num_experts_per_token) {
     return model.num_parameters_billion
   }
 
-  // MoE model - calculate active parameters
-  const totalParams = model.num_parameters_billion
-  const activeRatio = model.num_experts_per_token / model.num_experts
+  // Tier 2: derive from stored dimensions. This assumes `intermediate_size` holds the
+  // PER-EXPERT width, which is true only where the stored value sits well below
+  // `hidden_size` — Qwen3.6 35B A3B (512 against a hidden size of 2048), Gemma 4 26B A4B
+  // (2112), the MiniMax M2.x entries (1536), the Nemotron 3 entries (1856), and both
+  // DeepSeek V4 entries (2048 / 3072). The premise does NOT hold for Kimi, GLM,
+  // Qwen3-235B, Mistral, Ling, MiniMax M3, or Llama 4, where the field instead holds the
+  // dense/shared FFN width (DeepSeek R1: 18432 against a real moe_intermediate_size of
+  // 2048). For those architectures this derivation is a rough fallback, not a faithful
+  // per-expert count. In practice it currently only runs for the two models without an
+  // explicit `active_parameters_billion` (DeepSeek V4 Flash and Pro), and for those two
+  // the stored width IS the per-expert one — verified against their config.json, whose
+  // `moe_intermediate_size` reads 2048 and 3072 respectively. A separate defect does
+  // remain for them: their stored `num_parameters_billion` (158.1 / 861.6) sits well
+  // below the real total, so `expertParams` exceeds it, `nonExpertParams` clamps to 0,
+  // and the shared expert (`n_shared_experts: 1`) goes uncounted — leaving 6.5B and
+  // 24.2B, roughly 15-25% low. Every other MoE entry supplies a verified Tier 1 value
+  // and never reaches this branch.
+  // Expert parameters are layers x experts x 3 projections (gate, up, down) x hidden x
+  // intermediate_size, under the (architecture-dependent) assumption above.
+  const expertParams = new Decimal(model.num_hidden_layers)
+    .mul(model.num_experts)
+    .mul(3)
+    .mul(model.hidden_size)
+    .mul(model.intermediate_size)
+    .div(1e9)
 
-  // Approximate split: 20% shared, 80% in experts
-  const sharedParams = totalParams * 0.2
-  const expertParams = totalParams * 0.8
+  const total = new Decimal(model.num_parameters_billion)
+  // Guard against inconsistent data where the derivation exceeds the declared total
+  const nonExpertParams = Decimal.max(total.sub(expertParams), 0)
+  const activeRatio = new Decimal(model.num_experts_per_token).div(model.num_experts)
 
-  // Active params = shared + (expert params * active ratio)
-  return sharedParams + expertParams * activeRatio
+  return Decimal.min(nonExpertParams.add(expertParams.mul(activeRatio)), total).toNumber()
+}
+
+/**
+ * Expected parameters read per decode step for a batch of `batchSize` sequences
+ *
+ * At batch 1 a MoE model reads only the experts its single token routes to, which is
+ * exactly what `calculateMoEActiveParams` returns. At larger batches the sequences route
+ * independently, so the union of touched experts grows: the chance a given expert is
+ * missed by all B tokens is `(1 - k/E)^B`, leaving an expected touched fraction of
+ * `1 - (1 - k/E)^B`. Bytes read per decode step therefore climb from the active count
+ * toward the full expert set, which is why batched MoE throughput does NOT scale
+ * linearly with batch size.
+ *
+ * This governs the MEMORY side of the decode roofline only. Compute still scales with
+ * active parameters per token, because each token computes only its own experts however
+ * many others are resident in the step.
+ *
+ * Dense models read every parameter regardless of batch, so the batch-1 figure (the
+ * total) stands.
+ *
+ * @example
+ * ```typescript
+ * calculateMoEBatchedParams(kimiK2, 1)  // 32 — identical to calculateMoEActiveParams
+ * calculateMoEBatchedParams(kimiK2, 64) // ~743 — most experts touched at least once
+ * ```
+ */
+export function calculateMoEBatchedParams(model: Model, batchSize: number): number {
+  const activeParams = calculateMoEActiveParams(model)
+
+  if (
+    model.architecture !== 'moe' ||
+    !model.num_experts ||
+    !model.num_experts_per_token ||
+    batchSize <= 1
+  ) {
+    return activeParams
+  }
+
+  const total = new Decimal(model.num_parameters_billion)
+  const singleTokenFraction = new Decimal(model.num_experts_per_token).div(model.num_experts)
+
+  // k >= E means every token already touches every expert; there is nothing to grow into.
+  if (singleTokenFraction.greaterThanOrEqualTo(1)) return total.toNumber()
+
+  // Split the total into the part every token reads and the part routing selects, using
+  // the batch-1 figure as the anchor: active = nonExpert + expertTotal * (k/E).
+  const expertTotal = total.sub(activeParams).div(new Decimal(1).sub(singleTokenFraction))
+  const nonExpertParams = total.sub(expertTotal)
+
+  const batchFraction = new Decimal(1).sub(new Decimal(1).sub(singleTokenFraction).pow(batchSize))
+  const batched = nonExpertParams.add(expertTotal.mul(batchFraction))
+
+  // Never below the batch-1 figure, never above the full weight set.
+  return Decimal.min(Decimal.max(batched, activeParams), total).toNumber()
 }
 
 /**
@@ -60,8 +151,8 @@ export function calculateMoEActiveParams(model: Model): number {
  * For MoE models, uses active parameters (not total) since only active experts
  * contribute to activations.
  *
- * Formula: batchSize * sequenceLength * intermediateSize * 4 / BYTES_PER_GB
- * The factor of 4 is for FP32 activation storage (standard precision).
+ * Formula: batch * min(sequenceLength, PREFILL_CHUNK_TOKENS) * intermediateSize * 4 / BYTES_PER_GB
+ * The factor of 4 is 2 bytes (bf16) x ~2 live buffers per layer, not FP32 storage.
  *
  * @param model - Model configuration
  * @param sequenceLength - Maximum sequence length
@@ -75,7 +166,7 @@ export function calculateMoEActiveParams(model: Model): number {
  * calculateActivationMemory(llama7b, 2048, 1)
  *
  * // MoE model uses reduced intermediate size based on active params
- * calculateActivationMemory(mixtral, 2048, 1) // Uses ~20.86B active, not 46.7B total
+ * calculateActivationMemory(mixtral, 2048, 1) // Uses ~12.88B active, not 46.7B total
  * ```
  */
 export function calculateActivationMemory(
@@ -92,11 +183,18 @@ export function calculateActivationMemory(
     effectiveIntermediateSize = Math.floor(model.intermediate_size * paramRatio)
   }
 
-  // Activation memory: batch * seq_len * intermediate_size * 4 (FP32 bytes)
-  const activationBytes = new Decimal(batchSize)
-    .mul(sequenceLength)
-    .mul(effectiveIntermediateSize)
-    .mul(4) // FP32 bytes per activation
+  // Peak activations are bounded by the prefill chunk, not the context window.
+  // PREFILL_CHUNK_TOKENS mirrors vLLM's `max_num_batched_tokens`, which is a budget for
+  // ONE scheduler step across the whole batch — not a per-sequence allowance. So the
+  // tokens in flight are the batch's total demand capped by that budget, which makes peak
+  // activation memory nearly batch-independent. The KV cache, sized separately, is what
+  // still scales with batch.
+  const activeTokens = Math.min(batchSize * sequenceLength, PREFILL_CHUNK_TOKENS)
+
+  // min(batch * seq, chunk_tokens) * intermediate_size * 4
+  // The factor 4 is 2 bytes (bf16 activations) x ~2 live buffers per layer.
+  // NOT FP32 storage, despite what this comment used to claim.
+  const activationBytes = new Decimal(activeTokens).mul(effectiveIntermediateSize).mul(4)
 
   return activationBytes.div(BYTES_PER_GB)
 }
@@ -148,7 +246,7 @@ export function calculateActivationMemory(
  *   batchSize: 1,
  * })
  * // breakdown.modelWeights: ~86.97 GB (46.7B total params, NOT 13B active)
- * // breakdown.activations: uses active params (~18.68B) for sizing
+ * // breakdown.activations: uses active params (~12.88B) for sizing
  * ```
  */
 export function calculateInferenceVRAM(params: {

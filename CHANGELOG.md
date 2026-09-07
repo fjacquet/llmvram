@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Sequence lengths up to 10,485,760 tokens, with 256K / 512K / 1M presets, a marker for
+  the selected model's native context, and a warning (never a clamp) when the requested
+  context exceeds it.
+- `active_parameters_billion` on MoE models, verified per model (31 of 33 MoE models
+  carry a verified value; DeepSeek V4 Flash and DeepSeek V4 Pro fall back to a derived
+  estimate).
+- Prompt-processing time in the results panel, labelled by whether the linear weight term
+  or the quadratic attention term dominates.
+
+### Fixed
+
+- Activation memory scaled with the full context window, reporting 68 GB at 1M tokens for
+  a 27.8B dense model. It is now bounded by the prefill chunk — vLLM's
+  `max_num_batched_tokens`, 16,384 — dropping that figure to 1.06 GB. That budget covers
+  one scheduler step across the whole batch rather than each sequence, so activation
+  memory is now nearly batch-independent; the KV cache is what still grows with batch.
+  **For dense models at batch size 1, figures at or below 16,384 tokens are unchanged.**
+  MoE models are affected at every sequence length, because the corrected
+  `calculateMoEActiveParams` feeds both this activation figure and the decode throughput
+  fix below.
+- Decode throughput divided memory bandwidth by total rather than active parameters,
+  making every MoE model report roughly its expert ratio too slow. **MoE tokens/sec
+  figures increase substantially — on the NVIDIA GB10 (273 GB/s), the reference case
+  (Qwen3.6 35B A3B) goes from 3.8 to roughly 45 tok/s.** Above batch 1 the sequences route
+  to different experts, so bytes read per step follow the expected union of touched
+  experts, `1 - (1 - k/E)^batch`, rather than scaling linearly with the batch: exact at
+  batch 1, converging on the full weight set as the batch widens.
+- Training activation memory carried its own MoE heuristic (20% shared / 80% in experts),
+  which disagreed with the inference engine by 2.6x on the same model — Qwen3.6 35B A3B
+  resolved to a 0.086 active ratio for inference and 0.225 for training. Both engines now
+  read `calculateMoEActiveParams`.
+- Time to first token had no dependence on sequence length; it is now modelled from
+  prefill FLOPs (a linear weight term plus a quadratic causal-attention term).
+  **All TTFT figures change.** On LLaMA 3.1 70B / H100 SXM, 2,048 tokens now reports
+  656.6 ms in the `linear` regime and 1,048,576 tokens reports 3,568 s in the
+  `attention` regime.
+- The comparison view stored seconds in a field rendered as milliseconds, showing 0.53 s
+  as "1 ms".
+
 ## [1.8.0] - 2026-09-07
 
 ### Added

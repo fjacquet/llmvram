@@ -1,5 +1,34 @@
 import { writeFile } from 'node:fs/promises'
+import existingModels from '../src/data/models.json' with { type: 'json' }
 import { type Model, validateModels } from '../src/utils/schemas'
+
+// Lookup of already-curated models by hf_url, used to carry forward hand-verified
+// fields (active_parameters_billion) that this script cannot derive on its own.
+// Keyed by hf_url rather than id: curated ids are hand-shortened (e.g.
+// "google-gemma-4-26b-a4b" vs the generated "google-gemma-4-26b-a4b-it"), so an
+// id-based lookup would silently miss most entries. hf_url always matches
+// `https://huggingface.co/${modelId}` exactly.
+const existingModelsByUrl = new Map<string, Model>(
+  existingModels.filter((m) => m.hf_url).map((m) => [m.hf_url as string, m as Model]),
+)
+
+// Fallback lookup keyed on the repo name alone — the last path segment of hf_url, without
+// the org. This is the one identifier that survives the case the url map cannot cover: a
+// model rehomed to a different org (THUDM/GLM-4.7 -> zai-org/GLM-4.7) keeps its repo name
+// and changes only the owner, so the full-url lookup misses and a hand-verified
+// active_parameters_billion would vanish without a word.
+//
+// Not keyed on the display name: curated names are hand-written with spaces ("GLM 4.7")
+// while this script derives them from the repo ("GLM-4.7"), so a name key would never hit.
+function repoNameOf(url: string): string {
+  return url.split('/').pop() ?? url
+}
+
+const curatedActiveParamsByRepoName = new Map<string, number>(
+  existingModels
+    .filter((m) => m.hf_url !== undefined && m.active_parameters_billion !== undefined)
+    .map((m) => [repoNameOf(m.hf_url as string), m.active_parameters_billion as number]),
+)
 
 // Model IDs to fetch — current-generation curated roster (2026-08-18 refresh).
 // NOTE: multimodal models (Gemma 4, Qwen3.6, MiniMax M3, Mistral 3) expose the
@@ -106,7 +135,62 @@ async function fetchModelConfig(modelId: string): Promise<Model> {
     model.num_experts_per_token = config.num_experts_per_tok
   }
 
+  // hf_url is always derivable from the fetched modelId — set it here so the field
+  // order below matches the curated file (num_experts_per_token, hf_url,
+  // active_parameters_billion), keeping active_parameters_billion last.
+  model.hf_url = `https://huggingface.co/${modelId}`
+
+  // Carry forward a hand-verified active_parameters_billion from the curated
+  // models.json so a refresh never drops a value this script cannot derive itself.
+  // This assignment must stay last: curated models.json always places
+  // active_parameters_billion after hf_url (and, when present, context_length/license).
+  const existing = existingModelsByUrl.get(model.hf_url)
+  const byRepoName = curatedActiveParamsByRepoName.get(repoNameOf(model.hf_url))
+
+  if (existing?.active_parameters_billion !== undefined) {
+    model.active_parameters_billion = existing.active_parameters_billion
+  } else if (byRepoName !== undefined) {
+    // The primary lookup is keyed on the full hf_url, which is not stable: a model rehomed
+    // to a new org (THUDM/GLM-4.7 -> zai-org/GLM-4.7 happened in this database) misses the
+    // map and silently drops a hand-verified value, dropping the model to the derived tier
+    // and moving its decode throughput by an order of magnitude. Match on the repo name as
+    // a second chance, and say so — a refresh must never lose one of these quietly.
+    model.active_parameters_billion = byRepoName
+    console.warn(
+      `WARN ${model.name}: owner changed for ${repoNameOf(model.hf_url)}; carried ` +
+        `active_parameters_billion=${byRepoName} forward by repo name. ` +
+        `Verify ${model.hf_url} is the right repo.`,
+    )
+  }
+
   return model
+}
+
+/**
+ * Warn when a curated active_parameters_billion is impossible regardless of
+ * architecture: at or above the model's total, or non-positive. Catches a
+ * stale/mistyped hand-entered value on refresh without ever overwriting a
+ * verified one. This intentionally does not attempt a dimension-based derivation:
+ * `intermediate_size` in this database is not per-expert across all architectures
+ * (e.g. it holds the dense/shared FFN width for DeepSeek-style models), so any
+ * formula built on it produces false positives on correct, verified values.
+ */
+function checkActiveParamsConsistency(model: Model): void {
+  // `=== undefined`, not falsy: a hand-edited 0 must reach the non-positive branch below
+  // rather than being skipped as "absent".
+  if (model.active_parameters_billion === undefined) return
+
+  if (model.active_parameters_billion >= model.num_parameters_billion) {
+    console.warn(
+      `WARN ${model.name}: active_parameters_billion=${model.active_parameters_billion} ` +
+        `is >= num_parameters_billion=${model.num_parameters_billion}`,
+    )
+  } else if (model.active_parameters_billion <= 0) {
+    console.warn(
+      `WARN ${model.name}: active_parameters_billion=${model.active_parameters_billion} ` +
+        `must be positive`,
+    )
+  }
 }
 
 function estimateParameterCount(config: HFConfig): number {
@@ -145,6 +229,7 @@ async function main() {
   for (const modelId of MODEL_IDS) {
     try {
       const model = await fetchModelConfig(modelId)
+      checkActiveParamsConsistency(model)
       models.push(model)
     } catch (error) {
       const errorMsg = `Failed to fetch ${modelId}: ${error}`

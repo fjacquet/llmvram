@@ -107,6 +107,7 @@ describe('Integration: Full Calculation Pipeline', () => {
       model: llama3_70b,
       gpu: h100_80gb_sxm,
       quantization: 'gptq',
+      sequenceLength: 4096,
       batchSize: 1,
     })
 
@@ -140,8 +141,16 @@ describe('Integration: Full Calculation Pipeline', () => {
     expect(performance.bottleneck).toBe('memory')
     expect(performance.isMemoryBound).toBe(true)
 
-    // TTFT should be reasonable (< 100ms for 4K context)
-    expect(performance.timeToFirstToken.toNumber()).toBeLessThan(0.1)
+    // TTFT is now a compute-bound prefill model, not a fixed multiple of decode
+    // speed, so a 4K-token prompt no longer finishes in under 100ms:
+    //   linearFLOPs    = 2 * 70e9 * 4096              = 573,440,000,000,000
+    //   attentionFLOPs = 2 * 80 * 4096^2 * 8192        =  21,990,232,555,520
+    //   effectiveFLOPS = 989e12 * 0.45 (PREFILL_MFU)   = 445,050,000,000,000
+    //   prefillSeconds = totalFLOPs / effectiveFLOPS   ≈ 1.338 s
+    //   decodeSeconds  = 1 / tokensPerSecond (GPTQ, ~79.76 tok/s) ≈ 0.0125 s
+    //   TTFT           ≈ 1.35 s
+    expect(performance.timeToFirstToken.toNumber()).toBeGreaterThan(1.3)
+    expect(performance.timeToFirstToken.toNumber()).toBeLessThan(1.4)
 
     // Verify performance fields are Decimal
     expect(performance.tokensPerSecond).toBeInstanceOf(Decimal)
@@ -164,6 +173,7 @@ describe('Integration: Full Calculation Pipeline', () => {
       model: mixtral_8x7b,
       gpu: h100_80gb_sxm,
       quantization: 'fp16',
+      sequenceLength: 2048,
       batchSize: 1,
     })
 
@@ -194,6 +204,7 @@ describe('Integration: Full Calculation Pipeline', () => {
       model: small_1b,
       gpu: rtx4090,
       quantization: 'fp16',
+      sequenceLength: 512,
       batchSize: 1,
     })
 
@@ -256,6 +267,7 @@ describe('Integration: Full Calculation Pipeline', () => {
       model: llama2_7b,
       gpu: h100_80gb_sxm,
       quantization: 'fp16',
+      sequenceLength: 131072,
       batchSize: 1,
     })
 

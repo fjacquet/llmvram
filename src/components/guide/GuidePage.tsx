@@ -240,9 +240,12 @@ export function GuidePage() {
 
         <SubHeading>Sequence Length</SubHeading>
         <P>
-          The maximum context window in tokens (512 to 128K). Uses a logarithmic slider for easy
-          navigation across the wide range. Preset buttons for common values: 512, 2K, 4K, 8K, 32K,
-          128K. Longer sequences dramatically increase KV cache memory.
+          The maximum context window in tokens, up to 1M (and beyond, for a model whose native
+          context is larger). Uses a logarithmic slider for easy navigation across the wide range.
+          Preset buttons for common values: 512, 2K, 4K, 8K, 32K, 128K, 256K, 512K, 1M. A marker on
+          the slider shows the selected model&apos;s native context; going past it doesn&apos;t
+          clamp the value, but the calculator warns that it requires RoPE scaling. Longer sequences
+          dramatically increase KV cache memory.
         </P>
 
         <SubHeading>Batch Size</SubHeading>
@@ -383,18 +386,27 @@ export function GuidePage() {
         </P>
 
         <SubHeading>Performance Estimate</SubHeading>
-        <P>Three metrics based on a roofline model:</P>
+        <P>Four metrics based on a roofline model:</P>
         <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1 mb-3">
           <li>
             <strong>Decode Speed</strong> — Tokens per second during generation.
           </li>
           <li>
-            <strong>Time to First Token (TTFT)</strong> — Latency in milliseconds for the first
-            output token (prompt processing).
+            <strong>Time to First Token (TTFT)</strong> — Latency for the first output token.
+            Dominated by prompt processing (prefill), so it grows with prompt length: past a
+            crossover the quadratic attention term overtakes the linear weight term and TTFT rises
+            faster than the prompt does. The crossover is model-dependent — roughly active
+            parameters divided by (layers x hidden size), which is about 107K tokens for Llama 3 70B
+            but only about 37K for Qwen3.6 35B A3B.
           </li>
           <li>
             <strong>Bottleneck</strong> — Whether the workload is memory-bandwidth bound (yellow),
             compute bound (blue), or balanced (green).
+          </li>
+          <li>
+            <strong>Prompt Processing</strong> — The prefill time behind TTFT, labelled by whichever
+            term dominates: weight-dominated (linear) for shorter prompts, attention-dominated
+            (quadratic) once the prompt is long enough.
           </li>
         </ul>
 
@@ -558,7 +570,8 @@ export function GuidePage() {
           </GlossaryTerm>
           <GlossaryTerm term="Roofline Model">
             Performance analysis framework that identifies whether a workload is limited by compute
-            (TFLOPS) or memory bandwidth (GB/s). Used here to estimate tokens/sec and TTFT.
+            (TFLOPS) or memory bandwidth (GB/s). Used here to estimate decode tokens/sec, and
+            separately to estimate prefill (prompt processing) time and TTFT.
           </GlossaryTerm>
           <GlossaryTerm term="Sequence Length">
             Maximum number of tokens in the context window. KV cache grows linearly with sequence
@@ -582,8 +595,12 @@ export function GuidePage() {
             limited by memory bandwidth for single-batch inference.
           </GlossaryTerm>
           <GlossaryTerm term="TTFT (Time to First Token)">
-            Latency from prompt submission to the first generated token. Involves processing the
-            entire prompt (prefill phase), which is compute-bound for large prompts.
+            Latency from prompt submission to the first generated token, dominated by processing the
+            entire prompt (prefill phase). TTFT grows with prompt length: a linear weight-processing
+            term dominates short prompts, but past a crossover of roughly active parameters divided
+            by (layers x hidden size) the quadratic causal-attention term takes over and TTFT rises
+            faster than the prompt does. That crossover ranges from about 37K tokens (Qwen3.6 35B
+            A3B) to about 107K (Llama 3 70B) across the model database.
           </GlossaryTerm>
           <GlossaryTerm term="VRAM">
             Video Random Access Memory — the high-bandwidth memory on a GPU. All model weights, KV

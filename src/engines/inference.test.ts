@@ -1,10 +1,12 @@
 import type { Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
+import { PREFILL_CHUNK_TOKENS } from './constants'
 import {
   calculateActivationMemory,
   calculateInferenceVRAM,
   calculateMoEActiveParams,
+  calculateMoEBatchedParams,
 } from './inference'
 
 // Test fixtures - inline model definitions for test isolation
@@ -73,9 +75,11 @@ describe('calculateActivationMemory', () => {
   })
 
   it('calculates reduced activation memory for MoE model using active params', () => {
-    // Mixtral active params: 0.2 * 46.7 + 0.8 * 46.7 * (2/8) = 9.34 + 9.34 = 18.68B
-    // Active ratio: 18.68 / 46.7 = 0.4
-    // Effective intermediate size: 14336 * 0.4 = 5734.4 → 5734 (floored)
+    // Mixtral active params (tier 2 derivation): 32 * 8 * 3 * 4096 * 14336 / 1e9 = 45.097156608
+    // nonExpert = 46.7 - 45.097156608 = 1.602843392
+    // active = 1.602843392 + 45.097156608 * (2/8) = 12.877132544B
+    // Active ratio: 12.877132544 / 46.7 = 0.275742
+    // Effective intermediate size: 14336 * 0.275742 = 3953.03 → 3953 (floored)
     const result = calculateActivationMemory(mixtral8x7b, 2048, 1)
 
     const activeParams = calculateMoEActiveParams(mixtral8x7b)
@@ -108,6 +112,45 @@ describe('calculateActivationMemory', () => {
     const ratio = quadrupled.div(base)
     expect(ratio.toNumber()).toBeCloseTo(4.0, 10)
   })
+
+  describe('calculateActivationMemory - prefill chunk bound', () => {
+    it('is unchanged at or below the prefill chunk', () => {
+      const at4k = calculateActivationMemory(llama7b, 4096, 1)
+      const at8k = calculateActivationMemory(llama7b, 8192, 1)
+
+      // 1 * 4096 * 11008 * 4 / 1024^3
+      expect(at4k.toNumber()).toBeCloseTo((4096 * 11008 * 4) / 1024 ** 3, 6)
+      expect(at8k.toNumber()).toBeCloseTo((8192 * 11008 * 4) / 1024 ** 3, 6)
+    })
+
+    it('plateaus above the prefill chunk instead of growing with the context window', () => {
+      const atChunk = calculateActivationMemory(llama7b, PREFILL_CHUNK_TOKENS, 1)
+      const at128k = calculateActivationMemory(llama7b, 131072, 1)
+      const at1m = calculateActivationMemory(llama7b, 1048576, 1)
+
+      expect(at128k.toString()).toBe(atChunk.toString())
+      expect(at1m.toString()).toBe(atChunk.toString())
+    })
+
+    it('scales with batch size only while the batch fits the token budget', () => {
+      // The chunk mirrors vLLM's max_num_batched_tokens, a budget for one scheduler step
+      // across the whole batch. Below it, doubling the batch doubles the tokens in flight.
+      const seq = 512
+      const batch1 = calculateActivationMemory(llama7b, seq, 1)
+      const batch4 = calculateActivationMemory(llama7b, seq, 4)
+      expect(batch4.div(batch1).toNumber()).toBeCloseTo(4, 9)
+    })
+
+    it('stops scaling with batch size once the budget is saturated', () => {
+      // 1M tokens saturates the budget at batch 1 already, so more concurrent sequences
+      // cannot put more tokens through a single step — they wait for the next one.
+      const batch1 = calculateActivationMemory(llama7b, 1048576, 1)
+      const batch64 = calculateActivationMemory(llama7b, 1048576, 64)
+
+      expect(batch64.toString()).toBe(batch1.toString())
+      expect(batch1.toNumber()).toBeCloseTo((PREFILL_CHUNK_TOKENS * 11008 * 4) / 1024 ** 3, 6)
+    })
+  })
 })
 
 describe('calculateMoEActiveParams', () => {
@@ -117,17 +160,13 @@ describe('calculateMoEActiveParams', () => {
   })
 
   it('calculates active params for Mixtral 8x7B', () => {
-    // Shared: 46.7 * 0.2 = 9.34B
-    // Expert contribution: 46.7 * 0.8 * (2/8) = 9.34B
-    // Total active: 9.34 + 9.34 = 18.68B
+    // Tier 2 derivation (per-expert dimensions):
+    // expertParams = 32 * 8 * 3 * 4096 * 14336 / 1e9 = 45.097156608
+    // nonExpert    = 46.7 - 45.097156608 = 1.602843392
+    // active       = 1.602843392 + 45.097156608 * (2 / 8) = 12.877132544
     const result = calculateMoEActiveParams(mixtral8x7b)
 
-    const expectedShared = 46.7 * 0.2
-    const expectedExpert = 46.7 * 0.8 * (2 / 8)
-    const expectedTotal = expectedShared + expectedExpert
-
-    expect(result).toBeCloseTo(expectedTotal, 5)
-    expect(result).toBeCloseTo(18.68, 2)
+    expect(result).toBeCloseTo(12.877132544, 5)
   })
 
   it('returns full params when num_experts is missing', () => {
@@ -159,12 +198,13 @@ describe('calculateMoEActiveParams', () => {
       num_experts_per_token: 4,
     }
 
+    // Tier 2 derivation (per-expert dimensions):
+    // expertParams = 32 * 16 * 3 * 4096 * 14336 / 1e9 = 90.194313216
+    // nonExpert    = max(46.7 - 90.194313216, 0) = 0 (derived expert params exceed total)
+    // active       = 0 + 90.194313216 * (4 / 16) = 22.548578304
     const result = calculateMoEActiveParams(largerMoE)
-    const expectedShared = 46.7 * 0.2
-    const expectedExpert = 46.7 * 0.8 * (4 / 16) // 25% of expert params active
-    const expectedTotal = expectedShared + expectedExpert
 
-    expect(result).toBeCloseTo(expectedTotal, 5)
+    expect(result).toBeCloseTo(22.548578304, 5)
   })
 })
 
@@ -209,14 +249,14 @@ describe('calculateInferenceVRAM', () => {
       kvQuantization: 'fp16',
     })
 
-    // Model weights MUST use 46.7B (total), NOT 18.68B (active)
+    // Model weights MUST use 46.7B (total), NOT 12.88B (active, tier 2 derivation)
     // 46.7B * 2 bytes (fp16) / (1024^3) = ~86.986 GB
     const expectedWeights = new Decimal(46.7).mul(1e9).mul(2).div(new Decimal(1024).pow(3))
 
     expect(result.modelWeights.toString()).toBe(expectedWeights.toString())
     expect(result.modelWeights.toNumber()).toBeCloseTo(86.986, 2)
 
-    // But activations should use active params (~18.68B effective)
+    // But activations should use active params (~12.88B effective)
     // This is smaller than if we used full 46.7B
     expect(result.activations.toNumber()).toBeLessThan(0.06)
   })
@@ -363,5 +403,116 @@ describe('calculateInferenceVRAM', () => {
     expect(results[2]?.modelWeights.toNumber()).toBeGreaterThan(
       results[3]?.modelWeights.toNumber() ?? 0,
     )
+  })
+})
+
+describe('calculateMoEActiveParams - three-tier resolution', () => {
+  // Qwen3.6 35B A3B shape: 40 layers, 256 experts (8 active), hidden 2048,
+  // per-expert intermediate 512, 36B total.
+  const qwen35bA3b: Model = {
+    id: 'test-qwen-35b-a3b',
+    name: 'Test Qwen 35B A3B',
+    architecture: 'moe',
+    num_parameters_billion: 36,
+    hidden_size: 2048,
+    num_hidden_layers: 40,
+    num_attention_heads: 16,
+    num_kv_heads: 2,
+    intermediate_size: 512,
+    num_experts: 256,
+    num_experts_per_token: 8,
+  }
+
+  it('tier 1: uses active_parameters_billion when present', () => {
+    const withExplicit: Model = { ...qwen35bA3b, active_parameters_billion: 3 }
+    expect(calculateMoEActiveParams(withExplicit)).toBe(3)
+  })
+
+  it('tier 2: derives from per-expert dimensions when the field is absent', () => {
+    // expertParams = 40 * 256 * 3 * 2048 * 512 / 1e9 = 32.21225472
+    // nonExpert    = 36 - 32.21225472 = 3.78774528
+    // active       = 3.78774528 + 32.21225472 * (8 / 256) = 4.7942...
+    expect(calculateMoEActiveParams(qwen35bA3b)).toBeCloseTo(4.7942, 3)
+  })
+
+  it('tier 2: never returns more than the total parameter count', () => {
+    // Bad data: derived expert params (32.2B) exceed the declared total, AND the active
+    // ratio is high enough that expertParams * ratio alone would still overshoot.
+    // Both clamps have to fire: nonExpert floors at 0, then the sum caps at the total.
+    // (A low ratio like 8/256 would pass without exercising the outer clamp at all.)
+    const inconsistent: Model = {
+      ...qwen35bA3b,
+      num_parameters_billion: 10,
+      num_experts_per_token: 128,
+    }
+    expect(calculateMoEActiveParams(inconsistent)).toBe(10)
+  })
+
+  it('tier 3: dense models return the full parameter count', () => {
+    expect(calculateMoEActiveParams(llama7b)).toBe(llama7b.num_parameters_billion)
+  })
+
+  it('tier 3: MoE with missing expert fields returns the full parameter count', () => {
+    const incomplete: Model = { ...qwen35bA3b, num_experts: undefined }
+    expect(calculateMoEActiveParams(incomplete)).toBe(36)
+  })
+})
+
+describe('calculateMoEBatchedParams', () => {
+  it('equals the batch-1 active count at batch 1', () => {
+    expect(calculateMoEBatchedParams(mixtral8x7b, 1)).toBeCloseTo(
+      calculateMoEActiveParams(mixtral8x7b),
+      9,
+    )
+  })
+
+  it('grows toward the full expert set as the batch widens', () => {
+    // Mixtral 8x7B: k/E = 2/8, so expertTotal = (46.7 - 12.877132544) / 0.75 = 45.097156608
+    // and nonExpert = 1.602843392. At batch 4 the touched fraction is 1 - 0.75^4 = 0.68359375,
+    // giving 1.602843392 + 45.097156608 * 0.68359375 = 32.430977792
+    expect(calculateMoEBatchedParams(mixtral8x7b, 4)).toBeCloseTo(32.430977792, 9)
+  })
+
+  it('is monotonically increasing in batch size', () => {
+    const values = [1, 2, 4, 16, 64].map((b) => calculateMoEBatchedParams(mixtral8x7b, b))
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i] ?? 0).toBeGreaterThan(values[i - 1] ?? 0)
+    }
+  })
+
+  it('never exceeds the full parameter count', () => {
+    expect(calculateMoEBatchedParams(mixtral8x7b, 4096)).toBeLessThanOrEqual(
+      mixtral8x7b.num_parameters_billion,
+    )
+    expect(calculateMoEBatchedParams(mixtral8x7b, 4096)).toBeCloseTo(46.7, 6)
+  })
+
+  it('holds its bounds when the anchor implies a negative non-expert share', () => {
+    // total * (k/E) can exceed the stated active count, which makes the derived
+    // expertTotal larger than the model and nonExpertParams negative. The clamps must
+    // still hold: never below the batch-1 figure, never above the full weight set.
+    const skewed: Model = {
+      ...mixtral8x7b,
+      id: 'test-skewed-moe',
+      name: 'Skewed MoE',
+      num_parameters_billion: 100,
+      active_parameters_billion: 10,
+      num_experts: 8,
+      num_experts_per_token: 4,
+    }
+
+    const values = [1, 2, 4, 8, 64].map((b) => calculateMoEBatchedParams(skewed, b))
+
+    expect(values[0]).toBeCloseTo(10, 9)
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i] ?? 0).toBeGreaterThanOrEqual(values[i - 1] ?? 0)
+      expect(values[i] ?? 0).toBeLessThanOrEqual(100)
+    }
+    expect(values[values.length - 1] ?? 0).toBeCloseTo(100, 6)
+  })
+
+  it('returns the total for a dense model at any batch size', () => {
+    expect(calculateMoEBatchedParams(llama70b, 1)).toBe(70.0)
+    expect(calculateMoEBatchedParams(llama70b, 128)).toBe(70.0)
   })
 })

@@ -67,6 +67,9 @@ interface CalculationSuccessResponse {
     performance: {
       tokensPerSecond: string
       timeToFirstToken: string
+      prefillSeconds: string | null
+      prefillBottleneck: 'linear' | 'attention'
+      prefillEstimateDegraded: boolean
       isComputeBound: boolean
       isMemoryBound: boolean
       bottleneck: 'compute' | 'memory' | 'balanced'
@@ -204,6 +207,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         model,
         gpu,
         quantization,
+        sequenceLength,
         batchSize,
         multiGPUResult,
       })
@@ -222,6 +226,9 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
           performance: {
             tokensPerSecond: performance.tokensPerSecond.toString(),
             timeToFirstToken: performance.timeToFirstToken.toString(),
+            prefillSeconds: performance.prefillSeconds?.toString() ?? null,
+            prefillBottleneck: performance.prefillBottleneck,
+            prefillEstimateDegraded: performance.prefillEstimateDegraded,
             isComputeBound: performance.isComputeBound,
             isMemoryBound: performance.isMemoryBound,
             bottleneck: performance.bottleneck,

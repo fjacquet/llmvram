@@ -2,6 +2,55 @@ import { compressToEncodedURIComponent } from 'lz-string'
 import { describe, expect, it } from 'vitest'
 import { deserializeFromURL, isCustomId, serializeToURL } from './urlSerializer'
 
+const baseState = {
+  selectedModel: {
+    id: 'meta-llama-llama-3-70b',
+    name: 'Llama 3 70B',
+    architecture: 'dense' as const,
+    num_parameters_billion: 70,
+    hidden_size: 8192,
+    num_hidden_layers: 80,
+    num_attention_heads: 64,
+    num_kv_heads: 8,
+    intermediate_size: 28672,
+  },
+  selectedGPU: {
+    id: 'nvidia-h100-80gb-sxm',
+    name: 'NVIDIA H100 80GB SXM',
+    manufacturer: 'nvidia' as const,
+    vram_gb: 80,
+    memory_bandwidth_gbps: 3352,
+    memory_type: 'HBM3',
+    bus_width: 5120,
+    fp16_tflops: 1979,
+    fp32_tflops: 989,
+    tier: 'datacenter' as const,
+    interconnect: 'nvlink-4' as const,
+  },
+  quantization: 'gptq' as const,
+  sequenceLength: 4096,
+  batchSize: 1,
+  kvQuantization: 'fp16' as const,
+  numGPUs: 2,
+  shardingStrategy: 'tensor-parallel' as const,
+  offloadingEnabled: false,
+  offloadTarget: 'cpu-ram' as const,
+  offloadMode: 'percentage' as const,
+  offloadPercentage: 0,
+  offloadLayers: 0,
+  kvCacheOffload: false,
+  mode: 'inference' as const,
+  trainingMethod: 'lora' as const,
+  optimizer: 'adamw' as const,
+  trainingPrecision: 'bf16' as const,
+  loraRank: 16,
+  loraAlpha: 32,
+  targetModulesPercent: 30,
+  gradientAccumulationSteps: 1,
+  gradientCheckpointing: false,
+  flashAttention: false,
+}
+
 describe('URL Serializer', () => {
   describe('isCustomId', () => {
     it('should correctly identify custom IDs', () => {
@@ -15,56 +64,7 @@ describe('URL Serializer', () => {
 
   describe('serializeToURL and deserializeFromURL', () => {
     it('should round-trip curated model and GPU', () => {
-      const state = {
-        selectedModel: {
-          id: 'meta-llama-llama-3-70b',
-          name: 'Llama 3 70B',
-          architecture: 'dense' as const,
-          num_parameters_billion: 70,
-          hidden_size: 8192,
-          num_hidden_layers: 80,
-          num_attention_heads: 64,
-          num_kv_heads: 8,
-          intermediate_size: 28672,
-        },
-        selectedGPU: {
-          id: 'nvidia-h100-80gb-sxm',
-          name: 'NVIDIA H100 80GB SXM',
-          manufacturer: 'nvidia' as const,
-          vram_gb: 80,
-          memory_bandwidth_gbps: 3352,
-          memory_type: 'HBM3',
-          bus_width: 5120,
-          fp16_tflops: 1979,
-          fp32_tflops: 989,
-          tier: 'datacenter' as const,
-          interconnect: 'nvlink-4' as const,
-        },
-        quantization: 'gptq' as const,
-        sequenceLength: 4096,
-        batchSize: 1,
-        kvQuantization: 'fp16' as const,
-        numGPUs: 2,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
-        mode: 'inference' as const,
-        trainingMethod: 'lora' as const,
-        optimizer: 'adamw' as const,
-        trainingPrecision: 'bf16' as const,
-        loraRank: 16,
-        loraAlpha: 32,
-        targetModulesPercent: 30,
-        gradientAccumulationSteps: 1,
-        gradientCheckpointing: false,
-        flashAttention: false,
-      }
-
-      const serialized = serializeToURL(state)
+      const serialized = serializeToURL(baseState)
       expect(serialized).toBeTypeOf('string')
       expect(serialized.length).toBeGreaterThan(0)
 
@@ -653,6 +653,22 @@ describe('URL Serializer', () => {
       expect(serialized.length).toBeLessThan(1800)
       // Should have meaningful compression (uncompressed JSON is much larger)
       expect(serialized.length).toBeGreaterThan(10)
+    })
+  })
+
+  describe('sequence length round-trip at long context', () => {
+    it('round-trips 1M tokens', () => {
+      const deserialized = deserializeFromURL(
+        serializeToURL({ ...baseState, sequenceLength: 1048576 }),
+      )
+      expect(deserialized?.sl).toBe(1048576)
+    })
+
+    it('round-trips the maximum sequence length', () => {
+      const deserialized = deserializeFromURL(
+        serializeToURL({ ...baseState, sequenceLength: 10485760 }),
+      )
+      expect(deserialized?.sl).toBe(10485760)
     })
   })
 })

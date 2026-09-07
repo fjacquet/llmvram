@@ -1,5 +1,6 @@
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
+import { formatDurationMs } from '@utils/formatDuration'
 import { useMemo, useState } from 'react'
 
 interface ComparisonColumnProps {
@@ -297,7 +298,7 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
           />
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>TTFT:</span>
-            <span>{snapshot.results.timeToFirstToken.toFixed(0)} ms</span>
+            <span>{formatDurationMs(snapshot.results.timeToFirstToken)}</span>
           </div>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>Bottleneck:</span>

@@ -279,4 +279,22 @@ describe('calculateKVCacheVRAM', () => {
     })
     expect(int8.mul(2).toNumber()).toBeCloseTo(fp16.toNumber(), 10)
   })
+
+  it('scales linearly to 1M tokens', () => {
+    const at128k = calculateKVCacheVRAM({
+      model: llama70bGQA,
+      sequenceLength: 131072,
+      batchSize: 1,
+      kvPrecision: 'fp16',
+    })
+    const at1m = calculateKVCacheVRAM({
+      model: llama70bGQA,
+      sequenceLength: 1048576,
+      batchSize: 1,
+      kvPrecision: 'fp16',
+    })
+
+    expect(at1m.div(at128k).toNumber()).toBeCloseTo(8, 9)
+    expect(at1m.toNumber()).toBeGreaterThan(100)
+  })
 })
