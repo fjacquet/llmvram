@@ -74,6 +74,12 @@ export const ModelSchema = z.object({
   num_experts: z.number().int().positive().optional(),
   num_experts_per_token: z.number().int().positive().optional(),
 
+  // Active parameters per token for MoE models (e.g. 3 for a 36B "A3B" model).
+  // Used for decode throughput and prefill FLOPs only — weight VRAM always uses
+  // num_parameters_billion, because every expert must be resident.
+  // Absent means "derive it"; see calculateMoEActiveParams tier 2.
+  active_parameters_billion: z.number().positive().optional(),
+
   // Metadata fields (optional, for display and linking)
   context_length: z.number().int().positive().optional(),
   license: z.string().optional(),

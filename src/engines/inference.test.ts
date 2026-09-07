@@ -73,9 +73,11 @@ describe('calculateActivationMemory', () => {
   })
 
   it('calculates reduced activation memory for MoE model using active params', () => {
-    // Mixtral active params: 0.2 * 46.7 + 0.8 * 46.7 * (2/8) = 9.34 + 9.34 = 18.68B
-    // Active ratio: 18.68 / 46.7 = 0.4
-    // Effective intermediate size: 14336 * 0.4 = 5734.4 → 5734 (floored)
+    // Mixtral active params (tier 2 derivation): 32 * 8 * 3 * 4096 * 14336 / 1e9 = 45.097156608
+    // nonExpert = 46.7 - 45.097156608 = 1.602843392
+    // active = 1.602843392 + 45.097156608 * (2/8) = 12.877132544B
+    // Active ratio: 12.877132544 / 46.7 = 0.275742
+    // Effective intermediate size: 14336 * 0.275742 = 3953.03 → 3953 (floored)
     const result = calculateActivationMemory(mixtral8x7b, 2048, 1)
 
     const activeParams = calculateMoEActiveParams(mixtral8x7b)
@@ -144,17 +146,13 @@ describe('calculateMoEActiveParams', () => {
   })
 
   it('calculates active params for Mixtral 8x7B', () => {
-    // Shared: 46.7 * 0.2 = 9.34B
-    // Expert contribution: 46.7 * 0.8 * (2/8) = 9.34B
-    // Total active: 9.34 + 9.34 = 18.68B
+    // Tier 2 derivation (per-expert dimensions):
+    // expertParams = 32 * 8 * 3 * 4096 * 14336 / 1e9 = 45.097156608
+    // nonExpert    = 46.7 - 45.097156608 = 1.602843392
+    // active       = 1.602843392 + 45.097156608 * (2 / 8) = 12.877132544
     const result = calculateMoEActiveParams(mixtral8x7b)
 
-    const expectedShared = 46.7 * 0.2
-    const expectedExpert = 46.7 * 0.8 * (2 / 8)
-    const expectedTotal = expectedShared + expectedExpert
-
-    expect(result).toBeCloseTo(expectedTotal, 5)
-    expect(result).toBeCloseTo(18.68, 2)
+    expect(result).toBeCloseTo(12.877132544, 5)
   })
 
   it('returns full params when num_experts is missing', () => {
@@ -186,12 +184,13 @@ describe('calculateMoEActiveParams', () => {
       num_experts_per_token: 4,
     }
 
+    // Tier 2 derivation (per-expert dimensions):
+    // expertParams = 32 * 16 * 3 * 4096 * 14336 / 1e9 = 90.194313216
+    // nonExpert    = max(46.7 - 90.194313216, 0) = 0 (derived expert params exceed total)
+    // active       = 0 + 90.194313216 * (4 / 16) = 22.548578304
     const result = calculateMoEActiveParams(largerMoE)
-    const expectedShared = 46.7 * 0.2
-    const expectedExpert = 46.7 * 0.8 * (4 / 16) // 25% of expert params active
-    const expectedTotal = expectedShared + expectedExpert
 
-    expect(result).toBeCloseTo(expectedTotal, 5)
+    expect(result).toBeCloseTo(22.548578304, 5)
   })
 })
 
@@ -236,14 +235,14 @@ describe('calculateInferenceVRAM', () => {
       kvQuantization: 'fp16',
     })
 
-    // Model weights MUST use 46.7B (total), NOT 18.68B (active)
+    // Model weights MUST use 46.7B (total), NOT 12.88B (active, tier 2 derivation)
     // 46.7B * 2 bytes (fp16) / (1024^3) = ~86.986 GB
     const expectedWeights = new Decimal(46.7).mul(1e9).mul(2).div(new Decimal(1024).pow(3))
 
     expect(result.modelWeights.toString()).toBe(expectedWeights.toString())
     expect(result.modelWeights.toNumber()).toBeCloseTo(86.986, 2)
 
-    // But activations should use active params (~18.68B effective)
+    // But activations should use active params (~12.88B effective)
     // This is smaller than if we used full 46.7B
     expect(result.activations.toNumber()).toBeLessThan(0.06)
   })
@@ -390,5 +389,57 @@ describe('calculateInferenceVRAM', () => {
     expect(results[2]?.modelWeights.toNumber()).toBeGreaterThan(
       results[3]?.modelWeights.toNumber() ?? 0,
     )
+  })
+})
+
+describe('calculateMoEActiveParams - three-tier resolution', () => {
+  // Qwen3.6 35B A3B shape: 40 layers, 256 experts (8 active), hidden 2048,
+  // per-expert intermediate 512, 36B total.
+  const qwen35bA3b: Model = {
+    id: 'test-qwen-35b-a3b',
+    name: 'Test Qwen 35B A3B',
+    architecture: 'moe',
+    num_parameters_billion: 36,
+    hidden_size: 2048,
+    num_hidden_layers: 40,
+    num_attention_heads: 16,
+    num_kv_heads: 2,
+    intermediate_size: 512,
+    num_experts: 256,
+    num_experts_per_token: 8,
+  }
+
+  it('tier 1: uses active_parameters_billion when present', () => {
+    const withExplicit: Model = { ...qwen35bA3b, active_parameters_billion: 3 }
+    expect(calculateMoEActiveParams(withExplicit)).toBe(3)
+  })
+
+  it('tier 2: derives from per-expert dimensions when the field is absent', () => {
+    // expertParams = 40 * 256 * 3 * 2048 * 512 / 1e9 = 32.21225472
+    // nonExpert    = 36 - 32.21225472 = 3.78774528
+    // active       = 3.78774528 + 32.21225472 * (8 / 256) = 4.7942...
+    expect(calculateMoEActiveParams(qwen35bA3b)).toBeCloseTo(4.7942, 3)
+  })
+
+  it('tier 2: never returns more than the total parameter count', () => {
+    // Bad data: derived expert params (32.2B) exceed the declared total, AND the active
+    // ratio is high enough that expertParams * ratio alone would still overshoot.
+    // Both clamps have to fire: nonExpert floors at 0, then the sum caps at the total.
+    // (A low ratio like 8/256 would pass without exercising the outer clamp at all.)
+    const inconsistent: Model = {
+      ...qwen35bA3b,
+      num_parameters_billion: 10,
+      num_experts_per_token: 128,
+    }
+    expect(calculateMoEActiveParams(inconsistent)).toBe(10)
+  })
+
+  it('tier 3: dense models return the full parameter count', () => {
+    expect(calculateMoEActiveParams(llama7b)).toBe(llama7b.num_parameters_billion)
+  })
+
+  it('tier 3: MoE with missing expert fields returns the full parameter count', () => {
+    const incomplete: Model = { ...qwen35bA3b, num_experts: undefined }
+    expect(calculateMoEActiveParams(incomplete)).toBe(36)
   })
 })

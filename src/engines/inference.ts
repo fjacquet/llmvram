@@ -13,9 +13,14 @@ import type { InferenceVRAMBreakdown, KVCachePrecision, QuantizationFormat } fro
 /**
  * Calculate active parameters for MoE models
  *
- * MoE models have two parameter pools:
- * - Shared parameters (embeddings, layer norms, output head): ~20% of total
- * - Expert parameters (FFN layers): ~80% of total
+ * Three-tier resolution:
+ * 1. Explicit `active_parameters_billion` on the model, when present (e.g. verified
+ *    from the model card).
+ * 2. Otherwise, derive it from the stored per-expert dimensions: expert parameters are
+ *    layers x experts x 3 projections (gate, up, down) x hidden x per-expert intermediate,
+ *    with the remainder treated as non-expert (shared) parameters.
+ * 3. Dense models, or MoE models missing the expert fields needed for derivation, return
+ *    the full parameter count.
  *
  * Only a subset of experts are active per token (num_experts_per_token / num_experts).
  * This function returns the effective parameter count for activation memory sizing.
@@ -28,32 +33,43 @@ import type { InferenceVRAMBreakdown, KVCachePrecision, QuantizationFormat } fro
  *
  * @example
  * ```ts
- * // Mixtral 8x7B: 46.7B total, 8 experts, 2 active per token
- * // Shared: 46.7 * 0.2 = 9.34B
- * // Expert contribution: 46.7 * 0.8 * (2/8) = 9.34B
- * // Total active: 9.34 + 9.34 = 18.68B
- * calculateMoEActiveParams(mixtral) // ~18.68
+ * // Tier 1 - explicit field wins
+ * calculateMoEActiveParams({ ...qwen35bA3b, active_parameters_billion: 3 }) // 3
  *
- * // Dense model (no MoE)
- * calculateMoEActiveParams(llama70b) // 70.0 (unchanged)
+ * // Tier 2 - derived from per-expert dimensions
+ * calculateMoEActiveParams(qwen35bA3b) // ~4.79
+ *
+ * // Tier 3 - dense model
+ * calculateMoEActiveParams(llama70b) // 70.0
  * ```
  */
 export function calculateMoEActiveParams(model: Model): number {
-  // Dense model or missing MoE fields - return full param count
+  // Tier 1: explicit value verified from the model card
+  if (model.active_parameters_billion) {
+    return model.active_parameters_billion
+  }
+
+  // Tier 3: dense model, or MoE fields incomplete
   if (model.architecture === 'dense' || !model.num_experts || !model.num_experts_per_token) {
     return model.num_parameters_billion
   }
 
-  // MoE model - calculate active parameters
-  const totalParams = model.num_parameters_billion
-  const activeRatio = model.num_experts_per_token / model.num_experts
+  // Tier 2: derive from stored dimensions. Our MoE entries store the PER-EXPERT
+  // intermediate_size (Qwen3.6 35B A3B: 512, not 17408), so expert parameters are
+  // layers x experts x 3 projections (gate, up, down) x hidden x per-expert intermediate.
+  const expertParams = new Decimal(model.num_hidden_layers)
+    .mul(model.num_experts)
+    .mul(3)
+    .mul(model.hidden_size)
+    .mul(model.intermediate_size)
+    .div(1e9)
 
-  // Approximate split: 20% shared, 80% in experts
-  const sharedParams = totalParams * 0.2
-  const expertParams = totalParams * 0.8
+  const total = new Decimal(model.num_parameters_billion)
+  // Guard against inconsistent data where the derivation exceeds the declared total
+  const nonExpertParams = Decimal.max(total.sub(expertParams), 0)
+  const activeRatio = new Decimal(model.num_experts_per_token).div(model.num_experts)
 
-  // Active params = shared + (expert params * active ratio)
-  return sharedParams + expertParams * activeRatio
+  return Decimal.min(nonExpertParams.add(expertParams.mul(activeRatio)), total).toNumber()
 }
 
 /**
@@ -80,7 +96,7 @@ export function calculateMoEActiveParams(model: Model): number {
  * calculateActivationMemory(llama7b, 2048, 1)
  *
  * // MoE model uses reduced intermediate size based on active params
- * calculateActivationMemory(mixtral, 2048, 1) // Uses ~20.86B active, not 46.7B total
+ * calculateActivationMemory(mixtral, 2048, 1) // Uses ~12.88B active, not 46.7B total
  * ```
  */
 export function calculateActivationMemory(
@@ -160,7 +176,7 @@ export function calculateActivationMemory(
  *   batchSize: 1,
  * })
  * // breakdown.modelWeights: ~86.97 GB (46.7B total params, NOT 13B active)
- * // breakdown.activations: uses active params (~18.68B) for sizing
+ * // breakdown.activations: uses active params (~12.88B) for sizing
  * ```
  */
 export function calculateInferenceVRAM(params: {
