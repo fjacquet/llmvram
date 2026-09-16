@@ -149,7 +149,7 @@ describe('MultiGPUBreakdownChart', () => {
     expect(widthSum).toBeCloseTo(100, 5)
   })
 
-  it('suppresses the per-node multiplier at N=1 but shows it for N>1', () => {
+  it('suppresses the per-node multiplier on a single node, whatever the GPU count', () => {
     const singleGpuBreakdown = calculateMultiGPUVRAM(
       singleGPU,
       model,
@@ -165,10 +165,12 @@ describe('MultiGPUBreakdownChart', () => {
     expect(screen.queryByText(/per node/)).not.toBeInTheDocument()
     unmount()
 
+    // 4 GPUs in one node: the count is already stated, so "4 per node x 1 node"
+    // would only restate it. The split appears once numNodes > 1 (see below).
     const multiGpuBreakdown = calculateMultiGPUVRAM(singleGPU, model, 80, 4, 'tensor-parallel', gpu)
     render(<MultiGPUBreakdownChart breakdown={multiGpuBreakdown} gpuVRAM={80} />)
-    expect(screen.getByText(/identical across all 4 GPUs/)).toBeInTheDocument()
-    expect(screen.getByText(/4 per node × 1 node/)).toBeInTheDocument()
+    expect(screen.getByText('identical across all 4 GPUs')).toBeInTheDocument()
+    expect(screen.queryByText(/per node/)).not.toBeInTheDocument()
   })
 
   it('reports the per-node split (not just the total) across multiple servers', () => {

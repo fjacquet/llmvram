@@ -128,10 +128,11 @@ export function MultiGPUBreakdownChart({
 
       <p className="text-xs text-gray-600 dark:text-gray-400">
         identical across all {totalGPUs} GPU{totalGPUs === 1 ? '' : 's'}
-        {totalGPUs > 1 &&
-          ` (${breakdown.gpusPerNode} per node × ${breakdown.numNodes} node${
-            breakdown.numNodes === 1 ? '' : 's'
-          })`}
+        {/* Only worth splitting out when there is more than one node. At a
+            single node the multiplier restates the total as "N per node x 1
+            node", which carries nothing. */}
+        {breakdown.numNodes > 1 &&
+          ` (${breakdown.gpusPerNode} per node × ${breakdown.numNodes} nodes)`}
       </p>
 
       {/* Summary text */}
