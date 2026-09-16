@@ -41,7 +41,8 @@ export function GPUCountSelector() {
           <InfoTip text={tooltip} />
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Single GPU — {selectedGPU?.name ?? 'this part'} has no multi-GPU interconnect.
+          Single GPU — {selectedGPU?.name ?? 'this part'} ships as a single GPU; no multi-GPU
+          configuration exists for it.
         </p>
       </div>
     )
