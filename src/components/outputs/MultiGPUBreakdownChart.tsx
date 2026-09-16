@@ -124,7 +124,17 @@ export function MultiGPUBreakdownChart({
         </p>
       </div>
 
-      <BarChartLegend keys={BAR_KEYS} colors={COLORS} />
+      {/* Over capacity every segment is painted one color, so the normal
+          five-color legend would advertise swatches matching nothing on screen.
+          Point the legend at whatever the bar actually uses. */}
+      <BarChartLegend
+        keys={BAR_KEYS}
+        colors={
+          overCapacity
+            ? Object.fromEntries(BAR_KEYS.map((k) => [k, OVER_CAPACITY_COLOR]))
+            : COLORS
+        }
+      />
 
       <p className="text-xs text-gray-600 dark:text-gray-400">
         identical across all {totalGPUs} GPU{totalGPUs === 1 ? '' : 's'}

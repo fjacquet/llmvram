@@ -147,6 +147,14 @@ describe('MultiGPUBreakdownChart', () => {
       expect(el.style.backgroundColor).toBe(overCapacityColor)
     }
     expect(widthSum).toBeCloseTo(100, 5)
+
+    // The legend must describe the bar it sits under. With every segment painted
+    // one color, a five-color legend would name swatches that appear nowhere.
+    const swatches = document.querySelectorAll('span.inline-block.rounded-sm')
+    expect(swatches).toHaveLength(5)
+    for (const swatch of swatches) {
+      expect((swatch as HTMLElement).style.backgroundColor).toBe(overCapacityColor)
+    }
   })
 
   it('suppresses the per-node multiplier on a single node, whatever the GPU count', () => {

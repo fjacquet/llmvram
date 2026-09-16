@@ -1,5 +1,6 @@
 import { InfoTip } from '@components/common/InfoTip'
 import { useUIStore } from '@store/uiStore'
+import { maxGPUsFor } from '@utils/gpuLimits'
 
 /**
  * GPU count selector, bounded by the selected GPU's scale-up domain
@@ -24,7 +25,7 @@ export function GPUCountSelector() {
   const shardingStrategy = useUIStore((s) => s.shardingStrategy)
 
   const isTraining = mode === 'training'
-  const maxGPUs = selectedGPU?.max_gpus_per_node ?? 8
+  const maxGPUs = maxGPUsFor(selectedGPU)
   const label = isTraining ? 'Number of GPUs' : 'GPUs per server'
 
   const tooltip = isTraining

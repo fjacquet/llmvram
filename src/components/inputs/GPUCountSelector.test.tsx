@@ -1,4 +1,6 @@
+import { MAX_GPUS_PER_NODE } from '@engines/constants'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { maxGPUsFor } from '@utils/gpuLimits'
 import type { GPU } from '@utils/schemas'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -74,10 +76,17 @@ describe('GPUCountSelector', () => {
     expect(screen.getByText(/Single GPU/)).toBeInTheDocument()
   })
 
-  it('falls back to a cap of 8 when no GPU is selected', () => {
+  it('falls back to the same bound clampGPUCount uses when no GPU is selected', () => {
+    // The component used to answer 8 here while clampGPUCount answered
+    // MAX_GPUS_PER_NODE, so the slider and the store disagreed about what "no
+    // GPU selected" means. Both now read maxGPUsFor, so this asserts against the
+    // shared definition rather than restating a literal that can drift from it.
+    // The state is unreachable in the app (InputPanel gates this section on
+    // selectedGPU); the point is that there is one answer, not two.
     useUIStore.setState({ selectedGPU: null })
     render(<GPUCountSelector />)
-    expect(screen.getByRole('slider')).toHaveAttribute('max', '8')
+    expect(screen.getByRole('slider')).toHaveAttribute('max', String(maxGPUsFor(null)))
+    expect(maxGPUsFor(null)).toBe(MAX_GPUS_PER_NODE)
   })
 
   it('drops the false claim that 8 is the largest GPU domain in current hardware', () => {

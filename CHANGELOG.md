@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- When every configured server is already full of GPUs, the recommendations now suggest adding servers instead of falling silent. Previously the panel said "Need N GB more VRAM. Try:" above an empty list, because the remaining fallback only suggests an upgrade to parts under 80 GB.
+- The capacity meter legend is recolored with the bar in the over-capacity state, instead of showing five swatches that match nothing on screen.
 - The PPTX performance slide no longer draws its metric cards over its own heading.
 - AMD Infinity Fabric is now modelled as its own interconnect tier (1075 GB/s, 8-way TP) instead of being aliased to PCIe 5.0 (128 GB/s). Multi-GPU VRAM estimates for AMD accelerators were previously inflated, and an 8-GPU AMD node raised a spurious tensor-parallel degradation warning.
 - Pipeline parallelism no longer replicates the full all-layer KV cache on every stage. Each stage owns a slice of layers, so it holds only that slice's cache. The previous behaviour overstated the KV term by the stage count.

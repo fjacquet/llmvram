@@ -186,4 +186,40 @@ describe('Recommendations', () => {
 
     expect(screen.queryByText(/with tensor parallelism/)).not.toBeInTheDocument()
   })
+
+  it('advises more servers when every configured node is already full', () => {
+    // 8-way part, 8 GPUs/node x 2 nodes = 16 total, model needs far more. GPUs
+    // per node is maxed, so node count is the only free variable. Previously
+    // this rendered "Need N GB more VRAM. Try:" above an empty list, because the
+    // "upgrade GPU" fallback only fires below 80 GB.
+    const bigPart = gpu({
+      manufacturer: 'nvidia',
+      tier: 'datacenter',
+      max_gpus_per_node: 8,
+      vram_gb: 288,
+      name: 'Test GB300',
+    })
+    render(
+      <Recommendations
+        gpu={bigPart}
+        breakdown={breakdown(12000)}
+        currentQuantization="fp16"
+        currentSequenceLength={2048}
+        numGPUs={16}
+        multiGPUBreakdown={
+          {
+            totalPerGPU: new Decimal(750),
+            numGPUs: 16,
+            numNodes: 2,
+            gpusPerNode: 8,
+            scalingEfficiency: 0.85,
+          } as never
+        }
+      />,
+    )
+
+    expect(screen.getByText(/Add more servers/)).toBeInTheDocument()
+    // and still never advises shrinking
+    expect(screen.queryByText(/Try 16x Test GB300/)).not.toBeInTheDocument()
+  })
 })
