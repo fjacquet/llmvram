@@ -270,7 +270,7 @@ function validateInterconnect(
 **Why it happens:**
 - Embeddings replicated (2-5% of model)
 - Layer norms replicated (<1%)
-- NCCL buffers per peer GPU (200MB × 3 peers = 600MB)
+- NCCL buffers ~250MB per GPU, flat in the group size (**corrected 2026-09-16**: this line originally read "per peer GPU (200MB × 3 peers = 600MB)". That per-peer shape was the community estimate this document itself flagged for `nvidia-smi` validation, which never happened. Ring and tree allreduce give each rank a fixed handful of connections regardless of group size, so the figure does not scale with peers; linear growth reached 14.2GB/GPU on a 72-GPU node. See `NCCL_BUFFER_PER_GPU_GB` in `src/engines/constants.ts`.)
 - Communication overhead buffers (10-15%)
 
 **How to avoid:** Use tensor parallelism formula above with explicit replication accounting
