@@ -1,3 +1,4 @@
+import type { FabricType } from '@engines/types'
 import { create } from 'zustand'
 
 export interface ConfigSnapshot {
@@ -17,6 +18,8 @@ export interface ConfigSnapshot {
     batchSize: number
     kvQuantization: string
     numGPUs: number
+    numNodes: number
+    interNodeFabric: FabricType
     shardingStrategy: string
     offloadingEnabled: boolean
     offloadTarget: string

@@ -49,6 +49,9 @@ const baseState = {
   gradientAccumulationSteps: 1,
   gradientCheckpointing: false,
   flashAttention: false,
+  numNodes: 1,
+  interNodeFabric: 'ethernet-800g' as const,
+  customFabric: null,
 }
 
 describe('URL Serializer', () => {
@@ -669,6 +672,76 @@ describe('URL Serializer', () => {
         serializeToURL({ ...baseState, sequenceLength: 10485760 }),
       )
       expect(deserialized?.sl).toBe(10485760)
+    })
+  })
+
+  describe('multi-node URL state', () => {
+    it('round-trips the node topology', () => {
+      const hash = serializeToURL({
+        ...baseState,
+        numGPUs: 8,
+        numNodes: 4,
+        interNodeFabric: 'ethernet-1600g',
+      })
+      const decoded = deserializeFromURL(hash)
+      expect(decoded?.ng).toBe(8)
+      expect(decoded?.nn).toBe(4)
+      expect(decoded?.fab).toBe('ethernet-1600g')
+    })
+
+    it('omits the node keys at a single node, keeping shared links short', () => {
+      const hash = serializeToURL({ ...baseState, numGPUs: 4, numNodes: 1 })
+      const decoded = deserializeFromURL(hash)
+      expect(decoded).not.toBeNull()
+      expect(decoded?.nn).toBeUndefined()
+      expect(decoded?.fab).toBeUndefined()
+    })
+
+    it('accepts a pre-feature URL, where ng meant total GPUs', () => {
+      // 1 node x 4 GPUs is arithmetically the same configuration as the old
+      // "4 GPUs", so old links keep working and keep meaning the same thing.
+      const legacy = serializeToURL({ ...baseState, numGPUs: 4, numNodes: 1 })
+      const decoded = deserializeFromURL(legacy)
+      expect(decoded).not.toBeNull()
+      expect(decoded?.ng).toBe(4)
+      expect(decoded?.nn ?? 1).toBe(1)
+    })
+
+    it('accepts a hash built before the node keys existed', () => {
+      // Hand-built payload matching the pre-feature URLStateSchema shape (no
+      // nn/fab/fabc keys at all), proving genuinely old links still decode -
+      // not just links this version happens to omit the keys from.
+      const legacy = compressToEncodedURIComponent(
+        JSON.stringify({
+          modelId: 'meta-llama-llama-3-70b',
+          gpuId: 'nvidia-h100-80gb-sxm',
+          q: 'gptq',
+          sl: 4096,
+          bs: 1,
+          kvq: 'fp16',
+          ng: 4,
+          ss: 'tensor-parallel',
+        }),
+      )
+      const decoded = deserializeFromURL(legacy)
+      expect(decoded).not.toBeNull()
+      expect(decoded?.ng).toBe(4)
+      expect(decoded?.nn).toBeUndefined()
+      expect(decoded?.fab).toBeUndefined()
+      expect(decoded?.fabc).toBeUndefined()
+    })
+
+    it('round-trips a custom fabric', () => {
+      const hash = serializeToURL({
+        ...baseState,
+        numGPUs: 8,
+        numNodes: 2,
+        interNodeFabric: 'custom',
+        customFabric: { name: 'Lab', port_gbps: 25 },
+      })
+      const decoded = deserializeFromURL(hash)
+      expect(decoded?.fab).toBe('custom')
+      expect(decoded?.fabc).toEqual({ name: 'Lab', port_gbps: 25 })
     })
   })
 })

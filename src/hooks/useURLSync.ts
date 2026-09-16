@@ -111,6 +111,11 @@ export function useURLSync() {
     store.setNumGPUs(urlState.ng)
     store.setShardingStrategy(urlState.ss as ShardingStrategy)
 
+    // Multi-node (absent = single node, for links created before the feature)
+    store.setNumNodes(urlState.nn ?? 1)
+    if (urlState.fab) store.setInterNodeFabric(urlState.fab)
+    if (urlState.fabc) store.setCustomFabric(urlState.fabc)
+
     // Restore offloading parameters (only if enabled)
     if (urlState.oe) {
       store.setOffloadingEnabled(true)

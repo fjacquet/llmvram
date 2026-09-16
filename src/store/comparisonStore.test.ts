@@ -15,6 +15,8 @@ const makeSnapshot = (label: string): Omit<ConfigSnapshot, 'id' | 'timestamp'> =
     batchSize: 1,
     kvQuantization: 'fp16',
     numGPUs: 1,
+    numNodes: 1,
+    interNodeFabric: 'ethernet-800g',
     shardingStrategy: 'tensor-parallel',
     offloadingEnabled: false,
     offloadTarget: 'cpu',

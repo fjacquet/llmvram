@@ -1,5 +1,6 @@
 import type { FrameworkPreset } from '@engines/frameworks'
 import type {
+  FabricType,
   FineTuningMethod,
   KVCachePrecision,
   OffloadMode,
@@ -9,7 +10,7 @@ import type {
   ShardingStrategy,
   TrainingPrecision,
 } from '@engines/types'
-import type { GPU, Model } from '@utils/schemas'
+import type { CustomFabricInput, GPU, Model } from '@utils/schemas'
 import { MAX_SEQUENCE_LENGTH } from '@utils/schemas'
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { z } from 'zod'
@@ -47,8 +48,28 @@ export const URLStateSchema = z.object({
   sl: z.number().int().min(512).max(MAX_SEQUENCE_LENGTH), // sequenceLength
   bs: z.number(), // batchSize
   kvq: z.string(), // kvQuantization
-  ng: z.number(), // numGPUs
+  ng: z.number(), // numGPUs — PER NODE since v1.10
   ss: z.string(), // shardingStrategy
+  // Multi-node (absent = single node, for backward compatibility with links
+  // created before this feature, where ng meant the total GPU count)
+  nn: z.number().int().min(1).max(64).optional(), // numNodes
+  fab: z
+    .enum([
+      'ethernet-1600g',
+      'ethernet-800g',
+      'infiniband-xdr',
+      'infiniband-ndr',
+      'ethernet-400g',
+      'ethernet-100g',
+      'custom',
+    ])
+    .optional(), // interNodeFabric
+  fabc: z
+    .object({
+      name: z.string(),
+      port_gbps: z.number(),
+    })
+    .optional(), // customFabric
   // Offloading (only if enabled)
   oe: z.boolean().optional(), // offloadingEnabled
   ot: z.string().optional(), // offloadTarget
@@ -104,6 +125,9 @@ export function serializeToURL(state: {
   kvQuantization: KVCachePrecision
   numGPUs: number
   shardingStrategy: ShardingStrategy
+  numNodes: number
+  interNodeFabric: FabricType
+  customFabric: CustomFabricInput | null
   offloadingEnabled: boolean
   offloadTarget: OffloadTarget
   offloadMode: OffloadMode
@@ -162,6 +186,17 @@ export function serializeToURL(state: {
     kvq: state.kvQuantization,
     ng: state.numGPUs,
     ss: state.shardingStrategy,
+
+    // Multi-node (only when actually multi-node, to keep single-node links short)
+    ...(state.numNodes > 1
+      ? {
+          nn: state.numNodes,
+          fab: state.interNodeFabric,
+          ...(state.interNodeFabric === 'custom' && state.customFabric
+            ? { fabc: state.customFabric }
+            : {}),
+        }
+      : {}),
 
     // Offloading (only if enabled)
     ...(state.offloadingEnabled
