@@ -145,10 +145,15 @@ describe('exportPptx', () => {
     expect(configRows).not.toContainEqual(['Number of GPUs', '8'])
     expect(configRows).toContainEqual(['Servers', '4'])
 
-    // Slide 3's bar chart must have one bar per TOTAL GPU (32), not per-node (8).
+    // Slide 3's bar chart is a single stacked bar (one category, five series) —
+    // every GPU is identical, so N repeated bars carried no information. The
+    // TOTAL (32), not the per-node count (8), must appear in the category label,
+    // since the mock only records (type, data) and not the chart title/options.
     const barChart = charts.find((c) => c.type === 'bar')
     expect(barChart).toBeDefined()
-    expect(barChart?.data[0]?.values).toHaveLength(32)
+    expect(barChart?.data[0]?.values).toHaveLength(1)
+    expect(barChart?.data[0]?.labels[0]).toContain('32 GPUs total')
+    expect(barChart?.data[0]?.labels[0]).not.toContain('8 GPUs total')
   })
 
   it('omits the Servers row for a single-node configuration', async () => {

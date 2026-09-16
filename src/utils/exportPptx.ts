@@ -256,35 +256,40 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       color: C.darkBlue,
     })
 
-    const gpuLabels = Array.from({ length: numGPUs }, (_, i) => `GPU ${i + 1}`)
+    // One stacked bar, not one per GPU: every GPU in the configuration is
+    // identical (all filled from breakdown.perGPU.*), so N bars just repeat
+    // the same number N times. The category label carries the cluster total
+    // instead, so that information survives even though the mock only
+    // records (type, data) and not the chart options/title.
+    const categoryLabel = [`Per GPU (${numGPUs} GPU${numGPUs === 1 ? '' : 's'} total)`]
 
     slide3.addChart(
       pptx.ChartType.bar,
       [
         {
           name: 'Model Weights',
-          labels: gpuLabels,
-          values: Array(numGPUs).fill(multiGPU.perGPU.modelWeights.toNumber()) as number[],
+          labels: categoryLabel,
+          values: [multiGPU.perGPU.modelWeights.toNumber()],
         },
         {
           name: 'KV Cache',
-          labels: gpuLabels,
-          values: Array(numGPUs).fill(multiGPU.perGPU.kvCache.toNumber()) as number[],
+          labels: categoryLabel,
+          values: [multiGPU.perGPU.kvCache.toNumber()],
         },
         {
           name: 'Activations',
-          labels: gpuLabels,
-          values: Array(numGPUs).fill(multiGPU.perGPU.activations.toNumber()) as number[],
+          labels: categoryLabel,
+          values: [multiGPU.perGPU.activations.toNumber()],
         },
         {
           name: 'Framework & NCCL',
-          labels: gpuLabels,
-          values: Array(numGPUs).fill(multiGPU.perGPU.frameworkOverhead.toNumber()) as number[],
+          labels: categoryLabel,
+          values: [multiGPU.perGPU.frameworkOverhead.toNumber()],
         },
         {
           name: 'Communication',
-          labels: gpuLabels,
-          values: Array(numGPUs).fill(multiGPU.perGPU.communicationOverhead.toNumber()) as number[],
+          labels: categoryLabel,
+          values: [multiGPU.perGPU.communicationOverhead.toNumber()],
         },
       ],
       {
@@ -292,12 +297,14 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
         y: 0.75,
         w: 12.5,
         h: 4.2,
-        barDir: 'col',
+        barDir: 'bar',
         barGrouping: 'stacked',
         chartColors: [C.modelWeights, C.kvCache, C.activations, C.framework, C.communication],
         showLegend: true,
         legendPos: 'r',
         valAxisMinVal: 0,
+        showTitle: true,
+        title: `Per GPU — ${gbStr(multiGPU.totalPerGPU)} / ${gpu.vram_gb} GB capacity`,
       },
     )
 
