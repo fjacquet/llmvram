@@ -87,6 +87,7 @@ describe('URL Serializer', () => {
 
     it('should round-trip custom model', () => {
       const state = {
+        ...baseState,
         selectedModel: {
           id: 'custom-12345',
           name: 'My Custom Model',
@@ -112,26 +113,7 @@ describe('URL Serializer', () => {
         },
         quantization: 'fp16' as const,
         sequenceLength: 2048,
-        batchSize: 1,
-        kvQuantization: 'fp16' as const,
         numGPUs: 1,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
-        mode: 'inference' as const,
-        trainingMethod: 'lora' as const,
-        optimizer: 'adamw' as const,
-        trainingPrecision: 'bf16' as const,
-        loraRank: 16,
-        loraAlpha: 32,
-        targetModulesPercent: 30,
-        gradientAccumulationSteps: 1,
-        gradientCheckpointing: false,
-        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -151,6 +133,7 @@ describe('URL Serializer', () => {
 
     it('should round-trip custom GPU', () => {
       const state = {
+        ...baseState,
         selectedModel: null,
         selectedGPU: {
           id: 'custom-67890',
@@ -166,26 +149,7 @@ describe('URL Serializer', () => {
         },
         quantization: 'fp16' as const,
         sequenceLength: 2048,
-        batchSize: 1,
-        kvQuantization: 'fp16' as const,
         numGPUs: 1,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
-        mode: 'inference' as const,
-        trainingMethod: 'lora' as const,
-        optimizer: 'adamw' as const,
-        trainingPrecision: 'bf16' as const,
-        loraRank: 16,
-        loraAlpha: 32,
-        targetModulesPercent: 30,
-        gradientAccumulationSteps: 1,
-        gradientCheckpointing: false,
-        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -202,30 +166,18 @@ describe('URL Serializer', () => {
 
     it('should serialize offloading parameters when enabled', () => {
       const state = {
+        ...baseState,
         selectedModel: null,
         selectedGPU: null,
         quantization: 'fp16' as const,
         sequenceLength: 2048,
-        batchSize: 1,
-        kvQuantization: 'fp16' as const,
         numGPUs: 1,
-        shardingStrategy: 'tensor-parallel' as const,
         offloadingEnabled: true,
         offloadTarget: 'nvme' as const,
         offloadMode: 'layers' as const,
         offloadPercentage: 50,
         offloadLayers: 20,
         kvCacheOffload: true,
-        mode: 'inference' as const,
-        trainingMethod: 'lora' as const,
-        optimizer: 'adamw' as const,
-        trainingPrecision: 'bf16' as const,
-        loraRank: 16,
-        loraAlpha: 32,
-        targetModulesPercent: 30,
-        gradientAccumulationSteps: 1,
-        gradientCheckpointing: false,
-        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -242,30 +194,12 @@ describe('URL Serializer', () => {
 
     it('should NOT serialize training fields when mode is inference', () => {
       const state = {
+        ...baseState,
         selectedModel: null,
         selectedGPU: null,
         quantization: 'fp16' as const,
         sequenceLength: 2048,
-        batchSize: 1,
-        kvQuantization: 'fp16' as const,
         numGPUs: 1,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
-        mode: 'inference' as const,
-        trainingMethod: 'lora' as const,
-        optimizer: 'adamw' as const,
-        trainingPrecision: 'bf16' as const,
-        loraRank: 16,
-        loraAlpha: 32,
-        targetModulesPercent: 30,
-        gradientAccumulationSteps: 1,
-        gradientCheckpointing: false,
-        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -284,20 +218,12 @@ describe('URL Serializer', () => {
 
     it('should serialize training fields when mode is training', () => {
       const state = {
+        ...baseState,
         selectedModel: null,
         selectedGPU: null,
         quantization: 'fp16' as const,
         sequenceLength: 2048,
-        batchSize: 1,
-        kvQuantization: 'fp16' as const,
         numGPUs: 1,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
         mode: 'training' as const,
         trainingMethod: 'qlora' as const,
         optimizer: 'sgd-momentum' as const,
@@ -305,9 +231,6 @@ describe('URL Serializer', () => {
         loraRank: 32,
         loraAlpha: 64,
         targetModulesPercent: 50,
-        gradientAccumulationSteps: 1,
-        gradientCheckpointing: false,
-        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -326,17 +249,7 @@ describe('URL Serializer', () => {
 
     it('should round-trip training configuration', () => {
       const state = {
-        selectedModel: {
-          id: 'meta-llama-llama-3-70b',
-          name: 'Llama 3 70B',
-          architecture: 'dense' as const,
-          num_parameters_billion: 70,
-          hidden_size: 8192,
-          num_hidden_layers: 80,
-          num_attention_heads: 64,
-          num_kv_heads: 8,
-          intermediate_size: 28672,
-        },
+        ...baseState,
         selectedGPU: {
           id: 'nvidia-h100-80gb-sxm',
           name: 'NVIDIA H100 80GB SXM',
@@ -352,25 +265,12 @@ describe('URL Serializer', () => {
         quantization: 'bf16' as const,
         sequenceLength: 2048,
         batchSize: 4,
-        kvQuantization: 'fp16' as const,
         numGPUs: 1,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
         mode: 'training' as const,
-        trainingMethod: 'lora' as const,
         optimizer: 'adamw-8bit' as const,
-        trainingPrecision: 'bf16' as const,
         loraRank: 8,
         loraAlpha: 16,
         targetModulesPercent: 25,
-        gradientAccumulationSteps: 1,
-        gradientCheckpointing: false,
-        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -388,27 +288,13 @@ describe('URL Serializer', () => {
 
     it('should serialize optimization fields when mode is training', () => {
       const state = {
+        ...baseState,
         selectedModel: null,
         selectedGPU: null,
         quantization: 'fp16' as const,
         sequenceLength: 2048,
-        batchSize: 1,
-        kvQuantization: 'fp16' as const,
         numGPUs: 1,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
         mode: 'training' as const,
-        trainingMethod: 'lora' as const,
-        optimizer: 'adamw' as const,
-        trainingPrecision: 'bf16' as const,
-        loraRank: 16,
-        loraAlpha: 32,
-        targetModulesPercent: 30,
         gradientAccumulationSteps: 8,
         gradientCheckpointing: true,
         flashAttention: true,
@@ -425,27 +311,12 @@ describe('URL Serializer', () => {
 
     it('should NOT serialize optimization fields when mode is inference', () => {
       const state = {
+        ...baseState,
         selectedModel: null,
         selectedGPU: null,
         quantization: 'fp16' as const,
         sequenceLength: 2048,
-        batchSize: 1,
-        kvQuantization: 'fp16' as const,
         numGPUs: 1,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
-        mode: 'inference' as const,
-        trainingMethod: 'lora' as const,
-        optimizer: 'adamw' as const,
-        trainingPrecision: 'bf16' as const,
-        loraRank: 16,
-        loraAlpha: 32,
-        targetModulesPercent: 30,
         gradientAccumulationSteps: 8,
         gradientCheckpointing: true,
         flashAttention: true,
@@ -463,30 +334,15 @@ describe('URL Serializer', () => {
 
     it('should round-trip optimization values', () => {
       const state = {
+        ...baseState,
         selectedModel: null,
         selectedGPU: null,
         quantization: 'fp16' as const,
-        sequenceLength: 4096,
         batchSize: 4,
-        kvQuantization: 'fp16' as const,
-        numGPUs: 2,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
         mode: 'training' as const,
         trainingMethod: 'full' as const,
-        optimizer: 'adamw' as const,
-        trainingPrecision: 'bf16' as const,
-        loraRank: 16,
-        loraAlpha: 32,
-        targetModulesPercent: 30,
         gradientAccumulationSteps: 32,
         gradientCheckpointing: true,
-        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -546,17 +402,7 @@ describe('URL Serializer', () => {
   describe('URL safety and size', () => {
     it('should produce URL-safe output', () => {
       const state = {
-        selectedModel: {
-          id: 'meta-llama-llama-3-70b',
-          name: 'Llama 3 70B',
-          architecture: 'dense' as const,
-          num_parameters_billion: 70,
-          hidden_size: 8192,
-          num_hidden_layers: 80,
-          num_attention_heads: 64,
-          num_kv_heads: 8,
-          intermediate_size: 28672,
-        },
+        ...baseState,
         selectedGPU: {
           id: 'nvidia-h100-80gb-sxm',
           name: 'NVIDIA H100 80GB SXM',
@@ -569,28 +415,6 @@ describe('URL Serializer', () => {
           tier: 'datacenter' as const,
           interconnect: 'nvlink-4' as const,
         },
-        quantization: 'gptq' as const,
-        sequenceLength: 4096,
-        batchSize: 1,
-        kvQuantization: 'fp16' as const,
-        numGPUs: 2,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
-        mode: 'inference' as const,
-        trainingMethod: 'lora' as const,
-        optimizer: 'adamw' as const,
-        trainingPrecision: 'bf16' as const,
-        loraRank: 16,
-        loraAlpha: 32,
-        targetModulesPercent: 30,
-        gradientAccumulationSteps: 1,
-        gradientCheckpointing: false,
-        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
@@ -603,17 +427,7 @@ describe('URL Serializer', () => {
 
     it('should produce reasonably sized URLs for typical configs', () => {
       const state = {
-        selectedModel: {
-          id: 'meta-llama-llama-3-70b',
-          name: 'Llama 3 70B',
-          architecture: 'dense' as const,
-          num_parameters_billion: 70,
-          hidden_size: 8192,
-          num_hidden_layers: 80,
-          num_attention_heads: 64,
-          num_kv_heads: 8,
-          intermediate_size: 28672,
-        },
+        ...baseState,
         selectedGPU: {
           id: 'nvidia-h100-80gb-sxm',
           name: 'NVIDIA H100 80GB SXM',
@@ -626,28 +440,6 @@ describe('URL Serializer', () => {
           tier: 'datacenter' as const,
           interconnect: 'nvlink-4' as const,
         },
-        quantization: 'gptq' as const,
-        sequenceLength: 4096,
-        batchSize: 1,
-        kvQuantization: 'fp16' as const,
-        numGPUs: 2,
-        shardingStrategy: 'tensor-parallel' as const,
-        offloadingEnabled: false,
-        offloadTarget: 'cpu-ram' as const,
-        offloadMode: 'percentage' as const,
-        offloadPercentage: 0,
-        offloadLayers: 0,
-        kvCacheOffload: false,
-        mode: 'inference' as const,
-        trainingMethod: 'lora' as const,
-        optimizer: 'adamw' as const,
-        trainingPrecision: 'bf16' as const,
-        loraRank: 16,
-        loraAlpha: 32,
-        targetModulesPercent: 30,
-        gradientAccumulationSteps: 1,
-        gradientCheckpointing: false,
-        flashAttention: false,
       }
 
       const serialized = serializeToURL(state)
