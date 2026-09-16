@@ -164,3 +164,13 @@ describe('AMD Instinct MI350 / MI325 series', () => {
     }
   })
 })
+
+describe('NVIDIA B200', () => {
+  it('lists B200 at its allocatable 180GB, not the 192GB stack size', () => {
+    const result = validateGPUs(gpusData)
+    const b200 = result.find((g) => g.id === 'nvidia-b200-192gb')
+    expect(b200).toBeDefined()
+    expect(b200?.vram_gb).toBe(180)
+    expect(b200?.name).not.toContain('192')
+  })
+})

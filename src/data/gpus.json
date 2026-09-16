@@ -50,9 +50,9 @@
   },
   {
     "id": "nvidia-b200-192gb",
-    "name": "NVIDIA B200 192GB",
+    "name": "NVIDIA B200 180GB",
     "manufacturer": "nvidia",
-    "vram_gb": 192,
+    "vram_gb": 180,
     "memory_bandwidth_gbps": 8000,
     "memory_type": "HBM3e",
     "bus_width": 8192,

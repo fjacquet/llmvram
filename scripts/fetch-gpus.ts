@@ -68,11 +68,17 @@ const GPUS: GPU[] = [
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/h200/',
   },
+  // HGX B200 ships 1.44TB across 8 GPUs = 180GB each. 192GB is the physical
+  // HBM3e stack size before reserved capacity; 180GB is the software-visible
+  // figure in NVIDIA's OEM documentation and in Dell XE9680L / XE9685L and
+  // Lenovo ThinkSystem listings. A VRAM calculator wants the allocatable one.
+  // The id keeps its stale "192gb" suffix on purpose: changing it would break
+  // every shared link naming this GPU.
   {
     id: 'nvidia-b200-192gb',
-    name: 'NVIDIA B200 192GB',
+    name: 'NVIDIA B200 180GB',
     manufacturer: 'nvidia',
-    vram_gb: 192,
+    vram_gb: 180,
     memory_bandwidth_gbps: 8000,
     memory_type: 'HBM3e',
     bus_width: 8192,
