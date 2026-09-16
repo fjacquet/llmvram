@@ -123,4 +123,67 @@ describe('Recommendations', () => {
     expect(screen.queryByText(/37x Test GPU/)).not.toBeInTheDocument()
     expect(screen.getByText(/8x Test GPU/)).toBeInTheDocument()
   })
+
+  it('never advises fewer GPUs than are already configured across a cluster', () => {
+    // 8 GPUs/node x 4 nodes = 32 total. numGPUs is the CLUSTER TOTAL (see
+    // ResultsPanel), but the suggested count was clamped to the PER-NODE bound
+    // of 8, so the panel advised cutting a 32-GPU cluster down to 8.
+    const eightWay = gpu({
+      manufacturer: 'nvidia',
+      tier: 'datacenter',
+      max_gpus_per_node: 8,
+      vram_gb: 16,
+    })
+    render(
+      <Recommendations
+        gpu={eightWay}
+        breakdown={breakdown(500)}
+        currentQuantization="fp16"
+        currentSequenceLength={2048}
+        numGPUs={32}
+        multiGPUBreakdown={
+          {
+            totalPerGPU: new Decimal(200),
+            numGPUs: 32,
+            numNodes: 4,
+            gpusPerNode: 8,
+            scalingEfficiency: 0.85,
+          } as never
+        }
+      />,
+    )
+
+    expect(screen.queryByText(/Try 8x Test GPU/)).not.toBeInTheDocument()
+  })
+
+  it('suppresses the no-op suggestion when a single node is already at its bound', () => {
+    // 8 GPUs on an 8-way part: the clamp can only land back on 8, which used to
+    // render as "Current 8x ... Try 8x" — advice to change nothing.
+    const eightWay = gpu({
+      manufacturer: 'nvidia',
+      tier: 'datacenter',
+      max_gpus_per_node: 8,
+      vram_gb: 16,
+    })
+    render(
+      <Recommendations
+        gpu={eightWay}
+        breakdown={breakdown(500)}
+        currentQuantization="fp16"
+        currentSequenceLength={2048}
+        numGPUs={8}
+        multiGPUBreakdown={
+          {
+            totalPerGPU: new Decimal(200),
+            numGPUs: 8,
+            numNodes: 1,
+            gpusPerNode: 8,
+            scalingEfficiency: 0.85,
+          } as never
+        }
+      />,
+    )
+
+    expect(screen.queryByText(/with tensor parallelism/)).not.toBeInTheDocument()
+  })
 })

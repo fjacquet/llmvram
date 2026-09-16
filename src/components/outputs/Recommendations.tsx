@@ -151,12 +151,20 @@ export function Recommendations({
 
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
   if (numGPUs > 1 && multiGPUBreakdown && multiGPUBreakdown.totalPerGPU.greaterThan(gpu.vram_gb)) {
-    // Clamped to gpu.max_gpus_per_node: the raw math can ask for a count the
-    // hardware cannot form (e.g. 37x on an 8-way part). If the clamp still
-    // exceeds 1x, the advice stays actionable at the hardware's own ceiling.
-    const gpusNeeded = clampGPUCount(Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency)), gpu)
+    // numGPUs here is the CLUSTER TOTAL (ResultsPanel passes multiGPU.numGPUs),
+    // so the ceiling is the whole cluster's, not one node's: max_gpus_per_node
+    // GPUs in each of the nodes already configured. Clamping to the per-node
+    // bound instead would advise cutting a 32-GPU cluster down to 8.
+    const clusterCeiling = gpu.max_gpus_per_node * (multiGPUBreakdown.numNodes || 1)
+    const gpusNeeded = Math.min(
+      Math.max(1, Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency))),
+      clusterCeiling,
+    )
 
-    if (gpusNeeded > 1) {
+    // Only advise ADDING GPUs. When the clamp lands at or below what is already
+    // configured there is no buildable improvement to suggest, and the "upgrade
+    // GPU" recommendation below is the honest advice instead.
+    if (gpusNeeded > numGPUs) {
       recommendations.push({
         title: 'Add more GPUs',
         description: `Current ${numGPUs}x still exceeds capacity. Try ${gpusNeeded}x ${gpu.name} with tensor parallelism`,

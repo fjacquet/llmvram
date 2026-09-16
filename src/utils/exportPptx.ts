@@ -294,7 +294,10 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       ],
       {
         x: 0.4,
-        y: 0.75,
+        // Clears the slide heading above (y 0.7, h 0.4). PowerPoint draws the
+        // chart title inside the top of this frame, so starting at 0.75 would
+        // overprint the two strings.
+        y: 1.2,
         w: 12.5,
         // One category, so the frame height is the bar's thickness. 4.2 (the
         // height that suited N stacked bars) renders a single slab.
@@ -335,7 +338,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       ],
       {
         x: 0.4,
-        y: 3.25,
+        y: 3.6,
         w: 12.5,
         h: 0.45,
         fontSize: 12,

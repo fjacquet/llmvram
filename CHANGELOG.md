@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The prefill roofline now uses a prefill-specific scaling efficiency. A single efficiency applied to both rooflines penalized decode throughput and flattered time-to-first-token in multi-node configurations.
 - NVIDIA B200 listed at its allocatable 180GB rather than the 192GB physical stack size.
 - The GPU count tooltip no longer claims 8 is the largest fully connected GPU domain in current hardware.
+- The "add more GPUs" recommendation no longer advises a count below the one already configured. It compared a cluster total against a per-node ceiling, so a 32-GPU cluster was told to try 8, and a single node already at its bound was told to try what it was running.
 
 ## [1.9.1] - 2026-09-13
 
