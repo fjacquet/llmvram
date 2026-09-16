@@ -13,23 +13,50 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 interface RecordedTable {
   rows: unknown[]
 }
+interface Box {
+  x?: number
+  y?: number
+  w?: number
+  h?: number
+}
 interface RecordedChart {
   type: string
   data: Array<{ name: string; labels: string[]; values: number[] }>
+  // Chart options were originally discarded. They carry the geometry and the
+  // axis bound, neither of which is visible in (type, data).
+  opts: Box & { valAxisMaxVal?: number; showTitle?: boolean; title?: string }
+}
+interface RecordedText {
+  text: string
+  opts: Box
+}
+interface RecordedShape {
+  kind: string
+  opts: Box
 }
 
 const tables: RecordedTable[] = []
 const charts: RecordedChart[] = []
+const texts: RecordedText[] = []
+const shapes: RecordedShape[] = []
 
 class MockSlide {
-  addText = vi.fn()
-  addShape = vi.fn()
+  addText = vi.fn((text: unknown, opts?: Box) => {
+    if (typeof text === 'string') texts.push({ text, opts: opts ?? {} })
+  })
+  addShape = vi.fn((kind: string, opts?: Box) => {
+    shapes.push({ kind, opts: opts ?? {} })
+  })
   addTable = vi.fn((rows: unknown[]) => {
     tables.push({ rows })
   })
   addChart = vi.fn(
-    (type: string, data: Array<{ name: string; labels: string[]; values: number[] }>) => {
-      charts.push({ type, data })
+    (
+      type: string,
+      data: Array<{ name: string; labels: string[]; values: number[] }>,
+      opts?: RecordedChart['opts'],
+    ) => {
+      charts.push({ type, data, opts: opts ?? {} })
     },
   )
 }
@@ -71,6 +98,7 @@ const gpu: GPU = {
   fp32_tflops: 989,
   tier: 'datacenter',
   interconnect: 'nvlink-4',
+  max_gpus_per_node: 8,
 }
 
 const performance: PerformanceEstimate = {
@@ -95,6 +123,8 @@ describe('exportPptx', () => {
   beforeEach(() => {
     tables.length = 0
     charts.length = 0
+    texts.length = 0
+    shapes.length = 0
   })
 
   afterEach(() => {
@@ -144,10 +174,31 @@ describe('exportPptx', () => {
     expect(configRows).not.toContainEqual(['Number of GPUs', '8'])
     expect(configRows).toContainEqual(['Servers', '4'])
 
-    // Slide 3's bar chart must have one bar per TOTAL GPU (32), not per-node (8).
+    // Slide 3's bar chart is a single stacked bar (one category, five series) —
+    // every GPU is identical, so N repeated bars carried no information. The
+    // TOTAL (32), not the per-node count (8), must appear in the category label,
+    // since the mock only records (type, data) and not the chart title/options.
     const barChart = charts.find((c) => c.type === 'bar')
     expect(barChart).toBeDefined()
-    expect(barChart?.data[0]?.values).toHaveLength(32)
+    expect(barChart?.data[0]?.values).toHaveLength(1)
+    expect(barChart?.data[0]?.labels[0]).toContain('32 GPUs total')
+    expect(barChart?.data[0]?.labels[0]).not.toContain('8 GPUs total')
+
+    // The value axis must be pinned to the GPU's capacity. Without a max,
+    // PowerPoint auto-scales to the bar's own total and the exported bar looks
+    // full at any utilization — losing the headroom reading the in-app meter
+    // exists to give.
+    const totalPerGPU = multiGPU.totalPerGPU.toNumber()
+    expect(barChart?.opts.valAxisMaxVal).toBeCloseTo(Math.max(gpu.vram_gb, totalPerGPU), 5)
+    expect(barChart?.opts.valAxisMaxVal).toBeGreaterThanOrEqual(totalPerGPU)
+
+    // The chart frame must clear the slide heading above it. PowerPoint draws
+    // the chart title inside the top of the frame, so an overlapping frame
+    // overprints the two strings.
+    const heading = texts.find((x) => x.text === 'Multi-GPU Memory Distribution')
+    expect(heading).toBeDefined()
+    const headingBottom = (heading?.opts.y ?? 0) + (heading?.opts.h ?? 0)
+    expect(barChart?.opts.y).toBeGreaterThanOrEqual(headingBottom)
   })
 
   it('omits the Servers row for a single-node configuration', async () => {
@@ -174,5 +225,39 @@ describe('exportPptx', () => {
     const configRows = tableRows(0)
     expect(configRows).toContainEqual(['Number of GPUs', '1'])
     expect(configRows.some(([label]) => label === 'Servers')).toBe(false)
+  })
+
+  it('keeps every slide heading clear of the content below it', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+      gpu,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+    })
+
+    // Slide 4's metric cards used to start at y 0.9 while the heading occupied
+    // 0.7-1.1, clipping it. The card shapes are the only roundRects in the deck.
+    const heading = texts.find((x) => x.text === 'Performance Estimate')
+    expect(heading).toBeDefined()
+    const headingBottom = (heading?.opts.y ?? 0) + (heading?.opts.h ?? 0)
+
+    const cards = shapes.filter((s) => s.kind === 'roundRect')
+    expect(cards.length).toBeGreaterThan(0)
+    for (const card of cards) {
+      expect(card.opts.y ?? 0).toBeGreaterThanOrEqual(headingBottom)
+    }
   })
 })

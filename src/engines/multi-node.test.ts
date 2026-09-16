@@ -1,4 +1,4 @@
-import { FABRIC_SPECS } from '@engines/fabric'
+import { FABRIC_SPECS, PP_BASE_EFFICIENCY, resolveFabricSpec } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { calculateMultiGPUVRAM } from '@engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '@engines/multi-node'
@@ -33,6 +33,7 @@ const mi355x: GPU = {
   tdp_watts: 1400,
   interconnect: 'infinity-fabric',
   tier: 'datacenter',
+  max_gpus_per_node: 8,
 }
 
 const singleGPU = calculateInferenceVRAM({
@@ -164,9 +165,9 @@ describe('calculateMultiNodeVRAM', () => {
     )
   })
 
-  it('still rejects more than 8 GPUs in one node', () => {
-    expect(() => calculateMultiNodeVRAM({ ...base, gpusPerNode: 9, numNodes: 2 })).toThrow(
-      /numGPUs must be between 1 and 8/,
+  it('still rejects more than 72 GPUs in one node', () => {
+    expect(() => calculateMultiNodeVRAM({ ...base, gpusPerNode: 73, numNodes: 2 })).toThrow(
+      /numGPUs must be between 1 and 72/,
     )
   })
 
@@ -180,5 +181,21 @@ describe('calculateMultiNodeVRAM', () => {
     // numGPUs === 1 passthrough branch.
     expect(fourNodesOneGPU.totalPerGPU.lessThan(oneNodeOneGPU.totalPerGPU)).toBe(true)
     expect(fourNodesOneGPU.perGPU.total.lessThan(oneNodeOneGPU.perGPU.total)).toBe(true)
+  })
+
+  it('puts a 72-GPU NVL72 node at the pipeline efficiency ceiling, not beyond it', () => {
+    const result = calculateMultiNodeVRAM({
+      ...base,
+      gpusPerNode: 72,
+      numNodes: 2,
+      fabric: resolveFabricSpec('ethernet-800g', null),
+    })
+
+    // perNodeFabricGBps = 100 GB/s x 72 = 7200, well above FABRIC_REFERENCE_GBPS
+    // (1600), so L clamps to 0 and prefill efficiency sits at PP_BASE_EFFICIENCY.
+    expect(result.interNodePrefillEfficiency).toBeLessThanOrEqual(PP_BASE_EFFICIENCY)
+    expect(result.interNodePrefillEfficiency).toBeGreaterThan(0.9)
+    expect(result.interNodeDecodeEfficiency).toBeLessThanOrEqual(1)
+    expect(result.totalPerGPU.isFinite()).toBe(true)
   })
 })

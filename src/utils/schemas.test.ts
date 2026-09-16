@@ -21,6 +21,7 @@ const validDatacenterGPU = {
   fp32_tflops: 51,
   tdp_watts: 700,
   interconnect: 'nvlink-4',
+  max_gpus_per_node: 8,
   tier: 'datacenter',
 }
 
@@ -32,6 +33,7 @@ const validAppleSiliconGPU = {
   memory_bandwidth_gbps: 546,
   memory_type: 'Unified',
   bus_width: 0,
+  max_gpus_per_node: 1,
   tier: 'apple-silicon',
   interconnect: 'unified',
 }
@@ -87,6 +89,7 @@ describe('GPUSchema', () => {
         memory_bandwidth_gbps: 1000,
         memory_type: 'GDDR6X',
         bus_width: 384,
+        max_gpus_per_node: 8,
         tier: 'consumer',
       }
       const result = GPUSchema.parse(minimal)
@@ -125,6 +128,31 @@ describe('GPUSchema', () => {
         ZodError,
       )
     })
+  })
+})
+
+describe('GPUSchema max_gpus_per_node', () => {
+  it('rejects a GPU with no max_gpus_per_node', () => {
+    const { max_gpus_per_node, ...withoutField } = {
+      ...validDatacenterGPU,
+      max_gpus_per_node: 8,
+    }
+    expect(() => GPUSchema.parse(withoutField)).toThrow(ZodError)
+  })
+
+  it('rejects a non-integer max_gpus_per_node', () => {
+    expect(() => GPUSchema.parse({ ...validDatacenterGPU, max_gpus_per_node: 4.5 })).toThrow(
+      ZodError,
+    )
+  })
+
+  it('rejects a zero or negative max_gpus_per_node', () => {
+    expect(() => GPUSchema.parse({ ...validDatacenterGPU, max_gpus_per_node: 0 })).toThrow(ZodError)
+  })
+
+  it('accepts a positive integer max_gpus_per_node', () => {
+    const parsed = GPUSchema.parse({ ...validDatacenterGPU, max_gpus_per_node: 72 })
+    expect(parsed.max_gpus_per_node).toBe(72)
   })
 })
 

@@ -5,6 +5,7 @@ import {
   EMBEDDING_WEIGHT_FRACTION,
   INTERCONNECT_LABELS,
   INTERCONNECT_SPECS,
+  MAX_GPUS_PER_NODE,
   MOE_MULTI_GPU_OVERHEAD,
   NCCL_BUFFER_PER_PEER_GB,
   PP_ACTIVATION_STASHING_OVERHEAD,
@@ -220,12 +221,12 @@ function calculatePipelineParallelVRAM(
  * @param singleGPU - Single-GPU VRAM breakdown
  * @param model - Model configuration
  * @param gpuVramGB - GPU VRAM capacity in GB
- * @param numGPUs - Number of GPUs (1-8)
+ * @param numGPUs - Number of GPUs (1-72)
  * @param strategy - Sharding strategy
  * @param gpu - GPU configuration (used to derive interconnect bandwidth for TP overhead)
  * @returns Multi-GPU VRAM breakdown
  *
- * @throws Error if numGPUs < 1 or > 8
+ * @throws Error if numGPUs < 1 or > MAX_GPUS_PER_NODE (72)
  *
  * @example
  * ```ts
@@ -250,8 +251,8 @@ export function calculateMultiGPUVRAM(
   gpu: GPU,
 ): MultiGPUVRAMBreakdown {
   // Validate numGPUs range
-  if (numGPUs < 1 || numGPUs > 8) {
-    throw new Error(`numGPUs must be between 1 and 8, got ${numGPUs}`)
+  if (numGPUs < 1 || numGPUs > MAX_GPUS_PER_NODE) {
+    throw new Error(`numGPUs must be between 1 and ${MAX_GPUS_PER_NODE}, got ${numGPUs}`)
   }
 
   // Single GPU passthrough
@@ -397,13 +398,24 @@ export function validateInterconnect(
     }
   }
 
-  // Check if TP degree exceeds recommended maximum
-  if (strategy === 'tensor-parallel' && numGPUs > spec.recommendedMaxTPDegree) {
+  // Check if the degree exceeds the interconnect's recommended maximum. This
+  // is a soft "scales badly" warning (INTERCONNECT_SPECS.recommendedMaxTPDegree),
+  // separate from the hard "cannot be built" bound (GPU.max_gpus_per_node)
+  // enforced at the store boundary. It applies regardless of strategy: a
+  // 72-way pipeline-parallel run (reachable now that the flat 8-GPU guard is
+  // gone) degrades for a different reason than tensor parallelism, so it gets
+  // its own wording rather than reusing the TP sentence verbatim.
+  if (numGPUs > spec.recommendedMaxTPDegree) {
     const interconnectName = INTERCONNECT_LABELS[spec.type] ?? spec.type
+
+    const warning =
+      strategy === 'tensor-parallel'
+        ? `${interconnectName} may have significant communication overhead with ${numGPUs} GPUs (recommended max: ${spec.recommendedMaxTPDegree})`
+        : `Pipeline parallelism across ${numGPUs} GPUs may suffer from pipeline bubble overhead and stage imbalance beyond the recommended ${spec.recommendedMaxTPDegree}-way split on ${interconnectName}`
 
     return {
       valid: true,
-      warning: `${interconnectName} may have significant communication overhead with ${numGPUs} GPUs (recommended max: ${spec.recommendedMaxTPDegree})`,
+      warning,
       interconnect: spec,
     }
   }

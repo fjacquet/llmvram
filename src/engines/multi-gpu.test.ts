@@ -45,6 +45,7 @@ const h100: GPU = {
   tdp_watts: 700,
   interconnect: 'nvlink-4',
   tier: 'datacenter',
+  max_gpus_per_node: 8,
 }
 
 const rtx4090: GPU = {
@@ -60,6 +61,7 @@ const rtx4090: GPU = {
   tdp_watts: 450,
   interconnect: 'pcie-4',
   tier: 'consumer',
+  max_gpus_per_node: 8,
 }
 
 const radeonMI300X: GPU = {
@@ -75,6 +77,7 @@ const radeonMI300X: GPU = {
   tdp_watts: 750,
   interconnect: 'infinity-fabric',
   tier: 'datacenter',
+  max_gpus_per_node: 8,
 }
 
 describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
@@ -428,7 +431,7 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
     }).toThrow()
   })
 
-  it('throws error for numGPUs > 8', () => {
+  it('throws error for numGPUs > 72', () => {
     const singleGPU = calculateInferenceVRAM({
       model: llama70b,
       quantization: 'gptq',
@@ -436,12 +439,26 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
       batchSize: 1,
     })
 
-    expect(() => {
-      calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 9, 'tensor-parallel', h100)
-    }).toThrow()
+    expect(() =>
+      calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 73, 'tensor-parallel', h100),
+    ).toThrow(/numGPUs must be between 1 and 72/)
   })
 
-  it('handles 8 GPUs correctly (maximum)', () => {
+  it('accepts a 72-GPU node, for NVL72-class racks', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'gptq',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 288, 72, 'tensor-parallel', h100)
+    expect(result.numGPUs).toBe(72)
+    expect(result.totalPerGPU.toNumber()).toBeGreaterThan(0)
+    expect(result.totalPerGPU.isFinite()).toBe(true)
+  })
+
+  it('handles 8 GPUs correctly (legacy 8-GPU node)', () => {
     const singleGPU = calculateInferenceVRAM({
       model: llama70b,
       quantization: 'gptq',
@@ -626,6 +643,7 @@ describe('resolveInterconnect', () => {
       bus_width: 0,
       interconnect: 'unified',
       tier: 'apple-silicon',
+      max_gpus_per_node: 1,
     }
     const result = resolveInterconnect(m3Ultra)
     expect(result).toBe('none')
@@ -664,6 +682,7 @@ describe('validateInterconnect', () => {
       ...h100,
       interconnect: 'unified',
       tier: 'apple-silicon',
+      max_gpus_per_node: 1,
     }
 
     const result = validateInterconnect(appleGPU, 2, 'tensor-parallel')
@@ -678,6 +697,7 @@ describe('validateInterconnect', () => {
       ...h100,
       interconnect: 'unified',
       tier: 'apple-silicon',
+      max_gpus_per_node: 1,
     }
 
     const result = validateInterconnect(appleGPU, 1, 'tensor-parallel')
@@ -686,11 +706,34 @@ describe('validateInterconnect', () => {
     expect(result.warning).toBeNull()
   })
 
-  it('pipeline parallelism does not warn for high GPU count', () => {
+  it('pipeline parallelism stays valid (not invalid) for high GPU count', () => {
     const result = validateInterconnect(rtx4090, 4, 'pipeline-parallel')
 
-    // PP warning should be less strict than TP
+    // PP never invalidates the config the way 'none' interconnect does — it
+    // only warns, and only past the interconnect's recommended max degree.
     expect(result.valid).toBe(true)
+  })
+
+  it('warns for pipeline parallelism beyond the recommended max, with PP-specific wording', () => {
+    // GB300 NVL72-class part: nvlink-5, recommendedMaxTPDegree 8, run at 72-way PP.
+    // This regime was unreachable before max_gpus_per_node replaced the flat
+    // 8-GPU guard — nothing on screen used to qualify a 72-way pipeline.
+    const nvl72Like: GPU = { ...h100, interconnect: 'nvlink-5', max_gpus_per_node: 72 }
+    const result = validateInterconnect(nvl72Like, 72, 'pipeline-parallel')
+
+    expect(result.valid).toBe(true)
+    expect(result.warning).not.toBeNull()
+    expect(result.warning).toContain('72 GPUs')
+    // PP-specific: bubble/stage-imbalance overhead, not the TP sentence about
+    // link-bandwidth communication overhead (asserted verbatim elsewhere).
+    expect(result.warning).not.toContain('communication overhead')
+  })
+
+  it('does not warn for pipeline parallelism within the recommended max', () => {
+    const result = validateInterconnect(h100, 8, 'pipeline-parallel')
+
+    expect(result.valid).toBe(true)
+    expect(result.warning).toBeNull()
   })
 })
 
@@ -708,6 +751,7 @@ describe('Infinity Fabric interconnect', () => {
     tdp_watts: 750,
     interconnect: 'infinity-fabric',
     tier: 'datacenter',
+    max_gpus_per_node: 8,
   }
 
   it('resolves to its own type, not pcie-5', () => {

@@ -26,6 +26,7 @@ const baseState = {
     fp32_tflops: 989,
     tier: 'datacenter' as const,
     interconnect: 'nvlink-4' as const,
+    max_gpus_per_node: 8,
   },
   quantization: 'gptq' as const,
   sequenceLength: 4096,
@@ -112,6 +113,7 @@ describe('URL Serializer', () => {
           fp16_tflops: 82.6,
           tier: 'consumer' as const,
           interconnect: 'none' as const,
+          max_gpus_per_node: 8,
         },
         quantization: 'fp16' as const,
         sequenceLength: 2048,
@@ -148,6 +150,7 @@ describe('URL Serializer', () => {
           fp16_tflops: 50,
           tier: 'consumer' as const,
           interconnect: 'none' as const,
+          max_gpus_per_node: 8,
         },
         quantization: 'fp16' as const,
         sequenceLength: 2048,
@@ -263,6 +266,7 @@ describe('URL Serializer', () => {
           fp16_tflops: 1979,
           tier: 'datacenter' as const,
           interconnect: 'nvlink-4' as const,
+          max_gpus_per_node: 8,
         },
         quantization: 'bf16' as const,
         sequenceLength: 2048,
@@ -416,6 +420,7 @@ describe('URL Serializer', () => {
           fp16_tflops: 1979,
           tier: 'datacenter' as const,
           interconnect: 'nvlink-4' as const,
+          max_gpus_per_node: 8,
         },
       }
 
@@ -441,6 +446,7 @@ describe('URL Serializer', () => {
           fp16_tflops: 1979,
           tier: 'datacenter' as const,
           interconnect: 'nvlink-4' as const,
+          max_gpus_per_node: 8,
         },
       }
 

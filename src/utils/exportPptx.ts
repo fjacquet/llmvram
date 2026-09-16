@@ -256,48 +256,66 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       color: C.darkBlue,
     })
 
-    const gpuLabels = Array.from({ length: numGPUs }, (_, i) => `GPU ${i + 1}`)
+    // One stacked bar, not one per GPU: every GPU in the configuration is
+    // identical (all filled from breakdown.perGPU.*), so N bars just repeat
+    // the same number N times. The category label carries the cluster total
+    // instead, so that information survives even though the mock only
+    // records (type, data) and not the chart options/title.
+    const categoryLabel = [`Per GPU (${numGPUs} GPU${numGPUs === 1 ? '' : 's'} total)`]
 
     slide3.addChart(
       pptx.ChartType.bar,
       [
         {
           name: 'Model Weights',
-          labels: gpuLabels,
-          values: Array(numGPUs).fill(multiGPU.perGPU.modelWeights.toNumber()) as number[],
+          labels: categoryLabel,
+          values: [multiGPU.perGPU.modelWeights.toNumber()],
         },
         {
           name: 'KV Cache',
-          labels: gpuLabels,
-          values: Array(numGPUs).fill(multiGPU.perGPU.kvCache.toNumber()) as number[],
+          labels: categoryLabel,
+          values: [multiGPU.perGPU.kvCache.toNumber()],
         },
         {
           name: 'Activations',
-          labels: gpuLabels,
-          values: Array(numGPUs).fill(multiGPU.perGPU.activations.toNumber()) as number[],
+          labels: categoryLabel,
+          values: [multiGPU.perGPU.activations.toNumber()],
         },
         {
           name: 'Framework & NCCL',
-          labels: gpuLabels,
-          values: Array(numGPUs).fill(multiGPU.perGPU.frameworkOverhead.toNumber()) as number[],
+          labels: categoryLabel,
+          values: [multiGPU.perGPU.frameworkOverhead.toNumber()],
         },
         {
           name: 'Communication',
-          labels: gpuLabels,
-          values: Array(numGPUs).fill(multiGPU.perGPU.communicationOverhead.toNumber()) as number[],
+          labels: categoryLabel,
+          values: [multiGPU.perGPU.communicationOverhead.toNumber()],
         },
       ],
       {
         x: 0.4,
-        y: 0.75,
+        // Clears the slide heading above (y 0.7, h 0.4). PowerPoint draws the
+        // chart title inside the top of this frame, so starting at 0.75 would
+        // overprint the two strings.
+        y: 1.2,
         w: 12.5,
-        h: 4.2,
-        barDir: 'col',
+        // One category, so the frame height is the bar's thickness. 4.2 (the
+        // height that suited N stacked bars) renders a single slab.
+        h: 2.2,
+        barDir: 'bar',
         barGrouping: 'stacked',
         chartColors: [C.modelWeights, C.kvCache, C.activations, C.framework, C.communication],
         showLegend: true,
         legendPos: 'r',
         valAxisMinVal: 0,
+        // Pin the axis to the GPU's capacity so the bar renders as a fill
+        // against its limit, the way the in-app meter does. Without it
+        // PowerPoint auto-scales to the bar's own total and every export
+        // looks full regardless of headroom. Over capacity, the total is the
+        // larger of the two and the bar spans the axis.
+        valAxisMaxVal: Math.max(gpu.vram_gb, multiGPU.totalPerGPU.toNumber()),
+        showTitle: true,
+        title: `Per GPU — ${gbStr(multiGPU.totalPerGPU)} / ${gpu.vram_gb} GB capacity`,
       },
     )
 
@@ -320,7 +338,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       ],
       {
         x: 0.4,
-        y: 5.05,
+        y: 3.6,
         w: 12.5,
         h: 0.45,
         fontSize: 12,
@@ -378,9 +396,11 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     // Background rounded rectangle
     slide4.addShape('roundRect', {
       x: xPos,
-      y: 0.9,
+      // Clears the slide heading above (y 0.7, h 0.4), which the cards used to
+      // overlap by 0.2" and clip. Height drops to keep the table below at 3.3.
+      y: 1.2,
       w: boxWidth,
-      h: 2.2,
+      h: 1.9,
       fill: C.metricBoxFill,
       line: { color: 'BFC9FF', pt: 1 },
       rectRadius: 0.05,
@@ -388,7 +408,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     // Label text
     slide4.addText(label, {
       x: xPos + 0.15,
-      y: 1.0,
+      y: 1.35,
       w: boxWidth - 0.3,
       h: 0.4,
       fontSize: 12,
@@ -399,7 +419,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     // Value text (large)
     slide4.addText(value, {
       x: xPos + 0.15,
-      y: 1.5,
+      y: 1.85,
       w: boxWidth - 0.3,
       h: 1.0,
       fontSize: 14,

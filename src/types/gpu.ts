@@ -26,5 +26,6 @@ export function createCustomGPU(input: CustomGPUInput): GPU {
     fp32_tflops: input.fp32_tflops,
     tier: 'consumer',
     interconnect: 'none',
+    max_gpus_per_node: 8,
   }
 }

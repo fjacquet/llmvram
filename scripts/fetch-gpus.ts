@@ -31,6 +31,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 51,
     tdp_watts: 350,
     interconnect: 'nvlink-4',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/h100/',
   },
@@ -46,6 +47,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 51,
     tdp_watts: 700,
     interconnect: 'nvlink-4',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/h100/',
   },
@@ -62,14 +64,21 @@ const GPUS: GPU[] = [
     tdp_watts: 700,
     interconnect: 'nvlink-4',
     interconnect_options: ['nvlink-4', 'pcie-5'],
+    max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/h200/',
   },
+  // HGX B200 ships 1.44TB across 8 GPUs = 180GB each. 192GB is the physical
+  // HBM3e stack size before reserved capacity; 180GB is the software-visible
+  // figure in NVIDIA's OEM documentation and in Dell XE9680L / XE9685L and
+  // Lenovo ThinkSystem listings. A VRAM calculator wants the allocatable one.
+  // The id keeps its stale "192gb" suffix on purpose: changing it would break
+  // every shared link naming this GPU.
   {
     id: 'nvidia-b200-192gb',
-    name: 'NVIDIA B200 192GB',
+    name: 'NVIDIA B200 180GB',
     manufacturer: 'nvidia',
-    vram_gb: 192,
+    vram_gb: 180,
     memory_bandwidth_gbps: 8000,
     memory_type: 'HBM3e',
     bus_width: 8192,
@@ -77,12 +86,22 @@ const GPUS: GPU[] = [
     fp32_tflops: 90,
     tdp_watts: 1000,
     interconnect: 'nvlink-5',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/b200/',
   },
+  // GB300 (Blackwell Ultra) ships in two platforms with different scale-up
+  // domains, so it needs two rows. Same silicon, same capacity, same
+  // bandwidth — only max_gpus_per_node differs.
+  //
+  // HGX B300: an 8-GPU baseboard in a conventional x86 server (Dell XE9680L,
+  // XE9685L, XE9785L). NVL72: 72 Blackwell Ultra GPUs in one NVLink domain,
+  // 130TB/s of switch bandwidth, shipping as Dell PowerEdge XE9712.
+  //
+  // The HGX row keeps the original id so existing shared links resolve.
   {
     id: 'nvidia-gb300-288gb',
-    name: 'NVIDIA GB300 (Blackwell Ultra) 288GB',
+    name: 'NVIDIA GB300 (HGX B300, 8-GPU) 288GB',
     manufacturer: 'nvidia',
     vram_gb: 288,
     memory_bandwidth_gbps: 8000,
@@ -92,6 +111,23 @@ const GPUS: GPU[] = [
     fp32_tflops: 83,
     tdp_watts: 1400,
     interconnect: 'nvlink-5',
+    max_gpus_per_node: 8,
+    tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/gb300-nvl72/',
+  },
+  {
+    id: 'nvidia-gb300-nvl72',
+    name: 'NVIDIA GB300 NVL72 (72-GPU rack) 288GB',
+    manufacturer: 'nvidia',
+    vram_gb: 288,
+    memory_bandwidth_gbps: 8000,
+    memory_type: 'HBM3e',
+    bus_width: 8192,
+    fp16_tflops: 5000,
+    fp32_tflops: 83,
+    tdp_watts: 1400,
+    interconnect: 'nvlink-5',
+    max_gpus_per_node: 72,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/gb300-nvl72/',
   },
@@ -107,6 +143,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 19.5,
     tdp_watts: 300,
     interconnect: 'nvlink',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/a100/',
   },
@@ -122,6 +159,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 19.5,
     tdp_watts: 400,
     interconnect: 'nvlink',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/a100/',
   },
@@ -137,6 +175,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 91.6,
     tdp_watts: 350,
     interconnect: 'none',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/l40s/',
   },
@@ -154,6 +193,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 120,
     tdp_watts: 600,
     interconnect: 'none',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/rtx-pro-6000-blackwell-server-edition/',
   },
@@ -169,6 +209,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 91.1,
     tdp_watts: 300,
     interconnect: 'none',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/products/workstations/rtx-6000/',
   },
@@ -186,6 +227,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 159,
     tdp_watts: 575,
     interconnect: 'none',
+    max_gpus_per_node: 8,
     tier: 'consumer',
     spec_url: 'https://www.nvidia.com/en-us/geforce/graphics-cards/50-series/rtx-5090/',
   },
@@ -201,6 +243,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 82.6,
     tdp_watts: 450,
     interconnect: 'none',
+    max_gpus_per_node: 8,
     tier: 'consumer',
     spec_url: 'https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4090/',
   },
@@ -216,6 +259,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 35.6,
     tdp_watts: 350,
     interconnect: 'none',
+    max_gpus_per_node: 8,
     tier: 'consumer',
     spec_url: 'https://www.nvidia.com/en-us/geforce/graphics-cards/30-series/rtx-3090-3090ti/',
   },
@@ -229,6 +273,7 @@ const GPUS: GPU[] = [
     bus_width: 8192,
     fp16_tflops: 5000,
     interconnect: 'nvlink-5',
+    max_gpus_per_node: 1,
     tier: 'consumer',
     spec_url: 'https://www.nvidia.com/en-us/products/workstations/dgx-station/',
   },
@@ -245,6 +290,7 @@ const GPUS: GPU[] = [
     tdp_watts: 140,
     interconnect: 'nvlink-5',
     interconnect_options: ['nvlink-5', 'pcie-5'],
+    max_gpus_per_node: 2,
     tier: 'consumer',
     spec_url: 'https://www.nvidia.com/en-us/products/workstations/dgx-spark/',
   },
@@ -263,6 +309,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 157,
     tdp_watts: 1400,
     interconnect: 'infinity-fabric',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
   },
   {
@@ -279,6 +326,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 144,
     tdp_watts: 1000,
     interconnect: 'infinity-fabric',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
   },
   {
@@ -294,6 +342,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 163,
     tdp_watts: 1000,
     interconnect: 'infinity-fabric',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
   },
   {
@@ -308,6 +357,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 163,
     tdp_watts: 750,
     interconnect: 'infinity-fabric',
+    max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.amd.com/en/products/accelerators/instinct/mi300/mi300x.html',
   },
@@ -322,6 +372,7 @@ const GPUS: GPU[] = [
     memory_type: 'Unified',
     bus_width: 0,
     fp16_tflops: 21,
+    max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
     spec_url:
@@ -336,6 +387,7 @@ const GPUS: GPU[] = [
     memory_type: 'Unified',
     bus_width: 0,
     fp16_tflops: 27,
+    max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
     spec_url: 'https://www.apple.com/newsroom/2023/06/apple-introduces-m2-ultra/',
@@ -349,6 +401,7 @@ const GPUS: GPU[] = [
     memory_type: 'Unified',
     bus_width: 0,
     fp16_tflops: 40,
+    max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
     spec_url:
@@ -363,6 +416,7 @@ const GPUS: GPU[] = [
     memory_type: 'Unified',
     bus_width: 0,
     fp16_tflops: 35,
+    max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
     spec_url:
@@ -377,6 +431,7 @@ const GPUS: GPU[] = [
     memory_type: 'Unified',
     bus_width: 0,
     fp16_tflops: 29,
+    max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
     spec_url: 'https://www.apple.com/newsroom/2024/10/apple-introduces-m4-pro-and-m4-max/',
@@ -390,6 +445,7 @@ const GPUS: GPU[] = [
     memory_type: 'Unified',
     bus_width: 0,
     fp16_tflops: 29,
+    max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
     spec_url:
@@ -404,6 +460,7 @@ const GPUS: GPU[] = [
     memory_type: 'Unified',
     bus_width: 0,
     fp16_tflops: 13.6,
+    max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
     spec_url:
@@ -418,6 +475,7 @@ const GPUS: GPU[] = [
     memory_type: 'Unified',
     bus_width: 0,
     fp16_tflops: 10.4,
+    max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
     spec_url:

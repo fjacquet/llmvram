@@ -105,6 +105,45 @@ describe('GPU Database Validation', () => {
     // At least 80% should have FP16 specs
     expect(withFP16.length).toBeGreaterThanOrEqual(Math.floor(gpusData.length * 0.8))
   })
+
+  it('every GPU row declares max_gpus_per_node as a positive integer', () => {
+    const result = validateGPUs(gpusData)
+    for (const gpu of result) {
+      expect(Number.isInteger(gpu.max_gpus_per_node)).toBe(true)
+      expect(gpu.max_gpus_per_node).toBeGreaterThan(0)
+    }
+  })
+
+  it('bounds every Apple Silicon row at a single GPU', () => {
+    const result = validateGPUs(gpusData)
+    const apple = result.filter((g) => g.tier === 'apple-silicon')
+    expect(apple.length).toBeGreaterThan(0)
+    for (const gpu of apple) {
+      expect(gpu.max_gpus_per_node).toBe(1)
+    }
+  })
+
+  it('offers GB300 as both an 8-GPU HGX baseboard and a 72-GPU NVL72 rack', () => {
+    const result = validateGPUs(gpusData)
+    const hgx = result.find((g) => g.id === 'nvidia-gb300-288gb')
+    const nvl72 = result.find((g) => g.id === 'nvidia-gb300-nvl72')
+
+    expect(hgx).toBeDefined()
+    expect(nvl72).toBeDefined()
+    expect(hgx?.max_gpus_per_node).toBe(8)
+    expect(nvl72?.max_gpus_per_node).toBe(72)
+  })
+
+  it('gives the two GB300 rows identical silicon specs', () => {
+    const result = validateGPUs(gpusData)
+    const hgx = result.find((g) => g.id === 'nvidia-gb300-288gb')
+    const nvl72 = result.find((g) => g.id === 'nvidia-gb300-nvl72')
+
+    expect(nvl72?.vram_gb).toBe(hgx?.vram_gb)
+    expect(nvl72?.memory_bandwidth_gbps).toBe(hgx?.memory_bandwidth_gbps)
+    expect(nvl72?.fp16_tflops).toBe(hgx?.fp16_tflops)
+    expect(nvl72?.interconnect).toBe(hgx?.interconnect)
+  })
 })
 
 describe('AMD Instinct MI350 / MI325 series', () => {
@@ -145,5 +184,15 @@ describe('AMD Instinct MI350 / MI325 series', () => {
     for (const gpu of gpusData.filter((g) => g.manufacturer === 'amd')) {
       expect(gpu.interconnect).toBe('infinity-fabric')
     }
+  })
+})
+
+describe('NVIDIA B200', () => {
+  it('lists B200 at its allocatable 180GB, not the 192GB stack size', () => {
+    const result = validateGPUs(gpusData)
+    const b200 = result.find((g) => g.id === 'nvidia-b200-192gb')
+    expect(b200).toBeDefined()
+    expect(b200?.vram_gb).toBe(180)
+    expect(b200?.name).not.toContain('192')
   })
 })

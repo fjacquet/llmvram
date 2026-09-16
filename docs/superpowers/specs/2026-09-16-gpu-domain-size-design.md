@@ -228,3 +228,21 @@ and multi-node training remains a Non-Goal of the parent spec.
 - H200 NVL PCIe users get no hard stop above 4 GPUs (decision 5).
 - `max_gpus_per_node` is a point-in-time snapshot of shipping hardware. It
   will go stale the way `gpus.json` does, and has no automated source.
+- The multi-GPU engine's scaling model is degree-independent, and this branch
+  extrapolates it 9x past its old ceiling (8 to 72) without changing it. At
+  TP=72 on DeepSeek R1: NCCL buffers reach 15.2 GB/GPU (~1 TB summed across
+  the rack, which is not a physical allocation — it is the flat per-peer
+  constant times 71 peers), replicated embeddings stay flat at 37.5 GB per
+  GPU so TP-72 only ever delivers ~23x effective weight sharding despite
+  claiming 72-way parallelism, and `scalingEfficiency` stays a constant 0.97,
+  reporting ~70x throughput that the embedding-replication math above does
+  not support. The branch accepts this rather than changing the engine,
+  because the spec deliberately keeps the engine GPU-agnostic (Engine
+  section) and names the `recommendedMaxTPDegree` soft warning — extended to
+  pipeline parallelism in the same fix wave that recorded this risk — as the
+  mitigation: past 8-way the UI now says "may have significant communication
+  overhead" or "bubble overhead and stage imbalance" rather than silently
+  endorsing the number. The NCCL term errs conservative in one direction only
+  — it over-reports per-GPU VRAM, so it cannot produce a false "fits"; the
+  risk is entirely in the optimistic throughput claim, not in a VRAM
+  undercount.

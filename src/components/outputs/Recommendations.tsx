@@ -4,6 +4,7 @@ import type {
   QuantizationFormat,
 } from '@engines/types'
 import { useUIStore } from '@store/uiStore'
+import { clampGPUCount } from '@utils/gpuLimits'
 import type { GPU } from '@/types/gpu'
 
 interface RecommendationsProps {
@@ -150,16 +151,43 @@ export function Recommendations({
 
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
   if (numGPUs > 1 && multiGPUBreakdown && multiGPUBreakdown.totalPerGPU.greaterThan(gpu.vram_gb)) {
-    const gpusNeeded = Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency))
+    // numGPUs here is the CLUSTER TOTAL (ResultsPanel passes multiGPU.numGPUs),
+    // so the ceiling is the whole cluster's, not one node's: max_gpus_per_node
+    // GPUs in each of the nodes already configured. Clamping to the per-node
+    // bound instead would advise cutting a 32-GPU cluster down to 8.
+    const numNodes = multiGPUBreakdown.numNodes || 1
+    const clusterCeiling = gpu.max_gpus_per_node * numNodes
+    const rawNeeded = Math.max(1, Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency)))
+    const gpusNeeded = Math.min(rawNeeded, clusterCeiling)
 
-    recommendations.push({
-      title: 'Add more GPUs',
-      description: `Current ${numGPUs}x still exceeds capacity. Try ${gpusNeeded}x ${gpu.name} with tensor parallelism`,
-      impact: `Would distribute ${totalGB.toFixed(1)} GB across ${gpusNeeded} GPUs (~${(totalGB / gpusNeeded).toFixed(1)} GB per GPU)`,
-    })
+    if (gpusNeeded > numGPUs) {
+      // Room left inside the nodes already configured.
+      recommendations.push({
+        title: 'Add more GPUs',
+        description: `Current ${numGPUs}x still exceeds capacity. Try ${gpusNeeded}x ${gpu.name} with tensor parallelism`,
+        impact: `Would distribute ${totalGB.toFixed(1)} GB across ${gpusNeeded} GPUs (~${(totalGB / gpusNeeded).toFixed(1)} GB per GPU)`,
+      })
+    } else if (rawNeeded > clusterCeiling) {
+      // Every node is full and the model still does not fit, so GPUs per node is
+      // no longer the free variable — node count is. Without this the panel says
+      // "Need N GB more VRAM. Try:" and then lists nothing, since the "upgrade
+      // GPU" recommendation below only fires under 80 GB and says nothing to
+      // someone already on a 288 GB part.
+      const nodesNeeded = Math.ceil(rawNeeded / gpu.max_gpus_per_node)
+      recommendations.push({
+        title: 'Add more servers',
+        description: `${numNodes} server${numNodes === 1 ? '' : 's'} of ${gpu.max_gpus_per_node}x ${gpu.name} is already the most GPUs one server holds. Try ${nodesNeeded} servers (${nodesNeeded * gpu.max_gpus_per_node} GPUs total)`,
+        impact: `Would distribute ${totalGB.toFixed(1)} GB across ${nodesNeeded * gpu.max_gpus_per_node} GPUs (~${(totalGB / (nodesNeeded * gpu.max_gpus_per_node)).toFixed(1)} GB per GPU), with pipeline parallelism between servers`,
+      })
+    }
   } else if (numGPUs === 1) {
-    // Case B: Single GPU -> show multi-GPU recommendation
-    const gpusNeeded = Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency))
+    // Case B: Single GPU -> show multi-GPU recommendation, clamped to what the
+    // selected part can actually form. When max_gpus_per_node is 1 (Apple
+    // Silicon, GB300 Desktop Superchip) the clamp always lands back at 1x, so
+    // gpusNeeded > 1 is false and this recommendation is silently suppressed —
+    // falling through to the "upgrade GPU" recommendation below instead of
+    // suggesting a configuration the UI has no way to build.
+    const gpusNeeded = clampGPUCount(Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency)), gpu)
 
     if (gpusNeeded > 1) {
       recommendations.push({

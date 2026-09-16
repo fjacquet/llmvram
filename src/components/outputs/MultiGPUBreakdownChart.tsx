@@ -1,16 +1,4 @@
 import type { MultiGPUVRAMBreakdown } from '@engines/types'
-import { useUIStore } from '@store/uiStore'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 
 interface MultiGPUBreakdownChartProps {
   breakdown: MultiGPUVRAMBreakdown
@@ -35,61 +23,25 @@ const BAR_KEYS = [
   'Communication',
 ] as const
 
-interface BarTooltipProps {
-  active?: boolean
-  payload?: Array<{
-    name: string
-    value: number
-    color: string
-  }>
-  label?: string
-  totalPerGPU: number
-}
-
-function BarChartTooltip({ active, payload, label, totalPerGPU }: BarTooltipProps) {
-  if (!active || !payload || payload.length === 0) return null
-
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm dark:border-gray-700 dark:bg-gray-800/95">
-      <div className="mb-1.5 text-sm font-semibold text-gray-900 dark:text-gray-100">{label}</div>
-      {payload.map((entry) => {
-        const pct = totalPerGPU > 0 ? ((entry.value / totalPerGPU) * 100).toFixed(0) : '0'
-        return (
-          <div key={entry.name} className="flex items-center gap-2 py-0.5 text-xs">
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-sm"
-              style={{ backgroundColor: entry.color }}
-            />
-            <span className="text-gray-700 dark:text-gray-300">{entry.name}</span>
-            <span className="ml-auto font-medium text-gray-900 dark:text-gray-100">
-              {entry.value.toFixed(2)} GB
-            </span>
-            <span className="text-gray-500 dark:text-gray-500">({pct}%)</span>
-          </div>
-        )
-      })}
-      <div className="mt-1.5 border-t border-gray-200 pt-1.5 text-xs font-medium text-gray-900 dark:border-gray-700 dark:text-gray-100">
-        Total: {totalPerGPU.toFixed(2)} GB
-      </div>
-    </div>
-  )
-}
+// Distinct from the Communication segment color (red-500) so the "everything
+// is one color" over-capacity state reads differently from the normal palette.
+const OVER_CAPACITY_COLOR = '#dc2626' // red-600
 
 interface CustomLegendProps {
-  payload?: Array<{ value: string; color: string }>
+  keys: readonly string[]
+  colors: Record<string, string>
 }
 
-function BarChartLegend({ payload }: CustomLegendProps) {
-  if (!payload) return null
+function BarChartLegend({ keys, colors }: CustomLegendProps) {
   return (
     <div className="mt-1 flex flex-wrap justify-center gap-x-4 gap-y-1">
-      {payload.map((entry) => (
-        <div key={entry.value} className="flex items-center gap-1.5 text-xs">
+      {keys.map((key) => (
+        <div key={key} className="flex items-center gap-1.5 text-xs">
           <span
             className="inline-block h-2.5 w-2.5 rounded-sm"
-            style={{ backgroundColor: entry.color }}
+            style={{ backgroundColor: colors[key] }}
           />
-          <span className="text-gray-700 dark:text-gray-300">{entry.value}</span>
+          <span className="text-gray-700 dark:text-gray-300">{key}</span>
         </div>
       ))}
     </div>
@@ -101,19 +53,27 @@ export function MultiGPUBreakdownChart({
   gpuVRAM,
   effectiveTokPerSec,
 }: MultiGPUBreakdownChartProps) {
-  const isDarkMode = useUIStore((s) => s.isDarkMode)
-
-  // Create data array with one entry per GPU
-  const data = Array.from({ length: breakdown.numGPUs }, (_, i) => ({
-    name: `GPU ${i + 1}`,
+  const segmentValues: Record<(typeof BAR_KEYS)[number], number> = {
     'Model Weights': breakdown.perGPU.modelWeights.toNumber(),
     'KV Cache': breakdown.perGPU.kvCache.toNumber(),
     Activations: breakdown.perGPU.activations.toNumber(),
     'Framework & NCCL': breakdown.perGPU.frameworkOverhead.toNumber(),
     Communication: breakdown.perGPU.communicationOverhead.toNumber(),
-  }))
+  }
 
   const totalPerGPU = breakdown.totalPerGPU.toNumber()
+  const overCapacity = gpuVRAM > 0 && totalPerGPU > gpuVRAM
+  const utilizationPercent = gpuVRAM > 0 ? (totalPerGPU / gpuVRAM) * 100 : 0
+
+  // Under capacity, each segment's width is a percent of gpuVRAM (capacity),
+  // so the filled length IS the utilization and the gap IS the headroom.
+  // Over capacity, there is no gap to show — segments are renormalized as a
+  // percent of totalPerGPU so the meter saturates at exactly 100%.
+  const widthBasis = overCapacity ? totalPerGPU : gpuVRAM
+  const widthPercent = (value: number): number => (widthBasis > 0 ? (value / widthBasis) * 100 : 0)
+
+  const totalGPUs = breakdown.numGPUs
+  const headroom = gpuVRAM - totalPerGPU
 
   return (
     <div className="space-y-4">
@@ -121,76 +81,67 @@ export function MultiGPUBreakdownChart({
         Multi-GPU Memory Distribution
       </h4>
 
-      <ResponsiveContainer width="100%" height={320}>
-        <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-          <defs>
+      <div className="space-y-1.5">
+        <div className="flex items-baseline justify-between text-sm font-medium text-gray-900 dark:text-white">
+          <span>
+            Per GPU — {totalPerGPU.toFixed(1)} / {gpuVRAM} GB — {Math.round(utilizationPercent)}%
+            used
+          </span>
+        </div>
+
+        {/* The header line above is already the visible+accessible summary; this
+            container stays a plain div (no role/aria-label) so the per-segment
+            role="img" elements below remain reachable — role="img" has
+            presentational children, so a label here would shadow theirs. */}
+        <div className="h-6 w-full overflow-hidden rounded-md bg-gray-200 dark:bg-gray-700">
+          <div className="flex h-full">
             {BAR_KEYS.map((key) => (
-              <linearGradient
+              <div
                 key={key}
-                id={`grad-${key.replace(/\s+/g, '-')}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop offset="0%" stopColor={COLORS[key]} stopOpacity={0.9} />
-                <stop offset="100%" stopColor={COLORS[key]} stopOpacity={0.65} />
-              </linearGradient>
+                role="img"
+                className="h-full transition-all duration-300"
+                style={{
+                  width: `${widthPercent(segmentValues[key])}%`,
+                  backgroundColor: overCapacity ? OVER_CAPACITY_COLOR : COLORS[key],
+                }}
+                title={`${key}: ${segmentValues[key].toFixed(2)} GB`}
+                aria-label={`${key}: ${segmentValues[key].toFixed(2)} GB`}
+              />
             ))}
-          </defs>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke={isDarkMode ? '#374151' : '#e5e7eb'}
-            strokeOpacity={0.5}
-            vertical={false}
-          />
-          <XAxis
-            dataKey="name"
-            stroke={isDarkMode ? '#9ca3af' : '#6b7280'}
-            style={{ fontSize: '12px' }}
-            tickLine={false}
-          />
-          <YAxis
-            label={{
-              value: 'VRAM (GB)',
-              angle: -90,
-              position: 'insideLeft',
-              style: { fill: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '12px' },
-            }}
-            stroke={isDarkMode ? '#9ca3af' : '#6b7280'}
-            style={{ fontSize: '12px' }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <Tooltip
-            content={<BarChartTooltip totalPerGPU={totalPerGPU} />}
-            cursor={{ fill: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
-          />
-          <Legend content={<BarChartLegend />} />
-          <ReferenceLine
-            y={gpuVRAM}
-            stroke="#dc2626"
-            strokeDasharray="6 3"
-            strokeWidth={1.5}
-            label={{
-              value: `Capacity: ${gpuVRAM} GB`,
-              position: 'top',
-              fill: isDarkMode ? '#fca5a5' : '#dc2626',
-              fontSize: 11,
-              fontWeight: 500,
-            }}
-          />
-          {BAR_KEYS.map((key, idx) => (
-            <Bar
-              key={key}
-              dataKey={key}
-              stackId="a"
-              fill={`url(#grad-${key.replace(/\s+/g, '-')})`}
-              radius={idx === BAR_KEYS.length - 1 ? [4, 4, 0, 0] : undefined}
-            />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
+          </div>
+        </div>
+
+        <p
+          className={
+            overCapacity
+              ? 'text-xs font-medium text-red-600 dark:text-red-400'
+              : 'text-xs text-gray-500 dark:text-gray-400'
+          }
+        >
+          {overCapacity
+            ? `${Math.abs(headroom).toFixed(1)} GB over`
+            : `${headroom.toFixed(1)} GB headroom`}
+        </p>
+      </div>
+
+      {/* Over capacity every segment is painted one color, so the normal
+          five-color legend would advertise swatches matching nothing on screen.
+          Point the legend at whatever the bar actually uses. */}
+      <BarChartLegend
+        keys={BAR_KEYS}
+        colors={
+          overCapacity ? Object.fromEntries(BAR_KEYS.map((k) => [k, OVER_CAPACITY_COLOR])) : COLORS
+        }
+      />
+
+      <p className="text-xs text-gray-600 dark:text-gray-400">
+        identical across all {totalGPUs} GPU{totalGPUs === 1 ? '' : 's'}
+        {/* Only worth splitting out when there is more than one node. At a
+            single node the multiplier restates the total as "N per node x 1
+            node", which carries nothing. */}
+        {breakdown.numNodes > 1 &&
+          ` (${breakdown.gpusPerNode} per node × ${breakdown.numNodes} nodes)`}
+      </p>
 
       {/* Summary text */}
       <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
@@ -222,11 +173,12 @@ export function MultiGPUBreakdownChart({
 
       {breakdown.numNodes > 1 && (
         <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+          {/* The counts live in the meter footer above; this line carries only
+              what that footer does not say, namely how the work is split. */}
           <p>
-            {breakdown.numNodes} servers × {breakdown.gpusPerNode} GPUs = {breakdown.numGPUs} GPUs ·{' '}
             {breakdown.strategy === 'tensor-parallel'
-              ? 'tensor parallel within each server, pipeline parallel across them'
-              : 'pipeline parallel across all GPUs'}
+              ? 'Tensor parallel within each server, pipeline parallel across them.'
+              : 'Pipeline parallel across all GPUs.'}
           </p>
           <p>
             Efficiency (modelled from bandwidth, not measured):{' '}

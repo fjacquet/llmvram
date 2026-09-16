@@ -21,6 +21,24 @@ export const GPUSchema = z.object({
   memory_type: z.string(),
   bus_width: z.number().int().nonnegative(), // 0 for unified memory (Apple Silicon)
 
+  /**
+   * Largest GPU count that can exist inside one node for this part.
+   *
+   * Derivation: min(coherent interconnect limit, largest shipping chassis slot
+   * count). For parts with no coherent domain — anything on PCIe — the chassis
+   * bound alone.
+   *
+   * This is a HARD bound: configurations above it cannot be built. It is not
+   * the same as INTERCONNECT_SPECS.recommendedMaxTPDegree, which is a SOFT
+   * warning about configurations that are buildable but scale badly. Eight
+   * RTX PRO 6000 in a Dell XE7745 is both buildable (8) and a poor tensor-
+   * parallel target (4).
+   *
+   * Required, not optional: a row added later must state its own bound rather
+   * than inherit a default that happens to be wrong.
+   */
+  max_gpus_per_node: z.number().int().positive(),
+
   // Performance (optional for inference speed estimation)
   fp16_tflops: z.number().positive().optional(),
   fp32_tflops: z.number().positive().optional(),

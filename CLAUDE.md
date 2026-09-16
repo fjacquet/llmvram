@@ -48,6 +48,9 @@ scripts/          # Data refresh scripts (tsx) — fetch from HuggingFace, valid
 - **GPU data is generated**: `src/data/gpus.json` is regenerated from the `GPUS` array in `scripts/fetch-gpus.ts`. Never hand-edit the JSON — edits are silently lost on the next `npm run refresh:gpus`.
 - **GPUs grouped by vendor, NOT sorted**: unlike `models.json`, `src/data/gpus.json` is grouped by manufacturer. The alphabetical-sort rule above applies to models only.
 - **`numGPUs` means GPUs PER NODE**: total GPUs is `numGPUs × numNodes`, available as `MultiGPUVRAMBreakdown.numGPUs`. Any consumer displaying a GPU count must use the total, not the store field.
+- **`max_gpus_per_node` is a hard bound, `recommendedMaxTPDegree` is soft advice**: the first is a per-GPU field meaning "cannot be built" (8 for an HGX/OAM baseboard, 72 for GB300 NVL72, 1 for Apple Silicon); the second lives in `INTERCONNECT_SPECS` and means "buildable but scales badly". Both apply; neither replaces the other.
+- **GPU count clamping is silent**: `clampGPUCount` in `src/utils/gpuLimits.ts` bounds `numGPUs` at the store boundary, with no toast. A shared link above the bound renders different numbers than its sender saw.
+- **Database ids are deliberately stale**: `nvidia-b200-192gb` holds a 180GB GPU. Ids are never renamed, because a changed id breaks every shared link naming it.
 
 ## Tech Stack & Config
 
@@ -75,6 +78,7 @@ When implementing VRAM calculations, be aware of these critical estimation error
 5. **Framework overhead**: Always add 500MB-1.5GB baseline (PyTorch + CUDA context).
 6. **`fp16_tflops` is DENSE**: H100 989, B200 4500, MI300X 1307. AMD publishes FP16 *with sparsity* ("4.6/5.0 PFLOPS") — double the dense figure. Dense FP16 = dense FP8 / 2.
 7. **Two interconnect tables, two unit conventions**: `INTERCONNECT_SPECS` (scale-up, GPU-to-GPU in one chassis) is **bidirectional** per-GPU; `FABRIC_SPECS` (scale-out, server-to-server) `portGBps` is **unidirectional** per port. Mixing them halves or doubles the answer.
+8. **B200 is 180GB, not 192GB**: 192 is the physical HBM3e stack size before reserved capacity. HGX B200 ships 1.44TB across 8 GPUs. Use the allocatable figure.
 
 See `.planning/research/PITFALLS.md` for the complete reference.
 
