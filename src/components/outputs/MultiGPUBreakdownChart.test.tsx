@@ -195,4 +195,33 @@ describe('MultiGPUBreakdownChart', () => {
       screen.getByText('identical across all 32 GPUs (8 per node × 4 nodes)'),
     ).toBeInTheDocument()
   })
+
+  it('states capacity, usage and percent in the header line', () => {
+    // The header is the design's headline deliverable ("Per GPU - 156.3 / 180
+    // GB - 87% used"). Without this, a completely mangled header ships green.
+    const breakdown = calculateMultiGPUVRAM(singleGPU, model, 80, 4, 'tensor-parallel', gpu)
+    const gpuVRAM = 80
+    const totalPerGPU = breakdown.totalPerGPU.toNumber()
+    const percentUsed = Math.round((totalPerGPU / gpuVRAM) * 100)
+
+    render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
+
+    expect(
+      screen.getByText(
+        `Per GPU \u2014 ${totalPerGPU.toFixed(1)} / ${gpuVRAM} GB \u2014 ${percentUsed}% used`,
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('reads as exactly full, not over, when usage equals capacity', () => {
+    // Boundary: the meter flips to the over-capacity styling only when usage
+    // strictly exceeds capacity. At equality it is full, with zero headroom.
+    const breakdown = calculateMultiGPUVRAM(singleGPU, model, 80, 4, 'tensor-parallel', gpu)
+    const gpuVRAM = breakdown.totalPerGPU.toNumber()
+
+    render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
+
+    expect(screen.getByText('0.0 GB headroom')).toBeInTheDocument()
+    expect(screen.queryByText(/GB over/)).not.toBeInTheDocument()
+  })
 })

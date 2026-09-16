@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The GPU count slider is bounded by the selected GPU rather than a fixed 8, and shows no slider for single-GPU parts.
 - The per-node engine guard widened from 8 to 72.
+- The multi-GPU memory breakdown is now a single per-GPU capacity meter showing usage against the GPU's VRAM, replacing a bar chart that drew one identical bar per GPU. The old chart was illegible past a handful of GPUs and carried no information the meter does not. The PPTX export chart changes to match.
 
 ### Fixed
 
