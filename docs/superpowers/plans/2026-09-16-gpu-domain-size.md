@@ -551,12 +551,51 @@ Update the doc comment at line 228 from `@throws Error if numGPUs < 1 or > 8` to
 Run: `npx vitest run src/engines/multi-gpu.test.ts src/engines/multi-node.test.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Run the full suite**
+- [ ] **Step 6: Add the NVL72 scaling regression**
+
+A 72-GPU node is the first configuration where the inter-node fabric formula
+sees a per-node bandwidth far above its 1600 GB/s reference point. Assert that
+it lands on the ceiling rather than producing a nonsense number. Add to
+`src/engines/multi-node.test.ts`:
+
+```ts
+  it('puts a 72-GPU NVL72 node at the pipeline efficiency ceiling, not beyond it', () => {
+    const result = calculateMultiNodeVRAM({
+      singleGPU: baseBreakdown,
+      model: testModel,
+      gpuVramGB: 288,
+      gpusPerNode: 72,
+      numNodes: 2,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu: testGPU,
+      fabric: resolveFabricSpec('ethernet-800g', null),
+      batchSize: 1,
+    })
+
+    // perNodeFabricGBps = 100 GB/s x 72 = 7200, well above FABRIC_REFERENCE_GBPS
+    // (1600), so L clamps to 0 and prefill efficiency sits at PP_BASE_EFFICIENCY.
+    expect(result.interNodePrefillEfficiency).toBeLessThanOrEqual(PP_BASE_EFFICIENCY)
+    expect(result.interNodePrefillEfficiency).toBeGreaterThan(0.9)
+    expect(result.interNodeDecodeEfficiency).toBeLessThanOrEqual(1)
+    expect(result.totalPerGPU.isFinite()).toBe(true)
+  })
+```
+
+Import `PP_BASE_EFFICIENCY` and `resolveFabricSpec` from `@engines/fabric`, and
+mirror the argument shape and fixture names used by the neighbouring tests in
+that file — read one first rather than inventing names.
+
+Run: `npx vitest run src/engines/multi-node.test.ts`
+Expected: PASS. If `interNodePrefillEfficiency` exceeds `PP_BASE_EFFICIENCY`,
+the cap is not being applied and that is a real bug — report it rather than
+loosening the assertion.
+
+- [ ] **Step 7: Run the full suite**
 
 Run: `npx vitest run`, then `npm run typecheck` and `npm run lint`
 Expected: PASS, clean. The fabric math needs no change — `perNodeFabricGBps = portGBps × gpusPerNode` encodes one NIC per GPU, which holds at 72 (NVL72 carries one 800Gb/s ConnectX-8 port per GPU, 57.6Tb/s per rack = 100 GB/s × 72).
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add src/engines/constants.ts src/engines/multi-gpu.ts \
@@ -697,35 +736,31 @@ Replace the `setNumGPUs` action (line 177):
         set((state) => ({ numGPUs: clampGPUCount(numGPUs, state.selectedGPU) })),
 ```
 
-- [ ] **Step 6: Write a store test**
+- [ ] **Step 6: Verify the wiring by hand — do NOT add a uiStore test**
 
-Add to the existing uiStore test file (find it with `ls src/store/*.test.ts`; if there is no `uiStore.test.ts`, create one following the pattern in `src/store/comparisonStore.test.ts`). Note the project gotcha: Zustand stores with `persist` middleware fail under jsdom, so mock the store with `vi.hoisted()` + `vi.mock()` to build a plain store without persist, exactly as the existing store tests do.
+There is deliberately no `src/store/uiStore.test.ts` in this repo, and this task
+does not add one. `uiStore` is wrapped in zustand's `persist` middleware, which
+throws under jsdom (no localStorage backing); every component test in the repo
+works around it by mocking the store away entirely (see
+`src/components/inputs/NodeCountSelector.test.tsx`). A mocked store would not
+exercise the real `clampGPUCount` wiring, so such a test would assert nothing.
 
-```ts
-it('clamps numGPUs down when switching to a single-GPU part', () => {
-  const store = useUIStore.getState()
-  store.setSelectedGPU(findGPUById('nvidia-h100-80gb-sxm'))
-  store.setNumGPUs(8)
-  expect(useUIStore.getState().numGPUs).toBe(8)
+The clamping logic itself is fully covered by the pure `gpuLimits` tests in
+Steps 1-4. What remains is two one-line call sites. Verify them by reading:
 
-  store.setSelectedGPU(findGPUById('apple-m3-ultra'))
-  expect(useUIStore.getState().numGPUs).toBe(1)
-})
+1. `setSelectedGPU` passes the NEW gpu (not `state.selectedGPU`) as the second
+   argument to `clampGPUCount`. Passing the old one silently disables the
+   re-clamp on GPU switch.
+2. `setNumGPUs` passes `state.selectedGPU`, reading through `set((state) => ...)`
+   rather than closing over a stale value.
+3. `src/hooks/useURLSync.ts` still calls `store.setSelectedGPU(...)` (around line
+   75) BEFORE `store.setNumGPUs(urlState.ng)` (around line 111). If that order
+   has changed, URL loads clamp against the wrong GPU — fix the order.
 
-it('rejects a count above the selected GPU bound', () => {
-  const store = useUIStore.getState()
-  store.setSelectedGPU(findGPUById('nvidia-h100-80gb-sxm'))
-  store.setNumGPUs(72)
-  expect(useUIStore.getState().numGPUs).toBe(8)
-})
-
-it('allows 72 on an NVL72 part', () => {
-  const store = useUIStore.getState()
-  store.setSelectedGPU(findGPUById('nvidia-gb300-nvl72'))
-  store.setNumGPUs(72)
-  expect(useUIStore.getState().numGPUs).toBe(72)
-})
-```
+Then check it in the browser: `npm run dev`, select an H100 SXM, set 8 GPUs,
+switch to Apple M3 Ultra. The count must drop to 1 and the slider must
+disappear (the slider disappearing is Task 6; before Task 6 lands, only the
+count drop is visible).
 
 - [ ] **Step 7: Run the full suite**
 
@@ -735,8 +770,7 @@ Expected: PASS, clean.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/utils/gpuLimits.ts src/utils/gpuLimits.test.ts src/store/uiStore.ts \
-  src/store/uiStore.test.ts
+git add src/utils/gpuLimits.ts src/utils/gpuLimits.test.ts src/store/uiStore.ts
 git commit -m "feat: clamp the per-node GPU count to the selected GPU bound"
 ```
 
@@ -756,37 +790,106 @@ The current tooltip claims 8 "is the size of a fully connected GPU domain in cur
 
 - [ ] **Step 1: Write the failing component test**
 
-Create `src/components/inputs/GPUCountSelector.test.tsx`, following the setup in the existing `src/components/inputs/NodeCountSelector.test.tsx` (read it first — it shows how this project mocks the store for component tests):
+Create `src/components/inputs/GPUCountSelector.test.tsx`. This mirrors the
+established pattern in `src/components/inputs/NodeCountSelector.test.tsx`: the
+real `uiStore` uses zustand's `persist` middleware, which throws under jsdom, so
+the test builds a plain store with the same shape and mocks the module.
 
 ```tsx
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { GPU } from '@utils/schemas'
+
+function gpuWithBound(name: string, max: number): GPU {
+  return {
+    id: 'test-gpu',
+    name,
+    manufacturer: 'nvidia',
+    vram_gb: 80,
+    memory_bandwidth_gbps: 2000,
+    memory_type: 'HBM3',
+    bus_width: 5120,
+    max_gpus_per_node: max,
+    tier: 'datacenter',
+  }
+}
+
+// The real uiStore wraps its state in zustand's `persist` middleware, which throws in
+// jsdom (no localStorage backing). Build a plain store with the same shape instead —
+// the established pattern in this repo (see NodeCountSelector.test.tsx).
+const { useUIStore } = vi.hoisted(() => {
+  const { create } = require('zustand') as typeof import('zustand')
+
+  interface MockState {
+    numGPUs: number
+    selectedGPU: unknown
+    mode: string
+    shardingStrategy: string
+    setNumGPUs: (value: number) => void
+  }
+
+  const useUIStore = create<MockState>((set) => ({
+    numGPUs: 1,
+    selectedGPU: null,
+    mode: 'inference',
+    shardingStrategy: 'tensor-parallel',
+    setNumGPUs: (value) => set({ numGPUs: value }),
+  }))
+
+  return { useUIStore }
+})
+
+vi.mock('@store/uiStore', () => ({ useUIStore }))
+
+// Import after mock setup
 import { GPUCountSelector } from './GPUCountSelector'
 
 describe('GPUCountSelector', () => {
-  it('caps the slider at the selected GPU max_gpus_per_node', () => {
-    // Arrange the mocked store with an 8-GPU part selected.
-    render(<GPUCountSelector />)
-    const slider = screen.getByLabelText(/GPUs per server/i)
-    expect(slider).toHaveAttribute('max', '8')
+  beforeEach(() => {
+    useUIStore.setState({
+      numGPUs: 1,
+      selectedGPU: gpuWithBound('Test 8-way', 8),
+      mode: 'inference',
+      shardingStrategy: 'tensor-parallel',
+    })
   })
 
-  it('raises the cap to 72 for an NVL72 part', () => {
-    // Arrange the mocked store with nvidia-gb300-nvl72 selected.
+  it('caps the slider at the selected GPU max_gpus_per_node', () => {
     render(<GPUCountSelector />)
-    expect(screen.getByLabelText(/GPUs per server/i)).toHaveAttribute('max', '72')
+    expect(screen.getByRole('slider')).toHaveAttribute('max', '8')
+  })
+
+  it('raises the cap to 72 for an NVL72-class part', () => {
+    useUIStore.setState({ selectedGPU: gpuWithBound('Test NVL72', 72) })
+    render(<GPUCountSelector />)
+    expect(screen.getByRole('slider')).toHaveAttribute('max', '72')
   })
 
   it('renders no slider for a single-GPU part', () => {
-    // Arrange the mocked store with apple-m3-ultra selected.
+    useUIStore.setState({ selectedGPU: gpuWithBound('Test single', 1) })
     render(<GPUCountSelector />)
-    expect(screen.queryByRole('slider')).toBeNull()
-    expect(screen.getByText(/single GPU/i)).toBeInTheDocument()
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+    expect(screen.getByText(/Single GPU/)).toBeInTheDocument()
+  })
+
+  it('falls back to a cap of 8 when no GPU is selected', () => {
+    useUIStore.setState({ selectedGPU: null })
+    render(<GPUCountSelector />)
+    expect(screen.getByRole('slider')).toHaveAttribute('max', '8')
+  })
+
+  it('drops the false claim that 8 is the largest GPU domain in current hardware', () => {
+    const { container } = render(<GPUCountSelector />)
+    expect(container.textContent).not.toContain('fully connected GPU domain')
   })
 })
 ```
 
-Replace each `// Arrange ...` comment with the actual store arrangement that `NodeCountSelector.test.tsx` uses — do not leave them as comments.
+The last test is the point of this task, not decoration: that sentence is the
+specific false copy the design removes. Note that the tooltip text lives in an
+`InfoTip` prop, so assert on `container.textContent` only if `InfoTip` renders
+its text into the DOM; if it does not, assert against the `text` prop by
+querying the rendered tooltip trigger instead.
 
 - [ ] **Step 2: Run it to verify it fails**
 
