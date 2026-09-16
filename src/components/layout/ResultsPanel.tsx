@@ -5,6 +5,7 @@ import { Recommendations } from '@components/outputs/Recommendations'
 import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownChart'
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
+import { perUserTimeToFirstToken, perUserTokensPerSecond } from '@engines/concurrency'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
@@ -656,10 +657,10 @@ export function ResultsPanel() {
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Per-user speed</p>
                     <p className="text-base font-semibold text-gray-900 dark:text-white">
-                      {result.performance.tokensPerSecond
-                        .mul(batchSize)
-                        .div(concurrentUsers)
-                        .toFixed(1)}{' '}
+                      {perUserTokensPerSecond(
+                        result.performance.tokensPerSecond,
+                        concurrentUsers,
+                      ).toFixed(1)}{' '}
                       tok/s
                     </p>
                   </div>
@@ -669,7 +670,11 @@ export function ResultsPanel() {
                     </p>
                     <p className="text-base font-semibold text-gray-900 dark:text-white">
                       {formatDuration(
-                        result.performance.timeToFirstToken.mul(concurrentUsers).div(batchSize),
+                        perUserTimeToFirstToken(
+                          result.performance.timeToFirstToken,
+                          concurrentUsers,
+                          batchSize,
+                        ),
                       )}
                     </p>
                   </div>
