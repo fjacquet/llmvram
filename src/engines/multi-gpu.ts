@@ -398,13 +398,24 @@ export function validateInterconnect(
     }
   }
 
-  // Check if TP degree exceeds recommended maximum
-  if (strategy === 'tensor-parallel' && numGPUs > spec.recommendedMaxTPDegree) {
+  // Check if the degree exceeds the interconnect's recommended maximum. This
+  // is a soft "scales badly" warning (INTERCONNECT_SPECS.recommendedMaxTPDegree),
+  // separate from the hard "cannot be built" bound (GPU.max_gpus_per_node)
+  // enforced at the store boundary. It applies regardless of strategy: a
+  // 72-way pipeline-parallel run (reachable now that the flat 8-GPU guard is
+  // gone) degrades for a different reason than tensor parallelism, so it gets
+  // its own wording rather than reusing the TP sentence verbatim.
+  if (numGPUs > spec.recommendedMaxTPDegree) {
     const interconnectName = INTERCONNECT_LABELS[spec.type] ?? spec.type
+
+    const warning =
+      strategy === 'tensor-parallel'
+        ? `${interconnectName} may have significant communication overhead with ${numGPUs} GPUs (recommended max: ${spec.recommendedMaxTPDegree})`
+        : `Pipeline parallelism across ${numGPUs} GPUs may suffer from pipeline bubble overhead and stage imbalance beyond the recommended ${spec.recommendedMaxTPDegree}-way split on ${interconnectName}`
 
     return {
       valid: true,
-      warning: `${interconnectName} may have significant communication overhead with ${numGPUs} GPUs (recommended max: ${spec.recommendedMaxTPDegree})`,
+      warning,
       interconnect: spec,
     }
   }
