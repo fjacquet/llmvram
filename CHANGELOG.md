@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-09-16
+
 ### Added
 
 - AMD Instinct MI355X (288 GB HBM3E, 8 TB/s, 1400 W), MI350X (288 GB, 1000 W air-cooled) and MI325X (256 GB HBM3E, 6 TB/s) to the GPU database.
@@ -18,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The GPU count slider is bounded by the selected GPU rather than a fixed 8, and shows no slider for single-GPU parts.
 - The per-node engine guard widened from 8 to 72.
-- The multi-GPU memory breakdown is now a single per-GPU capacity meter showing usage against the GPU's VRAM, replacing a bar chart that drew one identical bar per GPU. The old chart was illegible past a handful of GPUs and carried no information the meter does not. The PPTX export chart changes to match, with its value axis pinned to the GPU's capacity so the exported bar shows headroom rather than auto-scaling to look full.
+- The multi-GPU memory breakdown is now a single per-GPU capacity meter showing usage against the GPU's VRAM, replacing a bar chart that drew one identical bar per GPU. The old chart was illegible past a handful of GPUs; its per-segment tooltip did show each component's percent of the total, which the meter does not surface. The PPTX export chart changes to match, with its value axis pinned to the GPU's capacity so the exported bar shows headroom rather than auto-scaling to look full.
 
 ### Fixed
 
