@@ -146,13 +146,23 @@ export type ShardingStrategy = 'tensor-parallel' | 'pipeline-parallel'
 /**
  * GPU interconnect types with different bandwidth characteristics
  *
- * - nvlink-4: 4th gen NVLink (900 GB/s bidirectional)
- * - nvlink-5: 5th gen NVLink (1800 GB/s bidirectional)
- * - pcie-4: PCIe 4.0 x16 (64 GB/s bidirectional)
- * - pcie-5: PCIe 5.0 x16 (128 GB/s bidirectional)
+ * All bandwidths are BIDIRECTIONAL per-GPU figures, matching how NVIDIA and AMD
+ * publish them. Do not mix in unidirectional numbers.
+ *
+ * - nvlink-4: 4th gen NVLink (900 GB/s)
+ * - nvlink-5: 5th gen NVLink (1800 GB/s)
+ * - infinity-fabric: AMD xGMI, 8-way fully connected (1075 GB/s)
+ * - pcie-4: PCIe 4.0 x16 (64 GB/s)
+ * - pcie-5: PCIe 5.0 x16 (128 GB/s)
  * - none: No multi-GPU support (single GPU only)
  */
-export type InterconnectType = 'nvlink-4' | 'nvlink-5' | 'pcie-4' | 'pcie-5' | 'none'
+export type InterconnectType =
+  | 'nvlink-4'
+  | 'nvlink-5'
+  | 'infinity-fabric'
+  | 'pcie-4'
+  | 'pcie-5'
+  | 'none'
 
 /**
  * Interconnect specification with bandwidth and recommended limits

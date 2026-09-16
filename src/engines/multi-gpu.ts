@@ -3,6 +3,7 @@ import Decimal from 'decimal.js'
 import {
   BYTES_PER_GB,
   EMBEDDING_WEIGHT_FRACTION,
+  INTERCONNECT_LABELS,
   INTERCONNECT_SPECS,
   MOE_MULTI_GPU_OVERHEAD,
   NCCL_BUFFER_PER_PEER_GB,
@@ -308,8 +309,8 @@ export function resolveInterconnect(gpu: GPU): InterconnectType {
   // Apple unified memory (no multi-GPU support)
   if (interconnect === 'unified') return 'none'
 
-  // AMD Infinity Fabric maps to pcie-5 (similar bandwidth)
-  if (interconnect === 'infinity-fabric') return 'pcie-5'
+  // AMD Infinity Fabric (xGMI) — its own tier, not a PCIe stand-in
+  if (interconnect === 'infinity-fabric') return 'infinity-fabric'
 
   // Fallback based on GPU tier for undefined or 'none'
   if (interconnect === undefined || interconnect === 'none') {
@@ -373,8 +374,7 @@ export function validateInterconnect(
 
   // Check if TP degree exceeds recommended maximum
   if (strategy === 'tensor-parallel' && numGPUs > spec.recommendedMaxTPDegree) {
-    const interconnectName =
-      spec.type === 'pcie-4' ? 'PCIe 4.0' : spec.type === 'pcie-5' ? 'PCIe 5.0' : spec.type
+    const interconnectName = INTERCONNECT_LABELS[spec.type] ?? spec.type
 
     return {
       valid: true,

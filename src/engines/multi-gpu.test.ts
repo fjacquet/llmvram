@@ -1,6 +1,7 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
+import { INTERCONNECT_SPECS } from './constants'
 import { calculateInferenceVRAM } from './inference'
 import { calculateMultiGPUVRAM, resolveInterconnect, validateInterconnect } from './multi-gpu'
 
@@ -566,9 +567,9 @@ describe('resolveInterconnect', () => {
     expect(result).toBe('pcie-4')
   })
 
-  it('maps infinity-fabric to pcie-5', () => {
+  it('maps infinity-fabric to its own type', () => {
     const result = resolveInterconnect(radeonMI300X)
-    expect(result).toBe('pcie-5')
+    expect(result).toBe('infinity-fabric')
   })
 
   it('maps unified to none (Apple Silicon)', () => {
@@ -603,7 +604,7 @@ describe('validateInterconnect', () => {
     const result = validateInterconnect(rtx4090, 4, 'tensor-parallel')
 
     expect(result.valid).toBe(true)
-    expect(result.warning).toContain('PCIe 4.0')
+    expect(result.warning).toContain('PCIe 4')
     expect(result.warning).toContain('communication overhead')
     expect(result.interconnect.type).toBe('pcie-4')
   })
@@ -647,5 +648,54 @@ describe('validateInterconnect', () => {
 
     // PP warning should be less strict than TP
     expect(result.valid).toBe(true)
+  })
+})
+
+describe('Infinity Fabric interconnect', () => {
+  const mi300x: GPU = {
+    id: 'amd-mi300x',
+    name: 'AMD MI300X',
+    manufacturer: 'amd',
+    vram_gb: 192,
+    memory_bandwidth_gbps: 5300,
+    memory_type: 'HBM3',
+    bus_width: 8192,
+    fp16_tflops: 1307,
+    fp32_tflops: 163,
+    tdp_watts: 750,
+    interconnect: 'infinity-fabric',
+    tier: 'datacenter',
+  }
+
+  it('resolves to its own type, not pcie-5', () => {
+    expect(resolveInterconnect(mi300x)).toBe('infinity-fabric')
+  })
+
+  it('carries AMD bidirectional bandwidth and 8-way TP support', () => {
+    const spec = INTERCONNECT_SPECS['infinity-fabric']
+    expect(spec.bandwidthGBps).toBe(1075)
+    expect(spec.recommendedMaxTPDegree).toBe(8)
+    expect(spec.tpScalingEfficiency).toBe(0.93)
+  })
+
+  it('sits between NVLink-4 and NVLink-5 in scaling efficiency', () => {
+    expect(INTERCONNECT_SPECS['infinity-fabric'].tpScalingEfficiency).toBeGreaterThan(
+      INTERCONNECT_SPECS['nvlink-4'].tpScalingEfficiency,
+    )
+    expect(INTERCONNECT_SPECS['infinity-fabric'].tpScalingEfficiency).toBeLessThan(
+      INTERCONNECT_SPECS['nvlink-5'].tpScalingEfficiency,
+    )
+  })
+
+  it('does not warn at 8-way tensor parallel', () => {
+    const result = validateInterconnect(mi300x, 8, 'tensor-parallel')
+    expect(result.valid).toBe(true)
+    expect(result.warning).toBeNull()
+  })
+
+  it('names the interconnect in a warning rather than printing the enum value', () => {
+    const pcie4GPU: GPU = { ...mi300x, interconnect: 'pcie-4', name: 'Test PCIe4' }
+    const result = validateInterconnect(pcie4GPU, 8, 'tensor-parallel')
+    expect(result.warning).toContain('PCIe 4')
   })
 })
