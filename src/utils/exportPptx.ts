@@ -296,13 +296,21 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
         x: 0.4,
         y: 0.75,
         w: 12.5,
-        h: 4.2,
+        // One category, so the frame height is the bar's thickness. 4.2 (the
+        // height that suited N stacked bars) renders a single slab.
+        h: 2.2,
         barDir: 'bar',
         barGrouping: 'stacked',
         chartColors: [C.modelWeights, C.kvCache, C.activations, C.framework, C.communication],
         showLegend: true,
         legendPos: 'r',
         valAxisMinVal: 0,
+        // Pin the axis to the GPU's capacity so the bar renders as a fill
+        // against its limit, the way the in-app meter does. Without it
+        // PowerPoint auto-scales to the bar's own total and every export
+        // looks full regardless of headroom. Over capacity, the total is the
+        // larger of the two and the bar spans the axis.
+        valAxisMaxVal: Math.max(gpu.vram_gb, multiGPU.totalPerGPU.toNumber()),
         showTitle: true,
         title: `Per GPU — ${gbStr(multiGPU.totalPerGPU)} / ${gpu.vram_gb} GB capacity`,
       },
@@ -327,7 +335,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       ],
       {
         x: 0.4,
-        y: 5.05,
+        y: 3.25,
         w: 12.5,
         h: 0.45,
         fontSize: 12,

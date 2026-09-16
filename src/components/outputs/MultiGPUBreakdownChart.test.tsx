@@ -194,6 +194,13 @@ describe('MultiGPUBreakdownChart', () => {
     expect(
       screen.getByText('identical across all 32 GPUs (8 per node × 4 nodes)'),
     ).toBeInTheDocument()
+
+    // The footer above owns the counts; the strategy line must not restate
+    // them (it used to read "4 servers x 8 GPUs = 32 GPUs - ...").
+    expect(
+      screen.getByText('Tensor parallel within each server, pipeline parallel across them.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/4 servers/)).not.toBeInTheDocument()
   })
 
   it('states capacity, usage and percent in the header line', () => {
