@@ -3,6 +3,7 @@ import Decimal from 'decimal.js'
 import {
   BYTES_PER_GB,
   EMBEDDING_WEIGHT_FRACTION,
+  INTERCONNECT_LABELS,
   INTERCONNECT_SPECS,
   MOE_MULTI_GPU_OVERHEAD,
   NCCL_BUFFER_PER_PEER_GB,
@@ -117,7 +118,14 @@ function calculateTensorParallelVRAM(
     totalPerGPU,
     utilizationPercent,
     singleGPUBaseline: singleGPU.total,
+    numNodes: 1,
+    gpusPerNode: numGPUs,
+    intraNodeEfficiency: scalingEfficiency,
+    interNodeDecodeEfficiency: 1,
+    interNodePrefillEfficiency: 1,
+    bubbleEfficiency: 1,
     scalingEfficiency,
+    prefillScalingEfficiency: scalingEfficiency,
     interconnectBandwidthGBps: interconnectSpec.bandwidthGBps,
   }
 }
@@ -125,7 +133,8 @@ function calculateTensorParallelVRAM(
 /**
  * Calculate pipeline parallelism VRAM distribution
  *
- * PP divides layers across GPUs. Each GPU needs full KV cache for its layers.
+ * PP divides layers across GPUs. KV cache is sharded by layer: each stage
+ * holds only the cache for the layers it owns.
  * No weight replication (layers are split, not sharded).
  *
  * @param singleGPU - Single-GPU VRAM breakdown
@@ -145,8 +154,11 @@ function calculatePipelineParallelVRAM(
   // Weights divided evenly across layers
   const weightsPerGPU = singleGPU.modelWeights.div(numGPUs)
 
-  // KV cache NOT divided (each GPU needs full cache for its layers)
-  const kvCachePerGPU = singleGPU.kvCache
+  // KV cache is sharded by layer: PP assigns a contiguous slice of layers to
+  // each stage, and the KV cache is per-layer, so a stage holds only its own
+  // layers' cache. (singleGPU.kvCache is the all-layer total — kv-cache.ts
+  // multiplies by num_hidden_layers.)
+  const kvCachePerGPU = singleGPU.kvCache.div(numGPUs)
 
   // Activations divided with stashing overhead
   const baseActivationsPerGPU = singleGPU.activations.div(numGPUs)
@@ -186,8 +198,15 @@ function calculatePipelineParallelVRAM(
     totalPerGPU,
     utilizationPercent,
     singleGPUBaseline: singleGPU.total,
+    numNodes: 1,
+    gpusPerNode: numGPUs,
     // PP has lower communication overhead than TP; use flat 95% efficiency
+    intraNodeEfficiency: 1 - PP_COMMUNICATION_OVERHEAD.toNumber(),
+    interNodeDecodeEfficiency: 1,
+    interNodePrefillEfficiency: 1,
+    bubbleEfficiency: 1,
     scalingEfficiency: 1 - PP_COMMUNICATION_OVERHEAD.toNumber(),
+    prefillScalingEfficiency: 1 - PP_COMMUNICATION_OVERHEAD.toNumber(),
     interconnectBandwidthGBps: 0,
   }
 }
@@ -254,7 +273,14 @@ export function calculateMultiGPUVRAM(
       totalPerGPU: singleGPU.total,
       utilizationPercent,
       singleGPUBaseline: singleGPU.total,
+      numNodes: 1,
+      gpusPerNode: 1,
+      intraNodeEfficiency: 1.0,
+      interNodeDecodeEfficiency: 1,
+      interNodePrefillEfficiency: 1,
+      bubbleEfficiency: 1,
       scalingEfficiency: 1.0,
+      prefillScalingEfficiency: 1.0,
       interconnectBandwidthGBps: 0,
     }
   }
@@ -308,8 +334,8 @@ export function resolveInterconnect(gpu: GPU): InterconnectType {
   // Apple unified memory (no multi-GPU support)
   if (interconnect === 'unified') return 'none'
 
-  // AMD Infinity Fabric maps to pcie-5 (similar bandwidth)
-  if (interconnect === 'infinity-fabric') return 'pcie-5'
+  // AMD Infinity Fabric (xGMI) — its own tier, not a PCIe stand-in
+  if (interconnect === 'infinity-fabric') return 'infinity-fabric'
 
   // Fallback based on GPU tier for undefined or 'none'
   if (interconnect === undefined || interconnect === 'none') {
@@ -373,8 +399,7 @@ export function validateInterconnect(
 
   // Check if TP degree exceeds recommended maximum
   if (strategy === 'tensor-parallel' && numGPUs > spec.recommendedMaxTPDegree) {
-    const interconnectName =
-      spec.type === 'pcie-4' ? 'PCIe 4.0' : spec.type === 'pcie-5' ? 'PCIe 5.0' : spec.type
+    const interconnectName = INTERCONNECT_LABELS[spec.type] ?? spec.type
 
     return {
       valid: true,

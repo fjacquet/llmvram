@@ -146,13 +146,23 @@ export type ShardingStrategy = 'tensor-parallel' | 'pipeline-parallel'
 /**
  * GPU interconnect types with different bandwidth characteristics
  *
- * - nvlink-4: 4th gen NVLink (900 GB/s bidirectional)
- * - nvlink-5: 5th gen NVLink (1800 GB/s bidirectional)
- * - pcie-4: PCIe 4.0 x16 (64 GB/s bidirectional)
- * - pcie-5: PCIe 5.0 x16 (128 GB/s bidirectional)
+ * All bandwidths are BIDIRECTIONAL per-GPU figures, matching how NVIDIA and AMD
+ * publish them. Do not mix in unidirectional numbers.
+ *
+ * - nvlink-4: 4th gen NVLink (900 GB/s)
+ * - nvlink-5: 5th gen NVLink (1800 GB/s)
+ * - infinity-fabric: AMD xGMI, 8-way fully connected (1075 GB/s)
+ * - pcie-4: PCIe 4.0 x16 (64 GB/s)
+ * - pcie-5: PCIe 5.0 x16 (128 GB/s)
  * - none: No multi-GPU support (single GPU only)
  */
-export type InterconnectType = 'nvlink-4' | 'nvlink-5' | 'pcie-4' | 'pcie-5' | 'none'
+export type InterconnectType =
+  | 'nvlink-4'
+  | 'nvlink-5'
+  | 'infinity-fabric'
+  | 'pcie-4'
+  | 'pcie-5'
+  | 'none'
 
 /**
  * Interconnect specification with bandwidth and recommended limits
@@ -163,6 +173,38 @@ export interface InterconnectSpec {
   recommendedMaxTPDegree: number
   /** Fraction of linear scaling achieved in tensor parallelism (0–1). Accounts for all-reduce overhead. */
   tpScalingEfficiency: number
+}
+
+/**
+ * Scale-out (node-to-node) fabric types
+ *
+ * Distinct from InterconnectType, which is scale-up (GPU-to-GPU inside one
+ * chassis). Both exist simultaneously in a real cluster: NVLink or Infinity
+ * Fabric inside a server, Ethernet or InfiniBand between servers.
+ *
+ * Unlike InterconnectType's bidirectional figures, portGBps is UNIDIRECTIONAL
+ * per port, because that is how network hardware is specified.
+ */
+export type FabricType =
+  | 'ethernet-1600g'
+  | 'ethernet-800g'
+  | 'infiniband-xdr'
+  | 'infiniband-ndr'
+  | 'ethernet-400g'
+  | 'ethernet-100g'
+  | 'custom'
+
+export interface FabricSpec {
+  type: FabricType
+  label: string
+  /** Unidirectional bandwidth per port, GB/s */
+  portGBps: number
+  /**
+   * Efficiency multiplier for the fabric class. InfiniBand's credit-based flow
+   * control avoids the drop-and-recover tail that RoCEv2's PFC/ECN incurs under
+   * incast, so it edges out Ethernet at the same line rate.
+   */
+  classFactor: number
 }
 
 /**
@@ -198,8 +240,32 @@ export interface MultiGPUVRAMBreakdown {
   utilizationPercent: Decimal
   /** Single-GPU baseline for comparison */
   singleGPUBaseline: Decimal
-  /** TP scaling efficiency for this interconnect (0–1 fraction, e.g. 0.92 for NVLink-4) */
+  /** Number of nodes (servers) in the configuration */
+  numNodes: number
+  /** GPUs in each node */
+  gpusPerNode: number
+  /** Intra-node scaling efficiency, from INTERCONNECT_SPECS */
+  intraNodeEfficiency: number
+  /** Inter-node efficiency on the decode path; 1.0 when numNodes === 1 */
+  interNodeDecodeEfficiency: number
+  /** Inter-node efficiency on the prefill path; 1.0 when numNodes === 1 */
+  interNodePrefillEfficiency: number
+  /** Pipeline fill/drain efficiency; 1.0 when numNodes === 1 */
+  bubbleEfficiency: number
+  /**
+   * Combined efficiency for the DECODE roofline
+   *
+   * intraNodeEfficiency * interNodeDecodeEfficiency * bubbleEfficiency.
+   * Keeps its original name so performance.ts's decode site is unchanged.
+   */
   scalingEfficiency: number
+  /**
+   * Combined efficiency for the PREFILL roofline
+   *
+   * intraNodeEfficiency * interNodePrefillEfficiency * bubbleEfficiency.
+   * Differs from scalingEfficiency only when numNodes > 1.
+   */
+  prefillScalingEfficiency: number
   /** Interconnect bandwidth in GB/s (0 for single GPU) */
   interconnectBandwidthGBps: number
 }

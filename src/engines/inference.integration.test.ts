@@ -9,7 +9,9 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
+import { FABRIC_SPECS } from './fabric'
 import { calculateInferenceVRAM } from './inference'
+import { calculateMultiNodeVRAM } from './multi-node'
 import { estimatePerformance } from './performance'
 
 // GPU fixtures
@@ -78,6 +80,33 @@ const small_1b: Model = {
   num_hidden_layers: 16,
   num_attention_heads: 16,
   intermediate_size: 5504,
+}
+
+const mi355x: GPU = {
+  id: 'amd-mi355x',
+  name: 'AMD Instinct MI355X',
+  manufacturer: 'amd',
+  vram_gb: 288,
+  memory_bandwidth_gbps: 8000,
+  memory_type: 'HBM3E',
+  bus_width: 8192,
+  fp16_tflops: 2516,
+  fp32_tflops: 157,
+  tdp_watts: 1400,
+  interconnect: 'infinity-fabric',
+  tier: 'datacenter',
+}
+
+const llama405b: Model = {
+  id: 'meta-llama-llama-3.1-405b',
+  name: 'LLaMA 3.1 405B',
+  architecture: 'dense',
+  num_parameters_billion: 405,
+  hidden_size: 16384,
+  num_hidden_layers: 126,
+  num_attention_heads: 128,
+  num_kv_heads: 8,
+  intermediate_size: 53248,
 }
 
 const llama2_7b: Model = {
@@ -346,5 +375,52 @@ describe('Integration: Full Calculation Pipeline', () => {
     expect(vramFP16.total.toNumber()).toBeGreaterThan(80)
     // GPTQ: ~42GB (fits on 80GB H100)
     expect(vramGPTQ.total.toNumber()).toBeLessThan(80)
+  })
+})
+
+describe('multi-node end to end', () => {
+  it('fits a 405B model on 2 servers of 8 MI355X that will not fit on one', () => {
+    // At 8192 context / batch 1, 405B on 8x MI355X (288GB) only reaches ~43.5%
+    // utilization on a single node (22.2% on two) — it fits comfortably on one
+    // server, so a monotonic-decrease assertion alone doesn't prove the "won't
+    // fit on one" premise in this test's name. A 128K context (the INFER-06
+    // max used elsewhere in this file) with batch 32 grows the KV-cache term
+    // large enough to genuinely exceed one node: empirically, one node lands
+    // at 130.9% utilization (doesn't fit) and two nodes at 65.9% (fits).
+    const singleGPU = calculateInferenceVRAM({
+      model: llama405b,
+      quantization: 'fp16',
+      sequenceLength: 131072,
+      batchSize: 32,
+    })
+    const oneNode = calculateMultiNodeVRAM({
+      singleGPU,
+      model: llama405b,
+      gpuVramGB: 288,
+      gpusPerNode: 8,
+      numNodes: 1,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu: mi355x,
+      fabric: FABRIC_SPECS['ethernet-800g'],
+      batchSize: 32,
+    })
+    const twoNodes = calculateMultiNodeVRAM({
+      singleGPU,
+      model: llama405b,
+      gpuVramGB: 288,
+      gpusPerNode: 8,
+      numNodes: 2,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu: mi355x,
+      fabric: FABRIC_SPECS['ethernet-800g'],
+      batchSize: 32,
+    })
+
+    // The real boundary: one node cannot hold it, two nodes can.
+    expect(oneNode.utilizationPercent.greaterThan(100)).toBe(true)
+    expect(twoNodes.utilizationPercent.lessThan(100)).toBe(true)
+
+    expect(twoNodes.totalPerGPU.lessThan(oneNode.totalPerGPU)).toBe(true)
+    expect(twoNodes.utilizationPercent.lessThan(oneNode.utilizationPercent)).toBe(true)
   })
 })

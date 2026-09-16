@@ -106,3 +106,44 @@ describe('GPU Database Validation', () => {
     expect(withFP16.length).toBeGreaterThanOrEqual(Math.floor(gpusData.length * 0.8))
   })
 })
+
+describe('AMD Instinct MI350 / MI325 series', () => {
+  it('includes MI355X with 288 GB HBM3E at 8 TB/s', () => {
+    const gpu = gpusData.find((g) => g.id === 'amd-mi355x')
+    expect(gpu?.vram_gb).toBe(288)
+    expect(gpu?.memory_bandwidth_gbps).toBe(8000)
+    expect(gpu?.memory_type).toBe('HBM3E')
+    expect(gpu?.tdp_watts).toBe(1400)
+  })
+
+  it('includes MI350X as the air-cooled sibling: same memory, lower TBP', () => {
+    const mi350x = gpusData.find((g) => g.id === 'amd-mi350x')
+    const mi355x = gpusData.find((g) => g.id === 'amd-mi355x')
+    expect(mi350x?.vram_gb).toBe(mi355x?.vram_gb)
+    expect(mi350x?.memory_bandwidth_gbps).toBe(mi355x?.memory_bandwidth_gbps)
+    expect(mi350x?.tdp_watts).toBe(1000)
+    expect(mi350x?.fp16_tflops ?? 0).toBeLessThan(mi355x?.fp16_tflops ?? 0)
+  })
+
+  it('includes MI325X with 256 GB and MI300X compute', () => {
+    const mi325x = gpusData.find((g) => g.id === 'amd-mi325x')
+    const mi300x = gpusData.find((g) => g.id === 'amd-mi300x')
+    expect(mi325x?.vram_gb).toBe(256)
+    expect(mi325x?.memory_bandwidth_gbps).toBe(6000)
+    expect(mi325x?.fp16_tflops).toBe(mi300x?.fp16_tflops)
+  })
+
+  it('stores dense FP16, not AMD sparse marketing figures', () => {
+    // Sparse would be ~5033 for MI355X. Anything above 3000 means a sparse
+    // number leaked into the database.
+    for (const gpu of gpusData.filter((g) => g.manufacturer === 'amd')) {
+      expect(gpu.fp16_tflops ?? 0).toBeLessThan(3000)
+    }
+  })
+
+  it('puts every AMD accelerator on Infinity Fabric', () => {
+    for (const gpu of gpusData.filter((g) => g.manufacturer === 'amd')) {
+      expect(gpu.interconnect).toBe('infinity-fabric')
+    }
+  })
+})

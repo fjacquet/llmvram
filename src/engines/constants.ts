@@ -209,6 +209,19 @@ export const INTERCONNECT_SPECS: Record<InterconnectType, InterconnectSpec> = {
     recommendedMaxTPDegree: 8,
     tpScalingEfficiency: 0.97, // 1800 GB/s — near-linear scaling
   },
+  'infinity-fabric': {
+    type: 'infinity-fabric',
+    bandwidthGBps: 1075,
+    // AMD's aggregate per-GPU GPU-to-GPU figure for an 8-way fully connected
+    // MI350-series platform, bidirectional — the same convention as the NVLink
+    // rows above. (A widely quoted 538 GB/s is the unidirectional half.)
+    recommendedMaxTPDegree: 8,
+    tpScalingEfficiency: 0.93,
+    // Interpolated log-linearly between the adjacent anchors in this table:
+    // NVLink-4 (900 GB/s, 0.92) and NVLink-5 (1800 GB/s, 0.97), i.e. +0.05 per
+    // doubling. 0.92 + 0.05 * log2(1075/900) = 0.933. Derived, not measured —
+    // as with every other row here.
+  },
   'pcie-4': {
     type: 'pcie-4',
     bandwidthGBps: 64,
@@ -404,9 +417,9 @@ export const PREFILL_CHUNK_TOKENS = 16384
 export const INTERCONNECT_LABELS: Partial<Record<string, string>> = {
   'nvlink-4': 'NVLink 4 — 900 GB/s',
   'nvlink-5': 'NVLink 5 — 1800 GB/s',
+  'infinity-fabric': 'Infinity Fabric — 1075 GB/s',
   'pcie-5': 'PCIe 5 — 128 GB/s',
   'pcie-4': 'PCIe 4 — 64 GB/s',
-  'infinity-fabric': 'Infinity Fabric',
   unified: 'Unified Memory',
   none: 'None (single GPU)',
 }

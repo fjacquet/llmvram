@@ -11,7 +11,7 @@ LLM VRAM Calculator — a browser-based tool that estimates VRAM requirements an
 ```bash
 npm run dev              # Start Vite dev server
 npm run build            # TypeScript check + Vite production build
-npm run typecheck        # TypeScript only (tsc --noEmit)
+npm run typecheck        # TypeScript only (tsc -b --force, project-reference aware)
 npm run lint             # Biome check (lint + format validation)
 npm run lint:fix         # Biome auto-fix
 npm run format           # Biome format (write)
@@ -45,6 +45,9 @@ scripts/          # Data refresh scripts (tsx) — fetch from HuggingFace, valid
 - **Static data + custom input**: Curated JSON databases for common GPUs/models, plus `CustomGPUInput`/`CustomModelInput` interfaces for user-specified hardware/models.
 - **MoE models use total parameters**: For MoE models like Mixtral, `num_parameters_billion` is the **total** parameter count (e.g., 46.7B), not active-per-token (e.g., 13B). All expert weights must fit in VRAM.
 - **Models sorted by name**: Entries in `src/data/models.json` must always be sorted alphabetically by `name`. After adding or modifying models, re-sort the array.
+- **GPU data is generated**: `src/data/gpus.json` is regenerated from the `GPUS` array in `scripts/fetch-gpus.ts`. Never hand-edit the JSON — edits are silently lost on the next `npm run refresh:gpus`.
+- **GPUs grouped by vendor, NOT sorted**: unlike `models.json`, `src/data/gpus.json` is grouped by manufacturer. The alphabetical-sort rule above applies to models only.
+- **`numGPUs` means GPUs PER NODE**: total GPUs is `numGPUs × numNodes`, available as `MultiGPUVRAMBreakdown.numGPUs`. Any consumer displaying a GPU count must use the total, not the store field.
 
 ## Tech Stack & Config
 
@@ -53,6 +56,7 @@ scripts/          # Data refresh scripts (tsx) — fetch from HuggingFace, valid
 - **Zustand** for state, **Recharts** for visualization, **decimal.js** for precise math, **sonner** for toasts
 - **Biome** for linting/formatting: 2-space indent, single quotes, no semicolons (ASI), 100-char line width. Unused imports/variables are errors.
 - **Vitest** with jsdom environment. Tests live alongside source (`src/**/*.test.ts`) or in `tests/`. Coverage targets: 75% lines/functions/branches/statements on `src/engines/` and `src/utils/`.
+- **Test files are typechecked by nothing**: `tsconfig.app.json` excludes `src/**/*.test.ts(x)` and Vitest's esbuild strips types. A passing suite is not evidence of type-correct tests — prefer fixtures built by calling the real factory over hand-written literals, which go stale silently.
 
 ## Path Aliases
 
@@ -69,6 +73,8 @@ When implementing VRAM calculations, be aware of these critical estimation error
 3. **Multi-GPU overhead**: Not a simple `total / n_gpus` — tensor parallelism replicates embeddings/layernorms (85-90% effective split), plus NCCL buffers (100-500MB/GPU).
 4. **Fine-tuning memory**: LoRA/QLoRA optimizer states apply only to adapter parameters (~1% of full), not the entire model.
 5. **Framework overhead**: Always add 500MB-1.5GB baseline (PyTorch + CUDA context).
+6. **`fp16_tflops` is DENSE**: H100 989, B200 4500, MI300X 1307. AMD publishes FP16 *with sparsity* ("4.6/5.0 PFLOPS") — double the dense figure. Dense FP16 = dense FP8 / 2.
+7. **Two interconnect tables, two unit conventions**: `INTERCONNECT_SPECS` (scale-up, GPU-to-GPU in one chassis) is **bidirectional** per-GPU; `FABRIC_SPECS` (scale-out, server-to-server) `portGBps` is **unidirectional** per port. Mixing them halves or doubles the answer.
 
 See `.planning/research/PITFALLS.md` for the complete reference.
 

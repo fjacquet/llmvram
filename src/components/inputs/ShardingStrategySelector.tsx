@@ -1,12 +1,14 @@
 import { InfoTip } from '@components/common/InfoTip'
-import { INTERCONNECT_SPECS } from '@engines/constants'
+import { INTERCONNECT_LABELS, INTERCONNECT_SPECS } from '@engines/constants'
 import { resolveInterconnect } from '@engines/multi-gpu'
 import { useUIStore } from '@store/uiStore'
 
 /**
  * Sharding strategy selector (Tensor Parallel vs Pipeline Parallel)
  *
- * Only visible when numGPUs > 1. Shows:
+ * Only visible when there is more than one GPU per server. This selects the
+ * INTRA-node strategy; across servers the strategy is always pipeline parallel.
+ * Shows:
  * - Radio buttons for TP/PP selection with descriptions
  * - Interconnect information badge from selected GPU
  * - Performance warnings for suboptimal configurations
@@ -30,11 +32,23 @@ export function ShardingStrategySelector() {
   let badgeColorClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
   if (interconnectType.startsWith('nvlink')) {
     badgeColorClass = 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+  } else if (interconnectType === 'infinity-fabric') {
+    // AMD's high-bandwidth scale-up fabric — same tier as NVLink (8-way fully
+    // connected, comparable GB/s), so it gets its own color close to NVLink's
+    // rather than falling through to the unknown-interconnect gray.
+    badgeColorClass = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
   } else if (interconnectType.startsWith('pcie')) {
     badgeColorClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
   } else if (interconnectType === 'none') {
     badgeColorClass = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
   }
+
+  // Human-readable interconnect name. INTERCONNECT_LABELS also bakes in a
+  // bandwidth figure ("Infinity Fabric — 1075 GB/s"), but this badge already
+  // renders bandwidthGBps separately, so only the name portion is reused here
+  // to avoid printing the bandwidth twice.
+  const interconnectLabel =
+    INTERCONNECT_LABELS[interconnectType]?.split(' — ')[0] ?? interconnectType.toUpperCase()
 
   // Check if TP degree exceeds recommended maximum
   const tpExceedsMax =
@@ -44,7 +58,7 @@ export function ShardingStrategySelector() {
     <div className="space-y-3">
       <div className="flex items-center gap-1 mb-2">
         <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          Sharding Strategy
+          Intra-server sharding strategy
         </div>
         <InfoTip text="Tensor Parallel splits each layer across GPUs (needs fast NVLink). Pipeline Parallel assigns whole layers to GPUs (works over PCIe but adds pipeline bubbles)." />
       </div>
@@ -108,15 +122,15 @@ export function ShardingStrategySelector() {
       >
         {interconnectType === 'none' ? (
           'No interconnect detected. Multi-GPU may not be supported for this GPU.'
-        ) : interconnectType.startsWith('nvlink') ? (
+        ) : interconnectType.startsWith('nvlink') || interconnectType === 'infinity-fabric' ? (
           <>
-            {interconnectType.toUpperCase()}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
+            {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
             {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — Excellent for
             TP up to {interconnectSpec.recommendedMaxTPDegree} GPUs
           </>
         ) : (
           <>
-            {interconnectType.toUpperCase()}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
+            {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
             {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — TP recommended
             up to {interconnectSpec.recommendedMaxTPDegree} GPUs
           </>
@@ -127,9 +141,9 @@ export function ShardingStrategySelector() {
       {tpExceedsMax && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
           <p className="text-xs text-amber-800 dark:text-amber-200">
-            ⚠ Tensor Parallel with {numGPUs} GPUs may experience performance degradation on{' '}
-            {interconnectType.toUpperCase()}. Recommended maximum:{' '}
-            {interconnectSpec.recommendedMaxTPDegree} GPUs.
+            ⚠ Tensor Parallel with {numGPUs} GPUs per server may experience performance degradation
+            on {interconnectLabel}. Recommended maximum: {interconnectSpec.recommendedMaxTPDegree}{' '}
+            GPUs.
           </p>
         </div>
       )}

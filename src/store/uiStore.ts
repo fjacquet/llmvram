@@ -2,6 +2,7 @@ import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
 import type {
+  FabricType,
   FineTuningMethod,
   KVCachePrecision,
   OffloadMode,
@@ -11,7 +12,7 @@ import type {
   ShardingStrategy,
   TrainingPrecision,
 } from '@engines/types'
-import type { GPU, Model } from '@utils/schemas'
+import type { CustomFabricInput, GPU, Model } from '@utils/schemas'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -46,8 +47,15 @@ interface UIState {
   kvQuantization: KVCachePrecision
 
   // Multi-GPU parameters (persisted)
+  /** GPUs per node. Was the total GPU count before multi-node; 1 node x N GPUs
+   *  is the same configuration, so persisted state needs no migration. */
   numGPUs: number
   shardingStrategy: ShardingStrategy
+
+  // Multi-node parameters (persisted)
+  numNodes: number
+  interNodeFabric: FabricType
+  customFabric: CustomFabricInput | null
 
   // Offloading parameters (persisted)
   offloadingEnabled: boolean
@@ -91,6 +99,9 @@ interface UIState {
   setBatchSize: (batchSize: number) => void
   setKVQuantization: (kvQuantization: KVCachePrecision) => void
   setNumGPUs: (numGPUs: number) => void
+  setNumNodes: (numNodes: number) => void
+  setInterNodeFabric: (fabric: FabricType) => void
+  setCustomFabric: (fabric: CustomFabricInput | null) => void
   setShardingStrategy: (strategy: ShardingStrategy) => void
   setOffloadingEnabled: (enabled: boolean) => void
   setOffloadTarget: (target: OffloadTarget) => void
@@ -128,6 +139,9 @@ export const useUIStore = create<UIState>()(
       batchSize: 1,
       kvQuantization: 'fp16',
       numGPUs: 1,
+      numNodes: 1,
+      interNodeFabric: 'ethernet-800g' as FabricType,
+      customFabric: null,
       shardingStrategy: 'tensor-parallel' as ShardingStrategy,
       offloadingEnabled: false,
       offloadTarget: 'cpu-ram' as OffloadTarget,
@@ -161,6 +175,9 @@ export const useUIStore = create<UIState>()(
       setBatchSize: (batchSize) => set({ batchSize }),
       setKVQuantization: (kvQuantization) => set({ kvQuantization }),
       setNumGPUs: (numGPUs) => set({ numGPUs }),
+      setNumNodes: (numNodes) => set({ numNodes }),
+      setInterNodeFabric: (interNodeFabric) => set({ interNodeFabric }),
+      setCustomFabric: (customFabric) => set({ customFabric }),
       setShardingStrategy: (strategy) => set({ shardingStrategy: strategy }),
       setOffloadingEnabled: (enabled) => set({ offloadingEnabled: enabled }),
       setOffloadTarget: (target) => set({ offloadTarget: target }),

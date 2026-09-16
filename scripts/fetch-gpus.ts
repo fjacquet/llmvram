@@ -9,6 +9,8 @@ import { type GPU, validateGPUs } from '../src/utils/schemas'
  * - NVIDIA H100/A100: https://resources.nvidia.com/en-us-tensor-core/nvidia-tensor-core-gpu-datasheet
  * - RTX Series: https://www.nvidia.com/en-us/geforce/graphics-cards/ and TechPowerUp GPU Database
  * - AMD MI300X: https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/data-sheets/amd-instinct-mi300x-data-sheet.pdf
+ * - AMD MI325X: https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/product-briefs/instinct-mi325x-datasheet.pdf
+ * - AMD MI350X/MI355X: https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/product-briefs/amd-instinct-mi350x-gpu-brochure.pdf
  * - Apple Silicon: Wikipedia and official Apple specs
  *
  * Update the GPUS array below with specs from official sources, then run:
@@ -30,6 +32,7 @@ const GPUS: GPU[] = [
     tdp_watts: 350,
     interconnect: 'nvlink-4',
     tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/h100/',
   },
   {
     id: 'nvidia-h100-80gb-sxm',
@@ -44,6 +47,7 @@ const GPUS: GPU[] = [
     tdp_watts: 700,
     interconnect: 'nvlink-4',
     tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/h100/',
   },
   {
     id: 'nvidia-h200-141gb',
@@ -57,7 +61,9 @@ const GPUS: GPU[] = [
     fp32_tflops: 51,
     tdp_watts: 700,
     interconnect: 'nvlink-4',
+    interconnect_options: ['nvlink-4', 'pcie-5'],
     tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/h200/',
   },
   {
     id: 'nvidia-b200-192gb',
@@ -72,6 +78,7 @@ const GPUS: GPU[] = [
     tdp_watts: 1000,
     interconnect: 'nvlink-5',
     tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/b200/',
   },
   {
     id: 'nvidia-gb300-288gb',
@@ -86,6 +93,7 @@ const GPUS: GPU[] = [
     tdp_watts: 1400,
     interconnect: 'nvlink-5',
     tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/gb300-nvl72/',
   },
   {
     id: 'nvidia-a100-80gb-pcie',
@@ -100,6 +108,7 @@ const GPUS: GPU[] = [
     tdp_watts: 300,
     interconnect: 'nvlink',
     tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/a100/',
   },
   {
     id: 'nvidia-a100-80gb-sxm',
@@ -114,6 +123,22 @@ const GPUS: GPU[] = [
     tdp_watts: 400,
     interconnect: 'nvlink',
     tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/a100/',
+  },
+  {
+    id: 'nvidia-l40s',
+    name: 'NVIDIA L40S',
+    manufacturer: 'nvidia',
+    vram_gb: 48,
+    memory_bandwidth_gbps: 864,
+    memory_type: 'GDDR6',
+    bus_width: 384,
+    fp16_tflops: 366,
+    fp32_tflops: 91.6,
+    tdp_watts: 350,
+    interconnect: 'none',
+    tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/l40s/',
   },
 
   // NVIDIA Workstation/Server
@@ -130,6 +155,22 @@ const GPUS: GPU[] = [
     tdp_watts: 600,
     interconnect: 'none',
     tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/rtx-pro-6000-blackwell-server-edition/',
+  },
+  {
+    id: 'nvidia-rtx-6000-ada',
+    name: 'NVIDIA RTX 6000 Ada',
+    manufacturer: 'nvidia',
+    vram_gb: 48,
+    memory_bandwidth_gbps: 960,
+    memory_type: 'GDDR6',
+    bus_width: 384,
+    fp16_tflops: 182.2,
+    fp32_tflops: 91.1,
+    tdp_watts: 300,
+    interconnect: 'none',
+    tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/products/workstations/rtx-6000/',
   },
 
   // NVIDIA Consumer
@@ -146,6 +187,7 @@ const GPUS: GPU[] = [
     tdp_watts: 575,
     interconnect: 'none',
     tier: 'consumer',
+    spec_url: 'https://www.nvidia.com/en-us/geforce/graphics-cards/50-series/rtx-5090/',
   },
   {
     id: 'nvidia-rtx-4090',
@@ -160,6 +202,7 @@ const GPUS: GPU[] = [
     tdp_watts: 450,
     interconnect: 'none',
     tier: 'consumer',
+    spec_url: 'https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4090/',
   },
   {
     id: 'nvidia-rtx-3090',
@@ -174,6 +217,7 @@ const GPUS: GPU[] = [
     tdp_watts: 350,
     interconnect: 'none',
     tier: 'consumer',
+    spec_url: 'https://www.nvidia.com/en-us/geforce/graphics-cards/30-series/rtx-3090-3090ti/',
   },
   {
     id: 'nvidia-gb300-desktop-252gb',
@@ -186,9 +230,72 @@ const GPUS: GPU[] = [
     fp16_tflops: 5000,
     interconnect: 'nvlink-5',
     tier: 'consumer',
+    spec_url: 'https://www.nvidia.com/en-us/products/workstations/dgx-station/',
+  },
+  {
+    id: 'nvidia-gb10',
+    name: 'NVIDIA GB10 (DGX Spark)',
+    manufacturer: 'nvidia',
+    vram_gb: 128,
+    memory_bandwidth_gbps: 273,
+    memory_type: 'LPDDR5X',
+    bus_width: 256,
+    fp16_tflops: 213,
+    fp32_tflops: 31,
+    tdp_watts: 140,
+    interconnect: 'nvlink-5',
+    interconnect_options: ['nvlink-5', 'pcie-5'],
+    tier: 'consumer',
+    spec_url: 'https://www.nvidia.com/en-us/products/workstations/dgx-spark/',
   },
 
   // AMD Datacenter
+  {
+    id: 'amd-mi355x',
+    name: 'AMD Instinct MI355X',
+    manufacturer: 'amd',
+    vram_gb: 288,
+    memory_bandwidth_gbps: 8000,
+    memory_type: 'HBM3E',
+    bus_width: 8192,
+    // Dense FP16. AMD's headline 5.0 PFLOPS figure is with sparsity.
+    fp16_tflops: 2516,
+    fp32_tflops: 157,
+    tdp_watts: 1400,
+    interconnect: 'infinity-fabric',
+    tier: 'datacenter',
+  },
+  {
+    id: 'amd-mi350x',
+    name: 'AMD Instinct MI350X',
+    manufacturer: 'amd',
+    vram_gb: 288,
+    memory_bandwidth_gbps: 8000,
+    memory_type: 'HBM3E',
+    bus_width: 8192,
+    // Same die and memory as MI355X; the ~9% throughput gap is clocks,
+    // enabled by 1400 W liquid vs 1000 W air cooling.
+    fp16_tflops: 2300,
+    fp32_tflops: 144,
+    tdp_watts: 1000,
+    interconnect: 'infinity-fabric',
+    tier: 'datacenter',
+  },
+  {
+    id: 'amd-mi325x',
+    name: 'AMD Instinct MI325X',
+    manufacturer: 'amd',
+    vram_gb: 256,
+    memory_bandwidth_gbps: 6000,
+    memory_type: 'HBM3E',
+    bus_width: 8192,
+    // Same CDNA 3 compute core as MI300X, more memory.
+    fp16_tflops: 1307,
+    fp32_tflops: 163,
+    tdp_watts: 1000,
+    interconnect: 'infinity-fabric',
+    tier: 'datacenter',
+  },
   {
     id: 'amd-mi300x',
     name: 'AMD MI300X',
@@ -202,6 +309,7 @@ const GPUS: GPU[] = [
     tdp_watts: 750,
     interconnect: 'infinity-fabric',
     tier: 'datacenter',
+    spec_url: 'https://www.amd.com/en/products/accelerators/instinct/mi300/mi300x.html',
   },
 
   // Apple Silicon
@@ -216,6 +324,8 @@ const GPUS: GPU[] = [
     fp16_tflops: 21,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    spec_url:
+      'https://www.apple.com/newsroom/2022/03/apple-unveils-m1-ultra-the-worlds-most-powerful-chip-for-a-personal-computer/',
   },
   {
     id: 'apple-m2-ultra',
@@ -228,6 +338,7 @@ const GPUS: GPU[] = [
     fp16_tflops: 27,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    spec_url: 'https://www.apple.com/newsroom/2023/06/apple-introduces-m2-ultra/',
   },
   {
     id: 'apple-m3-ultra',
@@ -240,6 +351,22 @@ const GPUS: GPU[] = [
     fp16_tflops: 40,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    spec_url:
+      'https://www.apple.com/newsroom/2025/03/apple-reveals-m3-ultra-taking-apple-silicon-to-a-new-extreme/',
+  },
+  {
+    id: 'apple-m5-max',
+    name: 'Apple M5 Max',
+    manufacturer: 'apple',
+    vram_gb: 128,
+    memory_bandwidth_gbps: 614,
+    memory_type: 'Unified',
+    bus_width: 0,
+    fp16_tflops: 35,
+    tier: 'apple-silicon',
+    interconnect: 'unified',
+    spec_url:
+      'https://www.apple.com/newsroom/2026/03/apple-debuts-m5-pro-and-m5-max-to-supercharge-the-most-demanding-pro-workflows/',
   },
   {
     id: 'apple-m4-max',
@@ -252,6 +379,7 @@ const GPUS: GPU[] = [
     fp16_tflops: 29,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    spec_url: 'https://www.apple.com/newsroom/2024/10/apple-introduces-m4-pro-and-m4-max/',
   },
   {
     id: 'apple-m3-max',
@@ -264,6 +392,8 @@ const GPUS: GPU[] = [
     fp16_tflops: 29,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    spec_url:
+      'https://www.apple.com/newsroom/2023/10/apple-unveils-m3-m3-pro-and-m3-max-the-most-advanced-chips-for-a-personal-computer/',
   },
   {
     id: 'apple-m2-max',
@@ -276,6 +406,8 @@ const GPUS: GPU[] = [
     fp16_tflops: 13.6,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    spec_url:
+      'https://www.apple.com/newsroom/2023/01/apple-unveils-m2-pro-and-m2-max-next-generation-chips-for-next-level-workflows/',
   },
   {
     id: 'apple-m1-max',
@@ -288,6 +420,8 @@ const GPUS: GPU[] = [
     fp16_tflops: 10.4,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    spec_url:
+      'https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/',
   },
 ]
 

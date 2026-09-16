@@ -1,6 +1,8 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
+import { calculateInferenceVRAM } from './inference'
+import { calculateMultiGPUVRAM } from './multi-gpu'
 import { estimatePerformance } from './performance'
 import type { MultiGPUVRAMBreakdown } from './types'
 
@@ -551,7 +553,16 @@ describe('estimatePerformance - multi-GPU scaling', () => {
     totalPerGPU: new Decimal(0),
     utilizationPercent: new Decimal(0),
     singleGPUBaseline: new Decimal(0),
+    numNodes: 1,
+    gpusPerNode: 2,
+    intraNodeEfficiency: 0.9,
+    interNodeDecodeEfficiency: 1,
+    interNodePrefillEfficiency: 1,
+    bubbleEfficiency: 1,
     scalingEfficiency: 0.9,
+    // Single node (numNodes === 1): prefillScalingEfficiency equals scalingEfficiency, which
+    // is exactly what lets this test assert decode and prefill scale by the same factor.
+    prefillScalingEfficiency: 0.9,
     interconnectBandwidthGBps: 900,
   }
 
@@ -638,5 +649,56 @@ describe('estimatePerformance - MoE active parameters', () => {
 
     // Fewer bytes read per token means more tokens per second
     expect(int4.tokensPerSecond.greaterThan(fp16.tokensPerSecond)).toBe(true)
+  })
+})
+
+describe('multi-node roofline separation', () => {
+  // Built via calculateMultiGPUVRAM rather than hand-written, so the fixture tracks the
+  // MultiGPUVRAMBreakdown interface as it evolves instead of drifting from it.
+  const baseMultiGPUResult: MultiGPUVRAMBreakdown = calculateMultiGPUVRAM(
+    calculateInferenceVRAM({
+      model: llama3_70b,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+      kvQuantization: 'fp16',
+    }),
+    llama3_70b,
+    h100_80gb_sxm.vram_gb,
+    4,
+    'tensor-parallel',
+    h100_80gb_sxm,
+  )
+
+  it('scales prefill by the prefill efficiency, not the decode one', () => {
+    const multiGPUResult = {
+      ...baseMultiGPUResult,
+      numGPUs: 32,
+      numNodes: 4,
+      gpusPerNode: 8,
+      scalingEfficiency: 0.9,
+      prefillScalingEfficiency: 0.5,
+    }
+    const fast = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+      multiGPUResult: { ...multiGPUResult, prefillScalingEfficiency: 0.9 },
+    })
+    const slow = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+      multiGPUResult,
+    })
+    // Decode is identical: both carry scalingEfficiency 0.9.
+    expect(slow.tokensPerSecond.toString()).toBe(fast.tokensPerSecond.toString())
+    // Prefill is not: the slow fabric halves effectiveFLOPS, doubling time-to-first-token's
+    // compute term.
+    expect(slow.timeToFirstToken.greaterThan(fast.timeToFirstToken)).toBe(true)
   })
 })

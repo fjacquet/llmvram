@@ -1,6 +1,7 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
+import { INTERCONNECT_SPECS } from './constants'
 import { calculateInferenceVRAM } from './inference'
 import { calculateMultiGPUVRAM, resolveInterconnect, validateInterconnect } from './multi-gpu'
 
@@ -243,8 +244,8 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
     const expectedWeightsPerGPU = singleGPU.modelWeights.div(4)
     expect(result.perGPU.modelWeights.toString()).toBe(expectedWeightsPerGPU.toString())
 
-    // CRITICAL: PP does NOT divide KV cache (each GPU needs full cache for its layers)
-    expect(result.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.toString())
+    // PP shards KV cache by layer: each stage holds only its own layers' cache
+    expect(result.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(4).toString())
 
     // Verify activations divided with stashing overhead
     const baseActivationsPerGPU = singleGPU.activations.div(4)
@@ -267,7 +268,7 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
     expect(result.perGPU.total.toString()).toBe(expectedTotal.toString())
   })
 
-  it('verifies KV cache behavior differs between TP and PP', () => {
+  it('matches TP on KV cache but differs on other overheads', () => {
     const singleGPU = calculateInferenceVRAM({
       model: llama70b,
       quantization: 'gptq',
@@ -293,20 +294,63 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
       h100,
     )
 
-    // TP divides KV cache, PP does not
+    // TP shards KV cache by head, PP shards it by layer — both divide by numGPUs
     expect(tpResult.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(4).toString())
-    expect(ppResult.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.toString())
+    expect(ppResult.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(4).toString())
 
-    // PP has full KV cache per GPU (4x more than TP)
+    // PP and TP shard the KV cache identically; they differ elsewhere (replication, NCCL, comm %)
     const kvRatio = ppResult.perGPU.kvCache.div(tpResult.perGPU.kvCache)
-    expect(kvRatio.toNumber()).toBeCloseTo(4.0, 10)
+    expect(kvRatio.toNumber()).toBe(1)
 
     // NOTE: For this specific scenario (small KV cache relative to model size),
     // TP actually uses MORE memory per GPU than PP because:
     // - TP pays for weight replication (~1.18 GB), NCCL buffers (0.6 GB), and comm overhead (8% for NVLink-4 vs 5% for PP)
-    // - PP pays for full KV cache (~0.015 GB here, tiny) but saves on replication/NCCL
+    // - PP and TP now shard KV cache identically, so it does not explain the gap
     // Net: TP overhead dominates for small KV cache; TP > PP in total per-GPU memory
     expect(tpResult.totalPerGPU.toNumber()).toBeGreaterThan(ppResult.totalPerGPU.toNumber())
+  })
+})
+
+describe('pipeline parallel KV cache sharding', () => {
+  it('divides the KV cache across stages, because layers are split', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'gptq',
+      sequenceLength: 4096,
+      batchSize: 1,
+      kvQuantization: 'fp16',
+    })
+
+    const result = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      4,
+      'pipeline-parallel',
+      h100,
+    )
+    expect(result.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(4).toString())
+  })
+
+  it('matches tensor parallel on the KV term — both shard it, by different axes', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'gptq',
+      sequenceLength: 4096,
+      batchSize: 1,
+      kvQuantization: 'fp16',
+    })
+
+    const tp = calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 4, 'tensor-parallel', h100)
+    const pp = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      4,
+      'pipeline-parallel',
+      h100,
+    )
+    expect(pp.perGPU.kvCache.toString()).toBe(tp.perGPU.kvCache.toString())
   })
 })
 
@@ -566,9 +610,9 @@ describe('resolveInterconnect', () => {
     expect(result).toBe('pcie-4')
   })
 
-  it('maps infinity-fabric to pcie-5', () => {
+  it('maps infinity-fabric to its own type', () => {
     const result = resolveInterconnect(radeonMI300X)
-    expect(result).toBe('pcie-5')
+    expect(result).toBe('infinity-fabric')
   })
 
   it('maps unified to none (Apple Silicon)', () => {
@@ -603,7 +647,7 @@ describe('validateInterconnect', () => {
     const result = validateInterconnect(rtx4090, 4, 'tensor-parallel')
 
     expect(result.valid).toBe(true)
-    expect(result.warning).toContain('PCIe 4.0')
+    expect(result.warning).toContain('PCIe 4')
     expect(result.warning).toContain('communication overhead')
     expect(result.interconnect.type).toBe('pcie-4')
   })
@@ -647,5 +691,91 @@ describe('validateInterconnect', () => {
 
     // PP warning should be less strict than TP
     expect(result.valid).toBe(true)
+  })
+})
+
+describe('Infinity Fabric interconnect', () => {
+  const mi300x: GPU = {
+    id: 'amd-mi300x',
+    name: 'AMD MI300X',
+    manufacturer: 'amd',
+    vram_gb: 192,
+    memory_bandwidth_gbps: 5300,
+    memory_type: 'HBM3',
+    bus_width: 8192,
+    fp16_tflops: 1307,
+    fp32_tflops: 163,
+    tdp_watts: 750,
+    interconnect: 'infinity-fabric',
+    tier: 'datacenter',
+  }
+
+  it('resolves to its own type, not pcie-5', () => {
+    expect(resolveInterconnect(mi300x)).toBe('infinity-fabric')
+  })
+
+  it('carries AMD bidirectional bandwidth and 8-way TP support', () => {
+    const spec = INTERCONNECT_SPECS['infinity-fabric']
+    expect(spec.bandwidthGBps).toBe(1075)
+    expect(spec.recommendedMaxTPDegree).toBe(8)
+    expect(spec.tpScalingEfficiency).toBe(0.93)
+  })
+
+  it('sits between NVLink-4 and NVLink-5 in scaling efficiency', () => {
+    expect(INTERCONNECT_SPECS['infinity-fabric'].tpScalingEfficiency).toBeGreaterThan(
+      INTERCONNECT_SPECS['nvlink-4'].tpScalingEfficiency,
+    )
+    expect(INTERCONNECT_SPECS['infinity-fabric'].tpScalingEfficiency).toBeLessThan(
+      INTERCONNECT_SPECS['nvlink-5'].tpScalingEfficiency,
+    )
+  })
+
+  it('does not warn at 8-way tensor parallel', () => {
+    const result = validateInterconnect(mi300x, 8, 'tensor-parallel')
+    expect(result.valid).toBe(true)
+    expect(result.warning).toBeNull()
+  })
+
+  it('names the interconnect in a warning rather than printing the enum value', () => {
+    const pcie4GPU: GPU = { ...mi300x, interconnect: 'pcie-4', name: 'Test PCIe4' }
+    const result = validateInterconnect(pcie4GPU, 8, 'tensor-parallel')
+    expect(result.warning).toContain('PCIe 4')
+  })
+})
+
+describe('node dimension defaults', () => {
+  const singleGPU = calculateInferenceVRAM({
+    model: llama70b,
+    quantization: 'gptq',
+    sequenceLength: 4096,
+    batchSize: 1,
+    kvQuantization: 'fp16',
+  })
+
+  it('reports a single node with all GPUs in it', () => {
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 4, 'tensor-parallel', h100)
+    expect(result.numNodes).toBe(1)
+    expect(result.gpusPerNode).toBe(4)
+  })
+
+  it('leaves every inter-node term neutral', () => {
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 4, 'tensor-parallel', h100)
+    expect(result.interNodeDecodeEfficiency).toBe(1)
+    expect(result.interNodePrefillEfficiency).toBe(1)
+    expect(result.bubbleEfficiency).toBe(1)
+  })
+
+  it('makes prefill and decode efficiency identical within one node', () => {
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 4, 'tensor-parallel', h100)
+    expect(result.prefillScalingEfficiency).toBe(result.scalingEfficiency)
+    expect(result.intraNodeEfficiency).toBe(result.scalingEfficiency)
+  })
+
+  it('holds for the single-GPU passthrough too', () => {
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 1, 'tensor-parallel', h100)
+    expect(result.numNodes).toBe(1)
+    expect(result.gpusPerNode).toBe(1)
+    expect(result.scalingEfficiency).toBe(1)
+    expect(result.prefillScalingEfficiency).toBe(1)
   })
 })

@@ -11,17 +11,20 @@
  * - Returns CALCULATION_ERROR on failure
  */
 
+import { resolveFabricSpec } from '../engines/fabric'
 import { calculateInferenceVRAM } from '../engines/inference'
-import { calculateMultiGPUVRAM, validateInterconnect } from '../engines/multi-gpu'
+import { validateInterconnect } from '../engines/multi-gpu'
+import { calculateMultiNodeVRAM } from '../engines/multi-node'
 import { calculateOffloadedVRAM } from '../engines/offloading'
 import { estimatePerformance } from '../engines/performance'
 import type {
+  FabricType,
   KVCachePrecision,
   OffloadingConfig,
   QuantizationFormat,
   ShardingStrategy,
 } from '../engines/types'
-import type { GPU, Model } from '../utils/schemas'
+import type { CustomFabricInput, GPU, Model } from '../utils/schemas'
 
 /**
  * Request message for calculation
@@ -36,6 +39,9 @@ interface CalculationRequest {
     batchSize: number
     kvQuantization?: KVCachePrecision
     numGPUs: number
+    numNodes: number
+    interNodeFabric: FabricType
+    customFabric: CustomFabricInput | null
     concurrentUsers: number
     shardingStrategy: ShardingStrategy
     offloadingEnabled: boolean
@@ -105,7 +111,14 @@ interface CalculationSuccessResponse {
       totalPerGPU: string
       utilizationPercent: string
       singleGPUBaseline: string
+      numNodes: number
+      gpusPerNode: number
+      intraNodeEfficiency: number
+      interNodeDecodeEfficiency: number
+      interNodePrefillEfficiency: number
+      bubbleEfficiency: number
       scalingEfficiency: number
+      prefillScalingEfficiency: number
       interconnectBandwidthGBps: number
     } | null
     interconnectWarning: string | null
@@ -140,6 +153,9 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         batchSize,
         kvQuantization,
         numGPUs,
+        numNodes,
+        interNodeFabric,
+        customFabric,
         concurrentUsers,
         shardingStrategy,
         offloadingEnabled,
@@ -181,24 +197,32 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         )
       }
 
-      // 3. Multi-GPU calculation (before performance so scaling can be applied)
+      // 3. Multi-GPU/multi-node calculation (before performance so scaling can be applied)
       // IMPORTANT: If offloading is active, use the offloaded onDevice breakdown as the base
       let multiGPUResult = null
       let interconnectWarning = null
 
-      if (numGPUs > 1) {
+      const gpusPerNode = numGPUs
+      const nodes = numNodes ?? 1
+
+      if (gpusPerNode > 1 || nodes > 1) {
         const baseBreakdown = offloadingResult ? offloadingResult.onDevice : vramBreakdown
 
-        multiGPUResult = calculateMultiGPUVRAM(
-          baseBreakdown,
+        multiGPUResult = calculateMultiNodeVRAM({
+          singleGPU: baseBreakdown,
           model,
-          gpu.vram_gb,
-          numGPUs,
-          shardingStrategy,
+          gpuVramGB: gpu.vram_gb,
+          gpusPerNode,
+          numNodes: nodes,
+          intraNodeStrategy: shardingStrategy,
           gpu,
-        )
+          fabric: resolveFabricSpec(interNodeFabric ?? 'ethernet-800g', customFabric ?? null),
+          batchSize,
+        })
 
-        const validation = validateInterconnect(gpu, numGPUs, shardingStrategy)
+        // Validation is per-node: the interconnect bounds apply inside a
+        // server, not across the cluster.
+        const validation = validateInterconnect(gpu, gpusPerNode, shardingStrategy)
         interconnectWarning = validation.warning
       }
 
@@ -267,7 +291,14 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
                 totalPerGPU: multiGPUResult.totalPerGPU.toString(),
                 utilizationPercent: multiGPUResult.utilizationPercent.toString(),
                 singleGPUBaseline: multiGPUResult.singleGPUBaseline.toString(),
+                numNodes: multiGPUResult.numNodes,
+                gpusPerNode: multiGPUResult.gpusPerNode,
+                intraNodeEfficiency: multiGPUResult.intraNodeEfficiency,
+                interNodeDecodeEfficiency: multiGPUResult.interNodeDecodeEfficiency,
+                interNodePrefillEfficiency: multiGPUResult.interNodePrefillEfficiency,
+                bubbleEfficiency: multiGPUResult.bubbleEfficiency,
                 scalingEfficiency: multiGPUResult.scalingEfficiency,
+                prefillScalingEfficiency: multiGPUResult.prefillScalingEfficiency,
                 interconnectBandwidthGBps: multiGPUResult.interconnectBandwidthGBps,
               }
             : null,

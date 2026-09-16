@@ -117,7 +117,14 @@ function reconstructMultiGPUBreakdown(
     totalPerGPU: string
     utilizationPercent: string
     singleGPUBaseline: string
+    numNodes: number
+    gpusPerNode: number
+    intraNodeEfficiency: number
+    interNodeDecodeEfficiency: number
+    interNodePrefillEfficiency: number
+    bubbleEfficiency: number
     scalingEfficiency: number
+    prefillScalingEfficiency: number
     interconnectBandwidthGBps: number
   } | null,
 ): MultiGPUVRAMBreakdown | null {
@@ -137,7 +144,14 @@ function reconstructMultiGPUBreakdown(
     totalPerGPU: new Decimal(serialized.totalPerGPU),
     utilizationPercent: new Decimal(serialized.utilizationPercent),
     singleGPUBaseline: new Decimal(serialized.singleGPUBaseline),
+    numNodes: serialized.numNodes,
+    gpusPerNode: serialized.gpusPerNode,
+    intraNodeEfficiency: serialized.intraNodeEfficiency,
+    interNodeDecodeEfficiency: serialized.interNodeDecodeEfficiency,
+    interNodePrefillEfficiency: serialized.interNodePrefillEfficiency,
+    bubbleEfficiency: serialized.bubbleEfficiency,
     scalingEfficiency: serialized.scalingEfficiency,
+    prefillScalingEfficiency: serialized.prefillScalingEfficiency,
     interconnectBandwidthGBps: serialized.interconnectBandwidthGBps,
   }
 }
@@ -228,6 +242,9 @@ export function useInferenceCalculation(
   const [error, setError] = useState<string | null>(null)
 
   const interconnectOverride = useUIStore((s) => s.interconnectOverride)
+  const numNodes = useUIStore((s) => s.numNodes)
+  const interNodeFabric = useUIStore((s) => s.interNodeFabric)
+  const customFabric = useUIStore((s) => s.customFabric)
 
   useEffect(() => {
     // Early return if model or GPU not selected
@@ -290,6 +307,9 @@ export function useInferenceCalculation(
           batchSize,
           kvQuantization,
           numGPUs: numGPUs ?? 1,
+          numNodes: numNodes ?? 1,
+          interNodeFabric,
+          customFabric,
           concurrentUsers: concurrentUsers ?? batchSize,
           shardingStrategy: shardingStrategy ?? 'tensor-parallel',
           offloadingEnabled: offloadingConfig?.enabled ?? false,
@@ -313,63 +333,80 @@ export function useInferenceCalculation(
       import('@engines/performance'),
       import('@engines/offloading'),
       import('@engines/multi-gpu'),
+      import('@engines/multi-node'),
+      import('@engines/fabric'),
     ])
-      .then(([inferenceModule, performanceModule, offloadingModule, multiGPUModule]) => {
-        const vram = inferenceModule.calculateInferenceVRAM({
-          model,
-          quantization,
-          sequenceLength,
-          batchSize,
-          kvQuantization,
-          concurrentUsers: concurrentUsers ?? batchSize,
-        })
-
-        // Offloading calculation (if enabled)
-        let offloading = null
-        if (offloadingConfig?.enabled) {
-          offloading = offloadingModule.calculateOffloadedVRAM(
-            vram,
-            offloadingConfig,
-            model.num_hidden_layers,
-          )
-        }
-
-        // Multi-GPU calculation (before performance so scaling can be applied)
-        // IMPORTANT: If offloading is active, use the offloaded onDevice breakdown as the base
-        let multiGPU = null
-        let interconnectWarning = null
-        const effectiveNumGPUs = numGPUs ?? 1
-        const effectiveStrategy = shardingStrategy ?? 'tensor-parallel'
-        if (effectiveNumGPUs > 1) {
-          const baseBreakdown = offloading ? offloading.onDevice : vram
-          multiGPU = multiGPUModule.calculateMultiGPUVRAM(
-            baseBreakdown,
+      .then(
+        ([
+          inferenceModule,
+          performanceModule,
+          offloadingModule,
+          multiGPUModule,
+          multiNodeModule,
+          fabricModule,
+        ]) => {
+          const vram = inferenceModule.calculateInferenceVRAM({
             model,
-            effectiveGPU.vram_gb,
-            effectiveNumGPUs,
-            effectiveStrategy,
-            effectiveGPU,
-          )
-          const validation = multiGPUModule.validateInterconnect(
-            effectiveGPU,
-            effectiveNumGPUs,
-            effectiveStrategy,
-          )
-          interconnectWarning = validation.warning
-        }
+            quantization,
+            sequenceLength,
+            batchSize,
+            kvQuantization,
+            concurrentUsers: concurrentUsers ?? batchSize,
+          })
 
-        const performance = performanceModule.estimatePerformance({
-          model,
-          gpu: effectiveGPU,
-          quantization,
-          sequenceLength,
-          batchSize,
-          multiGPUResult: multiGPU,
-        })
+          // Offloading calculation (if enabled)
+          let offloading = null
+          if (offloadingConfig?.enabled) {
+            offloading = offloadingModule.calculateOffloadedVRAM(
+              vram,
+              offloadingConfig,
+              model.num_hidden_layers,
+            )
+          }
 
-        setResult({ vram, performance, offloading, multiGPU, interconnectWarning })
-        setLoading(false)
-      })
+          // Multi-GPU/multi-node calculation (before performance so scaling can be applied)
+          // IMPORTANT: If offloading is active, use the offloaded onDevice breakdown as the base
+          let multiGPU = null
+          let interconnectWarning = null
+          const gpusPerNode = numGPUs ?? 1
+          const effectiveNumNodes = numNodes ?? 1
+          const effectiveStrategy = shardingStrategy ?? 'tensor-parallel'
+          if (gpusPerNode > 1 || effectiveNumNodes > 1) {
+            const baseBreakdown = offloading ? offloading.onDevice : vram
+            multiGPU = multiNodeModule.calculateMultiNodeVRAM({
+              singleGPU: baseBreakdown,
+              model,
+              gpuVramGB: effectiveGPU.vram_gb,
+              gpusPerNode,
+              numNodes: effectiveNumNodes,
+              intraNodeStrategy: effectiveStrategy,
+              gpu: effectiveGPU,
+              fabric: fabricModule.resolveFabricSpec(interNodeFabric, customFabric),
+              batchSize,
+            })
+            // Validation is per-node: the interconnect bounds apply inside a
+            // server, not across the cluster.
+            const validation = multiGPUModule.validateInterconnect(
+              effectiveGPU,
+              gpusPerNode,
+              effectiveStrategy,
+            )
+            interconnectWarning = validation.warning
+          }
+
+          const performance = performanceModule.estimatePerformance({
+            model,
+            gpu: effectiveGPU,
+            quantization,
+            sequenceLength,
+            batchSize,
+            multiGPUResult: multiGPU,
+          })
+
+          setResult({ vram, performance, offloading, multiGPU, interconnectWarning })
+          setLoading(false)
+        },
+      )
       .catch((err) => {
         setError(err instanceof Error ? err.message : String(err))
         setLoading(false)
@@ -386,6 +423,9 @@ export function useInferenceCalculation(
     shardingStrategy,
     offloadingConfig,
     concurrentUsers,
+    customFabric,
+    interNodeFabric,
+    numNodes,
   ])
 
   return { result, loading, error }

@@ -20,7 +20,10 @@ Browser-based tool for estimating VRAM requirements and performance when running
 - **Long Context**: Sequence lengths up to 1,048,576 tokens (and beyond for models with a larger
   native context, up to 10,485,760), with a native-context marker and a warning — never a clamp —
   when the requested length exceeds it
-- **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink-5/4, PCIe-5/4)
+- **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink-5/4, Infinity Fabric, PCIe-5/4)
+- **Multi-Node Scaling**: Configure GPUs per server and server count, with a selectable scale-out
+  fabric (1.6TbE / 800GbE SONiC RoCEv2, InfiniBand XDR/NDR, 400GbE, 100GbE, or a custom port speed).
+  Tensor parallelism runs inside each server; pipeline parallelism runs across servers
 - **Interconnect Selector**: Pick the active interconnect variant for GPUs with multiple options
 - **Offloading**: CPU/RAM and NVMe offloading simulation with performance impact
 - **Performance Estimation**: Tokens/sec (using active parameters for MoE models),
@@ -38,7 +41,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
 |--------|------|
 | **NVIDIA Datacenter** | H100 PCIe/SXM, H200, B200, GB300 (Blackwell Ultra), A100 PCIe/SXM, L40S, RTX PRO 6000, RTX 6000 Ada |
 | **NVIDIA Consumer** | RTX 5090, RTX 4090, RTX 3090, DGX Station (GB300 Desktop Superchip), DGX Spark (GB10) |
-| **AMD** | MI300X |
+| **AMD** | MI355X, MI350X, MI325X, MI300X |
 | **Apple Silicon** | M1/M2/M3 Ultra, M1/M2/M3/M4/M5 Max |
 
 Plus custom GPU input for any hardware.
@@ -66,7 +69,7 @@ Open <http://localhost:5173> in your browser.
 
 ```bash
 npm run build          # TypeScript check + Vite production build
-npm run typecheck      # TypeScript only
+npm run typecheck      # TypeScript only (tsc -b --force, project-reference aware)
 npm run lint           # Biome linting
 npm run lint:fix       # Biome auto-fix
 npm run format         # Biome format
