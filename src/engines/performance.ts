@@ -100,7 +100,11 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   // 4. Roofline decision: performance is min of memory-bound and compute-bound
   let tokensPerSecond = Decimal.min(memoryBoundTPS, computeBoundTPS)
 
-  // 4b. Apply multi-GPU scaling: effective TPS = single-GPU TPS × numGPUs × scalingEfficiency
+  // 4b. Apply multi-GPU scaling: effective TPS = single-GPU TPS × numGPUs ×
+  //     scalingEfficiency. scalingEfficiency is the DECODE-path product; the
+  //     prefill roofline below uses prefillScalingEfficiency instead, because a
+  //     decode hop across nodes is latency-bound and near-free while prefill is
+  //     bandwidth-bound.
   if (multiGPUResult && multiGPUResult.numGPUs > 1) {
     tokensPerSecond = tokensPerSecond
       .mul(multiGPUResult.numGPUs)
@@ -155,7 +159,7 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     if (multiGPUResult && multiGPUResult.numGPUs > 1) {
       effectiveFLOPS = effectiveFLOPS
         .mul(multiGPUResult.numGPUs)
-        .mul(multiGPUResult.scalingEfficiency)
+        .mul(multiGPUResult.prefillScalingEfficiency)
     }
 
     prefillSeconds = linearFLOPs.add(attentionFLOPs).div(effectiveFLOPS)
