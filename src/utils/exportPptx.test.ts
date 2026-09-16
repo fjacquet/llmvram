@@ -13,23 +13,43 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 interface RecordedTable {
   rows: unknown[]
 }
+interface Box {
+  x?: number
+  y?: number
+  w?: number
+  h?: number
+}
 interface RecordedChart {
   type: string
   data: Array<{ name: string; labels: string[]; values: number[] }>
+  // Chart options were originally discarded. They carry the geometry and the
+  // axis bound, neither of which is visible in (type, data).
+  opts: Box & { valAxisMaxVal?: number; showTitle?: boolean; title?: string }
+}
+interface RecordedText {
+  text: string
+  opts: Box
 }
 
 const tables: RecordedTable[] = []
 const charts: RecordedChart[] = []
+const texts: RecordedText[] = []
 
 class MockSlide {
-  addText = vi.fn()
+  addText = vi.fn((text: unknown, opts?: Box) => {
+    if (typeof text === 'string') texts.push({ text, opts: opts ?? {} })
+  })
   addShape = vi.fn()
   addTable = vi.fn((rows: unknown[]) => {
     tables.push({ rows })
   })
   addChart = vi.fn(
-    (type: string, data: Array<{ name: string; labels: string[]; values: number[] }>) => {
-      charts.push({ type, data })
+    (
+      type: string,
+      data: Array<{ name: string; labels: string[]; values: number[] }>,
+      opts?: RecordedChart['opts'],
+    ) => {
+      charts.push({ type, data, opts: opts ?? {} })
     },
   )
 }
@@ -96,6 +116,7 @@ describe('exportPptx', () => {
   beforeEach(() => {
     tables.length = 0
     charts.length = 0
+    texts.length = 0
   })
 
   afterEach(() => {
@@ -154,6 +175,22 @@ describe('exportPptx', () => {
     expect(barChart?.data[0]?.values).toHaveLength(1)
     expect(barChart?.data[0]?.labels[0]).toContain('32 GPUs total')
     expect(barChart?.data[0]?.labels[0]).not.toContain('8 GPUs total')
+
+    // The value axis must be pinned to the GPU's capacity. Without a max,
+    // PowerPoint auto-scales to the bar's own total and the exported bar looks
+    // full at any utilization — losing the headroom reading the in-app meter
+    // exists to give.
+    const totalPerGPU = multiGPU.totalPerGPU.toNumber()
+    expect(barChart?.opts.valAxisMaxVal).toBeCloseTo(Math.max(gpu.vram_gb, totalPerGPU), 5)
+    expect(barChart?.opts.valAxisMaxVal).toBeGreaterThanOrEqual(totalPerGPU)
+
+    // The chart frame must clear the slide heading above it. PowerPoint draws
+    // the chart title inside the top of the frame, so an overlapping frame
+    // overprints the two strings.
+    const heading = texts.find((x) => x.text === 'Multi-GPU Memory Distribution')
+    expect(heading).toBeDefined()
+    const headingBottom = (heading?.opts.y ?? 0) + (heading?.opts.h ?? 0)
+    expect(barChart?.opts.y).toBeGreaterThanOrEqual(headingBottom)
   })
 
   it('omits the Servers row for a single-node configuration', async () => {
