@@ -742,3 +742,40 @@ describe('Infinity Fabric interconnect', () => {
     expect(result.warning).toContain('PCIe 4')
   })
 })
+
+describe('node dimension defaults', () => {
+  const singleGPU = calculateInferenceVRAM({
+    model: llama70b,
+    quantization: 'gptq',
+    sequenceLength: 4096,
+    batchSize: 1,
+    kvQuantization: 'fp16',
+  })
+
+  it('reports a single node with all GPUs in it', () => {
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 4, 'tensor-parallel', h100)
+    expect(result.numNodes).toBe(1)
+    expect(result.gpusPerNode).toBe(4)
+  })
+
+  it('leaves every inter-node term neutral', () => {
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 4, 'tensor-parallel', h100)
+    expect(result.interNodeDecodeEfficiency).toBe(1)
+    expect(result.interNodePrefillEfficiency).toBe(1)
+    expect(result.bubbleEfficiency).toBe(1)
+  })
+
+  it('makes prefill and decode efficiency identical within one node', () => {
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 4, 'tensor-parallel', h100)
+    expect(result.prefillScalingEfficiency).toBe(result.scalingEfficiency)
+    expect(result.intraNodeEfficiency).toBe(result.scalingEfficiency)
+  })
+
+  it('holds for the single-GPU passthrough too', () => {
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 1, 'tensor-parallel', h100)
+    expect(result.numNodes).toBe(1)
+    expect(result.gpusPerNode).toBe(1)
+    expect(result.scalingEfficiency).toBe(1)
+    expect(result.prefillScalingEfficiency).toBe(1)
+  })
+})

@@ -118,7 +118,14 @@ function calculateTensorParallelVRAM(
     totalPerGPU,
     utilizationPercent,
     singleGPUBaseline: singleGPU.total,
+    numNodes: 1,
+    gpusPerNode: numGPUs,
+    intraNodeEfficiency: scalingEfficiency,
+    interNodeDecodeEfficiency: 1,
+    interNodePrefillEfficiency: 1,
+    bubbleEfficiency: 1,
     scalingEfficiency,
+    prefillScalingEfficiency: scalingEfficiency,
     interconnectBandwidthGBps: interconnectSpec.bandwidthGBps,
   }
 }
@@ -191,8 +198,15 @@ function calculatePipelineParallelVRAM(
     totalPerGPU,
     utilizationPercent,
     singleGPUBaseline: singleGPU.total,
+    numNodes: 1,
+    gpusPerNode: numGPUs,
     // PP has lower communication overhead than TP; use flat 95% efficiency
+    intraNodeEfficiency: 1 - PP_COMMUNICATION_OVERHEAD.toNumber(),
+    interNodeDecodeEfficiency: 1,
+    interNodePrefillEfficiency: 1,
+    bubbleEfficiency: 1,
     scalingEfficiency: 1 - PP_COMMUNICATION_OVERHEAD.toNumber(),
+    prefillScalingEfficiency: 1 - PP_COMMUNICATION_OVERHEAD.toNumber(),
     interconnectBandwidthGBps: 0,
   }
 }
@@ -259,7 +273,14 @@ export function calculateMultiGPUVRAM(
       totalPerGPU: singleGPU.total,
       utilizationPercent,
       singleGPUBaseline: singleGPU.total,
+      numNodes: 1,
+      gpusPerNode: 1,
+      intraNodeEfficiency: 1.0,
+      interNodeDecodeEfficiency: 1,
+      interNodePrefillEfficiency: 1,
+      bubbleEfficiency: 1,
       scalingEfficiency: 1.0,
+      prefillScalingEfficiency: 1.0,
       interconnectBandwidthGBps: 0,
     }
   }

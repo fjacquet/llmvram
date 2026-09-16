@@ -105,7 +105,14 @@ interface CalculationSuccessResponse {
       totalPerGPU: string
       utilizationPercent: string
       singleGPUBaseline: string
+      numNodes: number
+      gpusPerNode: number
+      intraNodeEfficiency: number
+      interNodeDecodeEfficiency: number
+      interNodePrefillEfficiency: number
+      bubbleEfficiency: number
       scalingEfficiency: number
+      prefillScalingEfficiency: number
       interconnectBandwidthGBps: number
     } | null
     interconnectWarning: string | null
@@ -267,7 +274,14 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
                 totalPerGPU: multiGPUResult.totalPerGPU.toString(),
                 utilizationPercent: multiGPUResult.utilizationPercent.toString(),
                 singleGPUBaseline: multiGPUResult.singleGPUBaseline.toString(),
+                numNodes: multiGPUResult.numNodes,
+                gpusPerNode: multiGPUResult.gpusPerNode,
+                intraNodeEfficiency: multiGPUResult.intraNodeEfficiency,
+                interNodeDecodeEfficiency: multiGPUResult.interNodeDecodeEfficiency,
+                interNodePrefillEfficiency: multiGPUResult.interNodePrefillEfficiency,
+                bubbleEfficiency: multiGPUResult.bubbleEfficiency,
                 scalingEfficiency: multiGPUResult.scalingEfficiency,
+                prefillScalingEfficiency: multiGPUResult.prefillScalingEfficiency,
                 interconnectBandwidthGBps: multiGPUResult.interconnectBandwidthGBps,
               }
             : null,

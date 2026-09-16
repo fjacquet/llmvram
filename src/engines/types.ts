@@ -240,8 +240,32 @@ export interface MultiGPUVRAMBreakdown {
   utilizationPercent: Decimal
   /** Single-GPU baseline for comparison */
   singleGPUBaseline: Decimal
-  /** TP scaling efficiency for this interconnect (0–1 fraction, e.g. 0.92 for NVLink-4) */
+  /** Number of nodes (servers) in the configuration */
+  numNodes: number
+  /** GPUs in each node */
+  gpusPerNode: number
+  /** Intra-node scaling efficiency, from INTERCONNECT_SPECS */
+  intraNodeEfficiency: number
+  /** Inter-node efficiency on the decode path; 1.0 when numNodes === 1 */
+  interNodeDecodeEfficiency: number
+  /** Inter-node efficiency on the prefill path; 1.0 when numNodes === 1 */
+  interNodePrefillEfficiency: number
+  /** Pipeline fill/drain efficiency; 1.0 when numNodes === 1 */
+  bubbleEfficiency: number
+  /**
+   * Combined efficiency for the DECODE roofline
+   *
+   * intraNodeEfficiency * interNodeDecodeEfficiency * bubbleEfficiency.
+   * Keeps its original name so performance.ts's decode site is unchanged.
+   */
   scalingEfficiency: number
+  /**
+   * Combined efficiency for the PREFILL roofline
+   *
+   * intraNodeEfficiency * interNodePrefillEfficiency * bubbleEfficiency.
+   * Differs from scalingEfficiency only when numNodes > 1.
+   */
+  prefillScalingEfficiency: number
   /** Interconnect bandwidth in GB/s (0 for single GPU) */
   interconnectBandwidthGBps: number
 }

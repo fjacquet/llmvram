@@ -117,7 +117,14 @@ function reconstructMultiGPUBreakdown(
     totalPerGPU: string
     utilizationPercent: string
     singleGPUBaseline: string
+    numNodes: number
+    gpusPerNode: number
+    intraNodeEfficiency: number
+    interNodeDecodeEfficiency: number
+    interNodePrefillEfficiency: number
+    bubbleEfficiency: number
     scalingEfficiency: number
+    prefillScalingEfficiency: number
     interconnectBandwidthGBps: number
   } | null,
 ): MultiGPUVRAMBreakdown | null {
@@ -137,7 +144,14 @@ function reconstructMultiGPUBreakdown(
     totalPerGPU: new Decimal(serialized.totalPerGPU),
     utilizationPercent: new Decimal(serialized.utilizationPercent),
     singleGPUBaseline: new Decimal(serialized.singleGPUBaseline),
+    numNodes: serialized.numNodes,
+    gpusPerNode: serialized.gpusPerNode,
+    intraNodeEfficiency: serialized.intraNodeEfficiency,
+    interNodeDecodeEfficiency: serialized.interNodeDecodeEfficiency,
+    interNodePrefillEfficiency: serialized.interNodePrefillEfficiency,
+    bubbleEfficiency: serialized.bubbleEfficiency,
     scalingEfficiency: serialized.scalingEfficiency,
+    prefillScalingEfficiency: serialized.prefillScalingEfficiency,
     interconnectBandwidthGBps: serialized.interconnectBandwidthGBps,
   }
 }
