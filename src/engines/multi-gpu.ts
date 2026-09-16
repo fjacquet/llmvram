@@ -126,7 +126,8 @@ function calculateTensorParallelVRAM(
 /**
  * Calculate pipeline parallelism VRAM distribution
  *
- * PP divides layers across GPUs. Each GPU needs full KV cache for its layers.
+ * PP divides layers across GPUs. KV cache is sharded by layer: each stage
+ * holds only the cache for the layers it owns.
  * No weight replication (layers are split, not sharded).
  *
  * @param singleGPU - Single-GPU VRAM breakdown
@@ -146,8 +147,11 @@ function calculatePipelineParallelVRAM(
   // Weights divided evenly across layers
   const weightsPerGPU = singleGPU.modelWeights.div(numGPUs)
 
-  // KV cache NOT divided (each GPU needs full cache for its layers)
-  const kvCachePerGPU = singleGPU.kvCache
+  // KV cache is sharded by layer: PP assigns a contiguous slice of layers to
+  // each stage, and the KV cache is per-layer, so a stage holds only its own
+  // layers' cache. (singleGPU.kvCache is the all-layer total — kv-cache.ts
+  // multiplies by num_hidden_layers.)
+  const kvCachePerGPU = singleGPU.kvCache.div(numGPUs)
 
   // Activations divided with stashing overhead
   const baseActivationsPerGPU = singleGPU.activations.div(numGPUs)

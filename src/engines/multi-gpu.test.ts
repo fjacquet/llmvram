@@ -244,8 +244,8 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
     const expectedWeightsPerGPU = singleGPU.modelWeights.div(4)
     expect(result.perGPU.modelWeights.toString()).toBe(expectedWeightsPerGPU.toString())
 
-    // CRITICAL: PP does NOT divide KV cache (each GPU needs full cache for its layers)
-    expect(result.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.toString())
+    // PP shards KV cache by layer: each stage holds only its own layers' cache
+    expect(result.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(4).toString())
 
     // Verify activations divided with stashing overhead
     const baseActivationsPerGPU = singleGPU.activations.div(4)
@@ -268,7 +268,7 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
     expect(result.perGPU.total.toString()).toBe(expectedTotal.toString())
   })
 
-  it('verifies KV cache behavior differs between TP and PP', () => {
+  it('matches TP on KV cache but differs on other overheads', () => {
     const singleGPU = calculateInferenceVRAM({
       model: llama70b,
       quantization: 'gptq',
@@ -294,20 +294,63 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
       h100,
     )
 
-    // TP divides KV cache, PP does not
+    // TP shards KV cache by head, PP shards it by layer — both divide by numGPUs
     expect(tpResult.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(4).toString())
-    expect(ppResult.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.toString())
+    expect(ppResult.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(4).toString())
 
-    // PP has full KV cache per GPU (4x more than TP)
+    // PP and TP shard the KV cache identically; they differ elsewhere (replication, NCCL, comm %)
     const kvRatio = ppResult.perGPU.kvCache.div(tpResult.perGPU.kvCache)
-    expect(kvRatio.toNumber()).toBeCloseTo(4.0, 10)
+    expect(kvRatio.toNumber()).toBe(1)
 
     // NOTE: For this specific scenario (small KV cache relative to model size),
     // TP actually uses MORE memory per GPU than PP because:
     // - TP pays for weight replication (~1.18 GB), NCCL buffers (0.6 GB), and comm overhead (8% for NVLink-4 vs 5% for PP)
-    // - PP pays for full KV cache (~0.015 GB here, tiny) but saves on replication/NCCL
+    // - PP and TP now shard KV cache identically, so it does not explain the gap
     // Net: TP overhead dominates for small KV cache; TP > PP in total per-GPU memory
     expect(tpResult.totalPerGPU.toNumber()).toBeGreaterThan(ppResult.totalPerGPU.toNumber())
+  })
+})
+
+describe('pipeline parallel KV cache sharding', () => {
+  it('divides the KV cache across stages, because layers are split', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'gptq',
+      sequenceLength: 4096,
+      batchSize: 1,
+      kvQuantization: 'fp16',
+    })
+
+    const result = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      4,
+      'pipeline-parallel',
+      h100,
+    )
+    expect(result.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(4).toString())
+  })
+
+  it('matches tensor parallel on the KV term — both shard it, by different axes', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'gptq',
+      sequenceLength: 4096,
+      batchSize: 1,
+      kvQuantization: 'fp16',
+    })
+
+    const tp = calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 4, 'tensor-parallel', h100)
+    const pp = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      4,
+      'pipeline-parallel',
+      h100,
+    )
+    expect(pp.perGPU.kvCache.toString()).toBe(tp.perGPU.kvCache.toString())
   })
 })
 
