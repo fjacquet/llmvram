@@ -74,6 +74,53 @@ describe('calculateMultiNodeVRAM', () => {
     expect(fourNodes.perGPU.modelWeights.lessThan(oneNode.perGPU.modelWeights)).toBe(true)
   })
 
+  it('does not divide framework overhead by node count — it is per-process, every rank pays it in full', () => {
+    const oneNode = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 1 })
+    const fourNodes = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4 })
+    expect(fourNodes.perGPU.frameworkOverhead.toString()).toBe(
+      oneNode.perGPU.frameworkOverhead.toString(),
+    )
+  })
+
+  it('pins the activation stashing multiplier exactly once on the tensor-parallel intra-node path', () => {
+    const oneNode = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 1 })
+    const fourNodes = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4 })
+    // TP's intra-node branch (calculateTensorParallelVRAM) never applies
+    // PP_ACTIVATION_STASHING_OVERHEAD, so the inter-node stage here is the
+    // only place that does — exactly once, factor 1.12.
+    expect(fourNodes.perGPU.activations.toNumber()).toBeCloseTo(
+      (oneNode.perGPU.activations.toNumber() / 4) * 1.12,
+      6,
+    )
+  })
+
+  it('applies the activation stashing multiplier exactly once on the pipeline-parallel intra-node path (regression for the double-apply defect)', () => {
+    const oneNode = calculateMultiNodeVRAM({
+      ...base,
+      intraNodeStrategy: 'pipeline-parallel',
+      gpusPerNode: 8,
+      numNodes: 1,
+    })
+    const fourNodes = calculateMultiNodeVRAM({
+      ...base,
+      intraNodeStrategy: 'pipeline-parallel',
+      gpusPerNode: 8,
+      numNodes: 4,
+    })
+    // At numNodes: 1, calculateMultiNodeVRAM delegates straight to
+    // calculateMultiGPUVRAM, whose pipeline-parallel branch
+    // (calculatePipelineParallelVRAM) applies PP_ACTIVATION_STASHING_OVERHEAD
+    // once — so oneNode.perGPU.activations already carries exactly one 1.12
+    // factor. Going from 1 node to 4 nodes only changes the layer split
+    // (divide by 4 more); it must not introduce a second stashing factor.
+    // If the inter-node stage applied the constant again (composing to
+    // 1.12^2), fourNodes would be oneNode/4 * 1.12 instead of oneNode/4.
+    expect(fourNodes.perGPU.activations.toNumber()).toBeCloseTo(
+      oneNode.perGPU.activations.toNumber() / 4,
+      6,
+    )
+  })
+
   it('shards the KV cache across nodes as well as within them', () => {
     const oneNode = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 1 })
     const fourNodes = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4 })

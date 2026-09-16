@@ -85,11 +85,26 @@ export function calculateMultiNodeVRAM(params: {
   // parts, or a gpusPerNode: 1 configuration would silently pass the whole
   // single-GPU total through calculateMultiGPUVRAM's numGPUs === 1 branch,
   // which returns every perGPU field verbatim from the breakdown it is given.
+  // PP_ACTIVATION_STASHING_OVERHEAD is a flat modelling fudge factor for
+  // stashing activations across a pipeline stage boundary, not a per-level
+  // physical quantity — it must be applied exactly once, not once per
+  // pipeline level. calculateMultiGPUVRAM's pipeline-parallel path
+  // (calculatePipelineParallelVRAM) applies this same constant itself, but
+  // only when it actually runs the PP branch: at gpusPerNode === 1 it takes
+  // the numGPUs === 1 early-return passthrough instead (see multi-gpu.ts),
+  // which applies no stashing multiplier at all regardless of strategy. So
+  // the inter-node stage here must apply it whenever the intra-node level
+  // will NOT — i.e. every case except "pipeline-parallel with more than one
+  // GPU per node". Skipping this check would compound the constant to
+  // 1.12^2 for that one case.
+  const stashing =
+    intraNodeStrategy === 'pipeline-parallel' && gpusPerNode > 1
+      ? new Decimal(1)
+      : new Decimal(1).add(PP_ACTIVATION_STASHING_OVERHEAD)
+
   const modelWeights = singleGPU.modelWeights.div(numNodes)
   const kvCache = singleGPU.kvCache.div(numNodes)
-  const activations = singleGPU.activations
-    .div(numNodes)
-    .mul(new Decimal(1).add(PP_ACTIVATION_STASHING_OVERHEAD))
+  const activations = singleGPU.activations.div(numNodes).mul(stashing)
   const frameworkOverhead = singleGPU.frameworkOverhead
 
   const stageBreakdown: InferenceVRAMBreakdown = {
