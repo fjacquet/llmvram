@@ -48,11 +48,11 @@ export const URLStateSchema = z.object({
   sl: z.number().int().min(512).max(MAX_SEQUENCE_LENGTH), // sequenceLength
   bs: z.number(), // batchSize
   kvq: z.string(), // kvQuantization
-  ng: z.number(), // numGPUs — PER NODE since v1.10
+  ng: z.number(), // numGPUs — PER NODE; see CHANGELOG.md "Multi-node inference" entry
   ss: z.string(), // shardingStrategy
   // Multi-node (absent = single node, for backward compatibility with links
   // created before this feature, where ng meant the total GPU count)
-  nn: z.number().int().min(1).max(64).optional(), // numNodes
+  nn: z.number().int().min(1).max(8).optional(), // numNodes — matches NodeCountSelector's 1-8 bound
   fab: z
     .enum([
       'ethernet-1600g',

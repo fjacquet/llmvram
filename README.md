@@ -20,7 +20,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
 - **Long Context**: Sequence lengths up to 1,048,576 tokens (and beyond for models with a larger
   native context, up to 10,485,760), with a native-context marker and a warning — never a clamp —
   when the requested length exceeds it
-- **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink-5/4, PCIe-5/4)
+- **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink-5/4, Infinity Fabric, PCIe-5/4)
 - **Multi-Node Scaling**: Configure GPUs per server and server count, with a selectable scale-out
   fabric (1.6TbE / 800GbE SONiC RoCEv2, InfiniBand XDR/NDR, 400GbE, 100GbE, or a custom port speed).
   Tensor parallelism runs inside each server; pipeline parallelism runs across servers

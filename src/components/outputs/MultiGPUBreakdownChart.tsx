@@ -223,8 +223,10 @@ export function MultiGPUBreakdownChart({
       {breakdown.numNodes > 1 && (
         <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
           <p>
-            {breakdown.numNodes} servers × {breakdown.gpusPerNode} GPUs = {breakdown.numGPUs} GPUs ·
-            tensor parallel within each server, pipeline parallel across them
+            {breakdown.numNodes} servers × {breakdown.gpusPerNode} GPUs = {breakdown.numGPUs} GPUs ·{' '}
+            {breakdown.strategy === 'tensor-parallel'
+              ? 'tensor parallel within each server, pipeline parallel across them'
+              : 'pipeline parallel across all GPUs'}
           </p>
           <p>
             Efficiency (modelled from bandwidth, not measured):{' '}

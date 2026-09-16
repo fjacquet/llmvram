@@ -52,6 +52,8 @@ const baseState = {
   numNodes: 1,
   interNodeFabric: 'ethernet-800g' as const,
   customFabric: null,
+  frameworkPreset: 'none' as const,
+  cpuOffloadOptimizer: false,
 }
 
 describe('URL Serializer', () => {
