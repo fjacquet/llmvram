@@ -45,6 +45,7 @@ const h100: GPU = {
   tdp_watts: 700,
   interconnect: 'nvlink-4',
   tier: 'datacenter',
+  max_gpus_per_node: 8,
 }
 
 const rtx4090: GPU = {
@@ -60,6 +61,7 @@ const rtx4090: GPU = {
   tdp_watts: 450,
   interconnect: 'pcie-4',
   tier: 'consumer',
+  max_gpus_per_node: 8,
 }
 
 const radeonMI300X: GPU = {
@@ -75,6 +77,7 @@ const radeonMI300X: GPU = {
   tdp_watts: 750,
   interconnect: 'infinity-fabric',
   tier: 'datacenter',
+  max_gpus_per_node: 8,
 }
 
 describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
@@ -640,6 +643,7 @@ describe('resolveInterconnect', () => {
       bus_width: 0,
       interconnect: 'unified',
       tier: 'apple-silicon',
+      max_gpus_per_node: 1,
     }
     const result = resolveInterconnect(m3Ultra)
     expect(result).toBe('none')
@@ -678,6 +682,7 @@ describe('validateInterconnect', () => {
       ...h100,
       interconnect: 'unified',
       tier: 'apple-silicon',
+      max_gpus_per_node: 1,
     }
 
     const result = validateInterconnect(appleGPU, 2, 'tensor-parallel')
@@ -692,6 +697,7 @@ describe('validateInterconnect', () => {
       ...h100,
       interconnect: 'unified',
       tier: 'apple-silicon',
+      max_gpus_per_node: 1,
     }
 
     const result = validateInterconnect(appleGPU, 1, 'tensor-parallel')
@@ -745,6 +751,7 @@ describe('Infinity Fabric interconnect', () => {
     tdp_watts: 750,
     interconnect: 'infinity-fabric',
     tier: 'datacenter',
+    max_gpus_per_node: 8,
   }
 
   it('resolves to its own type, not pcie-5', () => {

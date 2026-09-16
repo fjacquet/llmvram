@@ -33,6 +33,7 @@ const mi355x: GPU = {
   tdp_watts: 1400,
   interconnect: 'infinity-fabric',
   tier: 'datacenter',
+  max_gpus_per_node: 8,
 }
 
 const singleGPU = calculateInferenceVRAM({

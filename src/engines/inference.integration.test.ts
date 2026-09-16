@@ -28,6 +28,7 @@ const h100_80gb_sxm: GPU = {
   tdp_watts: 700,
   interconnect: 'nvlink-4',
   tier: 'datacenter',
+  max_gpus_per_node: 8,
 }
 
 const rtx4090: GPU = {
@@ -42,6 +43,7 @@ const rtx4090: GPU = {
   fp32_tflops: 82.5,
   tdp_watts: 450,
   tier: 'consumer',
+  max_gpus_per_node: 8,
 }
 
 // Model fixtures
@@ -95,6 +97,7 @@ const mi355x: GPU = {
   tdp_watts: 1400,
   interconnect: 'infinity-fabric',
   tier: 'datacenter',
+  max_gpus_per_node: 8,
 }
 
 const llama405b: Model = {

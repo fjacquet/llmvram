@@ -71,6 +71,7 @@ const gpu: GPU = {
   fp32_tflops: 989,
   tier: 'datacenter',
   interconnect: 'nvlink-4',
+  max_gpus_per_node: 8,
 }
 
 const performance: PerformanceEstimate = {

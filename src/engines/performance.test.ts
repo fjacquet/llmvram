@@ -20,6 +20,7 @@ const h100_80gb_sxm: GPU = {
   tdp_watts: 700,
   interconnect: 'nvlink-4',
   tier: 'datacenter',
+  max_gpus_per_node: 8,
 }
 
 const llama3_70b: Model = {
@@ -78,6 +79,7 @@ const gpu_no_flops: GPU = {
   memory_type: 'HBM3',
   bus_width: 4096,
   tier: 'datacenter',
+  max_gpus_per_node: 8,
   // No fp16_tflops or fp32_tflops
 }
 
@@ -283,6 +285,7 @@ describe('estimatePerformance', () => {
       fp16_tflops: 0.5, // Very low compute
       fp32_tflops: 0.25,
       tier: 'consumer',
+      max_gpus_per_node: 8,
     }
 
     // 1B model INT4: very small, low memory requirement
@@ -338,6 +341,7 @@ describe('estimatePerformance', () => {
       fp16_tflops: 10,
       fp32_tflops: 5,
       tier: 'datacenter',
+      max_gpus_per_node: 8,
     }
 
     const result = estimatePerformance({
@@ -413,6 +417,7 @@ describe('estimatePerformance', () => {
       fp16_tflops: 10,
       fp32_tflops: 5,
       tier: 'consumer',
+      max_gpus_per_node: 8,
     }
 
     const result = estimatePerformance({
