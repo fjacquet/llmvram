@@ -30,16 +30,23 @@ interface RecordedText {
   text: string
   opts: Box
 }
+interface RecordedShape {
+  kind: string
+  opts: Box
+}
 
 const tables: RecordedTable[] = []
 const charts: RecordedChart[] = []
 const texts: RecordedText[] = []
+const shapes: RecordedShape[] = []
 
 class MockSlide {
   addText = vi.fn((text: unknown, opts?: Box) => {
     if (typeof text === 'string') texts.push({ text, opts: opts ?? {} })
   })
-  addShape = vi.fn()
+  addShape = vi.fn((kind: string, opts?: Box) => {
+    shapes.push({ kind, opts: opts ?? {} })
+  })
   addTable = vi.fn((rows: unknown[]) => {
     tables.push({ rows })
   })
@@ -117,6 +124,7 @@ describe('exportPptx', () => {
     tables.length = 0
     charts.length = 0
     texts.length = 0
+    shapes.length = 0
   })
 
   afterEach(() => {
@@ -218,4 +226,39 @@ describe('exportPptx', () => {
     expect(configRows).toContainEqual(['Number of GPUs', '1'])
     expect(configRows.some(([label]) => label === 'Servers')).toBe(false)
   })
+
+  it('keeps every slide heading clear of the content below it', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+      gpu,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+    })
+
+    // Slide 4's metric cards used to start at y 0.9 while the heading occupied
+    // 0.7-1.1, clipping it. The card shapes are the only roundRects in the deck.
+    const heading = texts.find((x) => x.text === 'Performance Estimate')
+    expect(heading).toBeDefined()
+    const headingBottom = (heading?.opts.y ?? 0) + (heading?.opts.h ?? 0)
+
+    const cards = shapes.filter((s) => s.kind === 'roundRect')
+    expect(cards.length).toBeGreaterThan(0)
+    for (const card of cards) {
+      expect(card.opts.y ?? 0).toBeGreaterThanOrEqual(headingBottom)
+    }
+  })
+
 })

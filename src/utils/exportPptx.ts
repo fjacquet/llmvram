@@ -396,9 +396,11 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     // Background rounded rectangle
     slide4.addShape('roundRect', {
       x: xPos,
-      y: 0.9,
+      // Clears the slide heading above (y 0.7, h 0.4), which the cards used to
+      // overlap by 0.2" and clip. Height drops to keep the table below at 3.3.
+      y: 1.2,
       w: boxWidth,
-      h: 2.2,
+      h: 1.9,
       fill: C.metricBoxFill,
       line: { color: 'BFC9FF', pt: 1 },
       rectRadius: 0.05,
@@ -406,7 +408,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     // Label text
     slide4.addText(label, {
       x: xPos + 0.15,
-      y: 1.0,
+      y: 1.35,
       w: boxWidth - 0.3,
       h: 0.4,
       fontSize: 12,
@@ -417,7 +419,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     // Value text (large)
     slide4.addText(value, {
       x: xPos + 0.15,
-      y: 1.5,
+      y: 1.85,
       w: boxWidth - 0.3,
       h: 1.0,
       fontSize: 14,

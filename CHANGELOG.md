@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The PPTX performance slide no longer draws its metric cards over its own heading.
 - AMD Infinity Fabric is now modelled as its own interconnect tier (1075 GB/s, 8-way TP) instead of being aliased to PCIe 5.0 (128 GB/s). Multi-GPU VRAM estimates for AMD accelerators were previously inflated, and an 8-GPU AMD node raised a spurious tensor-parallel degradation warning.
 - Pipeline parallelism no longer replicates the full all-layer KV cache on every stage. Each stage owns a slice of layers, so it holds only that slice's cache. The previous behaviour overstated the KV term by the stage count.
 - The prefill roofline now uses a prefill-specific scaling efficiency. A single efficiency applied to both rooflines penalized decode throughput and flattered time-to-first-token in multi-node configurations.
