@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Multi-user metrics no longer report a single user outrunning the whole machine. Per-user throughput multiplied by batch size a second time (decode throughput already includes it), so 8 users on a batch of 16 each showed 17188.5 tok/s against an aggregate of 8594.2. Per-user time to first token divided by batch size, reporting a latency below the idle single-request figure; it now charges one wave per batch of queued users and is never faster than an idle machine.
 - When every configured server is already full of GPUs, the recommendations now suggest adding servers instead of falling silent. Previously the panel said "Need N GB more VRAM. Try:" above an empty list, because the remaining fallback only suggests an upgrade to parts under 80 GB.
 - The capacity meter legend is recolored with the bar in the over-capacity state, instead of showing five swatches that match nothing on screen.
 - The PPTX performance slide no longer draws its metric cards over its own heading.
