@@ -17,6 +17,16 @@ export {
 // DeepSpeed ZeRO engine
 export { calculateCPUOffloadMemory, calculateZeROMemoryPerGPU } from './deepspeed'
 
+// Scale-out fabric
+export {
+  FABRIC_SPECS,
+  fabricDecodeEfficiency,
+  fabricPrefillEfficiency,
+  perNodeFabricGBps,
+  pipelineBubbleEfficiency,
+  resolveFabricSpec,
+} from './fabric'
+
 // Framework presets
 export {
   type CPUOffloadConfig,
@@ -62,6 +72,8 @@ export {
 // Types
 export type {
   CalculationInput,
+  FabricSpec,
+  FabricType,
   FineTuningMethod,
   InferenceVRAMBreakdown,
   KVCachePrecision,

@@ -61,6 +61,19 @@ export const GPUSchema = z.object({
   spec_url: z.string().url().optional(),
 })
 
+/**
+ * User-specified scale-out fabric
+ *
+ * port_gbps is unidirectional GB/s per port. NIC count is not asked for: it is
+ * derived as one NIC per GPU, the standard AI-node build.
+ */
+export const CustomFabricSchema = z.object({
+  name: z.string().min(1),
+  port_gbps: z.number().positive().max(10_000),
+})
+
+export type CustomFabricInput = z.infer<typeof CustomFabricSchema>
+
 // Model Schema based on HuggingFace config.json fields
 export const ModelSchema = z.object({
   id: z.string().min(1),

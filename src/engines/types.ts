@@ -176,6 +176,38 @@ export interface InterconnectSpec {
 }
 
 /**
+ * Scale-out (node-to-node) fabric types
+ *
+ * Distinct from InterconnectType, which is scale-up (GPU-to-GPU inside one
+ * chassis). Both exist simultaneously in a real cluster: NVLink or Infinity
+ * Fabric inside a server, Ethernet or InfiniBand between servers.
+ *
+ * Unlike InterconnectType's bidirectional figures, portGBps is UNIDIRECTIONAL
+ * per port, because that is how network hardware is specified.
+ */
+export type FabricType =
+  | 'ethernet-1600g'
+  | 'ethernet-800g'
+  | 'infiniband-xdr'
+  | 'infiniband-ndr'
+  | 'ethernet-400g'
+  | 'ethernet-100g'
+  | 'custom'
+
+export interface FabricSpec {
+  type: FabricType
+  label: string
+  /** Unidirectional bandwidth per port, GB/s */
+  portGBps: number
+  /**
+   * Efficiency multiplier for the fabric class. InfiniBand's credit-based flow
+   * control avoids the drop-and-recover tail that RoCEv2's PFC/ECN incurs under
+   * incast, so it edges out Ethernet at the same line rate.
+   */
+  classFactor: number
+}
+
+/**
  * Multi-GPU VRAM breakdown showing per-GPU memory distribution
  *
  * All values in GB (gigabytes) using Decimal.js for precision
