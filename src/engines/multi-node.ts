@@ -26,10 +26,10 @@ import type {
  *
  * Composes over calculateMultiGPUVRAM rather than replacing it: this function
  * derives a per-stage breakdown, then hands the intra-node split to the
- * existing code. That keeps calculateMultiGPUVRAM's 1-8 GPU guard correct —
+ * existing code. That keeps calculateMultiGPUVRAM's 1-72 GPU guard correct —
  * under composition it is exactly the per-node bound.
  *
- * @throws Error if numNodes < 1, or if gpusPerNode is outside 1-8 (raised by
+ * @throws Error if numNodes < 1, or if gpusPerNode is outside 1-72 (raised by
  *         calculateMultiGPUVRAM)
  *
  * @example

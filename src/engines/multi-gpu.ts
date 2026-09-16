@@ -5,6 +5,7 @@ import {
   EMBEDDING_WEIGHT_FRACTION,
   INTERCONNECT_LABELS,
   INTERCONNECT_SPECS,
+  MAX_GPUS_PER_NODE,
   MOE_MULTI_GPU_OVERHEAD,
   NCCL_BUFFER_PER_PEER_GB,
   PP_ACTIVATION_STASHING_OVERHEAD,
@@ -220,12 +221,12 @@ function calculatePipelineParallelVRAM(
  * @param singleGPU - Single-GPU VRAM breakdown
  * @param model - Model configuration
  * @param gpuVramGB - GPU VRAM capacity in GB
- * @param numGPUs - Number of GPUs (1-8)
+ * @param numGPUs - Number of GPUs (1-72)
  * @param strategy - Sharding strategy
  * @param gpu - GPU configuration (used to derive interconnect bandwidth for TP overhead)
  * @returns Multi-GPU VRAM breakdown
  *
- * @throws Error if numGPUs < 1 or > 8
+ * @throws Error if numGPUs < 1 or > MAX_GPUS_PER_NODE (72)
  *
  * @example
  * ```ts
@@ -250,8 +251,8 @@ export function calculateMultiGPUVRAM(
   gpu: GPU,
 ): MultiGPUVRAMBreakdown {
   // Validate numGPUs range
-  if (numGPUs < 1 || numGPUs > 8) {
-    throw new Error(`numGPUs must be between 1 and 8, got ${numGPUs}`)
+  if (numGPUs < 1 || numGPUs > MAX_GPUS_PER_NODE) {
+    throw new Error(`numGPUs must be between 1 and ${MAX_GPUS_PER_NODE}, got ${numGPUs}`)
   }
 
   // Single GPU passthrough

@@ -428,7 +428,7 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
     }).toThrow()
   })
 
-  it('throws error for numGPUs > 8', () => {
+  it('throws error for numGPUs > 72', () => {
     const singleGPU = calculateInferenceVRAM({
       model: llama70b,
       quantization: 'gptq',
@@ -436,12 +436,26 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
       batchSize: 1,
     })
 
-    expect(() => {
-      calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 9, 'tensor-parallel', h100)
-    }).toThrow()
+    expect(() =>
+      calculateMultiGPUVRAM(singleGPU, llama70b, h100.vram_gb, 73, 'tensor-parallel', h100),
+    ).toThrow(/numGPUs must be between 1 and 72/)
   })
 
-  it('handles 8 GPUs correctly (maximum)', () => {
+  it('accepts a 72-GPU node, for NVL72-class racks', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'gptq',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 288, 72, 'tensor-parallel', h100)
+    expect(result.numGPUs).toBe(72)
+    expect(result.totalPerGPU.toNumber()).toBeGreaterThan(0)
+    expect(result.totalPerGPU.isFinite()).toBe(true)
+  })
+
+  it('handles 8 GPUs correctly (legacy 8-GPU node)', () => {
     const singleGPU = calculateInferenceVRAM({
       model: llama70b,
       quantization: 'gptq',

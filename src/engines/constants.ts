@@ -190,6 +190,16 @@ export const PP_ACTIVATION_STASHING_OVERHEAD = new Decimal(0.12)
 export const MOE_MULTI_GPU_OVERHEAD = new Decimal(0.15)
 
 /**
+ * Sanity bound on GPUs inside one node
+ *
+ * 72 is the largest scale-up domain in shipping hardware: NVIDIA GB300 NVL72
+ * places 72 GPUs in a single NVLink domain. This is a flat guard against
+ * absurd input, NOT the per-GPU limit — that is GPU.max_gpus_per_node, and it
+ * is enforced at the store boundary so the engine stays GPU-agnostic.
+ */
+export const MAX_GPUS_PER_NODE = 72
+
+/**
  * Interconnect specifications for different GPU interconnect types
  *
  * Bandwidth values are bidirectional (total read+write).
