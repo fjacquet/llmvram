@@ -18,6 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pipeline parallelism no longer replicates the full all-layer KV cache on every stage. Each stage owns a slice of layers, so it holds only that slice's cache. The previous behaviour overstated the KV term by the stage count.
 - The prefill roofline now uses a prefill-specific scaling efficiency. A single efficiency applied to both rooflines penalized decode throughput and flattered time-to-first-token in multi-node configurations.
 
+## [1.9.1] - 2026-09-13
+
+### Security
+
+- Bumped `vitest` from 4.1.8 to 4.1.11 (devDependency), which also carries the fix for
+  **GHSA-82fw-gwwq-j7x9** (a stale transitive `@vitest/mocker`).
+
+### Changed
+
+- Bumped Biome to 2.5.8 and migrated `biome.json` off the deprecated `rules.recommended` field
+  to the `preset` key it is replaced by (required before the next Biome major drops
+  `recommended` outright). Biome 2.5 also started linting standalone `.svg` files; build-copied
+  static assets under `public/` are now excluded via `files.includes` rather than silenced.
+
 ## [1.9.0] - 2026-09-07
 
 ### Added
