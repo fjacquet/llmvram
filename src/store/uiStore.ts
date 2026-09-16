@@ -12,6 +12,7 @@ import type {
   ShardingStrategy,
   TrainingPrecision,
 } from '@engines/types'
+import { clampGPUCount } from '@utils/gpuLimits'
 import type { CustomFabricInput, GPU, Model } from '@utils/schemas'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { create } from 'zustand'
@@ -168,13 +169,19 @@ export const useUIStore = create<UIState>()(
 
       // Actions
       setSelectedModel: (model) => set({ selectedModel: model }),
-      setSelectedGPU: (gpu) => set({ selectedGPU: gpu, interconnectOverride: null }),
+      setSelectedGPU: (gpu) =>
+        set((state) => ({
+          selectedGPU: gpu,
+          interconnectOverride: null,
+          numGPUs: clampGPUCount(state.numGPUs, gpu),
+        })),
       setInterconnectOverride: (v) => set({ interconnectOverride: v }),
       setQuantization: (quantization) => set({ quantization }),
       setSequenceLength: (sequenceLength) => set({ sequenceLength }),
       setBatchSize: (batchSize) => set({ batchSize }),
       setKVQuantization: (kvQuantization) => set({ kvQuantization }),
-      setNumGPUs: (numGPUs) => set({ numGPUs }),
+      setNumGPUs: (numGPUs) =>
+        set((state) => ({ numGPUs: clampGPUCount(numGPUs, state.selectedGPU) })),
       setNumNodes: (numNodes) => set({ numNodes }),
       setInterNodeFabric: (interNodeFabric) => set({ interNodeFabric }),
       setCustomFabric: (customFabric) => set({ customFabric }),
