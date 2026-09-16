@@ -718,7 +718,7 @@ describe('validateInterconnect', () => {
     // GB300 NVL72-class part: nvlink-5, recommendedMaxTPDegree 8, run at 72-way PP.
     // This regime was unreachable before max_gpus_per_node replaced the flat
     // 8-GPU guard — nothing on screen used to qualify a 72-way pipeline.
-    const nvl72Like: GPU = { ...h100, interconnect: 'nvlink-5' }
+    const nvl72Like: GPU = { ...h100, interconnect: 'nvlink-5', max_gpus_per_node: 72 }
     const result = validateInterconnect(nvl72Like, 72, 'pipeline-parallel')
 
     expect(result.valid).toBe(true)
