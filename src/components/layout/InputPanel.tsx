@@ -2,9 +2,11 @@ import { BatchSizeInput } from '@components/inputs/BatchSizeInput'
 import { ConcurrentUsersInput } from '@components/inputs/ConcurrentUsersInput'
 import { GPUCountSelector } from '@components/inputs/GPUCountSelector'
 import { GPUSelector } from '@components/inputs/GPUSelector'
+import { InterNodeFabricSelector } from '@components/inputs/InterNodeFabricSelector'
 import { KVQuantizationPicker } from '@components/inputs/KVQuantizationPicker'
 import { ModelSelector } from '@components/inputs/ModelSelector'
 import { ModeToggle } from '@components/inputs/ModeToggle'
+import { NodeCountSelector } from '@components/inputs/NodeCountSelector'
 import { OffloadingPanel } from '@components/inputs/OffloadingPanel'
 import { QuantizationPicker } from '@components/inputs/QuantizationPicker'
 import { SequenceLengthInput } from '@components/inputs/SequenceLengthInput'
@@ -56,6 +58,8 @@ export function InputPanel() {
                 Hardware Configuration
               </h3>
               <GPUCountSelector />
+              <NodeCountSelector />
+              <InterNodeFabricSelector />
               <ShardingStrategySelector />
             </div>
 

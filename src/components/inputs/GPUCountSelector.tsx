@@ -2,10 +2,11 @@ import { InfoTip } from '@components/common/InfoTip'
 import { useUIStore } from '@store/uiStore'
 
 /**
- * GPU count selector with range slider (1-8 GPUs)
+ * GPU count selector with range slider (1-8 GPUs per server)
  *
- * Allows users to select the number of GPUs for multi-GPU calculations.
- * Shows the current count as a numeric display alongside the slider.
+ * This is the PER-NODE count. Total GPUs is this times the server count from
+ * NodeCountSelector. The 1-8 bound is real: both NVLink and Infinity Fabric
+ * top out at an 8-GPU fully connected domain.
  */
 export function GPUCountSelector() {
   const numGPUs = useUIStore((s) => s.numGPUs)
@@ -18,9 +19,9 @@ export function GPUCountSelector() {
           htmlFor="gpu-count"
           className="block text-sm font-medium text-gray-700 dark:text-gray-300"
         >
-          Number of GPUs
+          GPUs per server
         </label>
-        <InfoTip text="Use multiple GPUs to distribute model weights. More GPUs enable larger models but add communication overhead between devices." />
+        <InfoTip text="GPUs inside one server. Tensor parallelism runs at this level, over NVLink or Infinity Fabric. Capped at 8 — that is the size of a fully connected GPU domain in current hardware." />
       </div>
       <div className="flex items-center gap-4">
         <input
@@ -39,7 +40,7 @@ export function GPUCountSelector() {
       </div>
       {numGPUs > 1 && (
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {numGPUs} GPUs with distributed memory
+          {numGPUs} GPUs per server, tensor parallel
         </p>
       )}
     </div>
