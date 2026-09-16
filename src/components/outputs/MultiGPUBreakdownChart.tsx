@@ -130,9 +130,7 @@ export function MultiGPUBreakdownChart({
       <BarChartLegend
         keys={BAR_KEYS}
         colors={
-          overCapacity
-            ? Object.fromEntries(BAR_KEYS.map((k) => [k, OVER_CAPACITY_COLOR]))
-            : COLORS
+          overCapacity ? Object.fromEntries(BAR_KEYS.map((k) => [k, OVER_CAPACITY_COLOR])) : COLORS
         }
       />
 

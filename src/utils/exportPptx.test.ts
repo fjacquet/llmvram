@@ -260,5 +260,4 @@ describe('exportPptx', () => {
       expect(card.opts.y ?? 0).toBeGreaterThanOrEqual(headingBottom)
     }
   })
-
 })
