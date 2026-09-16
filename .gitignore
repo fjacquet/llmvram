@@ -44,3 +44,16 @@ src/**/*.js
 src/**/*.d.ts
 *.config.js
 *.config.d.ts
+
+# Per-tool copies of a personal response-style rule, written by a local
+# generator into whichever config path each agent tool reads. Machine-local
+# preference, not project configuration — nothing in the build reads them.
+.cursor/
+.windsurf/
+.clinerules/
+.opencode/
+AGENTS.md
+.github/copilot-instructions.md
+
+# Superpowers/SDD session scaffolding (plans, briefs, review diffs, ledgers).
+.superpowers/
