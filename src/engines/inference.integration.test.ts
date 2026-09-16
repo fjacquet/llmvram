@@ -9,7 +9,9 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
+import { FABRIC_SPECS } from './fabric'
 import { calculateInferenceVRAM } from './inference'
+import { calculateMultiNodeVRAM } from './multi-node'
 import { estimatePerformance } from './performance'
 
 // GPU fixtures
@@ -78,6 +80,33 @@ const small_1b: Model = {
   num_hidden_layers: 16,
   num_attention_heads: 16,
   intermediate_size: 5504,
+}
+
+const mi355x: GPU = {
+  id: 'amd-mi355x',
+  name: 'AMD Instinct MI355X',
+  manufacturer: 'amd',
+  vram_gb: 288,
+  memory_bandwidth_gbps: 8000,
+  memory_type: 'HBM3E',
+  bus_width: 8192,
+  fp16_tflops: 2516,
+  fp32_tflops: 157,
+  tdp_watts: 1400,
+  interconnect: 'infinity-fabric',
+  tier: 'datacenter',
+}
+
+const llama405b: Model = {
+  id: 'meta-llama-llama-3.1-405b',
+  name: 'LLaMA 3.1 405B',
+  architecture: 'dense',
+  num_parameters_billion: 405,
+  hidden_size: 16384,
+  num_hidden_layers: 126,
+  num_attention_heads: 128,
+  num_kv_heads: 8,
+  intermediate_size: 53248,
 }
 
 const llama2_7b: Model = {
@@ -346,5 +375,40 @@ describe('Integration: Full Calculation Pipeline', () => {
     expect(vramFP16.total.toNumber()).toBeGreaterThan(80)
     // GPTQ: ~42GB (fits on 80GB H100)
     expect(vramGPTQ.total.toNumber()).toBeLessThan(80)
+  })
+})
+
+describe('multi-node end to end', () => {
+  it('fits a 405B model on 2 servers of 8 MI355X that will not fit on one', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama405b,
+      quantization: 'fp16',
+      sequenceLength: 8192,
+      batchSize: 1,
+    })
+    const oneNode = calculateMultiNodeVRAM({
+      singleGPU,
+      model: llama405b,
+      gpuVramGB: 288,
+      gpusPerNode: 8,
+      numNodes: 1,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu: mi355x,
+      fabric: FABRIC_SPECS['ethernet-800g'],
+      batchSize: 1,
+    })
+    const twoNodes = calculateMultiNodeVRAM({
+      singleGPU,
+      model: llama405b,
+      gpuVramGB: 288,
+      gpusPerNode: 8,
+      numNodes: 2,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu: mi355x,
+      fabric: FABRIC_SPECS['ethernet-800g'],
+      batchSize: 1,
+    })
+    expect(twoNodes.totalPerGPU.lessThan(oneNode.totalPerGPU)).toBe(true)
+    expect(twoNodes.utilizationPercent.lessThan(oneNode.utilizationPercent)).toBe(true)
   })
 })
