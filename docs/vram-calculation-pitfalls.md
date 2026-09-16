@@ -910,6 +910,16 @@ regardless of how fast the network is. Four nodes at batch 1 lose about 43% of
 throughput to fill and drain alone. Modelling only bandwidth makes deep
 pipelines look far better than they are.
 
+### Inter-node communication VRAM is not modelled
+
+The calculator adds no VRAM term for RDMA queue pairs or stage-handoff buffers
+at a pipeline boundary — only the throughput-side efficiency terms are
+modelled. This is optimistic: it understates per-GPU VRAM, so a configuration
+the calculator reports as fitting may not, by a margin of hundreds of MB
+against hundreds of GB. The starkest case is `gpusPerNode: 1, numNodes: N` —
+pure cross-network pipeline parallelism — which reports zero communication
+overhead for a topology that is nothing but network hops.
+
 ---
 
 ## Phase-Specific Warnings

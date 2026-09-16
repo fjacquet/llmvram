@@ -424,3 +424,13 @@ resolution. Derisks the enum change before topology work lands on top of it.
 - **AMD spec figures** are from cross-checked secondary sources and must be
   confirmed against AMD's datasheet before Phase 1 merges. The dense-vs-sparse
   FP16 distinction is the specific trap.
+- **Inter-node communication VRAM is not modelled.** §4 step 4 called for
+  adding inter-node communication overhead derived from `FABRIC_SPECS` (RDMA
+  queue pairs, stage-handoff buffers); `calculateMultiNodeVRAM` only populates
+  the efficiency fields and adds no VRAM term for it. The omission is
+  optimistic — it understates per-GPU VRAM, so "does it fit" is the answer put
+  at risk, not throughput. The magnitude is hundreds of MB against hundreds of
+  GB of GPU memory, so it is unlikely to flip a comfortable fit, but it can
+  matter at the margin. The starkest case is `gpusPerNode: 1, numNodes: N`: a
+  configuration that is pure cross-network pipeline parallelism and reports
+  zero communication overhead for every stage boundary.
