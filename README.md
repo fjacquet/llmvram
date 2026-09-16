@@ -21,6 +21,9 @@ Browser-based tool for estimating VRAM requirements and performance when running
   native context, up to 10,485,760), with a native-context marker and a warning — never a clamp —
   when the requested length exceeds it
 - **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink-5/4, PCIe-5/4)
+- **Multi-Node Scaling**: Configure GPUs per server and server count, with a selectable scale-out
+  fabric (1.6TbE / 800GbE SONiC RoCEv2, InfiniBand XDR/NDR, 400GbE, 100GbE, or a custom port speed).
+  Tensor parallelism runs inside each server; pipeline parallelism runs across servers
 - **Interconnect Selector**: Pick the active interconnect variant for GPUs with multiple options
 - **Offloading**: CPU/RAM and NVMe offloading simulation with performance impact
 - **Performance Estimation**: Tokens/sec (using active parameters for MoE models),
@@ -66,7 +69,7 @@ Open <http://localhost:5173> in your browser.
 
 ```bash
 npm run build          # TypeScript check + Vite production build
-npm run typecheck      # TypeScript only
+npm run typecheck      # TypeScript only (tsc -b --force, project-reference aware)
 npm run lint           # Biome linting
 npm run lint:fix       # Biome auto-fix
 npm run format         # Biome format

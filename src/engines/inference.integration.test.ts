@@ -380,11 +380,18 @@ describe('Integration: Full Calculation Pipeline', () => {
 
 describe('multi-node end to end', () => {
   it('fits a 405B model on 2 servers of 8 MI355X that will not fit on one', () => {
+    // At 8192 context / batch 1, 405B on 8x MI355X (288GB) only reaches ~43.5%
+    // utilization on a single node (22.2% on two) — it fits comfortably on one
+    // server, so a monotonic-decrease assertion alone doesn't prove the "won't
+    // fit on one" premise in this test's name. A 128K context (the INFER-06
+    // max used elsewhere in this file) with batch 32 grows the KV-cache term
+    // large enough to genuinely exceed one node: empirically, one node lands
+    // at 130.9% utilization (doesn't fit) and two nodes at 65.9% (fits).
     const singleGPU = calculateInferenceVRAM({
       model: llama405b,
       quantization: 'fp16',
-      sequenceLength: 8192,
-      batchSize: 1,
+      sequenceLength: 131072,
+      batchSize: 32,
     })
     const oneNode = calculateMultiNodeVRAM({
       singleGPU,
@@ -395,7 +402,7 @@ describe('multi-node end to end', () => {
       intraNodeStrategy: 'tensor-parallel',
       gpu: mi355x,
       fabric: FABRIC_SPECS['ethernet-800g'],
-      batchSize: 1,
+      batchSize: 32,
     })
     const twoNodes = calculateMultiNodeVRAM({
       singleGPU,
@@ -406,8 +413,13 @@ describe('multi-node end to end', () => {
       intraNodeStrategy: 'tensor-parallel',
       gpu: mi355x,
       fabric: FABRIC_SPECS['ethernet-800g'],
-      batchSize: 1,
+      batchSize: 32,
     })
+
+    // The real boundary: one node cannot hold it, two nodes can.
+    expect(oneNode.utilizationPercent.greaterThan(100)).toBe(true)
+    expect(twoNodes.utilizationPercent.lessThan(100)).toBe(true)
+
     expect(twoNodes.totalPerGPU.lessThan(oneNode.totalPerGPU)).toBe(true)
     expect(twoNodes.utilizationPercent.lessThan(oneNode.utilizationPercent)).toBe(true)
   })

@@ -11,7 +11,7 @@ LLM VRAM Calculator — a browser-based tool that estimates VRAM requirements an
 ```bash
 npm run dev              # Start Vite dev server
 npm run build            # TypeScript check + Vite production build
-npm run typecheck        # TypeScript only (tsc --noEmit)
+npm run typecheck        # TypeScript only (tsc -b --force, project-reference aware)
 npm run lint             # Biome check (lint + format validation)
 npm run lint:fix         # Biome auto-fix
 npm run format           # Biome format (write)

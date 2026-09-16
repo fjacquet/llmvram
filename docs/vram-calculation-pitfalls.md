@@ -877,6 +877,41 @@ Calculator should:
 
 ---
 
+## Multi-node inference
+
+### Port speed is not node bandwidth
+
+The standard AI node has one NIC per GPU, and NCCL/RCCL stripe a pipeline stage
+handoff across all of them. An 8-GPU node on 800GbE has 8 × 100 = 800 GB/s of
+scale-out bandwidth, not 100. Sizing a cluster from a single port's speed
+understates inter-node capacity eightfold and makes multi-node look far worse
+than it is.
+
+### Tensor parallelism does not cross a node boundary
+
+TP does a per-layer allreduce. Over NVLink-5 (1800 GB/s) or Infinity Fabric
+(1075 GB/s) that is cheap; over even the fastest scale-out fabric it is an order
+of magnitude slower and dominates the step time. Real deployments run TP inside
+a node and pipeline or data parallelism between nodes. A calculator that offers
+TP across nodes as a normal option is describing a configuration nobody runs.
+
+### Prefill and decode do not pay the same network cost
+
+A decode step ships one token's activations across a stage boundary — batch ×
+hidden × 2 bytes, kilobytes — so the hop is latency-bound at roughly 10 µs
+against a 10–20 ms decode step, near-free. Prefill ships full-sequence
+activations and is genuinely bandwidth-bound. Applying one network efficiency to
+both penalizes decode throughput and flatters time-to-first-token.
+
+### Pipeline bubbles are not a bandwidth problem
+
+A pipeline of S stages idles S−1 slots at the start and end of every batch,
+regardless of how fast the network is. Four nodes at batch 1 lose about 43% of
+throughput to fill and drain alone. Modelling only bandwidth makes deep
+pipelines look far better than they are.
+
+---
+
 ## Phase-Specific Warnings
 
 | Phase | Focus | Likely Pitfalls | Mitigation |

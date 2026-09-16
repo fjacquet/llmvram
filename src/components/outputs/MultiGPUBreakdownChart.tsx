@@ -219,6 +219,22 @@ export function MultiGPUBreakdownChart({
           </p>
         )}
       </div>
+
+      {breakdown.numNodes > 1 && (
+        <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+          <p>
+            {breakdown.numNodes} servers × {breakdown.gpusPerNode} GPUs = {breakdown.numGPUs} GPUs ·
+            tensor parallel within each server, pipeline parallel across them
+          </p>
+          <p>
+            Efficiency (modelled from bandwidth, not measured):{' '}
+            {(breakdown.intraNodeEfficiency * 100).toFixed(0)}% intra-server ·{' '}
+            {(breakdown.interNodePrefillEfficiency * 100).toFixed(0)}% inter-server on prefill ·{' '}
+            {(breakdown.interNodeDecodeEfficiency * 100).toFixed(0)}% on decode ·{' '}
+            {(breakdown.bubbleEfficiency * 100).toFixed(0)}% pipeline fill
+          </p>
+        </div>
+      )}
     </div>
   )
 }
