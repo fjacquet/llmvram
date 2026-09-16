@@ -9,6 +9,8 @@ import { type GPU, validateGPUs } from '../src/utils/schemas'
  * - NVIDIA H100/A100: https://resources.nvidia.com/en-us-tensor-core/nvidia-tensor-core-gpu-datasheet
  * - RTX Series: https://www.nvidia.com/en-us/geforce/graphics-cards/ and TechPowerUp GPU Database
  * - AMD MI300X: https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/data-sheets/amd-instinct-mi300x-data-sheet.pdf
+ * - AMD MI325X: https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/product-briefs/instinct-mi325x-datasheet.pdf
+ * - AMD MI350X/MI355X: https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/product-briefs/amd-instinct-mi350x-gpu-brochure.pdf
  * - Apple Silicon: Wikipedia and official Apple specs
  *
  * Update the GPUS array below with specs from official sources, then run:
@@ -248,6 +250,52 @@ const GPUS: GPU[] = [
   },
 
   // AMD Datacenter
+  {
+    id: 'amd-mi355x',
+    name: 'AMD Instinct MI355X',
+    manufacturer: 'amd',
+    vram_gb: 288,
+    memory_bandwidth_gbps: 8000,
+    memory_type: 'HBM3E',
+    bus_width: 8192,
+    // Dense FP16. AMD's headline 5.0 PFLOPS figure is with sparsity.
+    fp16_tflops: 2516,
+    fp32_tflops: 157,
+    tdp_watts: 1400,
+    interconnect: 'infinity-fabric',
+    tier: 'datacenter',
+  },
+  {
+    id: 'amd-mi350x',
+    name: 'AMD Instinct MI350X',
+    manufacturer: 'amd',
+    vram_gb: 288,
+    memory_bandwidth_gbps: 8000,
+    memory_type: 'HBM3E',
+    bus_width: 8192,
+    // Same die and memory as MI355X; the ~9% throughput gap is clocks,
+    // enabled by 1400 W liquid vs 1000 W air cooling.
+    fp16_tflops: 2300,
+    fp32_tflops: 144,
+    tdp_watts: 1000,
+    interconnect: 'infinity-fabric',
+    tier: 'datacenter',
+  },
+  {
+    id: 'amd-mi325x',
+    name: 'AMD Instinct MI325X',
+    manufacturer: 'amd',
+    vram_gb: 256,
+    memory_bandwidth_gbps: 6000,
+    memory_type: 'HBM3E',
+    bus_width: 8192,
+    // Same CDNA 3 compute core as MI300X, more memory.
+    fp16_tflops: 1307,
+    fp32_tflops: 163,
+    tdp_watts: 1000,
+    interconnect: 'infinity-fabric',
+    tier: 'datacenter',
+  },
   {
     id: 'amd-mi300x',
     name: 'AMD MI300X',

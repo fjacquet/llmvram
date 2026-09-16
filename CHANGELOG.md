@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- AMD Instinct MI355X (288 GB HBM3E, 8 TB/s, 1400 W), MI350X (288 GB, 1000 W air-cooled) and MI325X (256 GB HBM3E, 6 TB/s) to the GPU database.
+
+### Fixed
+
+- AMD Infinity Fabric is now modelled as its own interconnect tier (1075 GB/s, 8-way TP) instead of being aliased to PCIe 5.0 (128 GB/s). Multi-GPU VRAM estimates for AMD accelerators were previously inflated, and an 8-GPU AMD node raised a spurious tensor-parallel degradation warning.
+
 ## [1.9.0] - 2026-09-07
 
 ### Added
