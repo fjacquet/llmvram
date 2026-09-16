@@ -122,6 +122,28 @@ describe('GPU Database Validation', () => {
       expect(gpu.max_gpus_per_node).toBe(1)
     }
   })
+
+  it('offers GB300 as both an 8-GPU HGX baseboard and a 72-GPU NVL72 rack', () => {
+    const result = validateGPUs(gpusData)
+    const hgx = result.find((g) => g.id === 'nvidia-gb300-288gb')
+    const nvl72 = result.find((g) => g.id === 'nvidia-gb300-nvl72')
+
+    expect(hgx).toBeDefined()
+    expect(nvl72).toBeDefined()
+    expect(hgx?.max_gpus_per_node).toBe(8)
+    expect(nvl72?.max_gpus_per_node).toBe(72)
+  })
+
+  it('gives the two GB300 rows identical silicon specs', () => {
+    const result = validateGPUs(gpusData)
+    const hgx = result.find((g) => g.id === 'nvidia-gb300-288gb')
+    const nvl72 = result.find((g) => g.id === 'nvidia-gb300-nvl72')
+
+    expect(nvl72?.vram_gb).toBe(hgx?.vram_gb)
+    expect(nvl72?.memory_bandwidth_gbps).toBe(hgx?.memory_bandwidth_gbps)
+    expect(nvl72?.fp16_tflops).toBe(hgx?.fp16_tflops)
+    expect(nvl72?.interconnect).toBe(hgx?.interconnect)
+  })
 })
 
 describe('AMD Instinct MI350 / MI325 series', () => {
