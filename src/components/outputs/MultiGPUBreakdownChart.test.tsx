@@ -1,5 +1,7 @@
+import { FABRIC_SPECS } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { calculateMultiGPUVRAM } from '@engines/multi-gpu'
+import { calculateMultiNodeVRAM } from '@engines/multi-node'
 import { render, screen } from '@testing-library/react'
 import type { GPU, Model } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
@@ -167,5 +169,30 @@ describe('MultiGPUBreakdownChart', () => {
     render(<MultiGPUBreakdownChart breakdown={multiGpuBreakdown} gpuVRAM={80} />)
     expect(screen.getByText(/identical across all 4 GPUs/)).toBeInTheDocument()
     expect(screen.getByText(/4 per node × 1 node/)).toBeInTheDocument()
+  })
+
+  it('reports the per-node split (not just the total) across multiple servers', () => {
+    // 4 servers x 8 GPUs/server = 32 GPUs total. numGPUs on the breakdown is
+    // the TOTAL (per CLAUDE.md); gpusPerNode/numNodes must come through
+    // separately so the footer can show "8 per node x 4 nodes", not e.g.
+    // "32 per node x 1 node" from a swapped field.
+    const multiNodeBreakdown = calculateMultiNodeVRAM({
+      singleGPU,
+      model,
+      gpuVramGB: 80,
+      gpusPerNode: 8,
+      numNodes: 4,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu,
+      fabric: FABRIC_SPECS['ethernet-800g'],
+      batchSize: 1,
+    })
+    expect(multiNodeBreakdown.numGPUs).toBe(32)
+
+    render(<MultiGPUBreakdownChart breakdown={multiNodeBreakdown} gpuVRAM={80} />)
+
+    expect(
+      screen.getByText('identical across all 32 GPUs (8 per node × 4 nodes)'),
+    ).toBeInTheDocument()
   })
 })
