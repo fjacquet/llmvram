@@ -57,6 +57,8 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
         sequenceLength: false,
         batchSize: false,
         numGPUs: false,
+        numNodes: false,
+        interNodeFabric: false,
         kvQuantization: false,
         shardingStrategy: false,
         offloadingEnabled: false,
@@ -78,6 +80,10 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
       ),
       batchSize: others.some((s) => s.config.batchSize !== snapshot.config.batchSize),
       numGPUs: others.some((s) => s.config.numGPUs !== snapshot.config.numGPUs),
+      numNodes: others.some((s) => s.config.numNodes !== snapshot.config.numNodes),
+      interNodeFabric: others.some(
+        (s) => s.config.interNodeFabric !== snapshot.config.interNodeFabric,
+      ),
       kvQuantization: others.some(
         (s) => s.config.kvQuantization !== snapshot.config.kvQuantization,
       ),
@@ -104,8 +110,7 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
     snapshot.results.perGPUTotal !== null
       ? snapshot.results.perGPUTotal
       : snapshot.results.totalVRAM
-  const effectiveCapacity =
-    snapshot.config.numGPUs > 1 ? snapshot.config.gpuVramGb : snapshot.config.gpuVramGb
+  const effectiveCapacity = snapshot.config.gpuVramGb
   const utilPercent = (effectiveVRAM / effectiveCapacity) * 100
 
   // Determine utilization color
@@ -199,12 +204,21 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
           isDifferent={diffMap.kvQuantization}
         />
 
-        {/* Multi-GPU fields */}
-        {snapshot.config.numGPUs > 1 && (
+        {/* Multi-GPU / multi-node fields */}
+        {(snapshot.config.numGPUs > 1 || snapshot.config.numNodes > 1) && (
           <Field
             label="GPUs"
-            value={`${snapshot.config.numGPUs}x ${snapshot.config.shardingStrategy === 'tensor-parallel' ? 'TP' : 'PP'}`}
-            isDifferent={diffMap.numGPUs || diffMap.shardingStrategy}
+            value={
+              snapshot.config.numNodes > 1
+                ? `${snapshot.config.numNodes}× ${snapshot.config.numGPUs} GPU servers`
+                : `${snapshot.config.numGPUs}x ${snapshot.config.shardingStrategy === 'tensor-parallel' ? 'TP' : 'PP'}`
+            }
+            isDifferent={
+              diffMap.numGPUs ||
+              diffMap.shardingStrategy ||
+              diffMap.numNodes ||
+              diffMap.interNodeFabric
+            }
           />
         )}
 

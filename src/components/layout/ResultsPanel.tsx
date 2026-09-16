@@ -118,7 +118,10 @@ export function ResultsPanel() {
         model: selectedModel,
         gpu: selectedGPU,
         quantization,
-        numGPUs,
+        // numGPUs from the store is per-node; the deck must report the true
+        // cluster total (see IMPORTANT-1 in the multi-node fix wave).
+        numGPUs: result.multiGPU?.numGPUs ?? numGPUs,
+        numNodes: result.multiGPU?.numNodes ?? numNodes,
         sequenceLength,
         batchSize,
         vram: result.vram,

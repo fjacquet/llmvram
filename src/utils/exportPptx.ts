@@ -11,7 +11,10 @@ interface ExportPptxParams {
   model: Model
   gpu: GPU
   quantization: string
+  /** Total GPUs across the whole cluster (gpusPerNode × numNodes), not per-server */
   numGPUs: number
+  /** Number of servers in the cluster; 1 for a single-node configuration */
+  numNodes: number
   sequenceLength: number
   batchSize: number
   vram: InferenceVRAMBreakdown
@@ -50,6 +53,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     gpu,
     quantization,
     numGPUs,
+    numNodes,
     sequenceLength,
     batchSize,
     vram,
@@ -124,6 +128,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     ['GPU', gpu.name],
     ['GPU VRAM', `${gpu.vram_gb} GB`],
     ['Number of GPUs', String(numGPUs)],
+    ...(numNodes > 1 ? ([['Servers', String(numNodes)]] as [string, string][]) : []),
     ['Quantization', quantization.toUpperCase()],
     ['Sequence Length', `${sequenceLength.toLocaleString()} tokens`],
     ['Batch Size', String(batchSize)],

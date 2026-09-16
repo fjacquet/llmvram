@@ -58,8 +58,15 @@ export function InputPanel() {
                 Hardware Configuration
               </h3>
               <GPUCountSelector />
-              <NodeCountSelector />
-              <InterNodeFabricSelector />
+              {/* Multi-node controls are inference-only: training ignores numNodes
+                  entirely (multi-node training is an explicit spec Non-Goal), so
+                  offering them here would promise scaling that never happens. */}
+              {mode === 'inference' && (
+                <>
+                  <NodeCountSelector />
+                  <InterNodeFabricSelector />
+                </>
+              )}
               <ShardingStrategySelector />
             </div>
 
