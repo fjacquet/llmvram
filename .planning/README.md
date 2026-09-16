@@ -7,16 +7,18 @@ The status tracking this directory once held — `STATE.md`, `ROADMAP.md`,
 files — went stale several releases ago and was removed. Treat
 `CHANGELOG.md` and the git history as the record of what shipped.
 
-The files kept are the derivations behind the calculation engines:
+The files kept are the research behind the implementation:
 
-- `research/PITFALLS.md` — the domain pitfalls reference cited from
-  `CLAUDE.md` and from `src/engines/`.
-- `research/` — stack, architecture, feature and summary research.
-- `phases/*/NN-RESEARCH.md` — per-area research for the inference,
-  fine-tuning, optimization and framework-preset engines.
+- `research/` — stack, architecture, feature and summary research, plus
+  `PITFALLS.md`, the domain pitfalls reference cited from `CLAUDE.md`.
+- `phases/*/NN-RESEARCH.md` — per-area research, all ten kept.
 
-These are cited by `Reference:` comments throughout `src/engines/`, which
-is why they survive: they explain why constants are what they are (FP32
-optimizer states, quantization overhead multipliers, activation memory in
-training vs inference). Deleting one orphans those comments — grep for its
-path before removing anything here.
+Four of those phase files (`02`, `06`, `08`, `10`) plus `PITFALLS.md` are
+cited by `Reference:` comments in `src/engines/`, where they explain why
+constants are what they are: FP32 optimizer states, quantization overhead
+multipliers, activation memory in training versus inference. Deleting one
+of those orphans the comments that cite it.
+
+The other six phase files are uncited but kept deliberately — they are the
+research for areas whose code carries no `Reference:` comments, not dead
+weight. Being uncited is not a reason to remove one.
