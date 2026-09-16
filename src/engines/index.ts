@@ -41,13 +41,14 @@ export { calculateInferenceVRAM } from './inference'
 
 // KV cache engine
 export { calculateKVCacheVRAM } from './kv-cache'
-
 // LoRA/QLoRA training engine
 export {
   calculateLoRAAdapterParams,
   calculateLoRAFineTuningVRAM,
   calculateQLoRAFineTuningVRAM,
 } from './lora'
+// Multi-node engine
+export { calculateMultiNodeVRAM } from './multi-node'
 
 // Optimization engine
 export {
