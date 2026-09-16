@@ -4,6 +4,7 @@ import type {
   QuantizationFormat,
 } from '@engines/types'
 import { useUIStore } from '@store/uiStore'
+import { clampGPUCount } from '@utils/gpuLimits'
 import type { GPU } from '@/types/gpu'
 
 interface RecommendationsProps {
@@ -150,16 +151,26 @@ export function Recommendations({
 
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
   if (numGPUs > 1 && multiGPUBreakdown && multiGPUBreakdown.totalPerGPU.greaterThan(gpu.vram_gb)) {
-    const gpusNeeded = Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency))
+    // Clamped to gpu.max_gpus_per_node: the raw math can ask for a count the
+    // hardware cannot form (e.g. 37x on an 8-way part). If the clamp still
+    // exceeds 1x, the advice stays actionable at the hardware's own ceiling.
+    const gpusNeeded = clampGPUCount(Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency)), gpu)
 
-    recommendations.push({
-      title: 'Add more GPUs',
-      description: `Current ${numGPUs}x still exceeds capacity. Try ${gpusNeeded}x ${gpu.name} with tensor parallelism`,
-      impact: `Would distribute ${totalGB.toFixed(1)} GB across ${gpusNeeded} GPUs (~${(totalGB / gpusNeeded).toFixed(1)} GB per GPU)`,
-    })
+    if (gpusNeeded > 1) {
+      recommendations.push({
+        title: 'Add more GPUs',
+        description: `Current ${numGPUs}x still exceeds capacity. Try ${gpusNeeded}x ${gpu.name} with tensor parallelism`,
+        impact: `Would distribute ${totalGB.toFixed(1)} GB across ${gpusNeeded} GPUs (~${(totalGB / gpusNeeded).toFixed(1)} GB per GPU)`,
+      })
+    }
   } else if (numGPUs === 1) {
-    // Case B: Single GPU -> show multi-GPU recommendation
-    const gpusNeeded = Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency))
+    // Case B: Single GPU -> show multi-GPU recommendation, clamped to what the
+    // selected part can actually form. When max_gpus_per_node is 1 (Apple
+    // Silicon, GB300 Desktop Superchip) the clamp always lands back at 1x, so
+    // gpusNeeded > 1 is false and this recommendation is silently suppressed —
+    // falling through to the "upgrade GPU" recommendation below instead of
+    // suggesting a configuration the UI has no way to build.
+    const gpusNeeded = clampGPUCount(Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency)), gpu)
 
     if (gpusNeeded > 1) {
       recommendations.push({

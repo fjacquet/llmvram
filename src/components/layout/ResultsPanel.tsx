@@ -576,7 +576,11 @@ export function ResultsPanel() {
                 breakdown={result.vram}
                 currentQuantization={quantization}
                 currentSequenceLength={sequenceLength}
-                numGPUs={numGPUs}
+                // numGPUs from the store is per-node; Recommendations renders
+                // "Current {numGPUs}x" and must report the true cluster total
+                // (see IMPORTANT-1 in the multi-node fix wave, and the
+                // matching fallback in handleExportPptx above).
+                numGPUs={result.multiGPU?.numGPUs ?? numGPUs}
                 multiGPUBreakdown={result.multiGPU}
               />
             )}
