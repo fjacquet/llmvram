@@ -128,8 +128,8 @@ describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
     const expectedActivationsPerGPU = singleGPU.activations.div(4)
     expect(result.perGPU.activations.toString()).toBe(expectedActivationsPerGPU.toString())
 
-    // Verify NCCL buffers included (0.2 GB * 3 peers = 0.6 GB)
-    const expectedFrameworkOverhead = singleGPU.frameworkOverhead.add(new Decimal(0.6))
+    // Verify NCCL buffers included (flat 0.25 GB per GPU, not per peer)
+    const expectedFrameworkOverhead = singleGPU.frameworkOverhead.add(new Decimal(0.25))
     expect(result.perGPU.frameworkOverhead.toString()).toBe(expectedFrameworkOverhead.toString())
 
     // Verify communication overhead: NVLink-4 has 8% overhead (1 - 0.92 tpScalingEfficiency)
@@ -476,11 +476,52 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
     )
 
     expect(result.numGPUs).toBe(8)
-    // NCCL buffers: 0.2 GB * 7 peers = 1.4 GB
-    expect(result.perGPU.frameworkOverhead.toNumber()).toBeCloseTo(
-      singleGPU.frameworkOverhead.add(1.4).toNumber(),
-      10,
+
+    // NCCL buffers do not grow with the group. Ring/tree allreduce gives each
+    // rank a fixed handful of connections however many ranks there are, so the
+    // same figure must appear at 8 and at 72. The previous per-peer model put
+    // 1.4 GB here and 14.2 GB at 72 — more than KV cache and activations
+    // combined — which is what this asserts against.
+    const at72 = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      72,
+      'tensor-parallel',
+      h100,
     )
+    const ncclAt8 = result.perGPU.frameworkOverhead.sub(singleGPU.frameworkOverhead)
+    const ncclAt72 = at72.perGPU.frameworkOverhead.sub(singleGPU.frameworkOverhead)
+
+    expect(ncclAt8.toString()).toBe(ncclAt72.toString())
+
+    // ...and sits inside the 100-500 MB/GPU band CLAUDE.md documents.
+    expect(ncclAt8.toNumber()).toBeGreaterThanOrEqual(0.1)
+    expect(ncclAt8.toNumber()).toBeLessThanOrEqual(0.5)
+  })
+
+  it('adds no NCCL buffers at all on a single GPU (passthrough, not the TP path)', () => {
+    const singleGPU = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'gptq',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    // One GPU forms no communicator. This is guaranteed by the single-GPU
+    // passthrough in calculateMultiGPUVRAM, which returns before the tensor
+    // parallel path runs — NOT by a guard on the NCCL term, which is why adding
+    // such a guard changes nothing and this test cannot detect its absence.
+    const result = calculateMultiGPUVRAM(
+      singleGPU,
+      llama70b,
+      h100.vram_gb,
+      1,
+      'tensor-parallel',
+      h100,
+    )
+
+    expect(result.perGPU.frameworkOverhead.toString()).toBe(singleGPU.frameworkOverhead.toString())
   })
 })
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- NCCL buffer memory is modelled as a flat ~250MB per GPU rather than 200MB per peer. Ring and tree allreduce give each rank a fixed handful of connections however large the group is, so the figure does not grow with the GPU count. The old per-peer model reported 1.4GB/GPU on an 8-GPU node and 14.2GB/GPU at 72 — more than KV cache and activations combined — which overstated per-GPU totals and could report a configuration as not fitting when it does.
+
 ## [1.10.0] - 2026-09-16
 
 ### Added

@@ -7,7 +7,7 @@ import {
   INTERCONNECT_SPECS,
   MAX_GPUS_PER_NODE,
   MOE_MULTI_GPU_OVERHEAD,
-  NCCL_BUFFER_PER_PEER_GB,
+  NCCL_BUFFER_PER_GPU_GB,
   PP_ACTIVATION_STASHING_OVERHEAD,
   PP_COMMUNICATION_OVERHEAD,
 } from './constants'
@@ -84,8 +84,12 @@ function calculateTensorParallelVRAM(
   // Activations divided across GPUs
   const activationsPerGPU = singleGPU.activations.div(numGPUs)
 
-  // NCCL buffers: 0.2 GB per peer GPU
-  const ncclBuffers = NCCL_BUFFER_PER_PEER_GB.mul(numGPUs - 1)
+  // NCCL buffers: flat per GPU, not per peer. Ring/tree allreduce gives each
+  // rank a fixed handful of connections however large the group is, so this
+  // does not grow with numGPUs. No numGPUs > 1 guard is needed: a single GPU
+  // forms no communicator and never reaches this path, returning through the
+  // passthrough in calculateMultiGPUVRAM instead.
+  const ncclBuffers = NCCL_BUFFER_PER_GPU_GB
   const frameworkOverheadPerGPU = singleGPU.frameworkOverhead.add(ncclBuffers)
 
   // Communication overhead: derived from interconnect bandwidth (1 - scalingEfficiency)

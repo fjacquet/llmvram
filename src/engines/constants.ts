@@ -132,17 +132,34 @@ export const KV_PRECISION_BYTES: Record<KVCachePrecision, Decimal> = {
 export const BYTES_PER_GB = new Decimal(1024).pow(3)
 
 /**
- * NCCL buffer memory per peer GPU (200MB per peer)
+ * NCCL buffer memory per GPU (~250MB), flat in the GPU count
  *
- * NCCL (NVIDIA Collective Communications Library) allocates buffers for
- * inter-GPU communication in tensor parallelism. Each GPU needs buffers
- * for each peer GPU in the tensor parallel group.
+ * NCCL allocates communication buffers per channel per *connection*, and the
+ * ring and tree algorithms behind allreduce give each rank a small fixed number
+ * of connections — one source and one destination, up to three for a tree — not
+ * one per peer. `NCCL_BUFFSIZE` defaults to 4 MiB and channels go up to 32, so
+ * the total lands in the low hundreds of MB and stays there as the group grows.
  *
- * For N GPUs: NCCL overhead = 0.2 GB * (N-1) peers
+ * This is a band figure, not a derivation: CLAUDE.md Domain Pitfalls #3 gives
+ * 100-500 MB/GPU, and 250 MB sits inside it. Do not read precision into it.
  *
- * Reference: NVIDIA NCCL documentation on buffer allocation
+ * Known limitation: per-peer growth IS real for ncclSend/ncclRecv point-to-point
+ * patterns and for MoE expert parallelism, which this flat figure does not model.
+ * No sourced coefficient exists for that, so a second term would be invention.
+ *
+ * Supersedes a `0.2 GB x (N-1) peers` model that came from
+ * `.planning/phases/04-multi-gpu-support/04-RESEARCH.md`, where it was recorded
+ * as a community estimate pending `nvidia-smi` validation that never happened.
+ * Linear growth put 14.2 GB/GPU on a 72-GPU node — more than KV cache and
+ * activations combined.
+ *
+ * Sources:
+ * - NCCL_BUFFSIZE default 4 MiB:
+ *   https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
+ * - Ring/tree use one source and one destination (up to three for trees), and
+ *   per-channel buffer sizes by protocol: "Demystifying NCCL", arXiv 2507.04786
  */
-export const NCCL_BUFFER_PER_PEER_GB = new Decimal(0.2)
+export const NCCL_BUFFER_PER_GPU_GB = new Decimal(0.25)
 
 /**
  * Embedding weight fraction of total model weights (~3%)
