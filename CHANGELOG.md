@@ -11,12 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - AMD Instinct MI355X (288 GB HBM3E, 8 TB/s, 1400 W), MI350X (288 GB, 1000 W air-cooled) and MI325X (256 GB HBM3E, 6 TB/s) to the GPU database.
 - Multi-node inference: configure GPUs per server and server count, with a selectable scale-out fabric (1.6TbE / 800GbE SONiC RoCEv2, InfiniBand XDR/NDR, 400GbE, 100GbE, or a custom port speed). Tensor parallelism runs inside a server, pipeline parallelism across servers.
+- Per-GPU `max_gpus_per_node` field bounding how many GPUs can share one node, derived as min(coherent interconnect limit, largest shipping chassis slot count).
+- NVIDIA GB300 NVL72 as a 72-GPU row, alongside the existing GB300 which now names the 8-GPU HGX B300 baseboard.
+
+### Changed
+
+- The GPU count slider is bounded by the selected GPU rather than a fixed 8, and shows no slider for single-GPU parts.
+- The per-node engine guard widened from 8 to 72.
 
 ### Fixed
 
 - AMD Infinity Fabric is now modelled as its own interconnect tier (1075 GB/s, 8-way TP) instead of being aliased to PCIe 5.0 (128 GB/s). Multi-GPU VRAM estimates for AMD accelerators were previously inflated, and an 8-GPU AMD node raised a spurious tensor-parallel degradation warning.
 - Pipeline parallelism no longer replicates the full all-layer KV cache on every stage. Each stage owns a slice of layers, so it holds only that slice's cache. The previous behaviour overstated the KV term by the stage count.
 - The prefill roofline now uses a prefill-specific scaling efficiency. A single efficiency applied to both rooflines penalized decode throughput and flattered time-to-first-token in multi-node configurations.
+- NVIDIA B200 listed at its allocatable 180GB rather than the 192GB physical stack size.
+- The GPU count tooltip no longer claims 8 is the largest fully connected GPU domain in current hardware.
 
 ## [1.9.1] - 2026-09-13
 

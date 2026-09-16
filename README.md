@@ -39,7 +39,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
 
 | Vendor | GPUs |
 |--------|------|
-| **NVIDIA Datacenter** | H100 PCIe/SXM, H200, B200, GB300 (Blackwell Ultra), A100 PCIe/SXM, L40S, RTX PRO 6000, RTX 6000 Ada |
+| **NVIDIA Datacenter** | H100 PCIe/SXM, H200, B200, GB300 (HGX B300, 8-GPU) / GB300 NVL72 (72-GPU rack), A100 PCIe/SXM, L40S, RTX PRO 6000, RTX 6000 Ada |
 | **NVIDIA Consumer** | RTX 5090, RTX 4090, RTX 3090, DGX Station (GB300 Desktop Superchip), DGX Spark (GB10) |
 | **AMD** | MI355X, MI350X, MI325X, MI300X |
 | **Apple Silicon** | M1/M2/M3 Ultra, M1/M2/M3/M4/M5 Max |

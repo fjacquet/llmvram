@@ -48,7 +48,7 @@ src/
 │   │   ├── SequenceLengthInput.tsx     # Log-scale slider (512-131K)
 │   │   ├── BatchSizeInput.tsx          # Batch size (1-64)
 │   │   ├── ConcurrentUsersInput.tsx    # Concurrent users (1-256) for KV cache sizing
-│   │   ├── GPUCountSelector.tsx        # Number of GPUs (1-8)
+│   │   ├── GPUCountSelector.tsx        # Number of GPUs, bounded by the selected GPU's max_gpus_per_node (1-72)
 │   │   ├── ShardingStrategySelector.tsx # Tensor/pipeline parallelism
 │   │   └── OffloadingPanel.tsx         # CPU/NVMe offloading controls
 │   ├── outputs/                # Result displays
@@ -85,7 +85,7 @@ src/
 ├── workers/                    # Web Workers
 │   └── calculation.worker.ts   # Offloads engine calculations to background thread
 ├── data/                       # Static databases
-│   ├── gpus.json               # 20 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
+│   ├── gpus.json               # 28 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
 │   └── models.json             # 64 curated models (sorted alphabetically by name) + context_length, license, hf_url
 └── test/                       # Test infrastructure
     └── setup.ts                # @testing-library/jest-dom + cleanup
@@ -393,6 +393,6 @@ Main Thread                    Worker Thread
 | `src/engines/multi-gpu.ts` | Multi-GPU distribution |
 | `src/utils/schemas.ts` | Zod schemas (type source of truth) |
 | `src/data/models.json` | 64 curated models (alphabetically sorted) |
-| `src/data/gpus.json` | 20 curated GPUs |
+| `src/data/gpus.json` | 28 curated GPUs |
 | `src/store/urlSerializer.ts` | URL hash state persistence |
 | `src/workers/calculation.worker.ts` | Background calculation thread |
