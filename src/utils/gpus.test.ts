@@ -105,6 +105,23 @@ describe('GPU Database Validation', () => {
     // At least 80% should have FP16 specs
     expect(withFP16.length).toBeGreaterThanOrEqual(Math.floor(gpusData.length * 0.8))
   })
+
+  it('every GPU row declares max_gpus_per_node as a positive integer', () => {
+    const result = validateGPUs(gpusData)
+    for (const gpu of result) {
+      expect(Number.isInteger(gpu.max_gpus_per_node)).toBe(true)
+      expect(gpu.max_gpus_per_node).toBeGreaterThan(0)
+    }
+  })
+
+  it('bounds every Apple Silicon row at a single GPU', () => {
+    const result = validateGPUs(gpusData)
+    const apple = result.filter((g) => g.tier === 'apple-silicon')
+    expect(apple.length).toBeGreaterThan(0)
+    for (const gpu of apple) {
+      expect(gpu.max_gpus_per_node).toBe(1)
+    }
+  })
 })
 
 describe('AMD Instinct MI350 / MI325 series', () => {

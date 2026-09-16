@@ -84,6 +84,7 @@ export function useURLSync() {
           bus_width: 0,
           tier: 'consumer',
           interconnect: 'none',
+          max_gpus_per_node: 8,
           ...urlState.customGPU,
         })
       } else {
@@ -99,6 +100,7 @@ export function useURLSync() {
         bus_width: 0,
         tier: 'consumer',
         interconnect: 'none',
+        max_gpus_per_node: 8,
         ...urlState.customGPU,
       })
     }
