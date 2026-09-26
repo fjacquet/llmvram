@@ -10,7 +10,7 @@ import {
   perUserTimeToFirstToken,
   perUserTokensPerSecond,
 } from '@engines/concurrency'
-import { kvTierSummary } from '@engines/kv-tier'
+import { kvTierSummary, sessionKVLayout } from '@engines/kv-tier'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
@@ -308,7 +308,11 @@ export function ResultsPanel() {
       : kvTierSummary({
           settings: kvTier,
           maxHotSessions: maxSessions,
-          kvPerSessionPerGPUGB: perGPU.kvCache.toNumber() / Math.max(1, concurrentUsers),
+          ...sessionKVLayout({
+            perGPUKVGB: perGPU.kvCache.toNumber(),
+            concurrentUsers,
+            multi: result.multiGPU,
+          }),
           kvPerSessionGB: result.vram.kvCache.toNumber() / Math.max(1, concurrentUsers),
           totalGPUs: result.multiGPU?.numGPUs ?? 1,
           recomputeSeconds: result.performance.prefillSeconds?.toNumber() ?? null,

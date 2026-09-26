@@ -217,9 +217,10 @@ One decode step produces one token for each of `batchSize` sequences:
 ### KV Storage Tier (`kv-tier.ts`)
 
 - Parked sessions hold no HBM; memory and decode engines are unchanged.
-- Sessions held = `floor(maxConcurrentSessions / activeShare)`, capped by `capacityTB × 1000 / kv_per_session`.
+- Sessions held = `min(floor(maxConcurrentSessions / activeShare), maxConcurrentSessions + capacityTB × 1000 / kv_per_session)`: capacity bounds parked sessions only.
+- `sessionKVLayout`: under TP/PP every GPU reloads its share of a session in parallel; under EP a session lives on one rank per node (N × the per-GPU average) and reloads through that link.
 - Resume = 0.03 s + KV per session per GPU / tier GB/s per GPU; compared with `prefillSeconds`.
-- Traffic = held × activeShare / burstSeconds × KV per session, against tier GB/s × GPUs.
+- Traffic = held × activeShare / burstSeconds × KV per session per GPU × GPUs per session (duplicated MLA fetched per TP rank, conservative), against tier GB/s × GPUs.
 - No Dell Lightning FS preset: it targets > 16K GPUs (cluster storage sizing, raidy).
 
 ### Multi-GPU Engine (`multi-gpu.ts`)

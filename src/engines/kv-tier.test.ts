@@ -6,6 +6,7 @@ import {
   type KVTierSettings,
   kvTierSummary,
   resumeSeconds,
+  sessionKVLayout,
   tierBandwidthGBps,
 } from './kv-tier'
 import { calculateMultiGPUVRAM } from './multi-gpu'
@@ -17,6 +18,7 @@ const base = {
   settings: network,
   maxHotSessions: 100,
   kvPerSessionPerGPUGB: 2,
+  gpusPerSession: 4,
   kvPerSessionGB: 8,
   totalGPUs: 4,
   recomputeSeconds: 5,
@@ -57,15 +59,15 @@ describe('kvTierSummary', () => {
     expect(kvTierSummary(base)?.sessionsHeld).toBe(400)
   })
 
-  it('caps sessions held by the tier capacity', () => {
-    // 1 TB / 8 GB per session = 125
+  it('caps the parked sessions by the tier capacity', () => {
+    // 100 hot in HBM + 1 TB / 8 GB = 125 parked = 225 (below 100 / 0.25 = 400)
     const s = kvTierSummary({ ...base, settings: { ...network, capacityTB: 1 } })
-    expect(s?.sessionsHeld).toBe(125)
+    expect(s?.sessionsHeld).toBe(225)
   })
 
-  it('holds 0 when the capacity is below one session', () => {
+  it('never holds fewer than fit in HBM, even with a tiny tier', () => {
     const s = kvTierSummary({ ...base, settings: { ...network, capacityTB: 0.001 } })
-    expect(s?.sessionsHeld).toBe(0)
+    expect(s?.sessionsHeld).toBe(100)
   })
 
   it('holds 0 when nothing fits in HBM', () => {
@@ -80,7 +82,7 @@ describe('kvTierSummary', () => {
   it('prices tier traffic as resumes per second times one session of KV', () => {
     // 400 held x 25% active / 30 s burst = 3.33 resumes/s x 8 GB = 26.7 GB/s
     const s = kvTierSummary(base)
-    expect(s?.trafficGBps).toBeCloseTo((400 * 0.25 * 8) / 30, 6)
+    expect(s?.trafficGBps).toBeCloseTo(((400 * 0.25) / 30) * 2 * 4, 6)
     expect(s?.tierGBps).toBe(12.5 * 4)
   })
 
@@ -141,6 +143,7 @@ describe('resume vs recompute, Dell crossover (8-16K tokens)', () => {
       settings: network,
       maxHotSessions: 10,
       kvPerSessionPerGPUGB: multi.perGPU.kvCache.toNumber(),
+      gpusPerSession: 4,
       kvPerSessionGB: single.kvCache.toNumber(),
       totalGPUs: 4,
       recomputeSeconds: perf.prefillSeconds?.toNumber() ?? null,
@@ -153,5 +156,41 @@ describe('resume vs recompute, Dell crossover (8-16K tokens)', () => {
 
   it('recomputes faster than resuming at 4K tokens', () => {
     expect(summaryAt(4096)?.resumeFaster).toBe(false)
+  })
+})
+
+describe('sessionKVLayout', () => {
+  it('single GPU: the whole session on one GPU', () => {
+    expect(sessionKVLayout({ perGPUKVGB: 10, concurrentUsers: 5, multi: null })).toEqual({
+      kvPerSessionPerGPUGB: 2,
+      gpusPerSession: 1,
+    })
+  })
+
+  it('tensor parallel: every GPU holds its share (all of it for duplicated MLA)', () => {
+    const multi = { strategy: 'tensor-parallel' as const, gpusPerNode: 8, numNodes: 1, numGPUs: 8 }
+    expect(sessionKVLayout({ perGPUKVGB: 10, concurrentUsers: 5, multi })).toEqual({
+      kvPerSessionPerGPUGB: 2,
+      gpusPerSession: 8,
+    })
+  })
+
+  it('expert parallel: a session lives on one rank per node and reloads through it', () => {
+    // perGPU KV is the average over ranks (sessions spread 1/N); one session is N x that share
+    const multi = {
+      strategy: 'expert-parallel' as const,
+      gpusPerNode: 72,
+      numNodes: 1,
+      numGPUs: 72,
+    }
+    expect(sessionKVLayout({ perGPUKVGB: 0.05, concurrentUsers: 1, multi })).toEqual({
+      kvPerSessionPerGPUGB: 3.6,
+      gpusPerSession: 1,
+    })
+  })
+
+  it('expert parallel across nodes: one rank in each pipeline stage', () => {
+    const multi = { strategy: 'expert-parallel' as const, gpusPerNode: 8, numNodes: 2, numGPUs: 16 }
+    expect(sessionKVLayout({ perGPUKVGB: 1, concurrentUsers: 4, multi }).gpusPerSession).toBe(2)
   })
 })

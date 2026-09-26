@@ -1,3 +1,5 @@
+import type { ShardingStrategy } from './types'
+
 /**
  * KV storage tier: park idle sessions' KV cache off the GPU and reload it on resume.
  *
@@ -83,10 +85,44 @@ export interface KVTierSummary {
   tierGBps: number
 }
 
+/**
+ * Where one session's KV sits, for resume and tier traffic.
+ *
+ * `perGPUKVGB / concurrentUsers` is the average KV per session on a GPU. Under tensor
+ * and pipeline parallelism every GPU holds a share of every session (all of it when
+ * MLA KV is duplicated), so a resume reads that share on every GPU at once. Under
+ * expert parallelism each session lives on one rank per node (sessions spread 1/N),
+ * so one session is gpusPerNode times the average and reloads through that one link.
+ */
+export function sessionKVLayout(p: {
+  perGPUKVGB: number
+  concurrentUsers: number
+  multi: {
+    strategy: ShardingStrategy
+    gpusPerNode: number
+    numNodes: number
+    numGPUs: number
+  } | null
+}): { kvPerSessionPerGPUGB: number; gpusPerSession: number } {
+  const average = p.perGPUKVGB / Math.max(1, p.concurrentUsers)
+  if (!p.multi || p.multi.numGPUs <= 1) return { kvPerSessionPerGPUGB: average, gpusPerSession: 1 }
+  if (p.multi.strategy === 'expert-parallel') {
+    return {
+      kvPerSessionPerGPUGB: average * p.multi.gpusPerNode,
+      gpusPerSession: p.multi.numNodes,
+    }
+  }
+  return { kvPerSessionPerGPUGB: average, gpusPerSession: p.multi.numGPUs }
+}
+
 export function kvTierSummary(p: {
   settings: KVTierSettings
   maxHotSessions: number
+  /** One session's KV on each GPU that holds part of it (see sessionKVLayout) */
   kvPerSessionPerGPUGB: number
+  /** GPUs that each reload their part of a session in parallel */
+  gpusPerSession: number
+  /** One stored copy of a session's KV, for tier capacity */
   kvPerSessionGB: number
   totalGPUs: number
   recomputeSeconds: number | null
@@ -96,12 +132,14 @@ export function kvTierSummary(p: {
 
   const share = Math.min(1, Math.max(0.01, p.settings.activeShare))
   const burst = Math.max(1, p.settings.burstSeconds)
+  // Active sessions occupy the HBM slots; the tier holds only the parked ones, so its
+  // capacity bounds parked sessions, never the ones that already fit in HBM.
   const byShare = Math.floor(p.maxHotSessions / share)
-  const byCapacity =
+  const parkedCapacity =
     p.settings.capacityTB && p.kvPerSessionGB > 0
       ? Math.floor((p.settings.capacityTB * 1000) / p.kvPerSessionGB)
       : Number.POSITIVE_INFINITY
-  const sessionsHeld = Math.max(0, Math.min(byShare, byCapacity))
+  const sessionsHeld = Math.max(0, Math.min(byShare, p.maxHotSessions + parkedCapacity))
 
   const resume = resumeSeconds(p.kvPerSessionPerGPUGB, bandwidth)
   return {
@@ -109,7 +147,9 @@ export function kvTierSummary(p: {
     resumeSeconds: resume,
     recomputeSeconds: p.recomputeSeconds,
     resumeFaster: p.recomputeSeconds === null ? null : resume < p.recomputeSeconds,
-    trafficGBps: ((sessionsHeld * share) / burst) * p.kvPerSessionGB,
+    // Every GPU of a session fetches its own part; duplicated MLA KV is fetched once
+    // per tensor-parallel rank (conservative: assumes no cross-rank de-duplication).
+    trafficGBps: ((sessionsHeld * share) / burst) * p.kvPerSessionPerGPUGB * p.gpusPerSession,
     tierGBps: bandwidth * p.totalGPUs,
   }
 }

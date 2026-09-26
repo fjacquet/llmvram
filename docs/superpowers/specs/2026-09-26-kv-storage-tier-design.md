@@ -52,7 +52,8 @@ Inputs (new "KV storage tier" panel, off by default):
 
 Outputs:
 
-- **Sessions held** = min(maxHotSessions / activeShare, tierCapacity / KV-per-session),
+- **Sessions held** = min(maxHotSessions / activeShare, maxHotSessions + tierCapacity / KV-per-session)
+  (capacity bounds the parked sessions only; corrected in final review),
   reusing `maxConcurrentSessions` (4b) for the hot count.
 - **Resume time** = KV per session per GPU / tier bandwidth per GPU, shown next to
   the recompute time from the existing prefill model (`prefillSeconds` at the full

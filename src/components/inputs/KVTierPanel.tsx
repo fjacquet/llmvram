@@ -1,14 +1,52 @@
 import { InfoTip } from '@components/common/InfoTip'
 import { KV_TIER_PRESETS, KV_TIER_TYPES, type KVTierType } from '@engines/kv-tier'
 import { useUIStore } from '@store/uiStore'
+import { useEffect, useState } from 'react'
 
 const inputClass =
   'w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
 
-/** Parses a number field; empty or non-positive becomes null. */
+/** Parses a number field; empty, non-finite or non-positive becomes null. */
 const positiveOrNull = (raw: string): number | null => {
   const n = Number(raw)
   return raw.trim() === '' || !Number.isFinite(n) || n <= 0 ? null : n
+}
+
+/**
+ * Number input that keeps what the user types and commits on blur, so clearing a
+ * field or typing "0.5" digit by digit never snaps to a clamped value mid-edit.
+ */
+function NumberField(props: {
+  label: string
+  value: number | null
+  commit: (raw: string) => void
+  placeholder?: string
+  min?: number
+  max?: number
+}) {
+  const shown = props.value === null ? '' : String(props.value)
+  const [text, setText] = useState(shown)
+  // Follow store changes made elsewhere (URL restore, another commit)
+  useEffect(() => setText(shown), [shown])
+  return (
+    <label className="text-xs text-gray-600 dark:text-gray-400">
+      {props.label}
+      <input
+        type="number"
+        min={props.min}
+        max={props.max}
+        aria-label={props.label}
+        placeholder={props.placeholder}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          props.commit(text)
+          setText(shown)
+        }}
+        className={inputClass}
+      />
+    </label>
+  )
 }
 
 /**
@@ -49,59 +87,40 @@ export function KVTierPanel() {
 
       {preset && (
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-gray-600 dark:text-gray-400">
-            Bandwidth per GPU (GB/s)
-            <input
-              type="number"
-              min={0}
-              aria-label="Bandwidth per GPU (GB/s)"
-              placeholder={String(preset.gbpsPerGPU)}
-              value={kvTier.customGBps ?? ''}
-              onChange={(e) => setKVTier({ customGBps: positiveOrNull(e.target.value) })}
-              className={inputClass}
-            />
-          </label>
-          <label className="text-xs text-gray-600 dark:text-gray-400">
-            Active share (%)
-            <input
-              type="number"
-              min={1}
-              max={100}
-              aria-label="Active share (%)"
-              value={Math.round(kvTier.activeShare * 100)}
-              onChange={(e) =>
-                setKVTier({
-                  activeShare: Math.min(100, Math.max(1, Number(e.target.value) || 0)) / 100,
-                })
-              }
-              className={inputClass}
-            />
-          </label>
-          <label className="text-xs text-gray-600 dark:text-gray-400">
-            Active burst (s)
-            <input
-              type="number"
-              min={1}
-              aria-label="Active burst (s)"
-              value={kvTier.burstSeconds}
-              onChange={(e) =>
-                setKVTier({ burstSeconds: Math.max(1, Number(e.target.value) || 1) })
-              }
-              className={inputClass}
-            />
-          </label>
-          <label className="text-xs text-gray-600 dark:text-gray-400">
-            Tier capacity (TB)
-            <input
-              type="number"
-              min={0}
-              aria-label="Tier capacity (TB)"
-              placeholder="unlimited"
-              value={kvTier.capacityTB ?? ''}
-              onChange={(e) => setKVTier({ capacityTB: positiveOrNull(e.target.value) })}
-              className={inputClass}
-            />
-          </label>
+          <NumberField
+            label="Bandwidth per GPU (GB/s)"
+            min={0}
+            placeholder={String(preset.gbpsPerGPU)}
+            value={kvTier.customGBps}
+            commit={(raw) => setKVTier({ customGBps: positiveOrNull(raw) })}
+          />
+          <NumberField
+            label="Active share (%)"
+            min={1}
+            max={100}
+            value={Math.round(kvTier.activeShare * 100)}
+            commit={(raw) => {
+              const n = positiveOrNull(raw)
+              if (n !== null) setKVTier({ activeShare: Math.min(100, Math.max(1, n)) / 100 })
+              else if (raw.trim() !== '') setKVTier({ activeShare: 0.01 })
+            }}
+          />
+          <NumberField
+            label="Active burst (s)"
+            min={1}
+            value={kvTier.burstSeconds}
+            commit={(raw) => {
+              const n = positiveOrNull(raw)
+              if (n !== null) setKVTier({ burstSeconds: Math.max(1, n) })
+            }}
+          />
+          <NumberField
+            label="Tier capacity (TB)"
+            min={0}
+            placeholder="unlimited"
+            value={kvTier.capacityTB}
+            commit={(raw) => setKVTier({ capacityTB: positiveOrNull(raw) })}
+          />
         </div>
       )}
     </div>

@@ -51,15 +51,43 @@ describe('KVTierPanel', () => {
     render(<KVTierPanel />)
     const share = screen.getByLabelText('Active share (%)')
     fireEvent.change(share, { target: { value: '10' } })
+    fireEvent.blur(share)
     expect(useUIStore.getState().kvTier.activeShare).toBeCloseTo(0.1)
     fireEvent.change(share, { target: { value: '0' } })
+    fireEvent.blur(share)
     expect(useUIStore.getState().kvTier.activeShare).toBeCloseTo(0.01)
   })
 
   it('treats a cleared capacity as unlimited', () => {
     useUIStore.setState({ kvTier: { ...DEFAULT_KV_TIER, tier: 'network', capacityTB: 100 } })
     render(<KVTierPanel />)
-    fireEvent.change(screen.getByLabelText('Tier capacity (TB)'), { target: { value: '' } })
+    const capacity = screen.getByLabelText('Tier capacity (TB)')
+    fireEvent.change(capacity, { target: { value: '' } })
+    fireEvent.blur(capacity)
     expect(useUIStore.getState().kvTier.capacityTB).toBeNull()
+  })
+
+  it('lets a user clear a field and type a new value without it snapping', () => {
+    useUIStore.setState({ kvTier: { ...DEFAULT_KV_TIER, tier: 'network' } })
+    render(<KVTierPanel />)
+    const share = screen.getByLabelText('Active share (%)') as HTMLInputElement
+    fireEvent.change(share, { target: { value: '' } })
+    expect(share.value).toBe('')
+    fireEvent.change(share, { target: { value: '5' } })
+    fireEvent.change(share, { target: { value: '50' } })
+    fireEvent.blur(share)
+    expect(useUIStore.getState().kvTier.activeShare).toBeCloseTo(0.5)
+  })
+
+  it('accepts a fractional capacity typed digit by digit', () => {
+    useUIStore.setState({ kvTier: { ...DEFAULT_KV_TIER, tier: 'network' } })
+    render(<KVTierPanel />)
+    const capacity = screen.getByLabelText('Tier capacity (TB)') as HTMLInputElement
+    fireEvent.change(capacity, { target: { value: '0' } })
+    fireEvent.change(capacity, { target: { value: '0.' } })
+    fireEvent.change(capacity, { target: { value: '0.5' } })
+    expect(capacity.value).toBe('0.5')
+    fireEvent.blur(capacity)
+    expect(useUIStore.getState().kvTier.capacityTB).toBe(0.5)
   })
 })
