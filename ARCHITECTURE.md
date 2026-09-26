@@ -165,22 +165,25 @@ All engines are **pure functions** using **Decimal.js** for precision arithmetic
 
 ### Quantization Engine (`quantization.ts`)
 
-Calculates model weight memory for 22 quantization formats:
+Calculates model weight memory for 24 quantization formats:
 
-- Standard: FP32 (4B), FP16 (2B), BF16 (2B), INT8 (1B), INT4 (0.5B), NF4 (0.5B)
+- Standard: FP32 (4B), FP16 (2B), BF16 (2B), FP8 (1B), INT8 (1B), INT4 (0.5B), NF4 (0.5B)
+- MXFP4 (0.53125B: 4-bit values plus one 8-bit scale per 32), NVFP4 (0.5B), NVFP6 (0.75B)
 - GPTQ/AWQ: Includes 1.2x overhead multiplier for group quantization metadata
 - GGUF: Empirical bits-per-parameter from Artefact2 measurements (Q2_K through Q8_0)
-- NVIDIA: NVFP4 (0.5B), NVFP6 (0.75B)
 
 **Formula:** `weight_memory_GB = num_parameters × bytes_per_parameter / 1e9`
 
+One bytes-per-parameter figure applies to every tensor. Real checkpoints keep embeddings, attention and vision towers in BF16, so quantized formats under-count by 5-44% on small and hybrid models (2026-09 model × quantization spike).
+
 ### KV Cache Engine (`kv-cache.ts`)
 
-Calculates KV cache memory accounting for GQA/MQA architectures:
+**Formula:** `kv_bytes = (full_elements × seq_len + sliding_elements × min(window, seq_len)) × concurrentUsers × precision`
 
-**Formula:** `kv_cache_GB = 2 × layers × hidden_size × seq_len × concurrentUsers × precision × gqa_ratio / 1e9`
-
-Where `gqa_ratio = num_kv_heads / num_attention_heads` (defaults to 1.0 for MHA). The `concurrentUsers` parameter (default: 1, range: 1–256) replaces `batchSize` for KV cache sizing so the estimate reflects the total context that must reside in VRAM for all active sessions simultaneously.
+- `full_elements` is `kv_cache_elements_per_token` when the model has it (MLA, hybrid, explicit head_dim), else `2 × layers × hidden × num_kv_heads / num_attention_heads`.
+- `sliding_elements` / `window` are `kv_sliding_elements_per_token` / `kv_sliding_window` (Gemma 3/4, gpt-oss, Llama 4, DeepSeek V4), allocated at `min(window, context)` as vLLM does.
+- These values are known-good (what vLLM allocates, confirmed by a second source), never re-derived by hand.
+- `concurrentUsers` (1-256) replaces `batchSize` so the estimate covers every resident session. Constant-size linear-attention / Mamba state is not counted yet.
 
 Supports independent KV cache quantization (FP16, FP8, INT8, INT4).
 
@@ -191,44 +194,36 @@ Orchestrates total VRAM calculation:
 **Formula:** `total_VRAM = weights + kv_cache + activations + framework_overhead`
 
 - Activations use FP32 (4 bytes) regardless of weight quantization
-- Framework overhead: 1 GB (CUDA context + memory allocator)
+- Framework overhead: 1 GB per process (CUDA context + memory allocator); multi-GPU charges it once per GPU, never summed across the cluster
 - MoE models: total parameters for weights, active parameters for activations
 
 ### Performance Engine (`performance.ts`)
 
-Estimates inference speed using the roofline model:
+One decode step produces one token for each of `batchSize` sequences:
 
-**Formula:** `tokens_per_sec = min(memory_bound, compute_bound)`
-
-- Memory-bound: `bandwidth_GB/s / model_size_GB`
-- Compute-bound: `FLOPS / (2 × params × 1e9)`
-- TTFT: `0.5 × decode_speed` (2x slower prefill due to quadratic attention)
-- 5% tolerance for bottleneck classification
-- **Multi-GPU scaling:** when `multiGPUResult` is provided, effective throughput = `single_gpu_toks × numGPUs × scalingEfficiency`
+- **Memory:** `bytes_per_GPU = (weights_read / tp + batch × kv_per_seq / kv_shards) / stages`, then `/ bandwidth`. Weights use active (batched) parameters for MoE; KV is read at the full context.
+- **Compute:** `batch × (2 × active_params + 4 × layers × context × hidden) / (tp × stages × FLOPS)`. An aggregate ceiling, never multiplied by batch.
+- **Step:** `max(memory, compute) + 2 × layers / stages × allreduceLatencyUs` (tensor parallelism only; NVLink 11 µs, Infinity Fabric 20 µs, PCIe 25 µs estimate).
+- **Tokens/sec:** `batch / step × B / (B + stages − 1) × interNodeDecodeEfficiency`. A decode token cannot be split into micro-batches, so pipeline parallelism gives no speedup at batch 1.
+- **TTFT:** prefill FLOPs (`2 × active × T` + `2 × layers × T² × hidden`) / (FLOPS × PREFILL_MFU × numGPUs × prefillScalingEfficiency), plus one decode step.
+- 5% tolerance for bottleneck classification.
 
 ### Multi-GPU Engine (`multi-gpu.ts`)
 
-Distributes memory across GPUs with strategy-specific overhead. Requires a `GPU` object to resolve interconnect type.
+Distributes memory the way vLLM allocates it. Requires a `GPU` object to resolve the interconnect.
 
 **Tensor Parallelism:**
 
-- Shards weights, KV cache, and activations across GPUs
-- Replicates embeddings and layer norms (~3% of weights)
-- NCCL buffers: 0.2 GB per peer GPU
-- **Bandwidth-aware comm overhead** derived from `INTERCONNECT_SPECS[gpu.interconnect].tpScalingEfficiency`:
-  - NVLink-5 (1800 GB/s): 3% overhead (97% efficiency)
-  - NVLink-4 (900 GB/s): 8% overhead (92% efficiency)
-  - PCIe-5 (128 GB/s): 22% overhead (78% efficiency)
-  - PCIe-4 (64 GB/s): 35% overhead (65% efficiency)
-  - MoE: overhead multiplied by 1.15× for expert routing
-- Returns `scalingEfficiency` and `interconnectBandwidthGBps` for downstream use
+- Shards weights and activations across GPUs; embeddings and the LM head shard too (`VocabParallelEmbedding`). Only layer norms are replicated.
+- KV splits `min(numGPUs, num_kv_heads)` ways (`max(1, kv_heads // tp)` heads per GPU). MLA models (`use_mla`) keep the full latent cache on every GPU.
+- Each GPU pays one 1 GB framework context; `communicationOverhead` is the NCCL buffers (0.25 GB, flat per GPU).
+- Interconnect efficiency (`tpScalingEfficiency`) is a throughput cost: it feeds `scalingEfficiency` / `prefillScalingEfficiency`, never memory.
 
 **Pipeline Parallelism:**
 
-- Assigns layer ranges to GPUs
-- Does NOT divide KV cache (each GPU needs full context)
-- Flat 5% overhead regardless of interconnect (point-to-point, not all-reduce)
-- Returns `scalingEfficiency: 0.95`
+- Assigns contiguous layer ranges to GPUs; weights, KV cache and activations divide by the stage count (activations +12% stashing).
+- No NCCL buffers; `communicationOverhead` is 0.
+- Across servers, nodes are always pipeline stages (`multi-node.ts`).
 
 ### Offloading Engine (`offloading.ts`)
 

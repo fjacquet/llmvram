@@ -110,8 +110,8 @@ export function ShardingStrategySelector() {
             <span className="font-medium text-gray-900 dark:text-white">Pipeline Parallel</span>
           </div>
           <p className="text-xs text-gray-600 dark:text-gray-400 ml-6">
-            Splits model layers sequentially into pipeline stages. KV cache is NOT shared -- each
-            GPU stores full cache.
+            Splits model layers sequentially into pipeline stages. Each GPU holds only its own
+            layers&apos; KV cache; decode speeds up only with enough concurrent sequences.
           </p>
         </button>
       </div>

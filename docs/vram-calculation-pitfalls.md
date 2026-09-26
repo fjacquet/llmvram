@@ -907,7 +907,9 @@ both penalizes decode throughput and flatters time-to-first-token.
 
 A pipeline of S stages idles S−1 slots at the start and end of every batch,
 regardless of how fast the network is. Four nodes at batch 1 lose about 43% of
-throughput to fill and drain alone. Modelling only bandwidth makes deep
+throughput to fill and drain alone when the prompt is chunked into micro-batches.
+Decode cannot chunk a token: at batch B the pipeline runs at B / (B + S − 1), so
+batch 1 gains nothing from S stages. Modelling only bandwidth makes deep
 pipelines look far better than they are.
 
 ### Inter-node communication VRAM is not modelled
@@ -919,6 +921,58 @@ the calculator reports as fitting may not, by a margin of hundreds of MB
 against hundreds of GB. The starkest case is `gpusPerNode: 1, numNodes: N` —
 pure cross-network pipeline parallelism — which reports zero communication
 overhead for a topology that is nothing but network hops.
+
+---
+
+## Serving memory and decode (2026-09 audit)
+
+Each rule below is what vLLM allocates or does, confirmed by a second source.
+The calculator follows them; see CHANGELOG for the before/after numbers.
+
+### Tensor parallelism does not replicate embeddings
+
+vLLM's `VocabParallelEmbedding` and `ParallelLMHead` split the vocabulary across
+TP ranks. Only layer norms are replicated. A "3% replicated embeddings" term
+over-charges every GPU (36 GB on Kimi K3 MXFP4 at TP8).
+
+### KV splits by KV head, and MLA does not split at all
+
+`ModelConfig.get_num_kv_heads` returns `max(1, kv_heads // tp)`: past TP = KV
+heads, heads are replicated. MLA models (DeepSeek, Kimi, GLM 5.2) return 1 — the
+latent cache is duplicated on every rank. Dividing KV by the GPU count
+under-counts MLA models 8-72x. The fix in production is DP-attention with expert
+parallelism, where each rank holds only its own sessions.
+
+### Framework overhead is per process, not per cluster
+
+Each GPU pays one CUDA/ROCm context (~1 GB) plus NCCL buffers (~0.25 GB, flat,
+not per peer). Summing contexts across the cluster and then charging the sum to
+each GPU put 36.5 GB on every GPU of a 72-GPU node.
+
+### Interconnect efficiency is throughput, not memory
+
+A slow link makes steps slower; it does not allocate memory. Charging
+`weights × (1 − efficiency)` as VRAM invented up to 35% of weights on PCIe.
+
+### Decode reads the KV cache, not only the weights
+
+One step reads the weights once plus every sequence's KV at its context length.
+At long context KV dominates: Llama 3 70B FP8 at 128k reads ~43 GB of KV per
+sequence against 70 GB of weights, so batch 64 is under 4x batch 1, not 64x.
+
+### The compute ceiling is aggregate
+
+FLOPS / FLOPs-per-token is already the machine's total tokens/sec. Multiplying
+it by batch means large batches are never compute-bound. Attention adds
+`4 × layers × context × hidden` FLOPs per token.
+
+### Tensor-parallel decode pays two all-reduces per layer
+
+A decode all-reduce is small and latency-bound: ~11 µs over NVLink with NCCL
+ring (arXiv 2607.16100; MSCCL 9.5 µs, arXiv 2504.09014). 80 layers × 2 × 11 µs
+= 1.8 ms per step, so Llama 3 70B at TP8 batch 1 is ~4-5x one GPU, not 7.4x.
+Expert-parallel all-to-all is larger still and bandwidth-bound (DeepEP: 77 µs
+dispatch at EP8, 128 tokens).
 
 ---
 

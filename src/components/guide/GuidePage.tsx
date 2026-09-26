@@ -193,7 +193,8 @@ export function GuidePage() {
           </li>
           <li>
             <strong>Pipeline Parallel</strong> — Assigns complete layers to different GPUs. Works
-            over slower PCIe but introduces pipeline bubbles. Each GPU stores the full KV cache.
+            over slower PCIe. Each GPU stores only its own layers&apos; KV cache, but decode gains
+            nothing at batch 1: stages run one after another until the batch fills the pipeline.
           </li>
         </ul>
         <P>
@@ -389,7 +390,9 @@ export function GuidePage() {
         <P>Four metrics based on a roofline model:</P>
         <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1 mb-3">
           <li>
-            <strong>Decode Speed</strong> — Tokens per second during generation.
+            <strong>Decode Speed</strong> — Tokens per second during generation. Each step reads the
+            weights once plus every session&apos;s KV cache, so long contexts and large batches slow
+            it down; tensor parallelism adds two all-reduces per layer.
           </li>
           <li>
             <strong>Time to First Token (TTFT)</strong> — Latency for the first output token.

@@ -82,7 +82,7 @@ When implementing VRAM calculations, be aware of these critical estimation error
 7. **Two interconnect tables, two unit conventions**: `INTERCONNECT_SPECS` (scale-up, GPU-to-GPU in one chassis) is **bidirectional** per-GPU; `FABRIC_SPECS` (scale-out, server-to-server) `portGBps` is **unidirectional** per port. Mixing them halves or doubles the answer.
 8. **B200 is 180GB, not 192GB**: 192 is the physical HBM3e stack size before reserved capacity. HGX B200 ships 1.44TB across 8 GPUs. Use the allocatable figure.
 
-See `.planning/research/PITFALLS.md` for the complete reference.
+See `docs/vram-calculation-pitfalls.md` for the complete reference (`.planning/research/` is the frozen v1 research).
 
 ## grepai - Semantic Code Search
 

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The strategy selector and user guide said pipeline parallelism keeps the full KV cache on every GPU. Each stage holds only its own layers' cache, as the engine computes; the text now says so, and that decode gains nothing from pipelining at batch 1.
 - Decode throughput now follows the bytes and FLOPs of one step:
   - Each step reads every sequence's KV cache as well as the weights. Throughput used to grow linearly with batch at any context; at 128k context on Llama 3 70B FP8, batch 64 is now under 4x batch 1.
   - The compute ceiling was multiplied by batch size, so large batches never became compute-bound. It is now an aggregate ceiling, and includes attention FLOPs over the context.
