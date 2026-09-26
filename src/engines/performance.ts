@@ -50,7 +50,8 @@ function decodeLayout(model: Model, gpu: GPU, multi: MultiGPUVRAMBreakdown | nul
     stages: multi.numNodes * (intraPP ? multi.gpusPerNode : 1),
     tpDegree,
     kvShards: tpDegree > 1 ? kvCacheTPShards(model, tpDegree) : 1,
-    allreduceLatencyUs: tpDegree > 1 ? INTERCONNECT_SPECS[resolveInterconnect(gpu)].allreduceLatencyUs : 0,
+    allreduceLatencyUs:
+      tpDegree > 1 ? INTERCONNECT_SPECS[resolveInterconnect(gpu)].allreduceLatencyUs : 0,
     interNodeEfficiency: multi.interNodeDecodeEfficiency,
   }
 }

@@ -755,7 +755,11 @@ describe('estimatePerformance - compute ceiling is aggregate', () => {
 })
 
 describe('estimatePerformance - multi-GPU decode', () => {
-  const run = (model: Model, numGPUs: number, strategy: 'tensor-parallel' | 'pipeline-parallel') => {
+  const run = (
+    model: Model,
+    numGPUs: number,
+    strategy: 'tensor-parallel' | 'pipeline-parallel',
+  ) => {
     const singleGPU = calculateInferenceVRAM({
       model,
       quantization: 'fp8',
