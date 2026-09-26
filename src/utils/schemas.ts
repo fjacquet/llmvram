@@ -113,7 +113,7 @@ const ModelFields = z.object({
   // Sliding-window / chunked-local layers (Gemma 3/4, gpt-oss, Llama 4): cached elements
   // per token across those layers, and the window they are capped at. vLLM allocates
   // them at min(window, context) tokens. kv_cache_elements_per_token then counts only
-  // the full-attention layers. Recorded data only: the engine does not read these yet.
+  // the full-attention layers.
   kv_sliding_elements_per_token: z.number().int().positive().optional(),
   kv_sliding_window: z.number().int().positive().optional(),
 

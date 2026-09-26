@@ -11,10 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - FP8 (1 byte/param) and MXFP4 (4.25 bits/param: 4-bit values plus one 8-bit scale per 32) weight formats. DeepSeek, Kimi K2 and MiniMax M2 ship FP8; gpt-oss and Kimi K3 ship MXFP4.
 - Optional `use_mla` model field, set on the 14 multi-head latent attention models (DeepSeek R1, Kimi K2.x/K3/Linear, GLM 4.7 Flash/5.2, Ling 3.0, Mistral Small 4, Mistral Large 3).
-- Optional `kv_sliding_elements_per_token` and `kv_sliding_window` model fields, recording the windowed layers of Gemma 3/4, gpt-oss, Llama 4 and DeepSeek V4. Recorded only: the engine does not read them yet.
+- Optional `kv_sliding_elements_per_token` and `kv_sliding_window` model fields, recording the windowed layers of Gemma 3/4, gpt-oss, Llama 4 and DeepSeek V4. The KV cache counts them at min(window, context) tokens, as vLLM allocates them; before, these layers added nothing.
 
 ### Fixed
 
+- Decode throughput now follows the bytes and FLOPs of one step:
+  - Each step reads every sequence's KV cache as well as the weights. Throughput used to grow linearly with batch at any context; at 128k context on Llama 3 70B FP8, batch 64 is now under 4x batch 1.
+  - The compute ceiling was multiplied by batch size, so large batches never became compute-bound. It is now an aggregate ceiling, and includes attention FLOPs over the context.
+  - Multi-GPU decode was single-GPU speed x numGPUs x efficiency. Each GPU now reads its own share (MLA KV in full on every tensor-parallel rank), tensor parallelism pays two all-reduces per layer (11 us NVLink, 20 us Infinity Fabric, 25 us PCIe estimate), and pipeline stages overlap only as far as the batch fills them, so pipeline parallelism gives no speedup at batch 1. Llama 3 70B at TP8, batch 1, is about 5x one GPU, not 7.4x.
+- The "use multiple GPUs" recommendation divided VRAM by the interconnect scaling efficiency, asking for up to 50% more GPUs on PCIe. It now sizes by memory alone, with each GPU's framework context and NCCL buffers taken off its capacity.
 - Multi-GPU memory now follows what vLLM allocates:
   - Tensor parallelism split the KV cache across every GPU. vLLM stops at one KV head per GPU and duplicates MLA caches on every rank, so Kimi K3, DeepSeek R1 and GLM 5.2 on 8-72 GPUs were under-counted 8-72x.
   - Framework overhead summed across the cluster was charged to every GPU (36.5 GB per GPU at 72). Each GPU now pays one 1 GB context.

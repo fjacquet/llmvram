@@ -38,7 +38,7 @@ function calculateReplicatedMemory(model: Model): Decimal {
  * and GQA heads are replicated once TP exceeds the KV head count, so each GPU
  * holds at least one head.
  */
-function kvCacheTPShards(model: Model, numGPUs: number): number {
+export function kvCacheTPShards(model: Model, numGPUs: number): number {
   if (model.use_mla) return 1
   return Math.min(numGPUs, model.num_kv_heads ?? model.num_attention_heads)
 }

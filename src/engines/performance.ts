@@ -1,9 +1,16 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
-import { BYTES_PER_GB, PREFILL_MFU } from './constants'
+import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU } from './constants'
 import { calculateMoEActiveParams, calculateMoEBatchedParams } from './inference'
+import { calculateKVCacheVRAM } from './kv-cache'
+import { kvCacheTPShards, resolveInterconnect } from './multi-gpu'
 import { calculateModelWeightVRAM } from './quantization'
-import type { MultiGPUVRAMBreakdown, PerformanceEstimate, QuantizationFormat } from './types'
+import type {
+  KVCachePrecision,
+  MultiGPUVRAMBreakdown,
+  PerformanceEstimate,
+  QuantizationFormat,
+} from './types'
 
 /**
  * Performance estimation parameters
@@ -17,22 +24,51 @@ export interface PerformanceParams {
   quantization: QuantizationFormat
   /** Number of concurrent sequences (batch size) */
   batchSize: number
-  /** Prompt length in tokens — drives prefill time and therefore TTFT */
+  /** Context length in tokens — drives prefill time, and the KV each decode step reads */
   sequenceLength: number
-  /** Optional multi-GPU result; when provided, tokens/sec is scaled by numGPUs × scalingEfficiency */
+  /** KV cache precision (defaults to fp16) — sets the bytes each decode step reads */
+  kvQuantization?: KVCachePrecision
+  /** Optional multi-GPU result; sets each GPU's share of the bytes and FLOPs per step */
   multiGPUResult?: MultiGPUVRAMBreakdown | null
+}
+
+/**
+ * How a multi-GPU layout divides one decode step.
+ *
+ * Pipeline stages run one after another; the GPUs inside a stage split its
+ * layers by tensor parallelism. Nodes are always pipeline stages (see
+ * multi-node.ts), and intra-node pipeline parallelism adds gpusPerNode stages
+ * per node.
+ */
+function decodeLayout(model: Model, gpu: GPU, multi: MultiGPUVRAMBreakdown | null | undefined) {
+  if (!multi || multi.numGPUs <= 1) {
+    return { stages: 1, tpDegree: 1, kvShards: 1, allreduceLatencyUs: 0, interNodeEfficiency: 1 }
+  }
+  const intraPP = multi.strategy === 'pipeline-parallel'
+  const tpDegree = intraPP ? 1 : multi.gpusPerNode
+  return {
+    stages: multi.numNodes * (intraPP ? multi.gpusPerNode : 1),
+    tpDegree,
+    kvShards: tpDegree > 1 ? kvCacheTPShards(model, tpDegree) : 1,
+    allreduceLatencyUs: tpDegree > 1 ? INTERCONNECT_SPECS[resolveInterconnect(gpu)].allreduceLatencyUs : 0,
+    interNodeEfficiency: multi.interNodeDecodeEfficiency,
+  }
 }
 
 /**
  * Estimate inference performance using roofline model
  *
- * The roofline model determines whether performance is limited by:
- * - **Memory bandwidth** (typical for LLM inference): Each decode token requires reading
- *   all model weights from memory once. Throughput = bandwidth / model_size.
- * - **Compute throughput** (rare, small models on fast GPUs): Forward pass requires
- *   ~2 FLOPs per parameter. Throughput = FLOPS / (2 * params).
+ * One decode step produces one token for each of batchSize sequences. Its time is
+ * the slower of two bounds (hence "roofline"), plus communication:
+ * - **Memory bandwidth** (typical for LLM inference): the step reads the weights once
+ *   and every sequence's KV cache. Time = (weights + batch * KV) / bandwidth.
+ * - **Compute throughput** (large batches, small models): ~2 FLOPs per active
+ *   parameter plus attention over the context, per token. Time = batch * FLOPs / FLOPS.
+ * - **Multi-GPU**: each GPU reads and computes only its share; tensor parallelism
+ *   adds two all-reduce latencies per layer, and pipeline stages overlap only as far
+ *   as the batch fills them.
  *
- * Performance is the minimum of these two bounds (hence "roofline").
+ * Aggregate tokens/sec = batchSize / step time.
  *
  * **TTFT (Time To First Token)** is modeled as a compute-bound prefill pass over the
  * prompt, plus one decode step. Prefill FLOPs have two terms: a linear
@@ -54,62 +90,93 @@ export interface PerformanceParams {
  *   batchSize: 1,
  *   sequenceLength: 2048,
  * })
- * // perf.tokensPerSecond ≈ 23.9 (memory-bound)
+ * // perf.tokensPerSecond ≈ 23.8 (memory-bound: 140 GB weights + 0.7 GB KV per step)
  * // perf.bottleneck === 'memory'
  * // perf.prefillBottleneck === 'linear'
  * ```
  */
 export function estimatePerformance(params: PerformanceParams): PerformanceEstimate {
-  const { model, gpu, quantization, sequenceLength, batchSize, multiGPUResult } = params
+  const {
+    model,
+    gpu,
+    quantization,
+    sequenceLength,
+    batchSize,
+    kvQuantization = 'fp16',
+    multiGPUResult,
+  } = params
 
-  // 1. Bytes read per decode step. MoE decode touches only the experts the step's tokens
-  //    route to, so this uses active params — but it must still route through the
-  //    quantization helper, because bytes depend on precision. Never hardcode `x 2` here.
-  //    At batch > 1 the sequences route independently and the union of touched experts
-  //    grows, so the memory side uses the batched figure rather than the batch-1 one.
+  // 1. Bytes read per decode step: the weights once, plus every sequence's KV cache.
+  //    MoE decode touches only the experts the step's tokens route to, so the weights
+  //    use active params — but they must still route through the quantization helper,
+  //    because bytes depend on precision. Never hardcode `x 2` here. At batch > 1 the
+  //    sequences route independently and the union of touched experts grows, so the
+  //    memory side uses the batched figure rather than the batch-1 one.
+  //    KV is read at the full context (sequenceLength): the end of a generation, the
+  //    conservative point.
   const activeParams = calculateMoEActiveParams(model)
   const decodeParams = calculateMoEBatchedParams(model, batchSize)
-  const modelSizeGB = calculateModelWeightVRAM(decodeParams, quantization)
-  const modelSizeBytes = modelSizeGB.mul(BYTES_PER_GB)
+  const weightBytes = calculateModelWeightVRAM(decodeParams, quantization).mul(BYTES_PER_GB)
+  const kvBytes = calculateKVCacheVRAM({
+    model,
+    sequenceLength,
+    batchSize,
+    kvPrecision: kvQuantization,
+  }).mul(BYTES_PER_GB)
 
-  // 2. Memory-bound tokens/sec (dominant for LLM inference)
+  // 2. Per-GPU share of one step. Each pipeline stage holds 1/stages of the layers;
+  //    inside a stage tensor parallelism splits the weights tpDegree ways and the KV
+  //    only kvShards ways (MLA duplicates it, GQA stops at one head per GPU).
+  const layout = decodeLayout(model, gpu, multiGPUResult)
+  const perGPUBytes = weightBytes
+    .div(layout.tpDegree)
+    .add(kvBytes.div(layout.kvShards))
+    .div(layout.stages)
   const bandwidthBytesPerSec = new Decimal(gpu.memory_bandwidth_gbps).mul(1e9)
-  const memoryBoundTPS = bandwidthBytesPerSec.div(modelSizeBytes).mul(batchSize)
+  const memorySeconds = perGPUBytes.div(bandwidthBytesPerSec)
 
-  // 3. Compute-bound tokens/sec. FLOPs are precision-independent: ~2 FLOPs per
-  //    active parameter (one multiply, one add). This stays on the batch-1 figure:
-  //    each token computes only its own experts, however many others the step has
-  //    resident. Only the memory term above widens with batch.
-  const flopsPerToken = new Decimal(activeParams).mul(2e9)
-
-  let computeBoundTPS: Decimal
+  // 3. Compute per step. FLOPs are precision-independent: ~2 per active parameter
+  //    (batch-1 figure — each token computes only its own experts) plus causal
+  //    attention over the context, 4 * layers * context * hidden per token (the
+  //    per-token slope of the prefill attention term below). The machine's FLOPS
+  //    are shared by the batch: this is an aggregate ceiling, never multiplied by it.
+  const flopsPerToken = new Decimal(activeParams)
+    .mul(2e9)
+    .add(new Decimal(4).mul(model.num_hidden_layers).mul(sequenceLength).mul(model.hidden_size))
 
   // Handle missing/non-positive FLOPS: a GPU with no usable FLOPS figure (undefined,
   // zero, or negative — e.g. a user-entered custom-FLOPS value of 0) can never be
   // compute-bound; treat it the same as "no FLOPS data" rather than dividing by zero.
+  // Prefer FP16 FLOPS (more relevant for inference), fallback to FP32.
   const decodeGpuTFLOPS = gpu.fp16_tflops ?? gpu.fp32_tflops ?? 0
-  if (decodeGpuTFLOPS > 0) {
-    // Prefer FP16 FLOPS (more relevant for inference), fallback to FP32
-    const gpuFLOPS = new Decimal(decodeGpuTFLOPS).mul(1e12)
-    computeBoundTPS = gpuFLOPS.div(flopsPerToken).mul(batchSize)
-  } else {
-    // No usable FLOPS data: set to Infinity (memory-bound only)
-    computeBoundTPS = new Decimal(Infinity)
-  }
+  const computeSeconds =
+    decodeGpuTFLOPS > 0
+      ? flopsPerToken
+          .mul(batchSize)
+          .div(layout.tpDegree * layout.stages)
+          .div(new Decimal(decodeGpuTFLOPS).mul(1e12))
+      : new Decimal(0)
 
-  // 4. Roofline decision: performance is min of memory-bound and compute-bound
-  let tokensPerSecond = Decimal.min(memoryBoundTPS, computeBoundTPS)
+  // 4. Roofline per stage, plus two all-reduces per layer for tensor parallelism
+  //    (after attention and after the MLP). A step flows through the stages in
+  //    turn; with batchSize sequences in flight the pipeline overlaps them, less
+  //    the bubble B / (B + stages - 1). A decode token cannot be split into
+  //    micro-batches (unlike a prompt, see fabric.ts pipelineBubbleEfficiency), so
+  //    at batch 1 pipeline parallelism gives no decode speedup.
+  const allreduceSeconds = new Decimal(layout.allreduceLatencyUs)
+    .mul(2)
+    .mul(model.num_hidden_layers)
+    .div(layout.stages)
+    .div(1e6)
+  const stageSeconds = Decimal.max(memorySeconds, computeSeconds).add(allreduceSeconds)
+  const tokensPerSecond = new Decimal(batchSize)
+    .div(stageSeconds)
+    .mul(new Decimal(batchSize).div(batchSize + layout.stages - 1))
+    .mul(layout.interNodeEfficiency)
 
-  // 4b. Apply multi-GPU scaling: effective TPS = single-GPU TPS × numGPUs ×
-  //     scalingEfficiency. scalingEfficiency is the DECODE-path product; the
-  //     prefill roofline below uses prefillScalingEfficiency instead, because a
-  //     decode hop across nodes is latency-bound and near-free while prefill is
-  //     bandwidth-bound.
-  if (multiGPUResult && multiGPUResult.numGPUs > 1) {
-    tokensPerSecond = tokensPerSecond
-      .mul(multiGPUResult.numGPUs)
-      .mul(multiGPUResult.scalingEfficiency)
-  }
+  const memoryBoundTPS = new Decimal(batchSize).div(memorySeconds)
+  const computeBoundTPS =
+    decodeGpuTFLOPS > 0 ? new Decimal(batchSize).div(computeSeconds) : new Decimal(Infinity)
 
   // 5. Bottleneck analysis (5% tolerance to avoid flip-flopping at boundary)
   const tolerance = 0.95
