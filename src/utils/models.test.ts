@@ -280,6 +280,44 @@ describe('Model Database Validation', () => {
     expect(actual).toEqual(MLA)
   })
 
+  it('records the linear-attention / SSM state of exactly the hybrid models', () => {
+    // Bytes per session at TP=1, as vLLM allocates them (MambaStateShapeCalculator):
+    // conv state (conv_dim, kernel - 1) in bf16 plus the recurrent state, fp32 where
+    // the config sets mamba_ssm_dtype / mamba_ssm_cache_dtype (vLLM Qwen3.5 and
+    // NemotronH config handlers), else bf16. Recurrent elements and conv widths match
+    // HF transformers cache shapes on the meta device (transformers keeps `kernel`
+    // conv columns, vLLM `kernel - 1`).
+    const EXOTIC_STATE: Record<string, number> = {
+      // gated delta net: conv (2*16*128 + v_heads*128) x 3, recurrent v_heads x 128 x 128 fp32
+      'qwen-qwen3.6-27b': 153944064, // 48 linear layers, 48 v-heads
+      'qwen-qwen3.6-35b-a3b': 64389120, // 30 layers, 32 v-heads
+      'qwen-qwen3.8-27b': 153944064, // 48 layers, 48 v-heads
+      'qwen-qwen3.8-2.4t-a95b': 587292672, // 69 layers, 128 v-heads
+      // KDA: conv q,k,v 3 x heads x 128 x 3, recurrent heads x 128 x 128, all bf16
+      'moonshotai-kimi-k3': 232316928, // 69 KDA layers, 96 heads
+      'moonshotai-kimi-linear-48b-a3b': 22446080, // 20 layers, 32 heads
+      'inclusionai-ling-3.0-flash': 39280640, // 35 of 42 (layer_group_size 6), 32 heads; single source
+      'inclusionai-ling-3.0-tiny': 10100736, // 18 of 24 (layer_group_size 4), 16 heads; single source
+      // mamba2: conv (heads*head_dim + 2*8*128) x 3 bf16, recurrent heads x head_dim x 128 fp32
+      'nvidia-nemotron-3-nano-30b-a3b': 49082368, // 23 mamba layers
+      'nvidia-nemotron-3-nano-4b': 83801088, // 21 layers, 96 x 80
+      'nvidia-nemotron-3-super-120b-a12b': 170229760, // 40 layers, 128 heads
+      'nvidia-nemotron-3-ultra-550b-a55b': 407961600, // 48 layers, 256 heads
+      'nvidia-nemotron-3.5-lightning-30b-a3b': 49082368, // 23 layers
+      // short conv: hidden x (L_cache - 1) bf16
+      'liquidai-lfm2.5-2.6b': 180224, // 22 conv layers, 2048 x 2
+    }
+    const actual = Object.fromEntries(
+      modelsData
+        .filter((m) => 'linear_state_bytes_per_session' in m)
+        .map((m) => [
+          m.id,
+          (m as { linear_state_bytes_per_session: number }).linear_state_bytes_per_session,
+        ]),
+    )
+    expect(actual).toEqual(EXOTIC_STATE)
+  })
+
   it('stores DeepSeek V4 at its published parameter counts (arXiv 2606.19348)', () => {
     const flash = modelsData.find((m) => m.id === 'deepseek-v4-flash')
     const pro = modelsData.find((m) => m.id === 'deepseek-v4-pro')

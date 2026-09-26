@@ -104,12 +104,14 @@ export function calculateMultiNodeVRAM(params: {
 
   const modelWeights = singleGPU.modelWeights.div(numNodes)
   const kvCache = singleGPU.kvCache.div(numNodes)
+  const linearState = singleGPU.linearState?.div(numNodes)
   const activations = singleGPU.activations.div(numNodes).mul(stashing)
   const frameworkOverhead = singleGPU.frameworkOverhead
 
   const stageBreakdown: InferenceVRAMBreakdown = {
     modelWeights,
     kvCache,
+    linearState,
     activations,
     frameworkOverhead,
     total: modelWeights.add(kvCache).add(activations).add(frameworkOverhead),

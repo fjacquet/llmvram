@@ -57,6 +57,11 @@ export interface InferenceVRAMBreakdown {
   modelWeights: Decimal
   /** KV cache memory (depends on sequence length, batch size, architecture) */
   kvCache: Decimal
+  /**
+   * Part of kvCache that is linear-attention / SSM state (constant per session).
+   * Tensor parallelism splits it across every GPU, unlike MLA KV.
+   */
+  linearState?: Decimal
   /** Activation memory (forward pass intermediate tensors) */
   activations: Decimal
   /** Framework overhead (PyTorch runtime, CUDA context, etc.) */

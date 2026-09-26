@@ -78,8 +78,14 @@ function calculateTensorParallelVRAM(
   // Weights per GPU = (shardable / numGPUs) + replicated
   const weightsPerGPU = shardableWeights.div(numGPUs).add(replicatedMemory)
 
-  // KV cache divided across the ranks that hold distinct KV heads
-  const kvCachePerGPU = singleGPU.kvCache.div(kvCacheTPShards(model, numGPUs))
+  // KV cache divided across the ranks that hold distinct KV heads; linear-attention
+  // state splits across every rank (vLLM divides its heads by tp_world_size).
+  // Clamped to kvCache: an offloaded KV cache carries no state on the device.
+  const linearState = Decimal.min(singleGPU.linearState ?? 0, singleGPU.kvCache)
+  const kvCachePerGPU = singleGPU.kvCache
+    .sub(linearState)
+    .div(kvCacheTPShards(model, numGPUs))
+    .add(linearState.div(numGPUs))
 
   // Activations divided across GPUs
   const activationsPerGPU = singleGPU.activations.div(numGPUs)

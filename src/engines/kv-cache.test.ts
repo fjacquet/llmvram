@@ -1,7 +1,7 @@
 import type { Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
-import { calculateKVCacheVRAM } from './kv-cache'
+import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
 
 // Test fixtures - inline model definitions for test isolation
 const llama70bGQA: Model = {
@@ -325,5 +325,42 @@ describe('calculateKVCacheVRAM - sliding-window layers', () => {
 
   it('charges the windowed layers per token below the window', () => {
     expect(kv(512)).toBeCloseTo((32768 + 163840) * 512 * 2, 0)
+  })
+})
+
+describe('calculateKVCacheVRAM - linear-attention state', () => {
+  const hybrid: Model = {
+    id: 'hybrid',
+    name: 'Hybrid',
+    architecture: 'dense',
+    num_parameters_billion: 27,
+    hidden_size: 5120,
+    num_hidden_layers: 64,
+    num_attention_heads: 24,
+    num_kv_heads: 4,
+    intermediate_size: 17408,
+    kv_cache_elements_per_token: 32768,
+    linear_state_bytes_per_session: 153944064,
+  }
+  const bytes = (sequenceLength: number, batchSize: number) =>
+    calculateKVCacheVRAM({ model: hybrid, sequenceLength, batchSize, kvPrecision: 'fp8' })
+      .mul(1024 ** 3)
+      .toNumber()
+
+  it('adds a constant state per session, independent of context and KV precision', () => {
+    expect(bytes(1024, 1)).toBeCloseTo(32768 * 1024 * 1 + 153944064, 0)
+    expect(bytes(8192, 1) - bytes(4096, 1)).toBeCloseTo(32768 * 4096, 0)
+  })
+
+  it('scales the state with sessions', () => {
+    expect(bytes(1024, 4)).toBeCloseTo(4 * bytes(1024, 1), 0)
+  })
+
+  it('exposes the state as its own figure', () => {
+    expect(
+      calculateLinearStateVRAM(hybrid, 4)
+        .mul(1024 ** 3)
+        .toNumber(),
+    ).toBeCloseTo(4 * 153944064, 0)
   })
 })

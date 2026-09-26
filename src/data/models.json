@@ -429,6 +429,7 @@
     "license": "Kimi K3 License",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K3",
     "kv_cache_elements_per_token": 13824,
+    "linear_state_bytes_per_session": 232316928,
     "use_mla": true,
     "active_parameters_billion": 104
   },
@@ -448,6 +449,7 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct",
     "kv_cache_elements_per_token": 4032,
+    "linear_state_bytes_per_session": 22446080,
     "use_mla": true,
     "active_parameters_billion": 3
   },
@@ -464,7 +466,8 @@
     "context_length": 131072,
     "license": "other",
     "hf_url": "https://huggingface.co/LiquidAI/LFM2.5-2.6B",
-    "kv_cache_elements_per_token": 8192
+    "kv_cache_elements_per_token": 8192,
+    "linear_state_bytes_per_session": 180224
   },
   {
     "id": "meta-llama-llama-3.1-405b",
@@ -538,6 +541,7 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/inclusionAI/Ling-3.0-flash",
     "kv_cache_elements_per_token": 4032,
+    "linear_state_bytes_per_session": 39280640,
     "use_mla": true,
     "active_parameters_billion": 5.1
   },
@@ -557,6 +561,7 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/inclusionAI/Ling-3.0-tiny",
     "kv_cache_elements_per_token": 3456,
+    "linear_state_bytes_per_session": 10100736,
     "use_mla": true,
     "active_parameters_billion": 1.3
   },
@@ -769,6 +774,7 @@
     "license": "other",
     "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
     "kv_cache_elements_per_token": 3072,
+    "linear_state_bytes_per_session": 49082368,
     "active_parameters_billion": 3
   },
   {
@@ -784,7 +790,8 @@
     "context_length": 262144,
     "license": "other",
     "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16",
-    "kv_cache_elements_per_token": 8192
+    "kv_cache_elements_per_token": 8192,
+    "linear_state_bytes_per_session": 83801088
   },
   {
     "id": "nvidia-nemotron-3-super-120b-a12b",
@@ -802,6 +809,7 @@
     "license": "other",
     "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16",
     "kv_cache_elements_per_token": 4096,
+    "linear_state_bytes_per_session": 170229760,
     "active_parameters_billion": 12
   },
   {
@@ -820,6 +828,7 @@
     "license": "other",
     "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16",
     "kv_cache_elements_per_token": 6144,
+    "linear_state_bytes_per_session": 407961600,
     "active_parameters_billion": 55
   },
   {
@@ -838,6 +847,7 @@
     "license": "other",
     "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16",
     "kv_cache_elements_per_token": 3072,
+    "linear_state_bytes_per_session": 49082368,
     "active_parameters_billion": 3
   },
   {
@@ -885,7 +895,8 @@
     "context_length": 262144,
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/Qwen/Qwen3.6-27B",
-    "kv_cache_elements_per_token": 32768
+    "kv_cache_elements_per_token": 32768,
+    "linear_state_bytes_per_session": 153944064
   },
   {
     "id": "qwen-qwen3.6-35b-a3b",
@@ -903,7 +914,8 @@
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/Qwen/Qwen3.6-35B-A3B",
     "active_parameters_billion": 3,
-    "kv_cache_elements_per_token": 10240
+    "kv_cache_elements_per_token": 10240,
+    "linear_state_bytes_per_session": 64389120
   },
   {
     "id": "qwen-qwen3.8-2.4t-a95b",
@@ -921,6 +933,7 @@
     "license": "Qwen",
     "hf_url": "https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B",
     "kv_cache_elements_per_token": 47104,
+    "linear_state_bytes_per_session": 587292672,
     "active_parameters_billion": 95
   },
   {
@@ -936,6 +949,7 @@
     "context_length": 262144,
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/Qwen/Qwen3.8-27B",
-    "kv_cache_elements_per_token": 32768
+    "kv_cache_elements_per_token": 32768,
+    "linear_state_bytes_per_session": 153944064
   }
 ]

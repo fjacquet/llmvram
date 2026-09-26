@@ -121,6 +121,11 @@ const ModelFields = z.object({
   // per token and duplicates it on every tensor-parallel rank, so TP does not split it.
   use_mla: z.boolean().optional(),
 
+  // Linear-attention / SSM layers (gated delta net, KDA, mamba2, short conv): bytes of conv +
+  // recurrent state one session holds at TP=1, as vLLM allocates it. Constant in context
+  // length; its dtype comes from the model config (fp32 SSM state for Qwen3.5 and NemotronH).
+  linear_state_bytes_per_session: z.number().int().positive().optional(),
+
   intermediate_size: z.number().int().positive(),
 
   // MoE fields (optional, only for MoE architectures)

@@ -61,7 +61,6 @@ New optional `use_mla` model field, set where the HF config carries
 
 - One bytes-per-parameter figure for every tensor: quantized formats under-count
   5-44% on small and hybrid models (model × quantization spike, 491 checkpoints).
-- No constant-size linear-attention / Mamba state.
 - No expert parallelism or DP-attention yet, so MLA models under TP carry the
   full duplicated KV. Addressed by the datacenter sizing PRD (4a).
 - `fetch-models.ts` still derives KV generically; training / ZeRO untouched.
