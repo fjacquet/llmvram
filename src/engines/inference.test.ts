@@ -7,6 +7,7 @@ import {
   calculateInferenceVRAM,
   calculateMoEActiveParams,
   calculateMoEBatchedParams,
+  splitMoEParams,
 } from './inference'
 
 // Test fixtures - inline model definitions for test isolation
@@ -514,5 +515,35 @@ describe('calculateMoEBatchedParams', () => {
   it('returns the total for a dense model at any batch size', () => {
     expect(calculateMoEBatchedParams(llama70b, 1)).toBe(70.0)
     expect(calculateMoEBatchedParams(llama70b, 128)).toBe(70.0)
+  })
+})
+
+describe('splitMoEParams', () => {
+  // Kimi K3 config.json: 896 experts, top-16, 92 MoE layers of latent experts
+  // (routed_expert_hidden_size 3584, moe_intermediate_size 3072), so one expert
+  // across all layers is 92 x 3 x 3584 x 3072 = 3.039B; safetensors: 57.2B non-routed.
+  const kimiK3: Model = {
+    id: 'kimi-k3',
+    name: 'Kimi K3',
+    architecture: 'moe',
+    num_parameters_billion: 2779.9,
+    active_parameters_billion: 104,
+    hidden_size: 7168,
+    num_hidden_layers: 93,
+    num_attention_heads: 96,
+    intermediate_size: 33792,
+    num_experts: 896,
+    num_experts_per_token: 16,
+  }
+
+  it('recovers the routed experts and the replicated base from total and active', () => {
+    const split = splitMoEParams(kimiK3)
+    expect((split?.routedB ?? 0) / 896).toBeCloseTo(3.039, 2)
+    expect(split?.baseB ?? 0).toBeGreaterThan(55)
+    expect(split?.baseB ?? 0).toBeLessThan(58)
+  })
+
+  it('does not split a dense model', () => {
+    expect(splitMoEParams(llama7b)).toBeNull()
   })
 })

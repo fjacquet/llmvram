@@ -9,6 +9,7 @@ import {
   PP_ACTIVATION_STASHING_OVERHEAD,
   PP_COMMUNICATION_OVERHEAD,
 } from './constants'
+import { splitMoEParams } from './inference'
 import type {
   InferenceVRAMBreakdown,
   InterconnectType,
@@ -210,6 +211,74 @@ function calculatePipelineParallelVRAM(
 }
 
 /**
+ * Calculate expert parallel + DP attention VRAM distribution (MoE only)
+ *
+ * vLLM Expert Parallel Deployment: "Expert (MoE) layers are sharded across all EP
+ * ranks... Attention layers... replicated across DP ranks if TP=1". So the routed
+ * experts divide by numGPUs, everything else (attention, embeddings, shared and
+ * dense layers) is replicated, and each GPU serves its own sessions: the KV cache
+ * divides by numGPUs with no MLA duplication.
+ *
+ * @throws Error for a model that is not a splittable MoE
+ */
+function calculateExpertParallelVRAM(
+  singleGPU: InferenceVRAMBreakdown,
+  model: Model,
+  gpuVramGB: number,
+  numGPUs: number,
+  interconnectType: InterconnectType,
+): MultiGPUVRAMBreakdown {
+  const split = splitMoEParams(model)
+  if (!split) {
+    throw new Error(`Expert parallelism needs a MoE model, got ${model.name}`)
+  }
+  const interconnectSpec = INTERCONNECT_SPECS[interconnectType]
+
+  // Same bytes per parameter for base and experts: split the quantized total.
+  const routedFraction = new Decimal(split.routedB).div(split.baseB + split.routedB)
+  const routedWeights = singleGPU.modelWeights.mul(routedFraction)
+  const replicatedMemory = singleGPU.modelWeights.sub(routedWeights)
+  const weightsPerGPU = replicatedMemory.add(routedWeights.div(numGPUs))
+
+  const kvCachePerGPU = singleGPU.kvCache.div(numGPUs)
+  const activationsPerGPU = singleGPU.activations.div(numGPUs)
+  const frameworkOverheadPerGPU = singleGPU.frameworkOverhead
+  const communicationOverhead = NCCL_BUFFER_PER_GPU_GB
+
+  const totalPerGPU = weightsPerGPU
+    .add(kvCachePerGPU)
+    .add(activationsPerGPU)
+    .add(frameworkOverheadPerGPU)
+    .add(communicationOverhead)
+
+  return {
+    numGPUs,
+    strategy: 'expert-parallel',
+    perGPU: {
+      modelWeights: weightsPerGPU,
+      kvCache: kvCachePerGPU,
+      activations: activationsPerGPU,
+      frameworkOverhead: frameworkOverheadPerGPU,
+      communicationOverhead,
+      total: totalPerGPU,
+    },
+    replicatedMemory,
+    totalPerGPU,
+    utilizationPercent: totalPerGPU.div(gpuVramGB).mul(100),
+    singleGPUBaseline: singleGPU.total,
+    numNodes: 1,
+    gpusPerNode: numGPUs,
+    intraNodeEfficiency: interconnectSpec.tpScalingEfficiency,
+    interNodeDecodeEfficiency: 1,
+    interNodePrefillEfficiency: 1,
+    bubbleEfficiency: 1,
+    scalingEfficiency: interconnectSpec.tpScalingEfficiency,
+    prefillScalingEfficiency: interconnectSpec.tpScalingEfficiency,
+    interconnectBandwidthGBps: interconnectSpec.bandwidthGBps,
+  }
+}
+
+/**
  * Calculate multi-GPU VRAM distribution
  *
  * Takes a single-GPU VRAM breakdown and distributes it across multiple GPUs
@@ -288,9 +357,11 @@ export function calculateMultiGPUVRAM(
 
   if (strategy === 'tensor-parallel') {
     return calculateTensorParallelVRAM(singleGPU, model, gpuVramGB, numGPUs, interconnectType)
-  } else {
-    return calculatePipelineParallelVRAM(singleGPU, model, gpuVramGB, numGPUs)
   }
+  if (strategy === 'expert-parallel') {
+    return calculateExpertParallelVRAM(singleGPU, model, gpuVramGB, numGPUs, interconnectType)
+  }
+  return calculatePipelineParallelVRAM(singleGPU, model, gpuVramGB, numGPUs)
 }
 
 /**
@@ -394,7 +465,9 @@ export function validateInterconnect(
   // 72-way pipeline-parallel run (reachable now that the flat 8-GPU guard is
   // gone) degrades for a different reason than tensor parallelism, so it gets
   // its own wording rather than reusing the TP sentence verbatim.
-  if (numGPUs > spec.recommendedMaxTPDegree) {
+  // Expert parallelism spans the whole scale-up domain by design (e.g. EP72 on an
+  // NVL72); its all-to-all cost is priced in the decode model instead.
+  if (strategy !== 'expert-parallel' && numGPUs > spec.recommendedMaxTPDegree) {
     const interconnectName = INTERCONNECT_LABELS[spec.type] ?? spec.type
 
     const warning =

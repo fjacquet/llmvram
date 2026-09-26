@@ -168,7 +168,15 @@ export const useUIStore = create<UIState>()(
           : false,
 
       // Actions
-      setSelectedModel: (model) => set({ selectedModel: model }),
+      setSelectedModel: (model) =>
+        set((state) => ({
+          selectedModel: model,
+          // Expert parallelism exists only for MoE models
+          shardingStrategy:
+            state.shardingStrategy === 'expert-parallel' && model?.architecture !== 'moe'
+              ? 'tensor-parallel'
+              : state.shardingStrategy,
+        })),
       setSelectedGPU: (gpu) =>
         set((state) => ({
           selectedGPU: gpu,

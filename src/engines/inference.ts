@@ -109,32 +109,48 @@ export function calculateMoEActiveParams(model: Model): number {
  */
 export function calculateMoEBatchedParams(model: Model, batchSize: number): number {
   const activeParams = calculateMoEActiveParams(model)
-
-  if (
-    model.architecture !== 'moe' ||
-    !model.num_experts ||
-    !model.num_experts_per_token ||
-    batchSize <= 1
-  ) {
-    return activeParams
-  }
+  const split = splitMoEParams(model)
+  if (!split || batchSize <= 1) return activeParams
 
   const total = new Decimal(model.num_parameters_billion)
-  const singleTokenFraction = new Decimal(model.num_experts_per_token).div(model.num_experts)
-
-  // k >= E means every token already touches every expert; there is nothing to grow into.
-  if (singleTokenFraction.greaterThanOrEqualTo(1)) return total.toNumber()
-
-  // Split the total into the part every token reads and the part routing selects, using
-  // the batch-1 figure as the anchor: active = nonExpert + expertTotal * (k/E).
-  const expertTotal = total.sub(activeParams).div(new Decimal(1).sub(singleTokenFraction))
-  const nonExpertParams = total.sub(expertTotal)
-
+  const singleTokenFraction = new Decimal(split.expertsPerToken).div(split.experts)
   const batchFraction = new Decimal(1).sub(new Decimal(1).sub(singleTokenFraction).pow(batchSize))
-  const batched = nonExpertParams.add(expertTotal.mul(batchFraction))
+  const batched = new Decimal(split.baseB).add(new Decimal(split.routedB).mul(batchFraction))
 
   // Never below the batch-1 figure, never above the full weight set.
   return Decimal.min(Decimal.max(batched, activeParams), total).toNumber()
+}
+
+/**
+ * Split a MoE model into the part every token reads and the routed experts.
+ *
+ * Anchored on the batch-1 figure: active = base + routed * (k/E), so
+ * routed = (total - active) / (1 - k/E). Checked against Kimi K3: one expert
+ * across its 92 MoE layers comes out at 3.041B against 3.039B from config.json,
+ * and the base at 55.3B against 57.2B of non-routed safetensors.
+ *
+ * Returns null for dense models, incomplete MoE fields, or k >= E (every token
+ * already touches every expert, so there is nothing to split).
+ */
+export function splitMoEParams(
+  model: Model,
+): { baseB: number; routedB: number; experts: number; expertsPerToken: number } | null {
+  const experts = model.num_experts
+  const expertsPerToken = model.num_experts_per_token
+  if (model.architecture !== 'moe' || !experts || !expertsPerToken) return null
+  const singleTokenFraction = new Decimal(expertsPerToken).div(experts)
+  if (singleTokenFraction.greaterThanOrEqualTo(1)) return null
+
+  const total = new Decimal(model.num_parameters_billion)
+  const routed = total
+    .sub(calculateMoEActiveParams(model))
+    .div(new Decimal(1).sub(singleTokenFraction))
+  return {
+    baseB: total.sub(routed).toNumber(),
+    routedB: routed.toNumber(),
+    experts,
+    expertsPerToken,
+  }
 }
 
 /**

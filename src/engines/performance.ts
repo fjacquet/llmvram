@@ -1,7 +1,7 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU } from './constants'
-import { calculateMoEActiveParams, calculateMoEBatchedParams } from './inference'
+import { calculateMoEActiveParams, calculateMoEBatchedParams, splitMoEParams } from './inference'
 import { calculateKVCacheVRAM } from './kv-cache'
 import { kvCacheTPShards, resolveInterconnect } from './multi-gpu'
 import { calculateModelWeightVRAM } from './quantization'
@@ -33,25 +33,46 @@ export interface PerformanceParams {
 }
 
 /**
+ * Expert-parallel all-to-all for one MoE layer: dispatch each token's hidden state to
+ * its top-k experts in FP8 (1 byte), combine the results back in BF16 (2 bytes), each
+ * paying one small-message latency. Bandwidth-bound at real batch sizes: DeepEP's EP8
+ * table (128 tokens, 7168 hidden, top-8) moves 22 MB in 77 + 114 us.
+ *
+ * @param uniGBps - one-direction link bandwidth per GPU in GB/s
+ */
+export function expertAllToAllSeconds(
+  tokensPerGPU: number,
+  expertsPerToken: number,
+  hidden: number,
+  uniGBps: number,
+  latencyUs: number,
+): number {
+  const bytes = tokensPerGPU * expertsPerToken * hidden * (1 + 2)
+  return (2 * latencyUs) / 1e6 + bytes / (uniGBps * 1e9)
+}
+
+/**
  * How a multi-GPU layout divides one decode step.
  *
- * Pipeline stages run one after another; the GPUs inside a stage split its
- * layers by tensor parallelism. Nodes are always pipeline stages (see
- * multi-node.ts), and intra-node pipeline parallelism adds gpusPerNode stages
- * per node.
+ * Pipeline stages run one after another; the GPUs inside a stage split its layers
+ * by tensor parallelism or, for MoE, by expert parallelism. Nodes are always
+ * pipeline stages (see multi-node.ts), and intra-node pipeline parallelism adds
+ * gpusPerNode stages per node.
  */
-function decodeLayout(model: Model, gpu: GPU, multi: MultiGPUVRAMBreakdown | null | undefined) {
+function decodeLayout(model: Model, multi: MultiGPUVRAMBreakdown | null | undefined) {
   if (!multi || multi.numGPUs <= 1) {
-    return { stages: 1, tpDegree: 1, kvShards: 1, allreduceLatencyUs: 0, interNodeEfficiency: 1 }
+    return { strategy: null, stages: 1, gpusPerStage: 1, kvShards: 1, interNodeEfficiency: 1 }
   }
   const intraPP = multi.strategy === 'pipeline-parallel'
-  const tpDegree = intraPP ? 1 : multi.gpusPerNode
+  const gpusPerStage = intraPP ? 1 : multi.gpusPerNode
+  let kvShards = 1
+  if (multi.strategy === 'expert-parallel') kvShards = gpusPerStage
+  else if (gpusPerStage > 1) kvShards = kvCacheTPShards(model, gpusPerStage)
   return {
+    strategy: gpusPerStage > 1 ? multi.strategy : null,
     stages: multi.numNodes * (intraPP ? multi.gpusPerNode : 1),
-    tpDegree,
-    kvShards: tpDegree > 1 ? kvCacheTPShards(model, tpDegree) : 1,
-    allreduceLatencyUs:
-      tpDegree > 1 ? INTERCONNECT_SPECS[resolveInterconnect(gpu)].allreduceLatencyUs : 0,
+    gpusPerStage,
+    kvShards,
     interNodeEfficiency: multi.interNodeDecodeEfficiency,
   }
 }
@@ -125,14 +146,21 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     kvPrecision: kvQuantization,
   }).mul(BYTES_PER_GB)
 
-  // 2. Per-GPU share of one step. Each pipeline stage holds 1/stages of the layers;
-  //    inside a stage tensor parallelism splits the weights tpDegree ways and the KV
-  //    only kvShards ways (MLA duplicates it, GQA stops at one head per GPU).
-  const layout = decodeLayout(model, gpu, multiGPUResult)
-  const perGPUBytes = weightBytes
-    .div(layout.tpDegree)
-    .add(kvBytes.div(layout.kvShards))
-    .div(layout.stages)
+  // 2. Per-GPU share of one step. Each pipeline stage holds 1/stages of the layers.
+  //    Inside a stage, tensor parallelism splits the weights gpusPerStage ways and the
+  //    KV only kvShards ways (MLA duplicates it, GQA stops at one head per GPU).
+  //    Expert parallelism reads the replicated base in full and 1/N of the routed
+  //    experts the batch touches; each GPU reads only its own sessions' KV.
+  const layout = decodeLayout(model, multiGPUResult)
+  const split = splitMoEParams(model)
+  const perGPUWeightBytes =
+    layout.strategy === 'expert-parallel' && split
+      ? calculateModelWeightVRAM(
+          split.baseB + Math.max(0, decodeParams - split.baseB) / layout.gpusPerStage,
+          quantization,
+        ).mul(BYTES_PER_GB)
+      : weightBytes.div(layout.gpusPerStage)
+  const perGPUBytes = perGPUWeightBytes.add(kvBytes.div(layout.kvShards)).div(layout.stages)
   const bandwidthBytesPerSec = new Decimal(gpu.memory_bandwidth_gbps).mul(1e9)
   const memorySeconds = perGPUBytes.div(bandwidthBytesPerSec)
 
@@ -154,22 +182,35 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     decodeGpuTFLOPS > 0
       ? flopsPerToken
           .mul(batchSize)
-          .div(layout.tpDegree * layout.stages)
+          .div(layout.gpusPerStage * layout.stages)
           .div(new Decimal(decodeGpuTFLOPS).mul(1e12))
       : new Decimal(0)
 
-  // 4. Roofline per stage, plus two all-reduces per layer for tensor parallelism
-  //    (after attention and after the MLP). A step flows through the stages in
+  // 4. Roofline per stage, plus communication per layer: two all-reduces for tensor
+  //    parallelism (after attention and after the MLP), one dispatch + combine
+  //    all-to-all for expert parallelism. A step flows through the stages in
   //    turn; with batchSize sequences in flight the pipeline overlaps them, less
   //    the bubble B / (B + stages - 1). A decode token cannot be split into
   //    micro-batches (unlike a prompt, see fabric.ts pipelineBubbleEfficiency), so
   //    at batch 1 pipeline parallelism gives no decode speedup.
-  const allreduceSeconds = new Decimal(layout.allreduceLatencyUs)
-    .mul(2)
-    .mul(model.num_hidden_layers)
-    .div(layout.stages)
-    .div(1e6)
-  const stageSeconds = Decimal.max(memorySeconds, computeSeconds).add(allreduceSeconds)
+  const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+  const layersPerStage = model.num_hidden_layers / layout.stages
+  let commSecondsPerLayer = 0
+  if (layout.strategy === 'tensor-parallel') {
+    commSecondsPerLayer = (2 * link.allreduceLatencyUs) / 1e6
+  } else if (layout.strategy === 'expert-parallel' && split) {
+    // bandwidthGBps is bidirectional per GPU; one direction carries each transfer
+    commSecondsPerLayer = expertAllToAllSeconds(
+      batchSize / layout.gpusPerStage,
+      split.expertsPerToken,
+      model.hidden_size,
+      link.bandwidthGBps / 2,
+      link.allreduceLatencyUs,
+    )
+  }
+  const stageSeconds = Decimal.max(memorySeconds, computeSeconds).add(
+    commSecondsPerLayer * layersPerStage,
+  )
   const tokensPerSecond = new Decimal(batchSize)
     .div(stageSeconds)
     .mul(new Decimal(batchSize).div(batchSize + layout.stages - 1))

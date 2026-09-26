@@ -144,8 +144,10 @@ export type CalculationInput = z.infer<typeof CalculationInputSchema>
  *   (requires high-bandwidth interconnect like NVLink)
  * - pipeline-parallel: Distribute layers across GPUs, each GPU processes different
  *   stages of the pipeline (lower bandwidth requirements, higher latency)
+ * - expert-parallel: MoE only. Routed experts split across GPUs, attention and the
+ *   rest replicated (DP attention); each GPU holds only its own sessions' KV cache
  */
-export type ShardingStrategy = 'tensor-parallel' | 'pipeline-parallel'
+export type ShardingStrategy = 'tensor-parallel' | 'pipeline-parallel' | 'expert-parallel'
 
 /**
  * GPU interconnect types with different bandwidth characteristics

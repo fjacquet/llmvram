@@ -3,7 +3,7 @@ import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { calculateInferenceVRAM } from './inference'
 import { calculateMultiGPUVRAM } from './multi-gpu'
-import { estimatePerformance } from './performance'
+import { estimatePerformance, expertAllToAllSeconds } from './performance'
 import type { MultiGPUVRAMBreakdown } from './types'
 
 // Test fixtures
@@ -798,5 +798,47 @@ describe('estimatePerformance - multi-GPU decode', () => {
     expect(run({ ...mla, use_mla: true }, 8, 'tensor-parallel')).toBeLessThan(
       run(gqa, 8, 'tensor-parallel'),
     )
+  })
+})
+
+describe('expert-parallel decode', () => {
+  it('prices all-to-all as latency plus bytes over the link (DeepEP anchor)', () => {
+    // DeepEP legacy table, EP8: 128 tokens, 7168 hidden, top-8, FP8 dispatch + BF16
+    // combine = 77 + 114 us, moving 22 MB at ~115 GB/s.
+    const seconds = expertAllToAllSeconds(128, 8, 7168, 115, 0)
+    expect(seconds * 1e6).toBeGreaterThan(191 * 0.9)
+    expect(seconds * 1e6).toBeLessThan(191 * 1.1)
+  })
+
+  it('serves a long-context MLA MoE faster than TP, which re-reads duplicated KV', () => {
+    const moe: Model = {
+      ...llama3_70b,
+      architecture: 'moe',
+      num_parameters_billion: 671,
+      active_parameters_billion: 37,
+      num_experts: 256,
+      num_experts_per_token: 8,
+      kv_cache_elements_per_token: 35136,
+      use_mla: true,
+    }
+    const nvl: GPU = { ...h100_80gb_sxm, vram_gb: 288, interconnect: 'nvlink-5' }
+    const run = (strategy: 'tensor-parallel' | 'expert-parallel') => {
+      const single = calculateInferenceVRAM({
+        model: moe,
+        quantization: 'fp8',
+        sequenceLength: 131072,
+        batchSize: 64,
+      })
+      const multi = calculateMultiGPUVRAM(single, moe, 288, 8, strategy, nvl)
+      return estimatePerformance({
+        model: moe,
+        gpu: nvl,
+        quantization: 'fp8',
+        batchSize: 64,
+        sequenceLength: 131072,
+        multiGPUResult: multi,
+      }).tokensPerSecond.toNumber()
+    }
+    expect(run('expert-parallel')).toBeGreaterThan(run('tensor-parallel'))
   })
 })

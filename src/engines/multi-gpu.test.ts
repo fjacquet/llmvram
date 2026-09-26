@@ -904,3 +904,60 @@ describe('tensor parallel memory follows vLLM', () => {
     expect(result.scalingEfficiency).toBeLessThan(1)
   })
 })
+
+// vLLM Expert Parallel Deployment: "Expert (MoE) layers are sharded across all EP
+// ranks... Attention layers... replicated across DP ranks if TP=1".
+describe('expert parallel + DP attention', () => {
+  const kimiLike: Model = {
+    ...mixtral8x7b,
+    num_parameters_billion: 2779.9,
+    active_parameters_billion: 104,
+    num_experts: 896,
+    num_experts_per_token: 16,
+    kv_cache_elements_per_token: 13824,
+    use_mla: true,
+  }
+  const nvl72: GPU = { ...h100, vram_gb: 288, interconnect: 'nvlink-5', max_gpus_per_node: 72 }
+  const singleGPU = calculateInferenceVRAM({
+    model: kimiLike,
+    quantization: 'mxfp4',
+    sequenceLength: 262144,
+    batchSize: 1,
+    concurrentUsers: 72,
+  })
+  const ep = calculateMultiGPUVRAM(singleGPU, kimiLike, 288, 72, 'expert-parallel', nvl72)
+  const tp = calculateMultiGPUVRAM(singleGPU, kimiLike, 288, 72, 'tensor-parallel', nvl72)
+
+  it('spreads sessions across ranks: KV / N even for MLA', () => {
+    expect(ep.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(72).toString())
+    expect(tp.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.toString())
+  })
+
+  it('replicates the base, so weights per GPU exceed TP', () => {
+    expect(ep.perGPU.modelWeights.toNumber()).toBeGreaterThan(tp.perGPU.modelWeights.toNumber())
+    expect(ep.totalPerGPU.toNumber()).toBeLessThan(tp.totalPerGPU.toNumber())
+  })
+
+  it('charges one framework context and the NCCL buffers per GPU', () => {
+    expect(ep.perGPU.frameworkOverhead.toNumber()).toBe(1)
+    expect(ep.perGPU.communicationOverhead.toNumber()).toBe(0.25)
+    expect(ep.strategy).toBe('expert-parallel')
+  })
+
+  it('refuses a dense model', () => {
+    const dense = calculateInferenceVRAM({
+      model: llama70b,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+    expect(() => calculateMultiGPUVRAM(dense, llama70b, 80, 8, 'expert-parallel', h100)).toThrow()
+  })
+})
+
+describe('validateInterconnect - expert parallel', () => {
+  it('does not warn about the TP degree for EP across a whole NVL72', () => {
+    const nvl72Like: GPU = { ...h100, interconnect: 'nvlink-5', max_gpus_per_node: 72 }
+    expect(validateInterconnect(nvl72Like, 72, 'expert-parallel').warning).toBeNull()
+  })
+})
