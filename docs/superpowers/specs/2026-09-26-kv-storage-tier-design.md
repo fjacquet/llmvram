@@ -1,4 +1,4 @@
-# KV Storage Tier (Dell Lightning / CMX / PowerScale / ObjectScale)
+# KV Storage Tier (host memory / NVMe / CMX / PowerScale / ObjectScale)
 
 **Date:** 2026-09-26
 **Status:** Approved 2026-09-26
@@ -43,8 +43,8 @@ Two tiers per session: **hot** (in HBM, decoding) and **parked** (on the tier).
 
 Inputs (new "KV storage tier" panel, off by default):
 
-1. **Tier**: none | host memory | local NVMe | network storage (Lightning, CMX,
-   PowerScale, ObjectScale). Each preset sets a per-GPU read bandwidth; a custom
+1. **Tier**: none | host memory | local NVMe | network storage (CMX, PowerScale,
+   ObjectScale). Each preset sets a per-GPU read bandwidth; a custom
    value overrides it.
 2. **Active share**: fraction of sessions decoding at any moment (default 25%,
    a typical agentic duty cycle; user-set).
@@ -70,7 +70,6 @@ Preset bandwidths (per GPU, read, **estimates**, sources in code):
 | Host memory (PCIe 5) | 50 | PCIe 5 x16 ~64 GB/s, practical |
 | Local NVMe | 12 | ~4 Gen5 drives per 8-GPU server striped |
 | Network storage | 12.5 | one 400 GbE storage NIC share per GPU; matches the Dell anchor (≥ 51 GB/s per 4-GPU server = 12.8 per GPU) |
-| Dell Lightning FS | 12.5 | same client-side limit as network storage: Dell publishes no per-GPU figure (150 GB/s per rack unit is the storage side); the UI notes this |
 
 ## Engine
 
@@ -97,6 +96,8 @@ chosen tier.
 ## Decisions (review 2026-09-26)
 
 1. Defaults accepted: active share 25%, active burst 30 s.
-2. A named "Dell Lightning FS" preset is added (12.5 GB/s per GPU, with a note that
-   Dell publishes no per-GPU figure).
+2. **No Lightning preset.** Dell positions Lightning FS for > 16K GPUs or 4 TB/s
+   aggregate; this tool sizes up to 8 nodes. Lightning sizing is cluster storage
+   sizing (aggregate throughput, capacity), which belongs to raidy. The guide says
+   so. (First accepted, then reversed in the same review.)
 3. PDF/PPTX exports: later, not in this piece.
