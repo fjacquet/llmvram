@@ -1,7 +1,7 @@
 import type { Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { BYTES_PER_GB, FRAMEWORK_OVERHEAD_GB, PREFILL_CHUNK_TOKENS } from './constants'
-import { calculateKVCacheVRAM } from './kv-cache'
+import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
 import { calculateModelWeightVRAM } from './quantization'
 import type { InferenceVRAMBreakdown, KVCachePrecision, QuantizationFormat } from './types'
 
@@ -288,6 +288,7 @@ export function calculateInferenceVRAM(params: {
     batchSize: concurrentUsers ?? batchSize,
     kvPrecision: kvQuantization,
   })
+  const linearState = calculateLinearStateVRAM(model, concurrentUsers ?? batchSize)
 
   // 3. Activation memory (uses active params for MoE)
   const activations = calculateActivationMemory(model, sequenceLength, batchSize)
@@ -302,6 +303,7 @@ export function calculateInferenceVRAM(params: {
   return {
     modelWeights,
     kvCache,
+    linearState,
     activations,
     frameworkOverhead,
     total,

@@ -2,7 +2,7 @@ import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU } from './constants'
 import { calculateMoEActiveParams, calculateMoEBatchedParams, splitMoEParams } from './inference'
-import { calculateKVCacheVRAM } from './kv-cache'
+import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
 import { kvCacheTPShards, resolveInterconnect } from './multi-gpu'
 import { calculateModelWeightVRAM } from './quantization'
 import type {
@@ -160,7 +160,14 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
           quantization,
         ).mul(BYTES_PER_GB)
       : weightBytes.div(layout.gpusPerStage)
-  const perGPUBytes = perGPUWeightBytes.add(kvBytes.div(layout.kvShards)).div(layout.stages)
+  // Linear-attention state is part of kvBytes but splits across every GPU of the
+  // stage (vLLM divides its heads by tp_world_size), even where MLA KV is duplicated.
+  const stateBytes = calculateLinearStateVRAM(model, batchSize).mul(BYTES_PER_GB)
+  const perGPUKVBytes = kvBytes
+    .sub(stateBytes)
+    .div(layout.kvShards)
+    .add(stateBytes.div(layout.gpusPerStage))
+  const perGPUBytes = perGPUWeightBytes.add(perGPUKVBytes).div(layout.stages)
   const bandwidthBytesPerSec = new Decimal(gpu.memory_bandwidth_gbps).mul(1e9)
   const memorySeconds = perGPUBytes.div(bandwidthBytesPerSec)
 

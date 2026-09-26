@@ -122,6 +122,8 @@ export function calculateOffloadedVRAM(
     onDevice: {
       modelWeights: onDeviceModelWeights,
       kvCache: onDeviceKVCache,
+      // the state travels with the KV cache
+      linearState: config.kvCacheOffload ? new Decimal(0) : breakdown.linearState,
       activations: onDeviceActivations,
       frameworkOverhead: onDeviceFramework,
       total: onDeviceTotal,

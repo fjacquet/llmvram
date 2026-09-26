@@ -961,3 +961,26 @@ describe('validateInterconnect - expert parallel', () => {
     expect(validateInterconnect(nvl72Like, 72, 'expert-parallel').warning).toBeNull()
   })
 })
+
+describe('tensor parallel splits linear-attention state', () => {
+  it('divides the state N ways even when MLA KV is duplicated (vLLM divides by tp_world_size)', () => {
+    const k3Like: Model = {
+      ...mixtral8x7b,
+      kv_cache_elements_per_token: 13824,
+      use_mla: true,
+      linear_state_bytes_per_session: 232316928,
+    }
+    const single = calculateInferenceVRAM({
+      model: k3Like,
+      quantization: 'fp8',
+      sequenceLength: 8192,
+      batchSize: 1,
+      concurrentUsers: 8,
+    })
+    const tp = calculateMultiGPUVRAM(single, k3Like, 288, 8, 'tensor-parallel', h100)
+    const state = single.linearState ?? new Decimal(0)
+    expect(state.toNumber()).toBeGreaterThan(0)
+    const attentionKV = single.kvCache.sub(state)
+    expect(tp.perGPU.kvCache.toString()).toBe(attentionKV.add(state.div(8)).toString())
+  })
+})

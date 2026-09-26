@@ -45,9 +45,21 @@ export function calculateKVCacheVRAM(params: {
   kvPrecision: KVCachePrecision
 }): Decimal {
   const { model, sequenceLength, batchSize, kvPrecision } = params
-  return fullAttentionKV(model, sequenceLength, batchSize, kvPrecision).add(
-    slidingWindowKV(model, sequenceLength, batchSize, kvPrecision),
-  )
+  return fullAttentionKV(model, sequenceLength, batchSize, kvPrecision)
+    .add(slidingWindowKV(model, sequenceLength, batchSize, kvPrecision))
+    .add(calculateLinearStateVRAM(model, batchSize))
+}
+
+/**
+ * Linear-attention / SSM state (Qwen3.6/3.8, Kimi K3 and Linear, Ling 3.0, Nemotron 3,
+ * LFM2.5): a fixed conv + recurrent state per session, independent of context length
+ * and of KV quantization (vLLM sizes it from the model's own dtype).
+ *
+ * @returns GB for `sessions` sessions
+ */
+export function calculateLinearStateVRAM(model: Model, sessions: number): Decimal {
+  if (!model.linear_state_bytes_per_session) return new Decimal(0)
+  return new Decimal(model.linear_state_bytes_per_session).mul(sessions).div(BYTES_PER_GB)
 }
 
 /**

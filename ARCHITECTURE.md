@@ -183,7 +183,8 @@ One bytes-per-parameter figure applies to every tensor. Real checkpoints keep em
 - `full_elements` is `kv_cache_elements_per_token` when the model has it (MLA, hybrid, explicit head_dim), else `2 × layers × hidden × num_kv_heads / num_attention_heads`.
 - `sliding_elements` / `window` are `kv_sliding_elements_per_token` / `kv_sliding_window` (Gemma 3/4, gpt-oss, Llama 4, DeepSeek V4), allocated at `min(window, context)` as vLLM does.
 - These values are known-good (what vLLM allocates, confirmed by a second source), never re-derived by hand.
-- `concurrentUsers` (1-65,536) replaces `batchSize` so the estimate covers every resident session. Constant-size linear-attention / Mamba state is not counted yet.
+- `linear_state_bytes_per_session` (hybrid models) adds a constant conv + recurrent state per session; `InferenceVRAMBreakdown.linearState` carries it so tensor parallelism can split it across every GPU while KV keeps its head floor.
+- `concurrentUsers` (1-65,536) replaces `batchSize` so the estimate covers every resident session.
 
 Supports independent KV cache quantization (FP16, FP8, INT8, INT4).
 
