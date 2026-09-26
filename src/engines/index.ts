@@ -41,6 +41,13 @@ export { calculateInferenceVRAM } from './inference'
 
 // KV cache engine
 export { calculateKVCacheVRAM } from './kv-cache'
+export {
+  DEFAULT_KV_TIER,
+  KV_TIER_PRESETS,
+  type KVTierSettings,
+  type KVTierType,
+  kvTierSummary,
+} from './kv-tier'
 // LoRA/QLoRA training engine
 export {
   calculateLoRAAdapterParams,
@@ -49,14 +56,12 @@ export {
 } from './lora'
 // Multi-node engine
 export { calculateMultiNodeVRAM } from './multi-node'
-
 // Optimization engine
 export {
   applyFlashAttention,
   applyGradientCheckpointing,
   calculateEffectiveBatchSize,
 } from './optimizations'
-
 // Performance engine
 export { estimatePerformance } from './performance'
 
