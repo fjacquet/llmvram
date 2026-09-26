@@ -134,15 +134,42 @@ describe('GPU Database Validation', () => {
     expect(nvl72?.max_gpus_per_node).toBe(72)
   })
 
-  it('gives the two GB300 rows identical silicon specs', () => {
+  it('gives the two Blackwell Ultra rows the same bandwidth and interconnect', () => {
     const result = validateGPUs(gpusData)
     const hgx = result.find((g) => g.id === 'nvidia-gb300-288gb')
     const nvl72 = result.find((g) => g.id === 'nvidia-gb300-nvl72')
 
-    expect(nvl72?.vram_gb).toBe(hgx?.vram_gb)
     expect(nvl72?.memory_bandwidth_gbps).toBe(hgx?.memory_bandwidth_gbps)
-    expect(nvl72?.fp16_tflops).toBe(hgx?.fp16_tflops)
     expect(nvl72?.interconnect).toBe(hgx?.interconnect)
+  })
+
+  it('lists HGX B300 at its air-cooled baseboard figures, not the NVL72 ones', () => {
+    // NVIDIA HGX page: 2.1 TB total, 36 PF FP16 sparse, 600 TF FP32, across 8 GPUs
+    const hgx = validateGPUs(gpusData).find((g) => g.id === 'nvidia-gb300-288gb')
+    expect(hgx?.vram_gb).toBe(262.5)
+    expect(hgx?.fp16_tflops).toBe(2250)
+    expect(hgx?.fp32_tflops).toBe(75)
+    expect(hgx?.tdp_watts).toBe(1100)
+    expect(hgx?.name).not.toContain('GB300')
+    expect(hgx?.spec_url).toBe('https://www.nvidia.com/en-us/data-center/hgx/')
+  })
+
+  it('lists GB300 NVL72 at dense FP16 (360 PF sparse / 72 / 2)', () => {
+    const nvl72 = gpusData.find((g) => g.id === 'nvidia-gb300-nvl72')
+    expect(nvl72?.fp16_tflops).toBe(2500)
+  })
+
+  it('lists the GB300 Desktop Superchip at dense FP16 (5 PF sparse / 2)', () => {
+    const desktop = gpusData.find((g) => g.id === 'nvidia-gb300-desktop-252gb')
+    expect(desktop?.fp16_tflops).toBe(2500)
+  })
+
+  it('stores dense FP16 for every GPU, never a with-sparsity figure', () => {
+    // The densest part in the database is ~2.5 PF (GB300, MI355X). Anything above
+    // 2600 means a vendor's with-sparsity number leaked in.
+    for (const gpu of gpusData) {
+      expect(gpu.fp16_tflops ?? 0, gpu.id).toBeLessThan(2600)
+    }
   })
 })
 
@@ -194,5 +221,10 @@ describe('NVIDIA B200', () => {
     expect(b200).toBeDefined()
     expect(b200?.vram_gb).toBe(180)
     expect(b200?.name).not.toContain('192')
+  })
+
+  it('lists B200 at dense FP16 (HGX B200: 36 PF sparse / 8 / 2)', () => {
+    const b200 = gpusData.find((g) => g.id === 'nvidia-b200-192gb')
+    expect(b200?.fp16_tflops).toBe(2250)
   })
 })

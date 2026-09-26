@@ -8,6 +8,8 @@ const QUANTIZATION_LABELS: Record<QuantizationFormat, string> = {
   fp32: 'FP32 (32-bit float)',
   fp16: 'FP16 (16-bit float)',
   bf16: 'BF16 (Brain Float 16)',
+  fp8: 'FP8 (8-bit float)',
+  mxfp4: 'MXFP4 (OCP 4-bit float)',
   nvfp6: 'NVFP6 (NVIDIA 6-bit float)',
   nvfp4: 'NVFP4 (NVIDIA 4-bit float)',
   int8: 'INT8 (8-bit integer)',
@@ -30,7 +32,7 @@ const QUANTIZATION_LABELS: Record<QuantizationFormat, string> = {
 }
 
 const QUANTIZATION_GROUPS = {
-  float: ['fp32', 'fp16', 'bf16'] as QuantizationFormat[],
+  float: ['fp32', 'fp16', 'bf16', 'fp8', 'mxfp4'] as QuantizationFormat[],
   nvidia: ['nvfp6', 'nvfp4'] as QuantizationFormat[],
   integer: ['int8', 'int4', 'nf4'] as QuantizationFormat[],
   compressed: ['gptq', 'awq'] as QuantizationFormat[],

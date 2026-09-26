@@ -44,6 +44,7 @@ scripts/          # Data refresh scripts (tsx) — fetch from HuggingFace, valid
 - **Engines are pure**: Calculation logic in `engines/` must be pure functions with no React/DOM dependencies — designed for testability and potential Web Worker offloading.
 - **Static data + custom input**: Curated JSON databases for common GPUs/models, plus `CustomGPUInput`/`CustomModelInput` interfaces for user-specified hardware/models.
 - **MoE models use total parameters**: For MoE models like Mixtral, `num_parameters_billion` is the **total** parameter count (e.g., 46.7B), not active-per-token (e.g., 13B). All expert weights must fit in VRAM.
+- **KV sizes are known-good values, not formulas**: `kv_cache_elements_per_token` (full-attention layers) and `kv_sliding_elements_per_token` + `kv_sliding_window` (windowed layers) are what vLLM allocates, confirmed by a second source (HF transformers cache shapes or a published figure). Never re-derive them by hand; every value in `models.test.ts` carries its source.
 - **Models sorted by name**: Entries in `src/data/models.json` must always be sorted alphabetically by `name`. After adding or modifying models, re-sort the array.
 - **GPU data is generated**: `src/data/gpus.json` is regenerated from the `GPUS` array in `scripts/fetch-gpus.ts`. Never hand-edit the JSON — edits are silently lost on the next `npm run refresh:gpus`.
 - **GPUs grouped by vendor, NOT sorted**: unlike `models.json`, `src/data/gpus.json` is grouped by manufacturer. The alphabetical-sort rule above applies to models only.
@@ -76,7 +77,7 @@ When implementing VRAM calculations, be aware of these critical estimation error
 3. **Multi-GPU overhead**: Not a simple `total / n_gpus` — tensor parallelism replicates embeddings/layernorms (85-90% effective split), plus NCCL buffers (100-500MB/GPU).
 4. **Fine-tuning memory**: LoRA/QLoRA optimizer states apply only to adapter parameters (~1% of full), not the entire model.
 5. **Framework overhead**: Always add 500MB-1.5GB baseline (PyTorch + CUDA context).
-6. **`fp16_tflops` is DENSE**: H100 989, B200 4500, MI300X 1307. AMD publishes FP16 *with sparsity* ("4.6/5.0 PFLOPS") — double the dense figure. Dense FP16 = dense FP8 / 2.
+6. **`fp16_tflops` is DENSE**: H100 989, B200 2250, GB300 2500, MI300X 1307. NVIDIA's Blackwell pages ("with sparsity unless otherwise noted") and AMD ("4.6/5.0 PFLOPS") both publish FP16 *with sparsity* — double the dense figure. Dense FP16 = dense FP8 / 2. A test guards every GPU below 2600.
 7. **Two interconnect tables, two unit conventions**: `INTERCONNECT_SPECS` (scale-up, GPU-to-GPU in one chassis) is **bidirectional** per-GPU; `FABRIC_SPECS` (scale-out, server-to-server) `portGBps` is **unidirectional** per port. Mixing them halves or doubles the answer.
 8. **B200 is 180GB, not 192GB**: 192 is the physical HBM3e stack size before reserved capacity. HGX B200 ships 1.44TB across 8 GPUs. Use the allocatable figure.
 

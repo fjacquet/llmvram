@@ -49,7 +49,7 @@
     "id": "deepseek-v4-flash",
     "name": "DeepSeek V4 Flash",
     "architecture": "moe",
-    "num_parameters_billion": 158.1,
+    "num_parameters_billion": 284,
     "hidden_size": 4096,
     "num_hidden_layers": 43,
     "num_attention_heads": 64,
@@ -60,13 +60,16 @@
     "context_length": 1048576,
     "license": "MIT",
     "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731",
-    "kv_cache_elements_per_token": 24768
+    "kv_cache_elements_per_token": 3440,
+    "kv_sliding_elements_per_token": 22016,
+    "kv_sliding_window": 128,
+    "active_parameters_billion": 13
   },
   {
     "id": "deepseek-v4-pro",
     "name": "DeepSeek V4 Pro",
     "architecture": "moe",
-    "num_parameters_billion": 861.6,
+    "num_parameters_billion": 1600,
     "hidden_size": 7168,
     "num_hidden_layers": 61,
     "num_attention_heads": 128,
@@ -77,7 +80,10 @@
     "context_length": 1048576,
     "license": "MIT",
     "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-0813",
-    "kv_cache_elements_per_token": 35136
+    "kv_cache_elements_per_token": 4924,
+    "kv_sliding_elements_per_token": 31232,
+    "kv_sliding_window": 128,
+    "active_parameters_billion": 49
   },
   {
     "id": "mistralai-devstral-2-123b",
@@ -89,9 +95,9 @@
     "num_attention_heads": 96,
     "num_kv_heads": 8,
     "intermediate_size": 28672,
-    "context_length": 131072,
+    "context_length": 262144,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/mistralai/Devstral-2-123B"
+    "hf_url": "https://huggingface.co/mistralai/Devstral-2-123B-Instruct-2512"
   },
   {
     "id": "zai-org-glm-4.7",
@@ -105,10 +111,11 @@
     "intermediate_size": 12288,
     "num_experts": 160,
     "num_experts_per_token": 8,
-    "context_length": 131072,
+    "context_length": 202752,
     "license": "MIT",
     "hf_url": "https://huggingface.co/zai-org/GLM-4.7",
-    "active_parameters_billion": 38.8
+    "active_parameters_billion": 38.8,
+    "kv_cache_elements_per_token": 188416
   },
   {
     "id": "zai-org-glm-4.7-flash",
@@ -122,10 +129,11 @@
     "intermediate_size": 10240,
     "num_experts": 64,
     "num_experts_per_token": 4,
-    "context_length": 131072,
+    "context_length": 202752,
     "license": "MIT",
     "hf_url": "https://huggingface.co/zai-org/GLM-4.7-Flash",
-    "active_parameters_billion": 3
+    "active_parameters_billion": 3,
+    "kv_cache_elements_per_token": 27072
   },
   {
     "id": "zai-org-glm-5.2",
@@ -160,7 +168,10 @@
     "context_length": 131072,
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/openai/gpt-oss-120b",
-    "active_parameters_billion": 5.1
+    "active_parameters_billion": 5.1,
+    "kv_cache_elements_per_token": 18432,
+    "kv_sliding_elements_per_token": 18432,
+    "kv_sliding_window": 128
   },
   {
     "id": "openai-gpt-oss-20b",
@@ -177,7 +188,10 @@
     "context_length": 131072,
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/openai/gpt-oss-20b",
-    "active_parameters_billion": 3.6
+    "active_parameters_billion": 3.6,
+    "kv_cache_elements_per_token": 12288,
+    "kv_sliding_elements_per_token": 12288,
+    "kv_sliding_window": 128
   },
   {
     "id": "google-gemma-3-12b",
@@ -191,7 +205,10 @@
     "intermediate_size": 15360,
     "context_length": 131072,
     "license": "Gemma",
-    "hf_url": "https://huggingface.co/google/gemma-3-12b-it"
+    "hf_url": "https://huggingface.co/google/gemma-3-12b-it",
+    "kv_cache_elements_per_token": 32768,
+    "kv_sliding_elements_per_token": 163840,
+    "kv_sliding_window": 1024
   },
   {
     "id": "google-gemma-3-1b",
@@ -205,7 +222,10 @@
     "intermediate_size": 6912,
     "context_length": 32768,
     "license": "Gemma",
-    "hf_url": "https://huggingface.co/google/gemma-3-1b-it"
+    "hf_url": "https://huggingface.co/google/gemma-3-1b-it",
+    "kv_cache_elements_per_token": 2048,
+    "kv_sliding_elements_per_token": 11264,
+    "kv_sliding_window": 512
   },
   {
     "id": "google-gemma-3-27b",
@@ -219,7 +239,10 @@
     "intermediate_size": 21504,
     "context_length": 131072,
     "license": "Gemma",
-    "hf_url": "https://huggingface.co/google/gemma-3-27b-it"
+    "hf_url": "https://huggingface.co/google/gemma-3-27b-it",
+    "kv_cache_elements_per_token": 40960,
+    "kv_sliding_elements_per_token": 212992,
+    "kv_sliding_window": 1024
   },
   {
     "id": "google-gemma-3-4b",
@@ -233,7 +256,10 @@
     "intermediate_size": 10240,
     "context_length": 131072,
     "license": "Gemma",
-    "hf_url": "https://huggingface.co/google/gemma-3-4b-it"
+    "hf_url": "https://huggingface.co/google/gemma-3-4b-it",
+    "kv_cache_elements_per_token": 10240,
+    "kv_sliding_elements_per_token": 59392,
+    "kv_sliding_window": 1024
   },
   {
     "id": "google-gemma-4-12b",
@@ -247,7 +273,10 @@
     "intermediate_size": 15360,
     "context_length": 262144,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/google/gemma-4-12B-it"
+    "hf_url": "https://huggingface.co/google/gemma-4-12B-it",
+    "kv_cache_elements_per_token": 8192,
+    "kv_sliding_elements_per_token": 163840,
+    "kv_sliding_window": 1024
   },
   {
     "id": "google-gemma-4-26b-a4b",
@@ -264,7 +293,10 @@
     "context_length": 262144,
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/google/gemma-4-26B-A4B-it",
-    "active_parameters_billion": 4
+    "active_parameters_billion": 4,
+    "kv_cache_elements_per_token": 10240,
+    "kv_sliding_elements_per_token": 102400,
+    "kv_sliding_window": 1024
   },
   {
     "id": "google-gemma-4-31b",
@@ -278,7 +310,10 @@
     "intermediate_size": 21504,
     "context_length": 262144,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/google/gemma-4-31B-it"
+    "hf_url": "https://huggingface.co/google/gemma-4-31B-it",
+    "kv_cache_elements_per_token": 40960,
+    "kv_sliding_elements_per_token": 409600,
+    "kv_sliding_window": 1024
   },
   {
     "id": "moonshotai-kimi-k2-instruct",
@@ -302,7 +337,7 @@
     "id": "moonshotai-kimi-k2-thinking",
     "name": "Kimi K2 Thinking",
     "architecture": "moe",
-    "num_parameters_billion": 1058.1,
+    "num_parameters_billion": 1026,
     "hidden_size": 7168,
     "num_hidden_layers": 61,
     "num_attention_heads": 64,
@@ -328,7 +363,7 @@
     "intermediate_size": 18432,
     "num_experts": 384,
     "num_experts_per_token": 8,
-    "context_length": 131072,
+    "context_length": 262144,
     "license": "MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2.5",
     "kv_cache_elements_per_token": 35136,
@@ -383,7 +418,7 @@
     "num_experts": 896,
     "num_experts_per_token": 16,
     "context_length": 1048576,
-    "license": "Modified MIT",
+    "license": "Kimi K3 License",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K3",
     "kv_cache_elements_per_token": 13824,
     "active_parameters_billion": 104
@@ -528,7 +563,10 @@
     "context_length": 1048576,
     "license": "Llama-4",
     "hf_url": "https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct",
-    "active_parameters_billion": 17
+    "active_parameters_billion": 17,
+    "kv_cache_elements_per_token": 24576,
+    "kv_sliding_elements_per_token": 73728,
+    "kv_sliding_window": 8192
   },
   {
     "id": "meta-llama-llama-4-scout",
@@ -545,7 +583,10 @@
     "context_length": 10485760,
     "license": "Llama-4",
     "hf_url": "https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct",
-    "active_parameters_billion": 17
+    "active_parameters_billion": 17,
+    "kv_cache_elements_per_token": 24576,
+    "kv_sliding_elements_per_token": 73728,
+    "kv_sliding_window": 8192
   },
   {
     "id": "mistralai-magistral-small-2507",
@@ -559,7 +600,8 @@
     "intermediate_size": 32768,
     "context_length": 131072,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/mistralai/Magistral-Small-2507"
+    "hf_url": "https://huggingface.co/mistralai/Magistral-Small-2507",
+    "kv_cache_elements_per_token": 81920
   },
   {
     "id": "minimax-m2.1",
@@ -573,7 +615,7 @@
     "intermediate_size": 1536,
     "num_experts": 256,
     "num_experts_per_token": 8,
-    "context_length": 1000192,
+    "context_length": 196608,
     "license": "MiniMax",
     "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M2.1",
     "kv_cache_elements_per_token": 126976,
@@ -630,7 +672,7 @@
     "context_length": 1048576,
     "license": "MiniMax",
     "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M3",
-    "kv_cache_elements_per_token": 61440,
+    "kv_cache_elements_per_token": 68736,
     "active_parameters_billion": 23
   },
   {
@@ -643,9 +685,10 @@
     "num_attention_heads": 32,
     "num_kv_heads": 8,
     "intermediate_size": 16384,
-    "context_length": 131072,
+    "context_length": 262144,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/mistralai/Ministral-3-14B-Reasoning-2512"
+    "hf_url": "https://huggingface.co/mistralai/Ministral-3-14B-Reasoning-2512",
+    "kv_cache_elements_per_token": 81920
   },
   {
     "id": "mistralai-mistral-large-3-675b",
@@ -693,7 +736,8 @@
     "context_length": 1048576,
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603",
-    "active_parameters_billion": 7.1
+    "active_parameters_billion": 7.1,
+    "kv_cache_elements_per_token": 11520
   },
   {
     "id": "nvidia-nemotron-3-nano-30b-a3b",
@@ -811,7 +855,8 @@
     "context_length": 131072,
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/Qwen/Qwen3-235B-A22B",
-    "active_parameters_billion": 22
+    "active_parameters_billion": 22,
+    "kv_cache_elements_per_token": 96256
   },
   {
     "id": "qwen-qwen3.6-27b",
@@ -825,7 +870,8 @@
     "intermediate_size": 17408,
     "context_length": 262144,
     "license": "Apache-2.0",
-    "hf_url": "https://huggingface.co/Qwen/Qwen3.6-27B"
+    "hf_url": "https://huggingface.co/Qwen/Qwen3.6-27B",
+    "kv_cache_elements_per_token": 32768
   },
   {
     "id": "qwen-qwen3.6-35b-a3b",
@@ -842,7 +888,8 @@
     "context_length": 262144,
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/Qwen/Qwen3.6-35B-A3B",
-    "active_parameters_billion": 3
+    "active_parameters_billion": 3,
+    "kv_cache_elements_per_token": 10240
   },
   {
     "id": "qwen-qwen3.8-2.4t-a95b",

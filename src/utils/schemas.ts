@@ -93,7 +93,7 @@ export const CustomFabricSchema = z.object({
 export type CustomFabricInput = z.infer<typeof CustomFabricSchema>
 
 // Model Schema based on HuggingFace config.json fields
-export const ModelSchema = z.object({
+const ModelFields = z.object({
   id: z.string().min(1),
   name: z.string(),
   architecture: z.enum(['dense', 'moe']),
@@ -109,6 +109,13 @@ export const ModelSchema = z.object({
   // (MLA latent dims, hybrid attention-layers-only, explicit head_dim). When present,
   // the KV-cache engine uses it directly instead of the GQA formula.
   kv_cache_elements_per_token: z.number().int().positive().optional(),
+
+  // Sliding-window / chunked-local layers (Gemma 3/4, gpt-oss, Llama 4): cached elements
+  // per token across those layers, and the window they are capped at. vLLM allocates
+  // them at min(window, context) tokens. kv_cache_elements_per_token then counts only
+  // the full-attention layers. Recorded data only: the engine does not read these yet.
+  kv_sliding_elements_per_token: z.number().int().positive().optional(),
+  kv_sliding_window: z.number().int().positive().optional(),
 
   intermediate_size: z.number().int().positive(),
 
@@ -127,6 +134,14 @@ export const ModelSchema = z.object({
   license: z.string().optional(),
   hf_url: z.string().url().optional(),
 })
+
+export const ModelSchema = ModelFields.refine(
+  (m) => (m.kv_sliding_elements_per_token === undefined) === (m.kv_sliding_window === undefined),
+  {
+    error: 'kv_sliding_elements_per_token and kv_sliding_window must be set together',
+    path: ['kv_sliding_window'],
+  },
+)
 
 // Export inferred types
 export type GPU = z.infer<typeof GPUSchema>
