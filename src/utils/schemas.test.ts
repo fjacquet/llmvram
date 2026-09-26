@@ -254,3 +254,24 @@ describe('validateGPUs / validateModels array helpers', () => {
     expect(models).toHaveLength(0)
   })
 })
+
+describe('ModelSchema sliding-window KV fields', () => {
+  it('accepts both sliding fields together', () => {
+    const model = {
+      ...validDenseModel,
+      kv_sliding_elements_per_token: 409600,
+      kv_sliding_window: 1024,
+    }
+    expect(ModelSchema.safeParse(model).success).toBe(true)
+  })
+
+  it('rejects a sliding per-token size without a window', () => {
+    const model = { ...validDenseModel, kv_sliding_elements_per_token: 409600 }
+    expect(ModelSchema.safeParse(model).success).toBe(false)
+  })
+
+  it('rejects a window without a sliding per-token size', () => {
+    const model = { ...validDenseModel, kv_sliding_window: 1024 }
+    expect(ModelSchema.safeParse(model).success).toBe(false)
+  })
+})

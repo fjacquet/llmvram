@@ -5,7 +5,7 @@ import { z } from 'zod'
 /**
  * All supported quantization formats for model weights
  *
- * Float formats: fp32, fp16, bf16
+ * Float formats: fp32, fp16, bf16, fp8 (E4M3/E5M2), mxfp4 (OCP MX, 4-bit + 8-bit scale per 32)
  * NVIDIA FP formats: nvfp4 (E2M1), nvfp6 (E3M2) — Blackwell/Hopper
  * Integer formats: int8, int4, nf4
  * Compressed formats with overhead: gptq, awq (4-bit with 1.2x overhead)
@@ -17,6 +17,8 @@ export type QuantizationFormat =
   | 'fp32'
   | 'fp16'
   | 'bf16'
+  | 'fp8'
+  | 'mxfp4'
   | 'nvfp6'
   | 'nvfp4'
   | 'int8'
@@ -104,6 +106,8 @@ export const CalculationInputSchema = z.object({
     'fp32',
     'fp16',
     'bf16',
+    'fp8',
+    'mxfp4',
     'nvfp6',
     'nvfp4',
     'int8',

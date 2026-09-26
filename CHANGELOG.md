@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- FP8 (1 byte/param) and MXFP4 (4.25 bits/param: 4-bit values plus one 8-bit scale per 32) weight formats. DeepSeek, Kimi K2 and MiniMax M2 ship FP8; gpt-oss and Kimi K3 ship MXFP4.
+- Optional `kv_sliding_elements_per_token` and `kv_sliding_window` model fields, recording the windowed layers of Gemma 3/4, gpt-oss, Llama 4 and DeepSeek V4. Recorded only: the engine does not read them yet.
+
+### Fixed
+
+- `fp16_tflops` stored NVIDIA's with-sparsity figure for Blackwell. B200 is now 2250 dense (was 4500), GB300 NVL72 and the GB300 Desktop Superchip 2500 (were 5000). Compute-bound estimates (prefill, time to first token) on these parts were 2x too optimistic.
+- The HGX B300 row copied NVL72 figures. It now lists NVIDIA's HGX numbers: 262.5 GB (2.1 TB / 8), 2250 dense FP16, 75 FP32, ~1100 W, and is renamed "NVIDIA HGX B300 (8-GPU)" (it has no Grace CPU). The id is unchanged so shared links still resolve.
+- KV cache sizes for 22 models, each checked against what vLLM allocates plus a second source. The generic formula assumed head_dim = hidden / heads and every layer full attention:
+  - Under-counted (reported "fits" when it does not): Qwen3 235B (2x), GLM 4.7 (2.4x), MiniMax M3 (sparse-attention indexer keys missing, +12%).
+  - Over-counted: Mistral Small 4 (26x, MLA), GLM 4.7 Flash (7x, MLA), Gemma 3/4 (up to 22x, sliding window and 512-wide global heads), Qwen3.6 (2-3x, hybrid DeltaNet), gpt-oss (1.4x), Llama 4 (4x at long context, chunked attention), Magistral and Ministral 3 (1.25x, explicit head_dim).
+  - DeepSeek V4 Flash and Pro treated the compressed attention as plain MLA. The full-context cache is now 3440 and 4924 elements per token (was 24768 and 35136), with the 128-token window recorded separately.
+- DeepSeek V4 parameter counts were about half the real size. Flash is 284B total / 13B active and Pro 1.6T / 49B (tech report), so weight memory was under-reported 1.8x.
+- Context lengths for GLM 4.7, GLM 4.7 Flash, Kimi K2.5, Ministral 3, Devstral 2 and MiniMax M2.1 (which listed 1M instead of 196608), the Devstral 2 Hugging Face link, the Kimi K3 license name, and the Kimi K2 Thinking parameter count (1026B).
+
 ## [1.10.1] - 2026-09-16
 
 ### Fixed

@@ -35,7 +35,9 @@ export const PER_GPU_FRAMEWORK_OVERHEAD_GB = new Decimal(0.5)
  * Bytes per parameter for each quantization format
  *
  * Float formats: Standard precision
- * - fp32: 4 bytes, fp16/bf16: 2 bytes
+ * - fp32: 4 bytes, fp16/bf16: 2 bytes, fp8: 1 byte
+ * - mxfp4: OCP MX, 4-bit E2M1 + one 8-bit E8M0 scale per 32 values → 4.25 bpp → 0.53125 bytes/param
+ *   (HF docs: group_size 32; GPT-OSS and Kimi K3 checkpoints store U8 scales)
  *
  * NVIDIA FP formats (Blackwell/Hopper):
  * - nvfp6: 6-bit FP (E3M2) → 0.75 bytes/param
@@ -73,6 +75,8 @@ export const BYTES_PER_PARAMETER: Record<QuantizationFormat, Decimal> = {
   fp32: new Decimal(4.0),
   fp16: new Decimal(2.0),
   bf16: new Decimal(2.0),
+  fp8: new Decimal(1.0), // E4M3/E5M2, as DeepSeek, Kimi K2 and MiniMax M2 ship
+  mxfp4: new Decimal(0.53125), // 4-bit + 8-bit scale per 32 → 4.25 bpp
 
   // NVIDIA FP formats
   nvfp6: new Decimal(0.75), // 6-bit FP (E3M2)

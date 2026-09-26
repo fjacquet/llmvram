@@ -9,6 +9,8 @@ describe('getBytesPerParameter', () => {
       ['fp32', 4.0],
       ['fp16', 2.0],
       ['bf16', 2.0],
+      ['fp8', 1.0], // E4M3/E5M2, as DeepSeek, Kimi K2 and MiniMax ship
+      ['mxfp4', 0.53125], // OCP MX: 4-bit E2M1 + one 8-bit scale per 32 → 4.25 bpp
 
       // NVIDIA FP formats
       ['nvfp6', 0.75],

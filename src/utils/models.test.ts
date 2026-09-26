@@ -156,11 +156,18 @@ describe('Model Database Validation', () => {
     expect(names).toEqual(sorted)
   })
 
-  it('sets kv_cache_elements_per_token on exactly the exotic-attention models', () => {
+  // Known-good KV sizes. Each value is what vLLM allocates (read from the model's
+  // vllm/model_executor/models/<arch>.py against its HF config.json) AND agrees with a
+  // second source: the per-layer cache shapes HF transformers builds on the meta device,
+  // or a published figure. Nothing here is re-derived by formula. Audit of 2026-09-26.
+  it('sets kv_cache_elements_per_token on exactly the verified models', () => {
     const EXOTIC_KV: Record<string, number> = {
-      'deepseek-r1': 35136,
-      'deepseek-v4-flash': 24768,
-      'deepseek-v4-pro': 35136,
+      'deepseek-r1': 35136, // MLA: 61 x (512 + 64). DeepSeek-V2 paper formula
+      // DeepSeek V4: compressed MLA. C4 layers keep 1 entry per 4 tokens, C128 layers 1 per
+      // 128, C4 layers add a 128-dim indexer key per 4 tokens. vLLM deepseek_v4; the paper's
+      // "~2% of a BF16 GQA8 baseline" matches (2.2%). Sliding part in EXOTIC_SLIDING.
+      'deepseek-v4-flash': 3440, // 21x128 + 20x4 + 21x32
+      'deepseek-v4-pro': 4924, // 30x128 + 31x4 + 30x32
       'moonshotai-kimi-k2-thinking': 35136,
       'moonshotai-kimi-k2-instruct': 35136,
       'moonshotai-kimi-k2.5': 35136,
@@ -173,16 +180,38 @@ describe('Model Database Validation', () => {
       'liquidai-lfm2.5-2.6b': 8192, // GQA: 8 of 30 layers x (8 kv heads x 64 head_dim x 2)
       'qwen-qwen3.8-27b': 32768, // GQA: 16 of 64 layers x (4 kv heads x 256 head_dim x 2)
       'qwen-qwen3.8-2.4t-a95b': 47104, // GQA: 23 of 92 layers x 2048
-      'zai-org-glm-5.2': 44928,
-      'minimax-m3': 61440,
+      'qwen-qwen3.6-27b': 32768, // 16 full of 64 (48 Gated DeltaNet), 4 kv x 256
+      'qwen-qwen3.6-35b-a3b': 10240, // 10 full of 40, 2 kv x 256
+      'qwen-qwen3-235b-a22b': 96256, // 94 x 4 kv x head_dim 128 (not hidden/heads = 64) x 2
+      'zai-org-glm-4.7': 188416, // 92 x 8 kv x head_dim 128 (not hidden/heads) x 2
+      'zai-org-glm-4.7-flash': 27072, // MLA: 47 x 576
+      'zai-org-glm-5.2': 44928, // MLA: 78 x 576 (DSA indexer, ~3%, not included)
+      'minimax-m3': 68736, // 60 x 4 kv x 128 x 2 + 128-dim indexer key on 57 sparse layers
       'minimax-m2.1': 126976,
       'minimax-m2.5': 126976,
       'minimax-m2.7': 126976,
+      'mistralai-mistral-small-4-119b': 11520, // MLA: 36 x (kv_lora_rank 256 + rope 64)
+      'mistralai-magistral-small-2507': 81920, // 40 x 8 kv x head_dim 128 (not 160) x 2
+      'mistralai-ministral-3-14b-reasoning': 81920, // same shape as Magistral
       'nvidia-nemotron-3-nano-4b': 8192,
       'nvidia-nemotron-3-nano-30b-a3b': 3072,
       'nvidia-nemotron-3.5-lightning-30b-a3b': 3072,
       'nvidia-nemotron-3-super-120b-a12b': 4096,
       'nvidia-nemotron-3-ultra-550b-a55b': 6144,
+      // Sliding-window models: full-attention layers only; window layers in EXOTIC_SLIDING
+      'google-gemma-3-1b': 2048, // 4 global of 26 (every 6th), 1 kv x 256 x 2
+      'google-gemma-3-4b': 10240, // 5 global of 34, 4 kv x 256 x 2
+      'google-gemma-3-12b': 32768, // 8 global of 48, 8 kv x 256 x 2
+      'google-gemma-3-27b': 40960, // 10 global of 62, 16 kv x 128 x 2
+      // Gemma 4 global layers: global_head_dim 512, num_global_key_value_heads. vLLM caches
+      // K and V separately even though attention_k_eq_v makes them equal.
+      'google-gemma-4-12b': 8192, // 8 global x 1 kv x 512 x 2
+      'google-gemma-4-26b-a4b': 10240, // 5 global x 2 kv x 512 x 2
+      'google-gemma-4-31b': 40960, // 10 global x 4 kv x 512 x 2
+      'openai-gpt-oss-120b': 18432, // 18 dense of 36, 8 kv x head_dim 64 x 2
+      'openai-gpt-oss-20b': 12288, // 12 dense of 24
+      'meta-llama-llama-4-scout': 24576, // 12 global NoPE of 48, 8 kv x 128 x 2
+      'meta-llama-llama-4-maverick': 24576,
     }
     // One assertion in both directions: every id in the map carries that value, and no
     // model outside the map carries the field at all. Names the offending model on failure.
@@ -195,6 +224,66 @@ describe('Model Database Validation', () => {
         ]),
     )
     expect(actual).toEqual(EXOTIC_KV)
+  })
+
+  it('records the sliding-window layers of exactly the windowed models', () => {
+    // [elements per token across the windowed layers, window in tokens]
+    const EXOTIC_SLIDING: Record<string, [number, number]> = {
+      'deepseek-v4-flash': [22016, 128], // all 43 layers keep a 128-token window, 512 each
+      'deepseek-v4-pro': [31232, 128], // 61 x 512
+      'google-gemma-3-1b': [11264, 512], // 22 local x 1 kv x 256 x 2
+      'google-gemma-3-4b': [59392, 1024], // 29 local x 4 kv x 256 x 2
+      'google-gemma-3-12b': [163840, 1024], // 40 local x 8 kv x 256 x 2
+      'google-gemma-3-27b': [212992, 1024], // 52 local x 16 kv x 128 x 2
+      'google-gemma-4-12b': [163840, 1024], // 40 local x 8 kv x 256 x 2
+      'google-gemma-4-26b-a4b': [102400, 1024], // 25 local x 8 kv x 256 x 2
+      'google-gemma-4-31b': [409600, 1024], // 50 local x 16 kv x 256 x 2
+      'openai-gpt-oss-120b': [18432, 128], // 18 banded layers
+      'openai-gpt-oss-20b': [12288, 128],
+      'meta-llama-llama-4-scout': [73728, 8192], // 36 chunked-local layers, chunk 8192
+      'meta-llama-llama-4-maverick': [73728, 8192],
+    }
+    const actual = Object.fromEntries(
+      modelsData
+        .filter((m) => 'kv_sliding_elements_per_token' in m)
+        .map((m) => {
+          const w = m as { kv_sliding_elements_per_token: number; kv_sliding_window: number }
+          return [m.id, [w.kv_sliding_elements_per_token, w.kv_sliding_window]]
+        }),
+    )
+    expect(actual).toEqual(EXOTIC_SLIDING)
+  })
+
+  it('stores DeepSeek V4 at its published parameter counts (arXiv 2606.19348)', () => {
+    const flash = modelsData.find((m) => m.id === 'deepseek-v4-flash')
+    const pro = modelsData.find((m) => m.id === 'deepseek-v4-pro')
+    expect(flash?.num_parameters_billion).toBe(284)
+    expect(flash?.active_parameters_billion).toBe(13)
+    expect(pro?.num_parameters_billion).toBe(1600)
+    expect(pro?.active_parameters_billion).toBe(49)
+  })
+
+  it('stores the context lengths the model cards and configs state', () => {
+    const CONTEXT: Record<string, number> = {
+      'zai-org-glm-4.7': 202752, // config max_position_embeddings
+      'zai-org-glm-4.7-flash': 202752,
+      'moonshotai-kimi-k2.5': 262144, // card: 256k
+      'mistralai-ministral-3-14b-reasoning': 262144, // card: 256k
+      'mistralai-devstral-2-123b': 262144, // card: 256k
+      'minimax-m2.1': 196608, // config max_position_embeddings
+    }
+    for (const [id, ctx] of Object.entries(CONTEXT)) {
+      expect(modelsData.find((m) => m.id === id)?.context_length, id).toBe(ctx)
+    }
+  })
+
+  it('points Devstral 2 at its real repository and names the Kimi K3 license', () => {
+    const devstral = modelsData.find((m) => m.id === 'mistralai-devstral-2-123b')
+    expect(devstral?.hf_url).toBe('https://huggingface.co/mistralai/Devstral-2-123B-Instruct-2512')
+    expect(modelsData.find((m) => m.id === 'moonshotai-kimi-k3')?.license).toBe('Kimi K3 License')
+    expect(
+      modelsData.find((m) => m.id === 'moonshotai-kimi-k2-thinking')?.num_parameters_billion,
+    ).toBe(1026)
   })
 
   it('stores the corrected Nemotron Ultra layer count (108, not 128)', () => {

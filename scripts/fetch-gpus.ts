@@ -82,7 +82,7 @@ const GPUS: GPU[] = [
     memory_bandwidth_gbps: 8000,
     memory_type: 'HBM3e',
     bus_width: 8192,
-    fp16_tflops: 4500,
+    fp16_tflops: 2250,
     fp32_tflops: 90,
     tdp_watts: 1000,
     interconnect: 'nvlink-5',
@@ -90,30 +90,37 @@ const GPUS: GPU[] = [
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/b200/',
   },
-  // GB300 (Blackwell Ultra) ships in two platforms with different scale-up
-  // domains, so it needs two rows. Same silicon, same capacity, same
-  // bandwidth — only max_gpus_per_node differs.
+  // Blackwell Ultra ships in two platforms with different scale-up domains, so
+  // it needs two rows. Same bandwidth and NVLink 5, but NOT the same part:
   //
-  // HGX B300: an 8-GPU baseboard in a conventional x86 server (Dell XE9680L,
-  // XE9685L, XE9785L). NVL72: 72 Blackwell Ultra GPUs in one NVLink domain,
-  // 130TB/s of switch bandwidth, shipping as Dell PowerEdge XE9712.
+  // HGX B300: an 8-GPU air-cooled baseboard in a conventional x86 server (Dell
+  // XE9680L, XE9685L, XE9785L). NVIDIA's HGX page lists 2.1 TB total, 36 PF
+  // FP16 with sparsity and 600 TF FP32 across 8 GPUs, so 262.5 GB, 2250 dense
+  // and 75 per GPU. No Grace CPU, so "GB300" is the wrong name for it. The
+  // ~1100 W TGP comes from OEM and secondary sources; NVIDIA lists only the
+  // ~14 kW DGX B300 system figure.
+  //
+  // NVL72: 72 Blackwell Ultra GPUs + 36 Grace CPUs in one NVLink domain, 130TB/s
+  // of switch bandwidth, shipping as Dell PowerEdge XE9712. NVIDIA's GB300 NVL72
+  // page lists 20 TB HBM3e and 360 PF FP16 "with sparsity" across 72 GPUs, so
+  // 288 GB and 2500 dense per GPU, at 1400 W liquid-cooled.
   //
   // The HGX row keeps the original id so existing shared links resolve.
   {
     id: 'nvidia-gb300-288gb',
-    name: 'NVIDIA GB300 (HGX B300, 8-GPU) 288GB',
+    name: 'NVIDIA HGX B300 (8-GPU) 262GB',
     manufacturer: 'nvidia',
-    vram_gb: 288,
+    vram_gb: 262.5,
     memory_bandwidth_gbps: 8000,
     memory_type: 'HBM3e',
     bus_width: 8192,
-    fp16_tflops: 5000,
-    fp32_tflops: 83,
-    tdp_watts: 1400,
+    fp16_tflops: 2250,
+    fp32_tflops: 75,
+    tdp_watts: 1100,
     interconnect: 'nvlink-5',
     max_gpus_per_node: 8,
     tier: 'datacenter',
-    spec_url: 'https://www.nvidia.com/en-us/data-center/gb300-nvl72/',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/hgx/',
   },
   {
     id: 'nvidia-gb300-nvl72',
@@ -123,7 +130,7 @@ const GPUS: GPU[] = [
     memory_bandwidth_gbps: 8000,
     memory_type: 'HBM3e',
     bus_width: 8192,
-    fp16_tflops: 5000,
+    fp16_tflops: 2500,
     fp32_tflops: 83,
     tdp_watts: 1400,
     interconnect: 'nvlink-5',
@@ -271,7 +278,7 @@ const GPUS: GPU[] = [
     memory_bandwidth_gbps: 7100,
     memory_type: 'HBM3e',
     bus_width: 8192,
-    fp16_tflops: 5000,
+    fp16_tflops: 2500, // DGX Station page: 5 PF FP16 "with sparsity unless otherwise noted"
     interconnect: 'nvlink-5',
     max_gpus_per_node: 1,
     tier: 'consumer',
