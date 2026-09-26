@@ -196,18 +196,34 @@ export const MAX_GPUS_PER_NODE = 72
  * recommendedMaxTPDegree is the practical limit for tensor parallelism
  * before communication overhead dominates.
  */
+/**
+ * NCCL ring all-reduce latency for a small (decode-sized) message over NVLink.
+ * 11.0 us on 4x GB200 (arXiv 2607.16100, Fig. 1); MSCCL measures 9.5 us at 1 KB
+ * on 8x A100 NVLink (arXiv 2504.09014, Fig. 7). Low-latency kernels (vLLM custom
+ * all-reduce, ~2.4 us) beat this; NCCL ring is the conservative default.
+ */
+const NVLINK_ALLREDUCE_LATENCY_US = 11
+
+/**
+ * Small-message all-reduce over PCIe. No published measurement found; an estimate
+ * above NVLink and the RCCL point-to-point baseline, pending an nccl-tests figure.
+ */
+const PCIE_ALLREDUCE_LATENCY_US = 25
+
 export const INTERCONNECT_SPECS: Record<InterconnectType, InterconnectSpec> = {
   'nvlink-4': {
     type: 'nvlink-4',
     bandwidthGBps: 900,
     recommendedMaxTPDegree: 8,
     tpScalingEfficiency: 0.92, // 900 GB/s — excellent scaling
+    allreduceLatencyUs: NVLINK_ALLREDUCE_LATENCY_US,
   },
   'nvlink-5': {
     type: 'nvlink-5',
     bandwidthGBps: 1800,
     recommendedMaxTPDegree: 8,
     tpScalingEfficiency: 0.97, // 1800 GB/s — near-linear scaling
+    allreduceLatencyUs: NVLINK_ALLREDUCE_LATENCY_US,
   },
   'infinity-fabric': {
     type: 'infinity-fabric',
@@ -221,24 +237,30 @@ export const INTERCONNECT_SPECS: Record<InterconnectType, InterconnectSpec> = {
     // NVLink-4 (900 GB/s, 0.92) and NVLink-5 (1800 GB/s, 0.97), i.e. +0.05 per
     // doubling. 0.92 + 0.05 * log2(1075/900) = 0.933. Derived, not measured —
     // as with every other row here.
+    // RCCL point-to-point baseline ~20 us (arXiv 2508.11298, MI300A); an
+    // all-reduce is at least one hop. Single source.
+    allreduceLatencyUs: 20,
   },
   'pcie-4': {
     type: 'pcie-4',
     bandwidthGBps: 64,
     recommendedMaxTPDegree: 2,
     tpScalingEfficiency: 0.65, // 64 GB/s — significant communication drag
+    allreduceLatencyUs: PCIE_ALLREDUCE_LATENCY_US,
   },
   'pcie-5': {
     type: 'pcie-5',
     bandwidthGBps: 128,
     recommendedMaxTPDegree: 4,
     tpScalingEfficiency: 0.78, // 128 GB/s — noticeable drag
+    allreduceLatencyUs: PCIE_ALLREDUCE_LATENCY_US,
   },
   none: {
     type: 'none',
     bandwidthGBps: 0,
     recommendedMaxTPDegree: 1,
     tpScalingEfficiency: 0.0, // no multi-GPU support
+    allreduceLatencyUs: 0,
   },
 }
 

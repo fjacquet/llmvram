@@ -90,7 +90,7 @@ describe('Recommendations', () => {
       />,
     )
 
-    // Unclamped math (100 / (16 * 0.85)) would ask for 8x — unbuildable on a 2-way part.
+    // Unclamped math ((100 - 2) / (16 - 2 - 0.25)) would ask for 8x — unbuildable on a 2-way part.
     expect(screen.queryByText(/8x Test GPU/)).not.toBeInTheDocument()
     expect(screen.getByText(/2x Test GPU/)).toBeInTheDocument()
   })
@@ -119,8 +119,8 @@ describe('Recommendations', () => {
       />,
     )
 
-    // Unclamped math (500 / (16 * 0.85)) would ask for 37x — clamp to the 8-way bound.
-    expect(screen.queryByText(/37x Test GPU/)).not.toBeInTheDocument()
+    // Unclamped math ((500 - 10) / (16 - 10 - 0.25)) would ask for 86x — clamp to the 8-way bound.
+    expect(screen.queryByText(/86x Test GPU/)).not.toBeInTheDocument()
     expect(screen.getByText(/8x Test GPU/)).toBeInTheDocument()
   })
 
@@ -221,5 +221,29 @@ describe('Recommendations', () => {
     expect(screen.getByText(/Add more servers/)).toBeInTheDocument()
     // and still never advises shrinking
     expect(screen.queryByText(/Try 16x Test GB300/)).not.toBeInTheDocument()
+  })
+
+  it('sizes the GPU count by memory alone, not by interconnect efficiency', () => {
+    // 150 GB (3 GB framework) on 80 GB GPUs: each GPU holds its own framework context
+    // and 0.25 GB of NCCL buffers, so (150 - 3) / (80 - 3 - 0.25) = 1.9, i.e. 2x.
+    // Derating by a scaling efficiency (150 / (80 * 0.85) = 2.2) asked for 3x.
+    const pcie = gpu({
+      manufacturer: 'nvidia',
+      tier: 'consumer',
+      max_gpus_per_node: 8,
+      vram_gb: 80,
+    })
+    render(
+      <Recommendations
+        gpu={pcie}
+        breakdown={breakdown(150)}
+        currentQuantization="fp16"
+        currentSequenceLength={2048}
+        numGPUs={1}
+        multiGPUBreakdown={null}
+      />,
+    )
+    expect(screen.getByText(/2x Test GPU/)).toBeInTheDocument()
+    expect(screen.queryByText(/3x Test GPU/)).not.toBeInTheDocument()
   })
 })

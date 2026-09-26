@@ -45,7 +45,35 @@ export function calculateKVCacheVRAM(params: {
   kvPrecision: KVCachePrecision
 }): Decimal {
   const { model, sequenceLength, batchSize, kvPrecision } = params
+  return fullAttentionKV(model, sequenceLength, batchSize, kvPrecision).add(
+    slidingWindowKV(model, sequenceLength, batchSize, kvPrecision),
+  )
+}
 
+/**
+ * Sliding-window / chunked-local layers (Gemma 3/4, gpt-oss, Llama 4, DeepSeek V4):
+ * vLLM allocates them at min(window, context) tokens, so they stop growing at the window.
+ */
+function slidingWindowKV(
+  model: Model,
+  sequenceLength: number,
+  batchSize: number,
+  kvPrecision: KVCachePrecision,
+): Decimal {
+  if (!model.kv_sliding_elements_per_token || !model.kv_sliding_window) return new Decimal(0)
+  return new Decimal(model.kv_sliding_elements_per_token)
+    .mul(Math.min(model.kv_sliding_window, sequenceLength))
+    .mul(batchSize)
+    .mul(KV_PRECISION_BYTES[kvPrecision])
+    .div(BYTES_PER_GB)
+}
+
+function fullAttentionKV(
+  model: Model,
+  sequenceLength: number,
+  batchSize: number,
+  kvPrecision: KVCachePrecision,
+): Decimal {
   // Exotic-attention override (MLA, mamba/linear hybrids, explicit head_dim):
   // the model declares its exact per-token cache size; precision applies identically.
   // Constant-state memory (mamba SSM / linear-attention state) does not scale with

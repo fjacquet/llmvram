@@ -1,3 +1,4 @@
+import { NCCL_BUFFER_PER_GPU_GB } from '@engines/constants'
 import type {
   InferenceVRAMBreakdown,
   MultiGPUVRAMBreakdown,
@@ -148,8 +149,13 @@ export function Recommendations({
   // 5. Use multiple GPUs
   const totalGB = breakdown.total.toNumber()
 
-  // Effective scaling efficiency: use actual value from breakdown, or conservative default
-  const scalingEfficiency = multiGPUBreakdown?.scalingEfficiency ?? 0.85
+  // GPUs needed by memory alone. Each GPU holds its own framework context and NCCL
+  // buffers, so those come off every GPU's capacity; the rest of the total shards.
+  // Interconnect efficiency costs throughput, not memory, and plays no part here.
+  const frameworkGB = breakdown.frameworkOverhead.toNumber()
+  const shardableGB = totalGB - frameworkGB
+  const usablePerGPU = gpu.vram_gb - frameworkGB - NCCL_BUFFER_PER_GPU_GB.toNumber()
+  const gpusByMemory = Math.ceil(shardableGB / usablePerGPU)
 
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
   if (numGPUs > 1 && multiGPUBreakdown && multiGPUBreakdown.totalPerGPU.greaterThan(gpu.vram_gb)) {
@@ -159,7 +165,7 @@ export function Recommendations({
     // bound instead would advise cutting a 32-GPU cluster down to 8.
     const numNodes = multiGPUBreakdown.numNodes || 1
     const clusterCeiling = gpu.max_gpus_per_node * numNodes
-    const rawNeeded = Math.max(1, Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency)))
+    const rawNeeded = Math.max(1, gpusByMemory)
     const gpusNeeded = Math.min(rawNeeded, clusterCeiling)
 
     if (gpusNeeded > numGPUs) {
@@ -189,7 +195,7 @@ export function Recommendations({
     // gpusNeeded > 1 is false and this recommendation is silently suppressed —
     // falling through to the "upgrade GPU" recommendation below instead of
     // suggesting a configuration the UI has no way to build.
-    const gpusNeeded = clampGPUCount(Math.ceil(totalGB / (gpu.vram_gb * scalingEfficiency)), gpu)
+    const gpusNeeded = clampGPUCount(gpusByMemory, gpu)
 
     if (gpusNeeded > 1) {
       recommendations.push({

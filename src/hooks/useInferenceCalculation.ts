@@ -400,6 +400,7 @@ export function useInferenceCalculation(
             quantization,
             sequenceLength,
             batchSize,
+            kvQuantization,
             multiGPUResult: multiGPU,
           })
 

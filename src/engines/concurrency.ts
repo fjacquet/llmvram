@@ -3,10 +3,9 @@ import type Decimal from 'decimal.js'
 /**
  * Per-user decode throughput under concurrent load
  *
- * `tokensPerSecond` from estimatePerformance is AGGREGATE: both rooflines
- * already multiply by batchSize (see performance.ts, memoryBoundTPS and
- * computeBoundTPS). Splitting it across the users sharing the machine gives
- * what one user sees.
+ * `tokensPerSecond` from estimatePerformance is AGGREGATE: batchSize tokens
+ * per decode step (see performance.ts). Splitting it across the users sharing
+ * the machine gives what one user sees.
  *
  * Multiplying by batchSize here would apply it twice, and produced the
  * impossible result of a single user outrunning the whole machine.

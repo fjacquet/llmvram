@@ -298,3 +298,32 @@ describe('calculateKVCacheVRAM', () => {
     expect(at1m.toNumber()).toBeGreaterThan(100)
   })
 })
+
+describe('calculateKVCacheVRAM - sliding-window layers', () => {
+  const gemmaLike: Model = {
+    id: 'sliding',
+    name: 'Sliding',
+    architecture: 'dense',
+    num_parameters_billion: 12,
+    hidden_size: 3840,
+    num_hidden_layers: 48,
+    num_attention_heads: 16,
+    num_kv_heads: 8,
+    intermediate_size: 15360,
+    kv_cache_elements_per_token: 32768,
+    kv_sliding_elements_per_token: 163840,
+    kv_sliding_window: 1024,
+  }
+  const kv = (sequenceLength: number) =>
+    calculateKVCacheVRAM({ model: gemmaLike, sequenceLength, batchSize: 1, kvPrecision: 'fp16' })
+      .mul(1024 ** 3)
+      .toNumber()
+
+  it('caps the windowed layers at the window (vLLM allocates min(window, context))', () => {
+    expect(kv(32768)).toBeCloseTo((32768 * 32768 + 163840 * 1024) * 2, 0)
+  })
+
+  it('charges the windowed layers per token below the window', () => {
+    expect(kv(512)).toBeCloseTo((32768 + 163840) * 512 * 2, 0)
+  })
+})

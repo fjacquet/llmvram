@@ -182,14 +182,14 @@ describe('estimatePerformance', () => {
     // (compute-bound roofline) plus one decode step.
     //
     // LLaMA 3 70B FP16 on H100 80GB SXM, sequenceLength = 2048:
-    //   memoryBoundTPS = 3350e9 / (70e9 * 2) = 23.928571428571428571 tok/s (batch=1)
-    //   decodeSeconds  = 1 / 23.928571428571428571 = 0.041791044776119403 s
+    //   decodeBytes    = 70e9 * 2 weights + 2048 * 163840 * 2 KV = 140,671,088,640
+    //   decodeSeconds  = decodeBytes / 3350e9           = 0.041991369743283581 s
     //   linearFLOPs    = 2 * 70e9 * 2048               = 286,720,000,000,000
     //   attentionFLOPs = 2 * 80 * 2048^2 * 8192         =   5,497,558,138,880
     //   totalFLOPs     = linearFLOPs + attentionFLOPs   = 292,217,558,138,880
     //   effectiveFLOPS = 989e12 * 0.45 (PREFILL_MFU)    = 445,050,000,000,000
     //   prefillSeconds = totalFLOPs / effectiveFLOPS    ≈ 0.656594895267678 s
-    //   TTFT           = prefillSeconds + decodeSeconds ≈ 0.698385940043797 s
+    //   TTFT           = prefillSeconds + decodeSeconds ≈ 0.698586265010961 s
     const result = estimatePerformance({
       model: llama3_70b,
       gpu: h100_80gb_sxm,
@@ -199,7 +199,7 @@ describe('estimatePerformance', () => {
     })
 
     expect(result.prefillSeconds?.toNumber()).toBeCloseTo(0.656594895267678, 9)
-    expect(result.timeToFirstToken.toNumber()).toBeCloseTo(0.698385940043797, 9)
+    expect(result.timeToFirstToken.toNumber()).toBeCloseTo(0.698586265010961, 9)
   })
 
   it('should handle missing FLOPS data gracefully', () => {
@@ -344,11 +344,13 @@ describe('estimatePerformance', () => {
       max_gpus_per_node: 8,
     }
 
+    // A 16-token context keeps KV reads and attention FLOPs negligible, so the
+    // weights alone set both bounds.
     const result = estimatePerformance({
       model: model_10b,
       gpu: balanced_gpu,
       quantization: 'int4',
-      sequenceLength: 2048,
+      sequenceLength: 16,
       batchSize: 1,
     })
 
@@ -539,10 +541,8 @@ describe('estimatePerformance - prefill model', () => {
 })
 
 describe('estimatePerformance - multi-GPU scaling', () => {
-  // performance.ts applies `× numGPUs × scalingEfficiency` independently to decode
-  // (tokensPerSecond) and to prefill (via effectiveFLOPS) — two hand-copied blocks with
-  // no shared helper. This test binds them together so drift between the two would fail
-  // a test instead of passing green.
+  // Prefill scales by numGPUs × prefillScalingEfficiency. Decode does not: it divides
+  // the bytes per step across the GPUs and adds two all-reduces per layer.
   const multiGPUResult: MultiGPUVRAMBreakdown = {
     numGPUs: 2,
     strategy: 'tensor-parallel',
@@ -571,7 +571,7 @@ describe('estimatePerformance - multi-GPU scaling', () => {
     interconnectBandwidthGBps: 900,
   }
 
-  it('scales tokensPerSecond and prefillSeconds by the same numGPUs × scalingEfficiency factor', () => {
+  it('scales prefill by numGPUs × efficiency, and decode by less than numGPUs', () => {
     const singleGPU = estimatePerformance({
       model: llama7b,
       gpu: h100_80gb_sxm,
@@ -589,10 +589,12 @@ describe('estimatePerformance - multi-GPU scaling', () => {
       multiGPUResult,
     })
 
-    const factor = multiGPUResult.numGPUs * multiGPUResult.scalingEfficiency
+    const factor = multiGPUResult.numGPUs * multiGPUResult.prefillScalingEfficiency
 
+    // MHA 7B: 32 KV heads split 2 ways, so bytes halve; the all-reduce latency keeps it below 2x
     const tpsRatio = multiGPU.tokensPerSecond.div(singleGPU.tokensPerSecond).toNumber()
-    expect(tpsRatio).toBeCloseTo(factor, 9)
+    expect(tpsRatio).toBeGreaterThan(1.5)
+    expect(tpsRatio).toBeLessThan(2)
 
     // Prefill time scales inversely with effectiveFLOPS (more FLOPS => less time), so the
     // single-GPU / multi-GPU ratio (not multi-GPU / single-GPU) equals the same factor.
@@ -705,5 +707,96 @@ describe('multi-node roofline separation', () => {
     // Prefill is not: the slow fabric halves effectiveFLOPS, doubling time-to-first-token's
     // compute term.
     expect(slow.timeToFirstToken.greaterThan(fast.timeToFirstToken)).toBe(true)
+  })
+})
+
+// Decode step = (weights + batch x KV per sequence) / bandwidth + TP all-reduce latency.
+describe('estimatePerformance - decode reads the KV cache', () => {
+  const tps = (batchSize: number, sequenceLength: number) =>
+    estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp8',
+      batchSize,
+      sequenceLength,
+    }).tokensPerSecond.toNumber()
+
+  it('matches bandwidth / (weights + KV) at batch 1', () => {
+    // 70 GB FP8 weights + 80 layers x 2 x 1024 x 2 B x 32768 tokens KV
+    const weights = 70e9
+    const kv = 80 * 2 * 1024 * 2 * 32768
+    expect(tps(1, 32768)).toBeCloseTo(3350e9 / (weights + kv), 3)
+  })
+
+  it('stops growing linearly with batch once KV reads dominate', () => {
+    // At 128k context each sequence reads ~43 GB of KV, more than the weights
+    expect(tps(64, 131072) / tps(1, 131072)).toBeLessThan(4)
+  })
+
+  it('is slower at long context than at short context', () => {
+    expect(tps(8, 131072)).toBeLessThan(tps(8, 1024))
+  })
+})
+
+describe('estimatePerformance - compute ceiling is aggregate', () => {
+  it('does not multiply the compute bound by batch', () => {
+    // 1B model, 1 TFLOPS: 2e9 FLOPs/token + attention caps the machine near 500 tok/s
+    const slowCompute: GPU = { ...h100_80gb_sxm, fp16_tflops: 1, memory_bandwidth_gbps: 100000 }
+    const perf = estimatePerformance({
+      model: tiny_1b_model,
+      gpu: slowCompute,
+      quantization: 'fp16',
+      batchSize: 64,
+      sequenceLength: 128,
+    })
+    expect(perf.bottleneck).toBe('compute')
+    expect(perf.tokensPerSecond.toNumber()).toBeLessThan(500)
+  })
+})
+
+describe('estimatePerformance - multi-GPU decode', () => {
+  const run = (
+    model: Model,
+    numGPUs: number,
+    strategy: 'tensor-parallel' | 'pipeline-parallel',
+  ) => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp8',
+      sequenceLength: 8192,
+      batchSize: 1,
+    })
+    const multi =
+      numGPUs > 1
+        ? calculateMultiGPUVRAM(singleGPU, model, 80, numGPUs, strategy, h100_80gb_sxm)
+        : null
+    return estimatePerformance({
+      model,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp8',
+      batchSize: 1,
+      sequenceLength: 8192,
+      multiGPUResult: multi,
+    }).tokensPerSecond.toNumber()
+  }
+
+  it('keeps TP8 at batch 1 below 8x, because every layer waits on two all-reduces', () => {
+    const speedup = run(llama3_70b, 8, 'tensor-parallel') / run(llama3_70b, 1, 'tensor-parallel')
+    expect(speedup).toBeGreaterThan(3)
+    expect(speedup).toBeLessThan(7)
+  })
+
+  it('gives no decode speedup to pipeline parallelism at batch 1', () => {
+    const speedup =
+      run(llama3_70b, 4, 'pipeline-parallel') / run(llama3_70b, 1, 'pipeline-parallel')
+    expect(speedup).toBeCloseTo(1, 1)
+  })
+
+  it('reads the full MLA cache on every TP rank', () => {
+    const mla: Model = { ...llama3_70b, num_kv_heads: 64, kv_cache_elements_per_token: 40960 }
+    const gqa: Model = { ...mla, use_mla: undefined }
+    expect(run({ ...mla, use_mla: true }, 8, 'tensor-parallel')).toBeLessThan(
+      run(gqa, 8, 'tensor-parallel'),
+    )
   })
 })

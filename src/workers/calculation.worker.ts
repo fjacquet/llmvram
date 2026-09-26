@@ -232,6 +232,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         quantization,
         sequenceLength,
         batchSize,
+        kvQuantization,
         multiGPUResult,
       })
 

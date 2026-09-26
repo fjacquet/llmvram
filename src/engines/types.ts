@@ -177,6 +177,8 @@ export interface InterconnectSpec {
   recommendedMaxTPDegree: number
   /** Fraction of linear scaling achieved in tensor parallelism (0–1). Accounts for all-reduce overhead. */
   tpScalingEfficiency: number
+  /** Small-message all-reduce latency in microseconds. Tensor-parallel decode pays two per layer per step. */
+  allreduceLatencyUs: number
 }
 
 /**
