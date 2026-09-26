@@ -117,6 +117,10 @@ const ModelFields = z.object({
   kv_sliding_elements_per_token: z.number().int().positive().optional(),
   kv_sliding_window: z.number().int().positive().optional(),
 
+  // Multi-head latent attention (config.json carries kv_lora_rank). vLLM caches one latent
+  // per token and duplicates it on every tensor-parallel rank, so TP does not split it.
+  use_mla: z.boolean().optional(),
+
   intermediate_size: z.number().int().positive(),
 
   // MoE fields (optional, only for MoE architectures)

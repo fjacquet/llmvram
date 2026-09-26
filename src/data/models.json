@@ -15,6 +15,7 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1",
     "kv_cache_elements_per_token": 35136,
+    "use_mla": true,
     "active_parameters_billion": 37
   },
   {
@@ -133,7 +134,8 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/zai-org/GLM-4.7-Flash",
     "active_parameters_billion": 3,
-    "kv_cache_elements_per_token": 27072
+    "kv_cache_elements_per_token": 27072,
+    "use_mla": true
   },
   {
     "id": "zai-org-glm-5.2",
@@ -151,6 +153,7 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/zai-org/GLM-5.2",
     "kv_cache_elements_per_token": 44928,
+    "use_mla": true,
     "active_parameters_billion": 51.2
   },
   {
@@ -331,6 +334,7 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2-Instruct",
     "kv_cache_elements_per_token": 35136,
+    "use_mla": true,
     "active_parameters_billion": 32
   },
   {
@@ -349,6 +353,7 @@
     "license": "Modified MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2-Thinking",
     "kv_cache_elements_per_token": 35136,
+    "use_mla": true,
     "active_parameters_billion": 32
   },
   {
@@ -367,6 +372,7 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2.5",
     "kv_cache_elements_per_token": 35136,
+    "use_mla": true,
     "active_parameters_billion": 32
   },
   {
@@ -385,6 +391,7 @@
     "license": "Modified MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2.6",
     "kv_cache_elements_per_token": 35136,
+    "use_mla": true,
     "active_parameters_billion": 32
   },
   {
@@ -403,6 +410,7 @@
     "license": "Modified MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K2.7-Code",
     "kv_cache_elements_per_token": 35136,
+    "use_mla": true,
     "active_parameters_billion": 32
   },
   {
@@ -421,6 +429,7 @@
     "license": "Kimi K3 License",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-K3",
     "kv_cache_elements_per_token": 13824,
+    "use_mla": true,
     "active_parameters_billion": 104
   },
   {
@@ -439,6 +448,7 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct",
     "kv_cache_elements_per_token": 4032,
+    "use_mla": true,
     "active_parameters_billion": 3
   },
   {
@@ -528,6 +538,7 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/inclusionAI/Ling-3.0-flash",
     "kv_cache_elements_per_token": 4032,
+    "use_mla": true,
     "active_parameters_billion": 5.1
   },
   {
@@ -546,6 +557,7 @@
     "license": "MIT",
     "hf_url": "https://huggingface.co/inclusionAI/Ling-3.0-tiny",
     "kv_cache_elements_per_token": 3456,
+    "use_mla": true,
     "active_parameters_billion": 1.3
   },
   {
@@ -705,7 +717,8 @@
     "context_length": 294912,
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512",
-    "active_parameters_billion": 41
+    "active_parameters_billion": 41,
+    "use_mla": true
   },
   {
     "id": "mistralai-mistral-medium-3.5-128b",
@@ -737,7 +750,8 @@
     "license": "Apache-2.0",
     "hf_url": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603",
     "active_parameters_billion": 7.1,
-    "kv_cache_elements_per_token": 11520
+    "kv_cache_elements_per_token": 11520,
+    "use_mla": true
   },
   {
     "id": "nvidia-nemotron-3-nano-30b-a3b",

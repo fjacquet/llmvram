@@ -173,7 +173,6 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         sequenceLength,
         batchSize,
         kvQuantization,
-        numGPUs,
         concurrentUsers,
       })
 

@@ -21,17 +21,6 @@ import type {
 export const FRAMEWORK_OVERHEAD_GB = new Decimal(1.0)
 
 /**
- * Additional framework overhead per extra GPU (beyond the first)
- *
- * Each additional GPU needs its own CUDA context (~300MB) and NCCL library
- * instance (~200MB), adding ~0.5GB per extra GPU in multi-GPU setups.
- *
- * Formula: total = FRAMEWORK_OVERHEAD_GB + PER_GPU_FRAMEWORK_OVERHEAD_GB × (N-1)
- * Examples: 1 GPU = 1.0 GB, 2 GPUs = 1.5 GB, 4 GPUs = 2.5 GB
- */
-export const PER_GPU_FRAMEWORK_OVERHEAD_GB = new Decimal(0.5)
-
-/**
  * Bytes per parameter for each quantization format
  *
  * Float formats: Standard precision
@@ -166,17 +155,6 @@ export const BYTES_PER_GB = new Decimal(1024).pow(3)
 export const NCCL_BUFFER_PER_GPU_GB = new Decimal(0.25)
 
 /**
- * Embedding weight fraction of total model weights (~3%)
- *
- * In tensor parallelism, embeddings must be replicated across all GPUs
- * (not sharded) for efficient lookup. This constant estimates the fraction
- * of model weights devoted to embeddings.
- *
- * Used in conjunction with layer norm memory for replicated memory calculation.
- */
-export const EMBEDDING_WEIGHT_FRACTION = new Decimal(0.03)
-
-/**
  * Tensor parallelism communication overhead (12%)
  *
  * TP requires all-reduce operations for gradient synchronization and
@@ -188,7 +166,8 @@ export const TP_COMMUNICATION_OVERHEAD = new Decimal(0.12)
  * Pipeline parallelism communication overhead (5%)
  *
  * PP has lower communication overhead than TP since it only passes activations
- * between pipeline stages (no all-reduce). ~5% overhead for activation buffers.
+ * between pipeline stages (no all-reduce). Costs ~5% throughput (scaling
+ * efficiency); it is not counted as memory.
  */
 export const PP_COMMUNICATION_OVERHEAD = new Decimal(0.05)
 
@@ -199,16 +178,6 @@ export const PP_COMMUNICATION_OVERHEAD = new Decimal(0.05)
  * pipeline stages. This adds ~12% to the base activation memory.
  */
 export const PP_ACTIVATION_STASHING_OVERHEAD = new Decimal(0.12)
-
-/**
- * MoE multi-GPU communication overhead (15% extra)
- *
- * MoE models have additional expert routing communication overhead in multi-GPU
- * setups. This multiplier is applied on top of base TP/PP overhead.
- *
- * For TP with MoE: communicationOverhead = weightsPerGPU * 0.12 * 1.15
- */
-export const MOE_MULTI_GPU_OVERHEAD = new Decimal(0.15)
 
 /**
  * Sanity bound on GPUs inside one node

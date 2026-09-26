@@ -254,6 +254,32 @@ describe('Model Database Validation', () => {
     expect(actual).toEqual(EXOTIC_SLIDING)
   })
 
+  it('flags exactly the multi-head latent attention models', () => {
+    // Every HF config (params.json for Mistral Large 3) carrying kv_lora_rank.
+    // DeepSeek V4 has none: its compressed attention already stores num_kv_heads 1.
+    const MLA = [
+      'deepseek-r1',
+      'inclusionai-ling-3.0-flash',
+      'inclusionai-ling-3.0-tiny',
+      'mistralai-mistral-large-3-675b',
+      'mistralai-mistral-small-4-119b',
+      'moonshotai-kimi-k2-instruct',
+      'moonshotai-kimi-k2-thinking',
+      'moonshotai-kimi-k2.5',
+      'moonshotai-kimi-k2.6',
+      'moonshotai-kimi-k2.7-code',
+      'moonshotai-kimi-k3',
+      'moonshotai-kimi-linear-48b-a3b',
+      'zai-org-glm-4.7-flash',
+      'zai-org-glm-5.2',
+    ]
+    const actual = modelsData
+      .filter((m) => 'use_mla' in m && m.use_mla)
+      .map((m) => m.id)
+      .sort()
+    expect(actual).toEqual(MLA)
+  })
+
   it('stores DeepSeek V4 at its published parameter counts (arXiv 2606.19348)', () => {
     const flash = modelsData.find((m) => m.id === 'deepseek-v4-flash')
     const pro = modelsData.find((m) => m.id === 'deepseek-v4-pro')

@@ -104,10 +104,8 @@ describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
     expect(result.numGPUs).toBe(4)
     expect(result.strategy).toBe('tensor-parallel')
 
-    // Verify replicated memory calculation
+    // Verify replicated memory calculation (layer norms only; embeddings shard)
     // layerNormMemory = 80 * 2 * 8192 * 4 / (1024^3) ≈ 0.0049 GB
-    // embeddingMemory = 39.12 * 0.03 ≈ 1.17 GB
-    // replicatedMemory = 0.0049 + 1.17 ≈ 1.18 GB
     expect(result.replicatedMemory.toNumber()).toBeGreaterThan(0)
     expect(result.replicatedMemory.toNumber()).toBeLessThan(
       singleGPU.modelWeights.toNumber() * 0.05,
@@ -128,13 +126,11 @@ describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
     const expectedActivationsPerGPU = singleGPU.activations.div(4)
     expect(result.perGPU.activations.toString()).toBe(expectedActivationsPerGPU.toString())
 
-    // Verify NCCL buffers included (flat 0.25 GB per GPU, not per peer)
-    const expectedFrameworkOverhead = singleGPU.frameworkOverhead.add(new Decimal(0.25))
-    expect(result.perGPU.frameworkOverhead.toString()).toBe(expectedFrameworkOverhead.toString())
+    // One framework context per rank
+    expect(result.perGPU.frameworkOverhead.toString()).toBe(singleGPU.frameworkOverhead.toString())
 
-    // Verify communication overhead: NVLink-4 has 8% overhead (1 - 0.92 tpScalingEfficiency)
-    const expectedCommOverhead = result.perGPU.modelWeights.mul(1 - 0.92)
-    expect(result.perGPU.communicationOverhead.toString()).toBe(expectedCommOverhead.toString())
+    // Communication memory is the NCCL buffers (flat 0.25 GB per GPU, not per peer)
+    expect(result.perGPU.communicationOverhead.toString()).toBe('0.25')
 
     // Verify interconnect fields
     expect(result.scalingEfficiency).toBe(0.92)
@@ -160,7 +156,7 @@ describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
     expect(result.totalPerGPU.toNumber()).toBeLessThan(singleGPU.total.toNumber())
   })
 
-  it('calculates correct breakdown for MoE model with extra overhead', () => {
+  it('charges MoE the same communication memory as dense', () => {
     const singleGPU = calculateInferenceVRAM({
       model: mixtral8x7b,
       quantization: 'fp16',
@@ -178,15 +174,8 @@ describe('calculateMultiGPUVRAM - Tensor Parallelism', () => {
       h100,
     )
 
-    // MoE should have 15% extra communication overhead
-    // communicationOverhead = weightsPerGPU * (1 - 0.92) * 1.15 for NVLink-4
-    const expectedCommOverhead = result.perGPU.modelWeights.mul(1 - 0.92).mul(1.15)
-    expect(result.perGPU.communicationOverhead.toString()).toBe(expectedCommOverhead.toString())
-
-    // MoE communication overhead should be higher than dense model equivalent
-    expect(result.perGPU.communicationOverhead.toNumber()).toBeGreaterThan(
-      result.perGPU.modelWeights.mul(1 - 0.92).toNumber(),
-    )
+    // Expert routing costs throughput, not memory: only the NCCL buffers count
+    expect(result.perGPU.communicationOverhead.toString()).toBe('0.25')
   })
 
   it('verifies all Decimal instances in breakdown', () => {
@@ -258,9 +247,8 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
     // PP has no NCCL buffers (only point-to-point communication)
     expect(result.perGPU.frameworkOverhead.toString()).toBe(singleGPU.frameworkOverhead.toString())
 
-    // Verify communication overhead (5% for PP)
-    const expectedCommOverhead = result.perGPU.modelWeights.mul(0.05)
-    expect(result.perGPU.communicationOverhead.toString()).toBe(expectedCommOverhead.toString())
+    // Stage sends reuse activation buffers: no extra communication memory
+    expect(result.perGPU.communicationOverhead.toString()).toBe('0')
 
     // Verify total
     const expectedTotal = result.perGPU.modelWeights
@@ -305,11 +293,8 @@ describe('calculateMultiGPUVRAM - Pipeline Parallelism', () => {
     const kvRatio = ppResult.perGPU.kvCache.div(tpResult.perGPU.kvCache)
     expect(kvRatio.toNumber()).toBe(1)
 
-    // NOTE: For this specific scenario (small KV cache relative to model size),
-    // TP actually uses MORE memory per GPU than PP because:
-    // - TP pays for weight replication (~1.18 GB), NCCL buffers (0.6 GB), and comm overhead (8% for NVLink-4 vs 5% for PP)
-    // - PP and TP now shard KV cache identically, so it does not explain the gap
-    // Net: TP overhead dominates for small KV cache; TP > PP in total per-GPU memory
+    // TP uses more memory per GPU than PP here: it replicates layer norms and
+    // pays NCCL buffers, while PP splits every weight and holds neither.
     expect(tpResult.totalPerGPU.toNumber()).toBeGreaterThan(ppResult.totalPerGPU.toNumber())
   })
 })
@@ -490,8 +475,8 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
       'tensor-parallel',
       h100,
     )
-    const ncclAt8 = result.perGPU.frameworkOverhead.sub(singleGPU.frameworkOverhead)
-    const ncclAt72 = at72.perGPU.frameworkOverhead.sub(singleGPU.frameworkOverhead)
+    const ncclAt8 = result.perGPU.communicationOverhead
+    const ncclAt72 = at72.perGPU.communicationOverhead
 
     expect(ncclAt8.toString()).toBe(ncclAt72.toString())
 
@@ -521,12 +506,12 @@ describe('calculateMultiGPUVRAM - Edge Cases', () => {
       h100,
     )
 
-    expect(result.perGPU.frameworkOverhead.toString()).toBe(singleGPU.frameworkOverhead.toString())
+    expect(result.perGPU.communicationOverhead.toString()).toBe('0')
   })
 })
 
 describe('calculateMultiGPUVRAM - Bandwidth-aware overhead', () => {
-  it('uses lower comm overhead for NVLink-4 (8%) vs PCIe-4 (35%)', () => {
+  it('scales NVLink-4 better than PCIe-4, without charging it as memory', () => {
     const singleGPU = calculateInferenceVRAM({
       model: llama70b,
       quantization: 'gptq',
@@ -558,19 +543,10 @@ describe('calculateMultiGPUVRAM - Bandwidth-aware overhead', () => {
     expect(nvlinkResult.interconnectBandwidthGBps).toBe(900)
     expect(pcieResult.interconnectBandwidthGBps).toBe(64)
 
-    // NVLink should have much lower communication overhead
-    expect(nvlinkResult.perGPU.communicationOverhead.toNumber()).toBeLessThan(
-      pcieResult.perGPU.communicationOverhead.toNumber(),
+    // Memory is the same NCCL buffers on both
+    expect(nvlinkResult.perGPU.communicationOverhead.toString()).toBe(
+      pcieResult.perGPU.communicationOverhead.toString(),
     )
-
-    // Verify exact overhead fractions
-    const nvlinkCommFrac = nvlinkResult.perGPU.communicationOverhead.div(
-      nvlinkResult.perGPU.modelWeights,
-    )
-    expect(nvlinkCommFrac.toNumber()).toBeCloseTo(1 - 0.92, 10)
-
-    const pcieCommFrac = pcieResult.perGPU.communicationOverhead.div(pcieResult.perGPU.modelWeights)
-    expect(pcieCommFrac.toNumber()).toBeCloseTo(1 - 0.65, 10)
   })
 
   it('returns scalingEfficiency=1.0 for single GPU passthrough', () => {
@@ -862,5 +838,69 @@ describe('node dimension defaults', () => {
     expect(result.gpusPerNode).toBe(1)
     expect(result.scalingEfficiency).toBe(1)
     expect(result.prefillScalingEfficiency).toBe(1)
+  })
+})
+
+// vLLM is the authority for serving memory. Sources (docs.vllm.ai, stable):
+// - ModelConfig.get_num_kv_heads: `if self.use_mla: return 1`, else
+//   `max(1, total_num_kv_heads // tensor_parallel_size)` (heads replicated past TP > H)
+// - lmcache_mp_connector: "Tensor parallel does not change the KV caches for MLA models"
+// - VocabParallelEmbedding / ParallelLMHead: the vocabulary is split across TP ranks
+describe('tensor parallel memory follows vLLM', () => {
+  const tp = (model: Model, numGPUs: number) => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 32768,
+      batchSize: 1,
+    })
+    const nvl72Like: GPU = { ...h100, interconnect: 'nvlink-5', max_gpus_per_node: 72 }
+    return {
+      singleGPU,
+      result: calculateMultiGPUVRAM(singleGPU, model, 288, numGPUs, 'tensor-parallel', nvl72Like),
+    }
+  }
+
+  it('splits GQA KV by kv heads, not below one head per GPU', () => {
+    const fourKVHeads: Model = { ...llama70b, num_kv_heads: 4 }
+    const { singleGPU, result } = tp(fourKVHeads, 8)
+    expect(result.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(4).toString())
+  })
+
+  it('splits KV fully while TP stays within the kv head count', () => {
+    const { singleGPU, result } = tp(llama70b, 8)
+    expect(result.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(8).toString())
+  })
+
+  it('duplicates MLA KV on every TP rank', () => {
+    const mla: Model = { ...mixtral8x7b, num_kv_heads: 32, use_mla: true }
+    const { singleGPU, result } = tp(mla, 8)
+    expect(result.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.toString())
+  })
+
+  it('shards embeddings: only layer norms are replicated', () => {
+    const { result } = tp(llama70b, 8)
+    // 80 layers x 2 norms x 8192 x 4 bytes
+    const layerNorms = new Decimal(80 * 2 * 8192 * 4).div(1024 ** 3)
+    expect(result.replicatedMemory.toString()).toBe(layerNorms.toString())
+  })
+
+  it('charges each GPU one framework context plus NCCL buffers, whatever the TP degree', () => {
+    const { result } = tp(llama70b, 72)
+    expect(result.perGPU.frameworkOverhead.toNumber()).toBe(1.0)
+    expect(result.perGPU.communicationOverhead.toNumber()).toBe(0.25)
+  })
+
+  it('does not count interconnect efficiency as memory', () => {
+    const pcie: GPU = { ...rtx4090, vram_gb: 80 }
+    const singleGPU = calculateInferenceVRAM({
+      model: mixtral8x7b,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+    })
+    const result = calculateMultiGPUVRAM(singleGPU, mixtral8x7b, 80, 4, 'tensor-parallel', pcie)
+    expect(result.perGPU.communicationOverhead.toNumber()).toBe(0.25)
+    expect(result.scalingEfficiency).toBeLessThan(1)
   })
 })

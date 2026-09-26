@@ -180,8 +180,8 @@ export function GuidePage() {
         <SubHeading>Number of GPUs</SubHeading>
         <P>
           Slider from 1 to 8 GPUs. Multiple GPUs allow running models that exceed a single
-          GPU&apos;s VRAM. The calculator accounts for communication overhead and memory
-          replication.
+          GPU&apos;s VRAM. The calculator accounts for NCCL buffers, replicated layer norms, and KV
+          cache that tensor parallelism cannot split (MLA models, or more GPUs than KV heads).
         </P>
 
         <SubHeading>Sharding Strategy</SubHeading>
@@ -376,7 +376,7 @@ export function GuidePage() {
         <SubHeading>Multi-GPU Breakdown</SubHeading>
         <P>
           When using multiple GPUs, shows how VRAM is distributed across devices with per-GPU bars,
-          including replication overhead for embeddings and layer norms.
+          including replicated layer norms and NCCL communication buffers.
         </P>
 
         <SubHeading>Training Breakdown</SubHeading>

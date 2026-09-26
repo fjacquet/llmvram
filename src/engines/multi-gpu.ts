@@ -2,11 +2,9 @@ import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import {
   BYTES_PER_GB,
-  EMBEDDING_WEIGHT_FRACTION,
   INTERCONNECT_LABELS,
   INTERCONNECT_SPECS,
   MAX_GPUS_PER_NODE,
-  MOE_MULTI_GPU_OVERHEAD,
   NCCL_BUFFER_PER_GPU_GB,
   PP_ACTIVATION_STASHING_OVERHEAD,
   PP_COMMUNICATION_OVERHEAD,
@@ -22,40 +20,42 @@ import type {
 /**
  * Calculate replicated memory for tensor parallelism
  *
- * In TP, embeddings and layer norms must be replicated across all GPUs.
- * This function estimates the total replicated memory.
+ * In TP, layer norms are replicated across all GPUs. Embeddings and the LM head
+ * are not: vLLM's VocabParallelEmbedding and ParallelLMHead split the vocabulary
+ * across TP ranks, so they shard like every other weight.
  *
  * @param model - Model configuration
- * @param modelWeightsGB - Total model weights in GB (Decimal)
  * @returns Replicated memory in GB as Decimal
  */
-function calculateReplicatedMemory(model: Model, modelWeightsGB: Decimal): Decimal {
+function calculateReplicatedMemory(model: Model): Decimal {
   // Layer norm memory: num_layers * 2 (pre/post) * hidden_size * 4 bytes (FP32)
-  const layerNormMemory = new Decimal(model.num_hidden_layers)
-    .mul(2)
-    .mul(model.hidden_size)
-    .mul(4)
-    .div(BYTES_PER_GB)
+  return new Decimal(model.num_hidden_layers).mul(2).mul(model.hidden_size).mul(4).div(BYTES_PER_GB)
+}
 
-  // Embedding memory estimate: ~3% of model weights
-  const embeddingMemory = modelWeightsGB.mul(EMBEDDING_WEIGHT_FRACTION)
-
-  return layerNormMemory.add(embeddingMemory)
+/**
+ * How many ways tensor parallelism splits the KV cache, following vLLM's
+ * ModelConfig.get_num_kv_heads: MLA caches one latent duplicated on every rank,
+ * and GQA heads are replicated once TP exceeds the KV head count, so each GPU
+ * holds at least one head.
+ */
+function kvCacheTPShards(model: Model, numGPUs: number): number {
+  if (model.use_mla) return 1
+  return Math.min(numGPUs, model.num_kv_heads ?? model.num_attention_heads)
 }
 
 /**
  * Calculate tensor parallelism VRAM distribution
  *
  * TP shards model weights, KV cache, and activations across GPUs.
- * Embeddings and layer norms are replicated.
- * Communication overhead is derived from the GPU's interconnect bandwidth.
+ * Layer norms are replicated, and the KV cache stops splitting at the KV head
+ * count (MLA does not split at all). Interconnect bandwidth costs throughput,
+ * not memory: it only sets the scaling efficiency used by the performance model.
  *
  * @param singleGPU - Single-GPU VRAM breakdown
  * @param model - Model configuration
  * @param gpuVramGB - GPU VRAM capacity in GB
  * @param numGPUs - Number of GPUs
- * @param isMoE - Whether model is MoE architecture
- * @param interconnectType - Resolved interconnect type for bandwidth-aware overhead
+ * @param interconnectType - Resolved interconnect type for scaling efficiency
  * @returns Multi-GPU VRAM breakdown
  */
 function calculateTensorParallelVRAM(
@@ -63,14 +63,13 @@ function calculateTensorParallelVRAM(
   model: Model,
   gpuVramGB: number,
   numGPUs: number,
-  isMoE: boolean,
   interconnectType: InterconnectType,
 ): MultiGPUVRAMBreakdown {
   const interconnectSpec = INTERCONNECT_SPECS[interconnectType]
   const scalingEfficiency = interconnectSpec.tpScalingEfficiency
 
-  // Calculate replicated memory (embeddings + layer norms)
-  const replicatedMemory = calculateReplicatedMemory(model, singleGPU.modelWeights)
+  // Calculate replicated memory (layer norms)
+  const replicatedMemory = calculateReplicatedMemory(model)
 
   // Shardable weights = total weights - replicated
   const shardableWeights = singleGPU.modelWeights.sub(replicatedMemory)
@@ -78,25 +77,21 @@ function calculateTensorParallelVRAM(
   // Weights per GPU = (shardable / numGPUs) + replicated
   const weightsPerGPU = shardableWeights.div(numGPUs).add(replicatedMemory)
 
-  // KV cache divided across GPUs
-  const kvCachePerGPU = singleGPU.kvCache.div(numGPUs)
+  // KV cache divided across the ranks that hold distinct KV heads
+  const kvCachePerGPU = singleGPU.kvCache.div(kvCacheTPShards(model, numGPUs))
 
   // Activations divided across GPUs
   const activationsPerGPU = singleGPU.activations.div(numGPUs)
 
-  // NCCL buffers: flat per GPU, not per peer. Ring/tree allreduce gives each
-  // rank a fixed handful of connections however large the group is, so this
-  // does not grow with numGPUs. No numGPUs > 1 guard is needed: a single GPU
-  // forms no communicator and never reaches this path, returning through the
-  // passthrough in calculateMultiGPUVRAM instead.
-  const ncclBuffers = NCCL_BUFFER_PER_GPU_GB
-  const frameworkOverheadPerGPU = singleGPU.frameworkOverhead.add(ncclBuffers)
+  // Framework overhead is per process: every rank pays one CUDA/ROCm context.
+  const frameworkOverheadPerGPU = singleGPU.frameworkOverhead
 
-  // Communication overhead: derived from interconnect bandwidth (1 - scalingEfficiency)
-  // PCIe-4: 35%, PCIe-5: 22%, NVLink-4: 8%, NVLink-5: 3% (15% extra for MoE)
-  const commOverheadFraction = new Decimal(1 - scalingEfficiency)
-  const moeMultiplier = isMoE ? new Decimal(1).add(MOE_MULTI_GPU_OVERHEAD) : new Decimal(1)
-  const communicationOverhead = weightsPerGPU.mul(commOverheadFraction).mul(moeMultiplier)
+  // Communication memory is the NCCL buffers: flat per GPU, not per peer.
+  // Ring/tree allreduce gives each rank a fixed handful of connections however
+  // large the group is, so this does not grow with numGPUs. No numGPUs > 1
+  // guard is needed: a single GPU forms no communicator and never reaches this
+  // path, returning through the passthrough in calculateMultiGPUVRAM instead.
+  const communicationOverhead = NCCL_BUFFER_PER_GPU_GB
 
   // Total per GPU
   const totalPerGPU = weightsPerGPU
@@ -146,7 +141,6 @@ function calculateTensorParallelVRAM(
  * @param model - Model configuration
  * @param gpuVramGB - GPU VRAM capacity in GB
  * @param numGPUs - Number of GPUs
- * @param isMoE - Whether model is MoE architecture
  * @returns Multi-GPU VRAM breakdown
  */
 function calculatePipelineParallelVRAM(
@@ -154,7 +148,6 @@ function calculatePipelineParallelVRAM(
   _model: Model,
   gpuVramGB: number,
   numGPUs: number,
-  isMoE: boolean,
 ): MultiGPUVRAMBreakdown {
   // Weights divided evenly across layers
   const weightsPerGPU = singleGPU.modelWeights.div(numGPUs)
@@ -174,9 +167,9 @@ function calculatePipelineParallelVRAM(
   // Framework overhead (no NCCL buffers for PP)
   const frameworkOverheadPerGPU = singleGPU.frameworkOverhead
 
-  // Communication overhead: 5% of weights per GPU (15% extra for MoE)
-  const moeMultiplier = isMoE ? new Decimal(1).add(MOE_MULTI_GPU_OVERHEAD) : new Decimal(1)
-  const communicationOverhead = weightsPerGPU.mul(PP_COMMUNICATION_OVERHEAD).mul(moeMultiplier)
+  // Stage-to-stage sends reuse activation buffers already counted above; the
+  // pipeline's communication cost is throughput (scaling efficiency), not memory.
+  const communicationOverhead = new Decimal(0)
 
   // Total per GPU
   const totalPerGPU = weightsPerGPU
@@ -291,20 +284,12 @@ export function calculateMultiGPUVRAM(
   }
 
   // Multi-GPU calculation
-  const isMoE = model.architecture === 'moe'
   const interconnectType = resolveInterconnect(gpu)
 
   if (strategy === 'tensor-parallel') {
-    return calculateTensorParallelVRAM(
-      singleGPU,
-      model,
-      gpuVramGB,
-      numGPUs,
-      isMoE,
-      interconnectType,
-    )
+    return calculateTensorParallelVRAM(singleGPU, model, gpuVramGB, numGPUs, interconnectType)
   } else {
-    return calculatePipelineParallelVRAM(singleGPU, model, gpuVramGB, numGPUs, isMoE)
+    return calculatePipelineParallelVRAM(singleGPU, model, gpuVramGB, numGPUs)
   }
 }
 
