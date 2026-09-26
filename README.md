@@ -26,7 +26,8 @@ Browser-based tool for estimating VRAM requirements and performance when running
   Tensor parallelism runs inside each server; pipeline parallelism runs across servers
 - **Interconnect Selector**: Pick the active interconnect variant for GPUs with multiple options
 - **Offloading**: CPU/RAM and NVMe offloading simulation with performance impact
-- **Performance Estimation**: Tokens/sec (using active parameters for MoE models),
+- **Performance Estimation**: Tokens/sec from the bytes each decode step reads (active weights plus
+  every session's KV cache) and, on multiple GPUs, all-reduce latency and pipeline fill;
   prompt-processing time and time-to-first-token modelled from prefill FLOPs (linear weight term
   plus quadratic attention term), bottleneck analysis (roofline model)
 - **Configuration Comparison**: Save and diff up to 3 configurations side-by-side
