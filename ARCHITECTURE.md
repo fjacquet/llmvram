@@ -214,6 +214,14 @@ One decode step produces one token for each of `batchSize` sequences:
 - Per-user tok/s = aggregate / users; per-user TTFT waits for the batches ahead.
 - `maxConcurrentSessions`: `floor((0.9 × VRAM − fixed_per_GPU) / (kv_per_GPU / users))`, fixed = per-GPU total − per-GPU KV. Mirrors vLLM's "Maximum concurrency" (`gpu_memory_utilization` 0.9). Every engine is linear in sessions, so the displayed breakdown gives both terms for any strategy.
 
+### KV Storage Tier (`kv-tier.ts`)
+
+- Parked sessions hold no HBM; memory and decode engines are unchanged.
+- Sessions held = `floor(maxConcurrentSessions / activeShare)`, capped by `capacityTB × 1000 / kv_per_session`.
+- Resume = 0.03 s + KV per session per GPU / tier GB/s per GPU; compared with `prefillSeconds`.
+- Traffic = held × activeShare / burstSeconds × KV per session, against tier GB/s × GPUs.
+- No Dell Lightning FS preset: it targets > 16K GPUs (cluster storage sizing, raidy).
+
 ### Multi-GPU Engine (`multi-gpu.ts`)
 
 Distributes memory the way vLLM allocates it. Requires a `GPU` object to resolve the interconnect.

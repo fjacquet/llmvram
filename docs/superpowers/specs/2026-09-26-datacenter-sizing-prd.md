@@ -1,7 +1,7 @@
 # PRD: Datacenter Sizing for Frontier MoE Models
 
 **Date:** 2026-09-26
-**Status:** 4a-4c implemented; 4d open
+**Status:** 4a-4d implemented
 
 ## Problem
 

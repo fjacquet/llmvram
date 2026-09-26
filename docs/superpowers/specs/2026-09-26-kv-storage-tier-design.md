@@ -58,6 +58,7 @@ Outputs:
   the recompute time from the existing prefill model (`prefillSeconds` at the full
   context). The UI states which is faster; below the crossover (Dell: 8-16K
   tokens) recompute wins.
+- Resume includes a fixed 0.03 s overhead (Dell: offload TTFT 113-129 ms vs 91 ms recompute at 4K).
 - **Tier traffic** = resumes per second × KV per session, to show whether the
   fabric can sustain the churn (resumes/s = active sessions / mean active burst,
   burst length user-set, default 30 s).
