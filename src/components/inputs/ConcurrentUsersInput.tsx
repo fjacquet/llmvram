@@ -1,11 +1,9 @@
 import { InfoTip } from '@components/common/InfoTip'
+import { MAX_CONCURRENT_USERS } from '@engines/constants'
 import { useUIStore } from '@store/uiStore'
 
 const PRESETS = [1, 8, 32, 128, 256, 1024, 4096]
 
-// Rack-scale sizing (e.g. thousands of sessions on a GB300 NVL72) needs far more
-// than the old 256. The slider moves in powers of two; the number field is exact.
-export const MAX_CONCURRENT_USERS = 65536
 const MAX_EXPONENT = Math.log2(MAX_CONCURRENT_USERS)
 
 const clampUsers = (n: number): number =>

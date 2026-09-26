@@ -1,6 +1,7 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
+import { DEFAULT_KV_TIER, type KVTierSettings } from '@engines/kv-tier'
 import type {
   FabricType,
   FineTuningMethod,
@@ -87,6 +88,7 @@ interface UIState {
 
   // Concurrent users (for KV cache sizing in deployment scenarios)
   concurrentUsers: number
+  kvTier: KVTierSettings
 
   // UI preferences (persisted)
   isDarkMode: boolean
@@ -123,6 +125,7 @@ interface UIState {
   setFrameworkPreset: (preset: FrameworkPreset) => void
   setCpuOffloadOptimizer: (enabled: boolean) => void
   setConcurrentUsers: (n: number) => void
+  setKVTier: (patch: Partial<KVTierSettings>) => void
   setIsDarkMode: (dark: boolean) => void
   toggleDarkMode: () => void
 }
@@ -135,6 +138,7 @@ export const useUIStore = create<UIState>()(
       selectedGPU: null,
       interconnectOverride: null,
       concurrentUsers: 1,
+      kvTier: DEFAULT_KV_TIER,
       quantization: 'fp16',
       sequenceLength: 4096,
       batchSize: 1,
@@ -240,6 +244,7 @@ export const useUIStore = create<UIState>()(
         }),
       setCpuOffloadOptimizer: (enabled) => set({ cpuOffloadOptimizer: enabled }),
       setConcurrentUsers: (n) => set({ concurrentUsers: n }),
+      setKVTier: (patch) => set((state) => ({ kvTier: { ...state.kvTier, ...patch } })),
       setIsDarkMode: (dark) => set({ isDarkMode: dark }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
     }),

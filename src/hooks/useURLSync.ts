@@ -1,3 +1,4 @@
+import { DEFAULT_KV_TIER } from '@engines/kv-tier'
 import type {
   FineTuningMethod,
   KVCachePrecision,
@@ -112,6 +113,20 @@ export function useURLSync() {
     store.setKVQuantization(urlState.kvq as KVCachePrecision)
     store.setNumGPUs(urlState.ng)
     store.setShardingStrategy(urlState.ss as ShardingStrategy)
+
+    // Absent in links made before these keys existed: 1 user, no tier
+    store.setConcurrentUsers(urlState.cu ?? 1)
+    store.setKVTier(
+      urlState.kt
+        ? {
+            tier: urlState.kt.t,
+            customGBps: urlState.kt.g ?? null,
+            activeShare: urlState.kt.a,
+            burstSeconds: urlState.kt.b,
+            capacityTB: urlState.kt.c ?? null,
+          }
+        : DEFAULT_KV_TIER,
+    )
 
     // Multi-node (absent = single node, for links created before the feature)
     store.setNumNodes(urlState.nn ?? 1)
