@@ -74,7 +74,7 @@ When implementing VRAM calculations, be aware of these critical estimation error
 
 1. **Quantization overhead**: 4-bit is NOT exactly 0.5 bytes/param. Apply format-specific multipliers (GPTQ: 1.1-1.3x, AWQ: 1.15-1.25x, GGUF Q4_K_M: 1.15x).
 2. **KV cache with GQA/MQA**: Use `n_kv_heads / n_heads` ratio. Llama 3 70B has 8/64 = 0.125x KV reduction.
-3. **Multi-GPU overhead**: Not a simple `total / n_gpus` — tensor parallelism replicates embeddings/layernorms (85-90% effective split), plus NCCL buffers (100-500MB/GPU).
+3. **Multi-GPU memory follows vLLM**: TP shards embeddings and the LM head (`VocabParallelEmbedding`), replicates only layer norms, and splits KV by `max(1, kv_heads // tp)`. MLA models (`use_mla`) duplicate their latent KV on every TP rank. Each GPU pays one framework context plus NCCL buffers (100-500MB); interconnect efficiency is a throughput cost, never memory.
 4. **Fine-tuning memory**: LoRA/QLoRA optimizer states apply only to adapter parameters (~1% of full), not the entire model.
 5. **Framework overhead**: Always add 500MB-1.5GB baseline (PyTorch + CUDA context).
 6. **`fp16_tflops` is DENSE**: H100 989, B200 2250, GB300 2500, MI300X 1307. NVIDIA's Blackwell pages ("with sparsity unless otherwise noted") and AMD ("4.6/5.0 PFLOPS") both publish FP16 *with sparsity* — double the dense figure. Dense FP16 = dense FP8 / 2. A test guards every GPU below 2600.

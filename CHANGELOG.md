@@ -10,10 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - FP8 (1 byte/param) and MXFP4 (4.25 bits/param: 4-bit values plus one 8-bit scale per 32) weight formats. DeepSeek, Kimi K2 and MiniMax M2 ship FP8; gpt-oss and Kimi K3 ship MXFP4.
+- Optional `use_mla` model field, set on the 14 multi-head latent attention models (DeepSeek R1, Kimi K2.x/K3/Linear, GLM 4.7 Flash/5.2, Ling 3.0, Mistral Small 4, Mistral Large 3).
 - Optional `kv_sliding_elements_per_token` and `kv_sliding_window` model fields, recording the windowed layers of Gemma 3/4, gpt-oss, Llama 4 and DeepSeek V4. Recorded only: the engine does not read them yet.
 
 ### Fixed
 
+- Multi-GPU memory now follows what vLLM allocates:
+  - Tensor parallelism split the KV cache across every GPU. vLLM stops at one KV head per GPU and duplicates MLA caches on every rank, so Kimi K3, DeepSeek R1 and GLM 5.2 on 8-72 GPUs were under-counted 8-72x.
+  - Framework overhead summed across the cluster was charged to every GPU (36.5 GB per GPU at 72). Each GPU now pays one 1 GB context.
+  - Interconnect efficiency was counted as memory (up to 35% of weights on PCIe, 5% on pipeline parallelism, +15% for MoE). It is a throughput cost and stays in the scaling efficiency only; communication memory is the 0.25 GB NCCL buffers.
+  - Embeddings were treated as replicated (3% of weights). vLLM shards them across TP ranks; only layer norms are replicated.
 - `fp16_tflops` stored NVIDIA's with-sparsity figure for Blackwell. B200 is now 2250 dense (was 4500), GB300 NVL72 and the GB300 Desktop Superchip 2500 (were 5000). Compute-bound estimates (prefill, time to first token) on these parts were 2x too optimistic.
 - The HGX B300 row copied NVL72 figures. It now lists NVIDIA's HGX numbers: 262.5 GB (2.1 TB / 8), 2250 dense FP16, 75 FP32, ~1100 W, and is renamed "NVIDIA HGX B300 (8-GPU)" (it has no Grace CPU). The id is unchanged so shared links still resolve.
 - KV cache sizes for 22 models, each checked against what vLLM allocates plus a second source. The generic formula assumed head_dim = hidden / heads and every layer full attention:
