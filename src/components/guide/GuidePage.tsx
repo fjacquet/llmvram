@@ -196,6 +196,11 @@ export function GuidePage() {
             over slower PCIe. Each GPU stores only its own layers&apos; KV cache, but decode gains
             nothing at batch 1: stages run one after another until the batch fills the pipeline.
           </li>
+          <li>
+            <strong>Expert Parallel + DP attention</strong> — MoE models only. Splits the experts
+            across GPUs and replicates attention, so each GPU serves its own sessions and MLA KV
+            cache is not duplicated. Each MoE layer pays an all-to-all over the interconnect.
+          </li>
         </ul>
         <P>
           A colored badge shows the detected interconnect and its bandwidth. Green = NVLink

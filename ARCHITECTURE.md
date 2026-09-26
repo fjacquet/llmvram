@@ -219,6 +219,12 @@ Distributes memory the way vLLM allocates it. Requires a `GPU` object to resolve
 - Each GPU pays one 1 GB framework context; `communicationOverhead` is the NCCL buffers (0.25 GB, flat per GPU).
 - Interconnect efficiency (`tpScalingEfficiency`) is a throughput cost: it feeds `scalingEfficiency` / `prefillScalingEfficiency`, never memory.
 
+**Expert Parallelism + DP attention (MoE only):**
+
+- `splitMoEParams` separates routed experts from the base; routed weights divide by N, the base is replicated (vLLM: attention replicated across DP ranks when TP = 1).
+- KV divides by N: each GPU holds only its own sessions, with no MLA duplication.
+- Decode reads the base in full plus 1/N of the touched experts; each MoE layer pays `expertAllToAllSeconds` (FP8 dispatch + BF16 combine over one link direction, plus two latencies).
+
 **Pipeline Parallelism:**
 
 - Assigns contiguous layer ranges to GPUs; weights, KV cache and activations divide by the stage count (activations +12% stashing).

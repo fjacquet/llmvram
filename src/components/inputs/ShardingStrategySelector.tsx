@@ -18,6 +18,7 @@ export function ShardingStrategySelector() {
   const shardingStrategy = useUIStore((s) => s.shardingStrategy)
   const setShardingStrategy = useUIStore((s) => s.setShardingStrategy)
   const selectedGPU = useUIStore((s) => s.selectedGPU)
+  const isMoE = useUIStore((s) => s.selectedModel?.architecture === 'moe')
 
   // Only render when multi-GPU is active
   if (numGPUs <= 1) {
@@ -114,6 +115,35 @@ export function ShardingStrategySelector() {
             layers&apos; KV cache; decode speeds up only with enough concurrent sequences.
           </p>
         </button>
+
+        {/* Expert Parallel + DP attention (MoE only) */}
+        {isMoE && (
+          <button
+            type="button"
+            onClick={() => setShardingStrategy('expert-parallel')}
+            className={`text-left p-3 border-2 rounded-lg transition-colors ${
+              shardingStrategy === 'expert-parallel'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <input
+                type="radio"
+                checked={shardingStrategy === 'expert-parallel'}
+                onChange={() => setShardingStrategy('expert-parallel')}
+                className="text-blue-600 focus:ring-blue-500"
+              />
+              <span className="font-medium text-gray-900 dark:text-white">
+                Expert Parallel + DP attention
+              </span>
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 ml-6">
+              Splits the experts across GPUs and replicates attention; each GPU serves its own
+              sessions, so MLA KV cache is not duplicated. How DeepSeek, Kimi and GLM are served.
+            </p>
+          </button>
+        )}
       </div>
 
       {/* Interconnect information badge */}

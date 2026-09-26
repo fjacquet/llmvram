@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Expert Parallel + DP attention sharding strategy for MoE models (the layout vLLM and SGLang use for DeepSeek, Kimi and GLM): routed experts split across the GPUs, attention and shared layers replicated, each GPU holding only its own sessions' KV cache, so MLA caches are no longer duplicated. Decode prices each MoE layer's dispatch + combine all-to-all as latency plus bytes over the link (anchored on DeepEP's EP8 figures).
 - FP8 (1 byte/param) and MXFP4 (4.25 bits/param: 4-bit values plus one 8-bit scale per 32) weight formats. DeepSeek, Kimi K2 and MiniMax M2 ship FP8; gpt-oss and Kimi K3 ship MXFP4.
 - Optional `use_mla` model field, set on the 14 multi-head latent attention models (DeepSeek R1, Kimi K2.x/K3/Linear, GLM 4.7 Flash/5.2, Ling 3.0, Mistral Small 4, Mistral Large 3).
 - Optional `kv_sliding_elements_per_token` and `kv_sliding_window` model fields, recording the windowed layers of Gemma 3/4, gpt-oss, Llama 4 and DeepSeek V4. The KV cache counts them at min(window, context) tokens, as vLLM allocates them; before, these layers added nothing.
