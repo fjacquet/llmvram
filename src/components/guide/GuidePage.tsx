@@ -400,6 +400,12 @@ export function GuidePage() {
             it down; tensor parallelism adds two all-reduces per layer.
           </li>
           <li>
+            <strong>Max concurrent sessions</strong> — How many sessions fit at the chosen context:
+            the memory left on each GPU after weights and overhead (at 90%, vLLM&apos;s default)
+            divided by one session&apos;s KV cache. Shown in red when the configured concurrent
+            users exceed it.
+          </li>
+          <li>
             <strong>Time to First Token (TTFT)</strong> — Latency for the first output token.
             Dominated by prompt processing (prefill), so it grows with prompt length: past a
             crossover the quadratic attention term overtakes the linear weight term and TTFT rises

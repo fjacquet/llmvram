@@ -5,7 +5,11 @@ import { Recommendations } from '@components/outputs/Recommendations'
 import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownChart'
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
-import { perUserTimeToFirstToken, perUserTokensPerSecond } from '@engines/concurrency'
+import {
+  maxConcurrentSessions,
+  perUserTimeToFirstToken,
+  perUserTokensPerSecond,
+} from '@engines/concurrency'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
@@ -284,6 +288,15 @@ export function ResultsPanel() {
     // Single GPU, no offloading: check if total exceeds GPU capacity
     doesNotFit = result.vram.total.greaterThan(selectedGPU.vram_gb)
   }
+
+  // Sessions that fit at this context, from the same per-GPU breakdown as the fit check
+  const perGPU = result.multiGPU ? result.multiGPU.perGPU : displayBreakdown
+  const maxSessions = maxConcurrentSessions({
+    totalPerGPUGB: perGPU.total.toNumber(),
+    kvPerGPUGB: perGPU.kvCache.toNumber(),
+    concurrentUsers,
+    gpuVramGB: selectedGPU.vram_gb,
+  })
 
   /**
    * Generate descriptive label for snapshot
@@ -646,6 +659,29 @@ export function ResultsPanel() {
                 )}
               </div>
             </div>
+
+            {/* Max concurrent sessions at this context (vLLM's "Maximum concurrency") */}
+            {maxSessions !== null && (
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                  Max concurrent sessions at {sequenceLength.toLocaleString('en-US')} tokens
+                </p>
+                <p
+                  className={`text-base font-semibold ${
+                    concurrentUsers > maxSessions
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {maxSessions.toLocaleString('en-US')}
+                  {concurrentUsers > maxSessions &&
+                    ` (below the ${concurrentUsers.toLocaleString('en-US')} configured)`}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  At 90% of each GPU&apos;s memory (vLLM default), after weights and overhead
+                </p>
+              </div>
+            )}
 
             {/* Per-user metrics (only visible when concurrentUsers > 1) */}
             {concurrentUsers > 1 && (

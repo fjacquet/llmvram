@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Max concurrent sessions at the chosen context, shown in the results: the memory left per GPU after weights and overhead (at vLLM's default 90% memory use) divided by one session's KV share, as vLLM's "Maximum concurrency" log line computes it. Works for every strategy; expert parallelism shows the rack-scale answer (Kimi K3 MXFP4 on a GB300 NVL72 at 262k context: 2,259 sessions with expert parallelism, 35 with tensor parallelism).
+- Concurrent users goes up to 65,536 (was 256): power-of-two slider plus an exact number field, with 256 / 1024 / 4096 presets.
 - Expert Parallel + DP attention sharding strategy for MoE models (the layout vLLM and SGLang use for DeepSeek, Kimi and GLM): routed experts split across the GPUs, attention and shared layers replicated, each GPU holding only its own sessions' KV cache, so MLA caches are no longer duplicated. Decode prices each MoE layer's dispatch + combine all-to-all as latency plus bytes over the link (anchored on DeepEP's EP8 figures).
 - FP8 (1 byte/param) and MXFP4 (4.25 bits/param: 4-bit values plus one 8-bit scale per 32) weight formats. DeepSeek, Kimi K2 and MiniMax M2 ship FP8; gpt-oss and Kimi K3 ship MXFP4.
 - Optional `use_mla` model field, set on the 14 multi-head latent attention models (DeepSeek R1, Kimi K2.x/K3/Linear, GLM 4.7 Flash/5.2, Ling 3.0, Mistral Small 4, Mistral Large 3).

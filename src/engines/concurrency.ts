@@ -1,4 +1,5 @@
 import type Decimal from 'decimal.js'
+import { GPU_MEMORY_UTILIZATION } from './constants'
 
 /**
  * Per-user decode throughput under concurrent load
@@ -37,4 +38,33 @@ export function perUserTimeToFirstToken(
 ): Decimal {
   const waves = Math.ceil(Math.max(1, concurrentUsers) / Math.max(1, batchSize))
   return timeToFirstToken.mul(Math.max(1, waves))
+}
+
+/**
+ * Maximum concurrent sessions at the configured context length
+ *
+ * Mirrors vLLM's "Maximum concurrency for N tokens per request" log line
+ * (kv_cache_utils.get_max_concurrency_for_kv_cache_config): the memory left
+ * after weights, activations and overhead, divided by one request's KV at the
+ * full context. vLLM claims GPU_MEMORY_UTILIZATION of the device.
+ *
+ * Every engine is linear in session count, so the per-GPU breakdown already
+ * computed for `concurrentUsers` gives both terms: fixed = total - KV, and one
+ * session's KV = KV / concurrentUsers. That KV share already reflects the
+ * strategy (TP stops at the KV head count and duplicates MLA; EP and PP split it).
+ *
+ * @returns sessions (0 when the fixed costs alone do not fit), or null when no
+ *          KV sits on the GPU (offloaded), so VRAM does not bound sessions
+ */
+export function maxConcurrentSessions(params: {
+  totalPerGPUGB: number
+  kvPerGPUGB: number
+  concurrentUsers: number
+  gpuVramGB: number
+}): number | null {
+  const { totalPerGPUGB, kvPerGPUGB, concurrentUsers, gpuVramGB } = params
+  if (kvPerGPUGB <= 0) return null
+  const fixed = totalPerGPUGB - kvPerGPUGB
+  const perSession = kvPerGPUGB / Math.max(1, concurrentUsers)
+  return Math.max(0, Math.floor((gpuVramGB * GPU_MEMORY_UTILIZATION - fixed) / perSession))
 }
