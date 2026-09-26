@@ -1,7 +1,7 @@
 # KV Storage Tier (Dell Lightning / CMX / PowerScale / ObjectScale)
 
 **Date:** 2026-09-26
-**Status:** Draft, awaiting review
+**Status:** Approved 2026-09-26
 **PRD:** `2026-09-26-datacenter-sizing-prd.md`, piece 4d
 
 ## Context
@@ -70,6 +70,7 @@ Preset bandwidths (per GPU, read, **estimates**, sources in code):
 | Host memory (PCIe 5) | 50 | PCIe 5 x16 ~64 GB/s, practical |
 | Local NVMe | 12 | ~4 Gen5 drives per 8-GPU server striped |
 | Network storage | 12.5 | one 400 GbE storage NIC share per GPU; matches the Dell anchor (≥ 51 GB/s per 4-GPU server = 12.8 per GPU) |
+| Dell Lightning FS | 12.5 | same client-side limit as network storage: Dell publishes no per-GPU figure (150 GB/s per rack unit is the storage side); the UI notes this |
 
 ## Engine
 
@@ -93,10 +94,9 @@ Prefix sharing across sessions (hit ratios), eviction policies, tier write
 bandwidth and endurance, cost. Multi-tier hierarchies (host + storage) beyond one
 chosen tier.
 
-## Open questions for review
+## Decisions (review 2026-09-26)
 
-1. Default active share 25% and burst 30 s: acceptable, or do you have a figure
-   from your agentic workloads?
-2. Presets: keep the four above, or add a named "Dell Lightning FS" preset despite
-   no published per-GPU figure (it would equal "Network storage" with a note)?
-3. Should "sessions held" also appear in PDF/PPTX exports now, or later?
+1. Defaults accepted: active share 25%, active burst 30 s.
+2. A named "Dell Lightning FS" preset is added (12.5 GB/s per GPU, with a note that
+   Dell publishes no per-GPU figure).
+3. PDF/PPTX exports: later, not in this piece.
