@@ -47,7 +47,7 @@ src/
 │   │   ├── KVQuantizationPicker.tsx    # KV cache quantization selector
 │   │   ├── SequenceLengthInput.tsx     # Log-scale slider (512-131K)
 │   │   ├── BatchSizeInput.tsx          # Batch size (1-64)
-│   │   ├── ConcurrentUsersInput.tsx    # Concurrent users (1-256) for KV cache sizing
+│   │   ├── ConcurrentUsersInput.tsx    # Concurrent users (1-65,536) for KV cache sizing
 │   │   ├── GPUCountSelector.tsx        # Number of GPUs, bounded by the selected GPU's max_gpus_per_node (1-72)
 │   │   ├── ShardingStrategySelector.tsx # Tensor/pipeline parallelism
 │   │   └── OffloadingPanel.tsx         # CPU/NVMe offloading controls
@@ -183,7 +183,7 @@ One bytes-per-parameter figure applies to every tensor. Real checkpoints keep em
 - `full_elements` is `kv_cache_elements_per_token` when the model has it (MLA, hybrid, explicit head_dim), else `2 × layers × hidden × num_kv_heads / num_attention_heads`.
 - `sliding_elements` / `window` are `kv_sliding_elements_per_token` / `kv_sliding_window` (Gemma 3/4, gpt-oss, Llama 4, DeepSeek V4), allocated at `min(window, context)` as vLLM does.
 - These values are known-good (what vLLM allocates, confirmed by a second source), never re-derived by hand.
-- `concurrentUsers` (1-256) replaces `batchSize` so the estimate covers every resident session. Constant-size linear-attention / Mamba state is not counted yet.
+- `concurrentUsers` (1-65,536) replaces `batchSize` so the estimate covers every resident session. Constant-size linear-attention / Mamba state is not counted yet.
 
 Supports independent KV cache quantization (FP16, FP8, INT8, INT4).
 
@@ -207,6 +207,11 @@ One decode step produces one token for each of `batchSize` sequences:
 - **Tokens/sec:** `batch / step × B / (B + stages − 1) × interNodeDecodeEfficiency`. A decode token cannot be split into micro-batches, so pipeline parallelism gives no speedup at batch 1.
 - **TTFT:** prefill FLOPs (`2 × active × T` + `2 × layers × T² × hidden`) / (FLOPS × PREFILL_MFU × numGPUs × prefillScalingEfficiency), plus one decode step.
 - 5% tolerance for bottleneck classification.
+
+### Concurrency (`concurrency.ts`)
+
+- Per-user tok/s = aggregate / users; per-user TTFT waits for the batches ahead.
+- `maxConcurrentSessions`: `floor((0.9 × VRAM − fixed_per_GPU) / (kv_per_GPU / users))`, fixed = per-GPU total − per-GPU KV. Mirrors vLLM's "Maximum concurrency" (`gpu_memory_utilization` 0.9). Every engine is linear in sessions, so the displayed breakdown gives both terms for any strategy.
 
 ### Multi-GPU Engine (`multi-gpu.ts`)
 
@@ -252,7 +257,7 @@ Single store with all calculator state:
 - Sequence length, batch size
 - Multi-GPU config (count, sharding strategy)
 - Offloading settings
-- Concurrent users count (1–256)
+- Concurrent users count (1–65,536)
 - Interconnect override for GPUs with multiple options
 - Dark mode preference: defaults to `prefers-color-scheme` on first visit, tracks live OS changes via `matchMedia`, persisted to localStorage
 

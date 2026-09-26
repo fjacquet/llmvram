@@ -21,6 +21,13 @@ import type {
 export const FRAMEWORK_OVERHEAD_GB = new Decimal(1.0)
 
 /**
+ * Share of device memory a serving engine claims: vLLM's default
+ * `gpu_memory_utilization` (0.9). Used for the max-sessions answer so it matches
+ * vLLM's own "Maximum concurrency" log line.
+ */
+export const GPU_MEMORY_UTILIZATION = 0.9
+
+/**
  * Bytes per parameter for each quantization format
  *
  * Float formats: Standard precision
