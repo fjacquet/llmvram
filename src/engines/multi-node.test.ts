@@ -51,6 +51,7 @@ const base = {
   gpu: mi355x,
   fabric: FABRIC_SPECS['ethernet-800g'],
   batchSize: 1,
+  quantization: 'fp16' as const,
 }
 
 describe('calculateMultiNodeVRAM', () => {

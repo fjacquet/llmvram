@@ -39,7 +39,7 @@ import type {
  *   singleGPU, model: llama405b, gpuVramGB: 288,
  *   gpusPerNode: 8, numNodes: 4,
  *   intraNodeStrategy: 'tensor-parallel', gpu: mi355x,
- *   fabric: FABRIC_SPECS['ethernet-800g'], batchSize: 1,
+ *   fabric: FABRIC_SPECS['ethernet-800g'], batchSize: 1, quantization: 'fp16',
  * })
  * ```
  */
@@ -53,7 +53,7 @@ export function calculateMultiNodeVRAM(params: {
   gpu: GPU
   fabric: FabricSpec
   batchSize: number
-  quantization?: QuantizationFormat
+  quantization: QuantizationFormat
 }): MultiGPUVRAMBreakdown {
   const {
     singleGPU,

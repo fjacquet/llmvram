@@ -196,6 +196,7 @@ describe('MultiGPUBreakdownChart', () => {
       gpu,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 1,
+      quantization: 'fp16',
     })
     expect(multiNodeBreakdown.numGPUs).toBe(32)
 
