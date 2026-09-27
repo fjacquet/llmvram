@@ -418,6 +418,10 @@ export function ResultsPanel() {
             </div>
           </div>
         </div>
+
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          GB here means GiB (1024³ bytes), as nvidia-smi reports.
+        </p>
       </div>
     )
   }
@@ -517,18 +521,23 @@ export function ResultsPanel() {
             {/* Single-GPU Breakdown Chart and Table */}
             <VRAMBreakdownChart breakdown={displayBreakdown} />
             <MemoryBreakdownTable breakdown={displayBreakdown} />
-
-            {/* Capacity: max sessions, KV storage tier, weight measurement source */}
-            <CapacitySection
-              maxSessions={maxSessions}
-              sequenceLength={sequenceLength}
-              concurrentUsers={concurrentUsers}
-              tierSummary={tierSummary}
-              kvTier={kvTier}
-              prefillSeconds={result.performance.prefillSeconds}
-              weightSourceRepo={weightSourceRepo}
-              quantization={quantization}
-            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {weightSourceRepo ? (
+                <>
+                  Weights measured from{' '}
+                  <a
+                    href={`https://huggingface.co/${weightSourceRepo}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    {weightSourceRepo}
+                  </a>
+                </>
+              ) : (
+                `Weights estimated: no reference checkpoint for ${quantization}`
+              )}
+            </p>
 
             {/* Multi-GPU Breakdown Chart */}
             {result.multiGPU && (
@@ -558,7 +567,7 @@ export function ResultsPanel() {
                 // numGPUs from the store is per-node; Recommendations renders
                 // "Current {numGPUs}x" and must report the true cluster total
                 // (see IMPORTANT-1 in the multi-node fix wave, and the
-                // matching fallback in handleExportPptx above).
+                // matching fallback in useResultExports above).
                 numGPUs={result.multiGPU?.numGPUs ?? numGPUs}
                 multiGPUBreakdown={result.multiGPU}
               />
@@ -575,7 +584,16 @@ export function ResultsPanel() {
             performance={result.performance}
             concurrentUsers={concurrentUsers}
             batchSize={batchSize}
-          />
+          >
+            <CapacitySection
+              maxSessions={maxSessions}
+              sequenceLength={sequenceLength}
+              concurrentUsers={concurrentUsers}
+              tierSummary={tierSummary}
+              kvTier={kvTier}
+              prefillSeconds={result.performance.prefillSeconds}
+            />
+          </PerformanceSection>
         </div>
 
         <p className="text-xs text-gray-400 dark:text-gray-500">

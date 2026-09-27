@@ -40,4 +40,19 @@ describe('PerformanceSection', () => {
     expect(screen.queryByText(/decode at once/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Multi-user metrics/)).not.toBeInTheDocument()
   })
+
+  it('renders children between the metric grid and the multi-user block (CapacitySection slot)', () => {
+    const { container } = render(
+      <PerformanceSection performance={performance} concurrentUsers={2} batchSize={2}>
+        <div>CAPACITY MARKER</div>
+      </PerformanceSection>,
+    )
+    const text = container.textContent ?? ''
+    const gridIndex = text.indexOf('Decode Speed')
+    const markerIndex = text.indexOf('CAPACITY MARKER')
+    const multiUserIndex = text.indexOf('Multi-user metrics')
+    expect(gridIndex).toBeGreaterThanOrEqual(0)
+    expect(markerIndex).toBeGreaterThan(gridIndex)
+    expect(multiUserIndex).toBeGreaterThan(markerIndex)
+  })
 })

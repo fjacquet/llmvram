@@ -1,11 +1,21 @@
 import { perUserTimeToFirstToken, perUserTokensPerSecond } from '@engines/concurrency'
 import type { PerformanceEstimate } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
+import type { ReactNode } from 'react'
 
 interface PerformanceSectionProps {
   performance: PerformanceEstimate
   concurrentUsers: number
   batchSize: number
+  /**
+   * Rendered between the metric grid and the per-user metrics block — this is
+   * where CapacitySection (max sessions, KV tier) sits, matching the DOM
+   * order this card had before the ResultsPanel split. Each top-level child
+   * is expected to carry its own `mt-4 pt-4 border-t` divider, as
+   * CapacitySection's blocks do; this slot adds no wrapper of its own so
+   * dividers don't stack.
+   */
+  children?: ReactNode
 }
 
 /**
@@ -16,6 +26,7 @@ export function PerformanceSection({
   performance,
   concurrentUsers,
   batchSize,
+  children,
 }: PerformanceSectionProps) {
   return (
     <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
@@ -69,6 +80,8 @@ export function PerformanceSection({
           )}
         </div>
       </div>
+
+      {children}
 
       {/* Per-user metrics (only visible when concurrentUsers > 1) */}
       {concurrentUsers > 1 && (

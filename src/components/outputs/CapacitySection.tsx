@@ -11,14 +11,14 @@ interface CapacitySectionProps {
   tierSummary: TierSummary
   kvTier: KVTierSettings
   prefillSeconds: Decimal | null
-  /** Repo the weights were measured from, or null when the format is estimated */
-  weightSourceRepo: string | null
-  quantization: string
 }
 
 /**
- * Capacity info: how many sessions fit, what the KV storage tier holds, and
- * whether the weight sizes behind those numbers are measured or estimated.
+ * Capacity info within the Performance Estimate card: how many sessions fit
+ * at this context, and what the KV storage tier holds. Rendered inside
+ * PerformanceSection, between the aggregate metric grid and the per-user
+ * metrics block — the same position this content held before the
+ * ResultsPanel split (C10).
  */
 export function CapacitySection({
   maxSessions,
@@ -27,14 +27,12 @@ export function CapacitySection({
   tierSummary,
   kvTier,
   prefillSeconds,
-  weightSourceRepo,
-  quantization,
 }: CapacitySectionProps) {
   return (
     <>
       {/* Max concurrent sessions at this context (vLLM's "Maximum concurrency") */}
       {maxSessions !== null && (
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
             Max concurrent sessions at {sequenceLength.toLocaleString('en-US')} tokens
           </p>
@@ -56,7 +54,7 @@ export function CapacitySection({
       )}
 
       {tierSummary && (
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-1">
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 space-y-1">
           <p className="text-sm text-gray-500 dark:text-gray-400">
             With the KV storage tier ({Math.round(kvTier.activeShare * 100)}% active)
           </p>
@@ -82,24 +80,6 @@ export function CapacitySection({
           </p>
         </div>
       )}
-
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-        {weightSourceRepo ? (
-          <>
-            Weights measured from{' '}
-            <a
-              href={`https://huggingface.co/${weightSourceRepo}`}
-              target="_blank"
-              rel="noreferrer"
-              className="underline"
-            >
-              {weightSourceRepo}
-            </a>
-          </>
-        ) : (
-          `Weights estimated: no reference checkpoint for ${quantization}`
-        )}
-      </p>
     </>
   )
 }
