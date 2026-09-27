@@ -458,12 +458,12 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
   const capacityRows: [string, string][] = []
   if (maxSessions !== undefined) {
     capacityRows.push([
-      `Max concurrent sessions (at ${sequenceLength.toLocaleString()} tokens)`,
-      maxSessions.toLocaleString(),
+      `Max concurrent sessions (at ${sequenceLength.toLocaleString('en-US')} tokens)`,
+      maxSessions.toLocaleString('en-US'),
     ])
   }
   if (typeof tierSessionsHeld === 'number') {
-    capacityRows.push(['Sessions held with KV tier', tierSessionsHeld.toLocaleString()])
+    capacityRows.push(['Sessions held with KV tier', tierSessionsHeld.toLocaleString('en-US')])
   }
   if (weightSource !== undefined) {
     capacityRows.push([
