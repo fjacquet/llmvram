@@ -204,7 +204,10 @@ export function GuidePage() {
           <li>
             <strong>Expert Parallel + DP attention</strong> — MoE models only. Splits the experts
             across GPUs and replicates attention, so each GPU serves its own sessions and MLA KV
-            cache is not duplicated. Each MoE layer pays an all-to-all over the interconnect.
+            cache is not duplicated. Each MoE layer pays an all-to-all over the interconnect. Where
+            a measured base/expert weight split is available, replicated-base memory and MoE decode
+            price the base and the experts at their own measured rates instead of one blended
+            average.
           </li>
         </ul>
         <P>

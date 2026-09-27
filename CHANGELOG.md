@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Host capacity check for offloaded memory: a "Host capacity per server (GB)" input in the Offloading panel (defaulting to a per-tier/target estimate — e.g. 2048 GB cpu-ram / 30720 GB nvme on datacenter GPUs, 128 GB / 2000 GB otherwise) flags when the offloaded weights and/or KV cache exceed what the host(s) can actually hold, in the results and in the PPTX export.
+- `refresh:models --split` measures `high_precision` for MoE refs; the audit checks it.
+
+### Changed
+
+- Expert-parallel memory and MoE decode price the replicated base and the routed experts at their measured rates (weight refs carry the tensors kept as >=16-bit floats, from the Hugging Face dtype summary). Kimi K3 MXFP4 on 8 GPUs: ~272 GiB of weights per GPU (was 207); batch-1 decode ~2.3x slower, previously overstated. GGUF and 16-bit refs keep the single average.
 
 ### Fixed
 
