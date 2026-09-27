@@ -49,12 +49,12 @@ export const MAX_CONCURRENT_USERS = 65536
  * - int8: 1 byte, int4/nf4: 0.5 bytes
  *
  * Compressed formats with overhead (NOT pure bits-per-weight):
- * - gptq: 0.6 bytes (4-bit + 1.2x overhead for codebooks/scales)
- * - awq: 0.6 bytes (4-bit + 1.2x overhead for activation-aware quantization)
+ * - gptq: 0.52 bytes (4-bit + 16-bit scale and 4-bit zero per group of 128)
+ * - awq: 0.52 bytes (4-bit + 16-bit scale and 4-bit zero per group of 128)
  *
  * GGUF formats (empirical bits-per-parameter from llama.cpp block sizes):
  * Computed as: type_size_bytes * 8 / block_size
- * - q2_k:   block 256, size 84 → 2.625 bpp → 0.328 bytes
+ * - q2_k:   median of 25 published Q2_K files → 2.93 bpp → 0.366 bytes
  * - q3_k_s: block 256, size 110 → 3.4375 bpp → 0.430 bytes
  * - q3_k_m: mixed quantization → ~3.9 bpp → 0.489 bytes
  * - q3_k_l: mixed quantization → ~4.13 bpp → 0.516 bytes
@@ -86,12 +86,16 @@ export const BYTES_PER_PARAMETER: Record<QuantizationFormat, Decimal> = {
 
   // Integer formats
   int8: new Decimal(1.0),
-  int4: new Decimal(0.5),
+  // 4 bits + one 16-bit scale per group of 32, symmetric (no zero point):
+  // Kimi K2 quantization_config {group_size: 32, num_bits: 4, symmetric: true} = 4.5 bpp
+  int4: new Decimal(0.5625),
   nf4: new Decimal(0.5),
 
-  // Compressed formats (4-bit base + 1.2x overhead)
-  gptq: new Decimal(0.6), // 0.5 * 1.2
-  awq: new Decimal(0.6), // 0.5 * 1.2
+  // Compressed formats (4-bit base + scale/zero-point overhead)
+  // 4 bits + 16-bit scale + 4-bit zero point per group of 128 ≈ 4.16 bpp.
+  // Checkpoints also keep embeddings / lm_head 16-bit: weight_refs capture that per model.
+  gptq: new Decimal(0.52),
+  awq: new Decimal(0.52),
 
   // GGUF formats (empirical bpp / 8, from llama.cpp block sizes)
   'gguf-q8_0': new Decimal(1.0625), // 8.5 bpp
@@ -105,7 +109,9 @@ export const BYTES_PER_PARAMETER: Record<QuantizationFormat, Decimal> = {
   'gguf-q3_k_l': new Decimal(0.516), // 4.13 bpp
   'gguf-q3_k_m': new Decimal(0.489), // 3.9 bpp
   'gguf-q3_k_s': new Decimal('0.430'), // 3.44 bpp
-  'gguf-q2_k': new Decimal(0.328), // 2.625 bpp
+  // Median of 25 published Q2_K files (unsloth / bartowski, 2026-09-26 spike) ≈ 2.93 bpp:
+  // the Q2_K mix stores some tensors in higher-bit types (the pure block is 2.625 bpp).
+  'gguf-q2_k': new Decimal(0.366),
 }
 
 /**

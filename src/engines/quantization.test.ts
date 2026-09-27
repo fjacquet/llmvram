@@ -1,5 +1,11 @@
-import { calculateModelWeightVRAM, getBytesPerParameter } from '@engines/quantization'
+import {
+  calculateModelWeightVRAM,
+  effectiveBytesPerParameter,
+  getBytesPerParameter,
+  weightSource,
+} from '@engines/quantization'
 import type { QuantizationFormat } from '@engines/types'
+import type { Model } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 
 describe('getBytesPerParameter', () => {
@@ -18,12 +24,12 @@ describe('getBytesPerParameter', () => {
 
       // Integer formats
       ['int8', 1.0],
-      ['int4', 0.5],
+      ['int4', 0.5625], // 4-bit + 16-bit scale per group of 32 → 4.5 bpp
       ['nf4', 0.5],
 
       // Compressed formats with overhead
-      ['gptq', 0.6],
-      ['awq', 0.6],
+      ['gptq', 0.52], // 4-bit + 16-bit scale and 4-bit zero per group of 128
+      ['awq', 0.52], // 4-bit + 16-bit scale and 4-bit zero per group of 128
 
       // GGUF formats (empirical bpp from llama.cpp block sizes)
       ['gguf-q8_0', 1.0625], // 8.5 bpp
@@ -37,7 +43,7 @@ describe('getBytesPerParameter', () => {
       ['gguf-q3_k_l', 0.516], // 4.13 bpp
       ['gguf-q3_k_m', 0.489], // 3.9 bpp
       ['gguf-q3_k_s', 0.43], // 3.44 bpp
-      ['gguf-q2_k', 0.328], // 2.625 bpp
+      ['gguf-q2_k', 0.366], // ~2.93 bpp
     ]
 
     for (const [format, expectedBytes] of formatTests) {
@@ -52,7 +58,7 @@ describe('getBytesPerParameter', () => {
   })
 
   describe('GPTQ and AWQ overhead verification', () => {
-    it('should show GPTQ has 1.2x overhead over pure 4-bit (0.5 bytes)', () => {
+    it('should show GPTQ has overhead over pure 4-bit (0.5 bytes)', () => {
       const gptqBytes = getBytesPerParameter('gptq').toNumber()
       const pure4bit = 0.5
 
@@ -60,8 +66,8 @@ describe('getBytesPerParameter', () => {
       expect(gptqBytes).toBeGreaterThan(pure4bit)
       expect(gptqBytes).toBeLessThanOrEqual(0.65)
 
-      // Should be approximately 0.6 (0.5 * 1.2)
-      expect(gptqBytes).toBeCloseTo(0.6, 2)
+      // 4-bit + group-128 scale and zero
+      expect(gptqBytes).toBeCloseTo(0.52, 2)
     })
 
     it('should show AWQ has same overhead as GPTQ', () => {
@@ -127,11 +133,11 @@ describe('calculateModelWeightVRAM', () => {
       expect(vram.toNumber()).toBeCloseTo(13.04, 1)
     })
 
-    it('should calculate 70B GPTQ model as ~39.12 GB', () => {
+    it('should calculate 70B GPTQ model as ~33.90 GB', () => {
       const vram = calculateModelWeightVRAM(70.0, 'gptq')
 
-      // 70B * 0.6 bytes = 42GB, then 42e9 / 1024^3 = ~39.12 GB
-      expect(vram.toNumber()).toBeCloseTo(39.12, 1)
+      // 70B * 0.52 bytes = 36.4GB, then 36.4e9 / 1024^3 = ~33.90 GB
+      expect(vram.toNumber()).toBeCloseTo(33.9, 1)
     })
 
     it('should calculate Mixtral 8x7B FP16 using TOTAL params (46.7B) as ~86.97 GB', () => {
@@ -143,11 +149,11 @@ describe('calculateModelWeightVRAM', () => {
       expect(vram.toNumber()).toBeCloseTo(86.97, 1)
     })
 
-    it('should calculate 13B INT4 model as ~6.06 GB', () => {
+    it('should calculate 13B INT4 model as ~6.81 GB', () => {
       const vram = calculateModelWeightVRAM(13.0, 'int4')
 
-      // 13B * 0.5 bytes = 6.5GB, then 6.5e9 / 1024^3 = ~6.05 GB
-      expect(vram.toNumber()).toBeCloseTo(6.06, 1)
+      // 13B * 0.5625 bytes = 7.3125GB, then 7.3125e9 / 1024^3 = ~6.81 GB
+      expect(vram.toNumber()).toBeCloseTo(6.81, 1)
     })
   })
 
@@ -176,8 +182,8 @@ describe('calculateModelWeightVRAM', () => {
     it('should handle small quantized models (1.5B INT4) accurately', () => {
       const vram = calculateModelWeightVRAM(1.5, 'int4')
 
-      // 1.5B * 0.5 bytes = 0.75GB, then 0.75e9 / 1024^3 = ~0.70 GB
-      expect(vram.toNumber()).toBeCloseTo(0.7, 1)
+      // 1.5B * 0.5625 bytes = 0.84375GB, then 0.84375e9 / 1024^3 = ~0.786 GB
+      expect(vram.toNumber()).toBeCloseTo(0.786, 1)
     })
   })
 
@@ -190,15 +196,15 @@ describe('calculateModelWeightVRAM', () => {
       expect(ratio).toBeCloseTo(2.0, 2)
     })
 
-    it('should show GPTQ reduces VRAM by ~3.3x vs FP16 (not 4x)', () => {
+    it('should show GPTQ reduces VRAM by ~3.85x vs FP16 (not 4x)', () => {
       const gptq = calculateModelWeightVRAM(70.0, 'gptq')
       const fp16 = calculateModelWeightVRAM(70.0, 'fp16')
 
       const ratio = fp16.div(gptq).toNumber()
 
-      // GPTQ is 0.6 bytes, FP16 is 2.0 bytes
-      // Ratio should be 2.0 / 0.6 = 3.33x (not 4x due to overhead)
-      expect(ratio).toBeCloseTo(3.33, 1)
+      // GPTQ is 0.52 bytes, FP16 is 2.0 bytes
+      // Ratio should be 2.0 / 0.52 = 3.846x (not 4x due to overhead)
+      expect(ratio).toBeCloseTo(3.846, 1)
       expect(ratio).toBeLessThan(4.0) // Should NOT be 4x
     })
   })
@@ -219,5 +225,66 @@ describe('calculateModelWeightVRAM', () => {
       // 0.5B * 2 bytes = 1GB, then 1e9 / 1024^3 = ~0.93 GB
       expect(vram.toNumber()).toBeCloseTo(0.93, 1)
     })
+  })
+})
+
+describe('measured weight_refs', () => {
+  const gemma: Model = {
+    id: 'google-gemma-4-31b',
+    name: 'Gemma 4 31B',
+    architecture: 'dense',
+    num_parameters_billion: 32.7,
+    hidden_size: 5376,
+    num_hidden_layers: 60,
+    num_attention_heads: 32,
+    intermediate_size: 21504,
+    weight_refs: { nvfp4: { repo: 'nvidia/Gemma-4-31B-IT-NVFP4', gib: 30.4 } },
+  }
+
+  it('returns the measured checkpoint size when the format has a ref', () => {
+    expect(calculateModelWeightVRAM(32.7, 'nvfp4', gemma).toNumber()).toBeCloseTo(30.4, 9)
+  })
+
+  it('scales a parameter subset by the measured bytes per parameter (decode)', () => {
+    const half = calculateModelWeightVRAM(32.7 / 2, 'nvfp4', gemma).toNumber()
+    expect(half).toBeCloseTo(15.2, 9)
+  })
+
+  it('falls back to the constant for a format without a ref', () => {
+    expect(effectiveBytesPerParameter('int4', gemma).toNumber()).toBe(0.5625)
+    expect(calculateModelWeightVRAM(32.7, 'int4', gemma).toString()).toBe(
+      calculateModelWeightVRAM(32.7, 'int4').toString(),
+    )
+  })
+
+  it('leaves models without refs (custom, URL-restored) on the constants', () => {
+    const custom: Model = { ...gemma, weight_refs: undefined }
+    expect(calculateModelWeightVRAM(32.7, 'nvfp4', custom).toString()).toBe(
+      calculateModelWeightVRAM(32.7, 'nvfp4').toString(),
+    )
+  })
+
+  it('names the measured source, or null when estimated', () => {
+    expect(weightSource(gemma, 'nvfp4')).toBe('nvidia/Gemma-4-31B-IT-NVFP4')
+    expect(weightSource(gemma, 'fp8')).toBeNull()
+  })
+})
+
+describe('source-derived fallback constants', () => {
+  it('int4 carries a 16-bit scale per group of 32 (Kimi K2 quantization_config)', () => {
+    expect(effectiveBytesPerParameter('int4').toNumber()).toBe((4 + 16 / 32) / 8)
+  })
+
+  it('AWQ and GPTQ carry a 16-bit scale and 4-bit zero per group of 128', () => {
+    expect(effectiveBytesPerParameter('awq').toNumber()).toBe(0.52)
+    expect(effectiveBytesPerParameter('gptq').toNumber()).toBe(0.52)
+  })
+
+  it('GGUF Q2_K matches the median published file (2.93 bpp)', () => {
+    expect(effectiveBytesPerParameter('gguf-q2_k').toNumber()).toBe(0.366)
+  })
+
+  it('NVFP4 is E2M1 plus an FP8 scale per 16 values', () => {
+    expect(effectiveBytesPerParameter('nvfp4').toNumber()).toBe((4 + 8 / 16) / 8)
   })
 })

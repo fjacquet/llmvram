@@ -219,11 +219,11 @@ describe('calculateInferenceVRAM', () => {
       kvQuantization: 'fp16',
     })
 
-    // Model weights: 70B * 0.6 bytes/param / (1024^3) = ~39.12 GB
-    const expectedWeights = new Decimal(70.0).mul(1e9).mul(0.6).div(new Decimal(1024).pow(3))
+    // Model weights: 70B * 0.52 bytes/param / (1024^3) = ~33.90 GB
+    const expectedWeights = new Decimal(70.0).mul(1e9).mul(0.52).div(new Decimal(1024).pow(3))
 
     expect(result.modelWeights.toString()).toBe(expectedWeights.toString())
-    expect(result.modelWeights.toNumber()).toBeCloseTo(39.12, 2)
+    expect(result.modelWeights.toNumber()).toBeCloseTo(33.9, 2)
 
     // KV cache: ~1.25 GB (with GQA 8x reduction)
     expect(result.kvCache.toNumber()).toBeCloseTo(1.25, 2)
@@ -367,8 +367,8 @@ describe('calculateInferenceVRAM', () => {
     const formats: Array<{ format: 'fp32' | 'fp16' | 'gptq' | 'int4'; expectedBpp: number }> = [
       { format: 'fp32', expectedBpp: 4.0 },
       { format: 'fp16', expectedBpp: 2.0 },
-      { format: 'gptq', expectedBpp: 0.6 },
-      { format: 'int4', expectedBpp: 0.5 },
+      { format: 'gptq', expectedBpp: 0.52 },
+      { format: 'int4', expectedBpp: 0.5625 },
     ]
 
     const results = formats.map((f) =>
@@ -394,15 +394,17 @@ describe('calculateInferenceVRAM', () => {
       expect(result.modelWeights.toString()).toBe(expectedWeights.toString())
     }
 
-    // Verify FP32 > FP16 > GPTQ > INT4 (in terms of weight VRAM)
+    // Verify FP32 > FP16 > INT4 > GPTQ (in terms of weight VRAM).
+    // GPTQ (0.52 bytes/param: 4-bit + group-128 scale/zero) is now source-derived
+    // and lands below plain INT4 (0.5625 bytes/param: 4-bit + group-32 scale).
     expect(results[0]?.modelWeights.toNumber()).toBeGreaterThan(
       results[1]?.modelWeights.toNumber() ?? 0,
     )
     expect(results[1]?.modelWeights.toNumber()).toBeGreaterThan(
-      results[2]?.modelWeights.toNumber() ?? 0,
-    )
-    expect(results[2]?.modelWeights.toNumber()).toBeGreaterThan(
       results[3]?.modelWeights.toNumber() ?? 0,
+    )
+    expect(results[3]?.modelWeights.toNumber()).toBeGreaterThan(
+      results[2]?.modelWeights.toNumber() ?? 0,
     )
   })
 })

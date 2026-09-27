@@ -138,7 +138,7 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   //    conservative point.
   const activeParams = calculateMoEActiveParams(model)
   const decodeParams = calculateMoEBatchedParams(model, batchSize)
-  const weightBytes = calculateModelWeightVRAM(decodeParams, quantization).mul(BYTES_PER_GB)
+  const weightBytes = calculateModelWeightVRAM(decodeParams, quantization, model).mul(BYTES_PER_GB)
   const kvBytes = calculateKVCacheVRAM({
     model,
     sequenceLength,
@@ -158,6 +158,7 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
       ? calculateModelWeightVRAM(
           split.baseB + Math.max(0, decodeParams - split.baseB) / layout.gpusPerStage,
           quantization,
+          model,
         ).mul(BYTES_PER_GB)
       : weightBytes.div(layout.gpusPerStage)
   // Linear-attention state is part of kvBytes but splits across every GPU of the

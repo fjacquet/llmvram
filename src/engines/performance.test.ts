@@ -121,9 +121,9 @@ describe('estimatePerformance', () => {
 
   it('should show higher throughput for GPTQ quantized models', () => {
     // LLaMA 3 70B GPTQ on H100
-    // Model size: 70B * 0.6 bytes ≈ 42GB = ~39.12 GiB
-    // Memory-bound TPS: 3350 GB/s / 39.12 GB ≈ 85.6 tokens/sec
-    // Should be ~3.3x faster than FP16 due to smaller model size
+    // Model size: 70B * 0.52 bytes ≈ 36.4GB = ~33.90 GiB
+    // Memory-bound TPS: 3350 GB/s / 33.90 GB ≈ 98.8 tokens/sec (before KV cache bytes)
+    // Should be ~3.8x faster than FP16 due to smaller model size
     const fp16_result = estimatePerformance({
       model: llama3_70b,
       gpu: h100_80gb_sxm,
@@ -145,9 +145,9 @@ describe('estimatePerformance', () => {
       fp16_result.tokensPerSecond.toNumber() * 2.5,
     )
 
-    // Verify GPTQ throughput is in expected range (75-90 tok/s)
-    expect(gptq_result.tokensPerSecond.toNumber()).toBeGreaterThan(75)
-    expect(gptq_result.tokensPerSecond.toNumber()).toBeLessThan(90)
+    // Verify GPTQ throughput is in expected range (85-95 tok/s)
+    expect(gptq_result.tokensPerSecond.toNumber()).toBeGreaterThan(85)
+    expect(gptq_result.tokensPerSecond.toNumber()).toBeLessThan(95)
 
     // Should still be memory-bound
     expect(gptq_result.bottleneck).toBe('memory')
@@ -326,16 +326,16 @@ describe('estimatePerformance', () => {
     }
 
     // Create GPU with bandwidth and FLOPS tuned for balanced performance
-    // Model size in INT4: 10B * 0.5 bytes = 5GB
+    // Model size in INT4: 10B * 0.5625 bytes = 5.625GB
     // Target: ~500 tok/s for both bounds
-    // Memory-bound: 2500 GB/s / 5 GB = 500 tok/s
+    // Memory-bound: 2812.5 GB/s / 5.625 GB = 500 tok/s
     // Compute-bound: 10 TFLOPS / (10B * 2) = 10e12 / 20e9 = 500 tok/s
     const balanced_gpu: GPU = {
       id: 'balanced-gpu',
       name: 'Balanced GPU',
       manufacturer: 'nvidia',
       vram_gb: 24,
-      memory_bandwidth_gbps: 2500,
+      memory_bandwidth_gbps: 2812.5,
       memory_type: 'HBM3',
       bus_width: 4096,
       fp16_tflops: 10,
