@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Fallback bytes per parameter from the format definitions: INT4 0.5625 (16-bit scale per group of 32), AWQ/GPTQ 0.52 (scale and zero per group of 128, was 0.6), GGUF Q2_K 0.366 (median published file, was 0.328).
-- The Grace host-memory KV storage tier preset is only offered for GPUs with a Grace host (GB300 NVL72, GB300 Desktop Superchip); it falls back to "none" if the selected GPU changes to a non-Grace part.
-- Internal: ResultsPanel split into `useResultExports`, `PerformanceSection`, and `CapacitySection` for readability; no behavior or wording change.
+- The Grace host-memory (NVLink-C2C) KV storage tier preset is only offered for GPUs with a Grace host: GB300 NVL72 (225 GB/s per GPU, sharing one Grace's link across 2 GPUs) and the GB300 Desktop Superchip (396 GB/s, capped by its Grace LPDDR5X rather than the link). Falls back to "none" if the tier or the selected GPU changes to a mismatched pair — checked wherever either one changes, including a shared link's URL restore.
+- Internal: ResultsPanel split into `useResultExports`, `PerformanceSection`, and `CapacitySection` for readability; rendered output unchanged.
 
 ### Fixed
 
