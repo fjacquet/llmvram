@@ -25,6 +25,10 @@ asked whether we were over-complicating it ("le mieux est l'ennemi du bien").
 - Feature freeze: no new inputs or options until this simplification ships.
   UI additions that only add information (for example the MoE split label)
   are dropped.
+- Exception to the freeze: two reset buttons ("Reset advanced settings" in
+  the Advanced section, "Reset all" in the header). They add no calculation
+  and return to a known-good configuration (the defaults, always valid under
+  ADR 0004).
 
 ## Consequences
 

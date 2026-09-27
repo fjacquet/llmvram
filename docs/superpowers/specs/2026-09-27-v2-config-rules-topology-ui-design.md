@@ -283,6 +283,15 @@ multimodalflow DGX Spark dual-node NCCL RDMA; arXiv 2511.15076.
 - Training mode hides inert inputs (Section 1).
 - The GPUCountSelector summary labels expert-parallel correctly (was
   "pipeline parallel").
+- Two reset buttons (product owner decision, 2026-09-27):
+  - "Reset advanced settings" inside the Advanced section: batch, KV
+    precision, strategy, fabric, interconnect variant, offloading and KV tier
+    back to their store defaults; model, GPU, GPU count, servers, format,
+    context and concurrent users kept.
+  - "Reset all" in the header: back to the initial empty state, URL hash
+    cleared.
+  - Both go through `normalizeConfig` and show one notice listing what was
+    reset (always-warn rule).
 
 ## Section 5: User guide
 
