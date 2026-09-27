@@ -119,7 +119,15 @@ export function weightFiles(
     (f) => f.path.endsWith('.safetensors') && !/^(original|metal)\//.test(f.path),
   )
   const hf = st.filter((f) => !/consolidated/.test(f.path))
-  return hf.length ? hf : st
+  const candidates = hf.length ? hf : st
+  // Group by shard set (directory + base name, shard suffix stripped) so a sharded set never
+  // collides with a same-named standalone file — they're different candidate representations.
+  const setKey = (path: string) => {
+    const stripped = path.replace(/-\d{5}-of-\d{5}\.safetensors$/, '')
+    return stripped === path ? `single:${path}` : `shard:${stripped}`
+  }
+  const sets = new Set(candidates.map((f) => setKey(f.path)))
+  return sets.size > 1 ? 'ambiguous' : candidates
 }
 
 export function totalGiB(files: RepoFile[]): number {
@@ -213,6 +221,7 @@ export function refDrift(
   if (files === null) return 'skipped (gated)'
   const picked = weightFiles(files, format)
   if (picked === 'ambiguous') return `${format}: ambiguous file sets`
+  if (picked.length === 0) return `${format}: no weight files found`
   const measured = totalGiB(picked)
   if (Math.abs(measured - curatedGiB) <= curatedGiB * 0.01) return null
   return `${format}: curated ${curatedGiB} GiB, measured ${measured} GiB`

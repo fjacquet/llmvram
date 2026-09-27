@@ -110,6 +110,29 @@ describe('weightFiles', () => {
     ]
     expect(weightFiles(files, 'gguf-q8_0')).toBe('ambiguous')
   })
+
+  it('reports a sharded safetensors set plus a standalone full file as ambiguous', () => {
+    const files = [
+      { path: 'model-00001-of-00002.safetensors', size: 5 * GiB },
+      { path: 'model-00002-of-00002.safetensors', size: 5 * GiB },
+      { path: 'model.safetensors', size: 10 * GiB },
+    ]
+    expect(weightFiles(files, 'fp8')).toBe('ambiguous')
+  })
+
+  it('reports a sharded safetensors set in a subdirectory plus a root set as ambiguous', () => {
+    const files = [
+      { path: 'fp8/model-00001-of-00002.safetensors', size: 5 * GiB },
+      { path: 'fp8/model-00002-of-00002.safetensors', size: 5 * GiB },
+      { path: 'model-00001-of-00002.safetensors', size: 5 * GiB },
+      { path: 'model-00002-of-00002.safetensors', size: 5 * GiB },
+    ]
+    expect(weightFiles(files, 'fp8')).toBe('ambiguous')
+  })
+
+  it('returns an empty list when no safetensors files match', () => {
+    expect(weightFiles([{ path: 'config.json', size: 1000 }], 'fp8')).toEqual([])
+  })
 })
 
 describe('nativeFormat', () => {
@@ -176,6 +199,12 @@ describe('refDrift', () => {
     expect(refDrift('fp8', 30.5, files)).toBeNull()
     expect(refDrift('fp8', 28, files)).toMatch(/28.*30.4/)
     expect(refDrift('fp8', 30.4, null)).toBe('skipped (gated)')
+  })
+
+  it('reports a lookup failure when no weight files are found', () => {
+    expect(refDrift('fp8', 30.4, [{ path: 'config.json', size: 1000 }])).toBe(
+      'fp8: no weight files found',
+    )
   })
 })
 
