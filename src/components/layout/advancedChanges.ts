@@ -12,7 +12,8 @@ export function countAdvancedChanges(config: UIConfig): number {
     config.batchSize !== d.batchSize,
     config.kvQuantization !== d.kvQuantization,
     config.shardingStrategy !== d.shardingStrategy,
-    config.numNodes > 1 && config.interNodeFabric !== d.interNodeFabric,
+    config.numNodes > 1 &&
+      (config.interNodeFabric !== d.interNodeFabric || config.customFabric !== d.customFabric),
     config.interconnectOverride !== d.interconnectOverride,
     config.offloadingEnabled !== d.offloadingEnabled,
     config.kvTier.tier !== d.kvTier.tier,

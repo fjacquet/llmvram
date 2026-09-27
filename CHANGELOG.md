@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - W3 soft warning: the DGX Spark/DGX Station text is now shown only for those two GPUs; any other multi-node cluster of single-GPU-per-server or unified-memory parts (e.g. Apple M3 Ultra) gets a generic "servers are joined over the network" message naming the GPU.
+- A custom scale-out fabric (`customFabric`) now counts as part of the same "fabric" advanced-setting change as the interconnect fabric preset, instead of being invisible to the changed-settings count.
 
 ## [2.0.0] - 2026-09-27
 
