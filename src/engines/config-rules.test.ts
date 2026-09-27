@@ -152,7 +152,8 @@ const CASES: RuleCase[] = [
     gpu: H100,
     expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none', activeShare: 1 } },
   },
-  // R4: KV tier bounds, host capacity positive or null (no model/GPU dependency: live in both modes)
+  // R4: KV tier bounds, host capacity positive or null (no model/GPU dependency; inference
+  // only — KVTierPanel/OffloadingPanel never render in training)
   {
     rule: 'R4',
     path: 'field',
@@ -339,7 +340,8 @@ const CASES: RuleCase[] = [
     gpu: H100,
     expected: { offloadPercentage: 100, offloadLayers: 0 },
   },
-  // R10: numeric bounds (no model/GPU dependency: live in both modes)
+  // R10: numeric bounds (no model/GPU dependency), split by the mode(s) each
+  // field's input is visible in — see the mode-gating tests below
   {
     rule: 'R10',
     path: 'field',
