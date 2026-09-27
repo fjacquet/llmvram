@@ -15,12 +15,13 @@ import { resolveFabricSpec } from '../engines/fabric'
 import { calculateInferenceVRAM } from '../engines/inference'
 import { validateInterconnect } from '../engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '../engines/multi-node'
-import { calculateOffloadedVRAM } from '../engines/offloading'
+import { calculateOffloadedVRAM, hostLinkGBps, offloadWeightFraction } from '../engines/offloading'
 import { estimatePerformance } from '../engines/performance'
 import type {
   FabricType,
   KVCachePrecision,
   OffloadingConfig,
+  OffloadTarget,
   QuantizationFormat,
   ShardingStrategy,
 } from '../engines/types'
@@ -79,6 +80,7 @@ interface CalculationSuccessResponse {
       isComputeBound: boolean
       isMemoryBound: boolean
       bottleneck: 'compute' | 'memory' | 'balanced'
+      offloadSlowdown: number | null
     }
     offloading: {
       onDevice: {
@@ -93,8 +95,6 @@ interface CalculationSuccessResponse {
         kvCache: string
         total: string
       }
-      performanceImpact: string
-      slowdownFactor: number
     } | null
     multiGPU: {
       numGPUs: number
@@ -178,6 +178,11 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
 
       // 2. Offloading calculation (if enabled)
       let offloadingResult = null
+      let offloadForPerf: {
+        weightFraction: number
+        kvOffloaded: boolean
+        linkGBps: number
+      } | null = null
 
       if (offloadingEnabled) {
         const offloadingConfig: OffloadingConfig = {
@@ -194,6 +199,11 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
           offloadingConfig,
           model.num_hidden_layers,
         )
+        offloadForPerf = {
+          weightFraction: offloadWeightFraction(offloadingConfig, model.num_hidden_layers),
+          kvOffloaded: kvCacheOffload,
+          linkGBps: hostLinkGBps(offloadTarget as OffloadTarget, gpu.id),
+        }
       }
 
       // 3. Multi-GPU/multi-node calculation (before performance so scaling can be applied)
@@ -234,6 +244,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         batchSize,
         kvQuantization,
         multiGPUResult,
+        offload: offloadForPerf,
       })
 
       // 5. Serialize Decimal values to strings for structured cloning
@@ -256,6 +267,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
             isComputeBound: performance.isComputeBound,
             isMemoryBound: performance.isMemoryBound,
             bottleneck: performance.bottleneck,
+            offloadSlowdown: performance.offloadSlowdown,
           },
           offloading: offloadingResult
             ? {
@@ -271,8 +283,6 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
                   kvCache: offloadingResult.offloaded.kvCache.toString(),
                   total: offloadingResult.offloaded.total.toString(),
                 },
-                performanceImpact: offloadingResult.performanceImpact,
-                slowdownFactor: offloadingResult.slowdownFactor,
               }
             : null,
           multiGPU: multiGPUResult

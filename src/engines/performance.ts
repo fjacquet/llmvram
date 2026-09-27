@@ -13,6 +13,21 @@ import type {
 } from './types'
 
 /**
+ * Decode-time offloading: a fraction of the model weights and/or the whole KV
+ * cache live off-GPU and are read over `linkGBps` every decode step, instead
+ * of once from HBM. See `hostLinkGBps` (engines/offloading.ts) for how
+ * `linkGBps` is resolved from the offload target and GPU.
+ */
+export interface OffloadDecodeParams {
+  /** Fraction (0-1) of model weights offloaded off-GPU */
+  weightFraction: number
+  /** Whether the entire KV cache (and linear/SSM state) is offloaded */
+  kvOffloaded: boolean
+  /** Per-GPU read bandwidth of the host link, decimal GB/s */
+  linkGBps: number
+}
+
+/**
  * Performance estimation parameters
  */
 export interface PerformanceParams {
@@ -30,6 +45,8 @@ export interface PerformanceParams {
   kvQuantization?: KVCachePrecision
   /** Optional multi-GPU result; sets each GPU's share of the bytes and FLOPs per step */
   multiGPUResult?: MultiGPUVRAMBreakdown | null
+  /** CPU/RAM or NVMe offloading; null/undefined when offloading is disabled */
+  offload?: OffloadDecodeParams | null
 }
 
 /**
@@ -168,9 +185,30 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     .sub(stateBytes)
     .div(layout.kvShards)
     .add(stateBytes.div(layout.gpusPerStage))
-  const perGPUBytes = perGPUWeightBytes.add(perGPUKVBytes).div(layout.stages)
+
+  // Offloading: a fraction of the weights and/or the whole KV cache live off-GPU
+  // and are read over the host link every step instead of from HBM (hostLinkGBps
+  // resolves linkGBps from the target and GPU). Only the on-GPU share still
+  // counts as an HBM read, so it's subtracted here rather than read twice.
+  const offload = params.offload ?? null
+  const offloadedWeightBytes = offload ? weightBytes.mul(offload.weightFraction) : new Decimal(0)
+  const offloadedKvBytes = offload?.kvOffloaded ? kvBytes : new Decimal(0)
+  const onDevicePerGPUWeightBytes = offload
+    ? perGPUWeightBytes.mul(1 - offload.weightFraction)
+    : perGPUWeightBytes
+  const onDevicePerGPUKVBytes = offload?.kvOffloaded ? new Decimal(0) : perGPUKVBytes
+  // Serial with the HBM read (conservative; matches vLLM cpu_offload_gb streaming).
+  const offloadSecondsPerStep = offload
+    ? offloadedWeightBytes
+        .add(offloadedKvBytes)
+        .div(layout.stages)
+        .div(layout.gpusPerStage)
+        .div(new Decimal(offload.linkGBps).mul(1e9))
+    : new Decimal(0)
+
+  const perGPUBytes = onDevicePerGPUWeightBytes.add(onDevicePerGPUKVBytes).div(layout.stages)
   const bandwidthBytesPerSec = new Decimal(gpu.memory_bandwidth_gbps).mul(1e9)
-  const memorySeconds = perGPUBytes.div(bandwidthBytesPerSec)
+  const memorySeconds = perGPUBytes.div(bandwidthBytesPerSec).add(offloadSecondsPerStep)
 
   // 3. Compute per step. FLOPs are precision-independent: ~2 per active parameter
   //    (batch-1 figure — each token computes only its own experts) plus causal
@@ -223,6 +261,21 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     .div(stageSeconds)
     .mul(new Decimal(batchSize).div(batchSize + layout.stages - 1))
     .mul(layout.interNodeEfficiency)
+
+  // Offload slowdown: this step's time versus the same step with nothing
+  // offloaded (full weights + KV in HBM, no host-link read). Compute and
+  // communication are unaffected by offloading, so this isolates exactly the
+  // cost the host link adds — computed here so callers never call this
+  // function twice to get it.
+  let offloadSlowdown: number | null = null
+  if (offload) {
+    const baselinePerGPUBytes = perGPUWeightBytes.add(perGPUKVBytes).div(layout.stages)
+    const baselineMemorySeconds = baselinePerGPUBytes.div(bandwidthBytesPerSec)
+    const baselineStageSeconds = Decimal.max(baselineMemorySeconds, computeSeconds).add(
+      commSecondsPerLayer * layersPerStage,
+    )
+    offloadSlowdown = stageSeconds.div(baselineStageSeconds).toNumber()
+  }
 
   const memoryBoundTPS = new Decimal(batchSize).div(memorySeconds)
   const computeBoundTPS =
@@ -298,5 +351,6 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     isMemoryBound,
     isComputeBound,
     bottleneck,
+    offloadSlowdown,
   }
 }

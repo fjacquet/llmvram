@@ -988,3 +988,98 @@ describe('estimatePerformance - decode honors measured weight_refs', () => {
     expect(withRef.tokensPerSecond.toString()).toBe(expected.toString())
   })
 })
+
+describe('estimatePerformance - offloading (decode over host link)', () => {
+  it('0% offload leaves tokens/sec unchanged', () => {
+    const base = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+    })
+    const withZeroOffload = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+      offload: { weightFraction: 0, kvOffloaded: false, linkGBps: 50 },
+    })
+
+    expect(withZeroOffload.tokensPerSecond.toString()).toBe(base.tokensPerSecond.toString())
+    expect(withZeroOffload.offloadSlowdown).not.toBeNull()
+    expect(withZeroOffload.offloadSlowdown as number).toBeCloseTo(1, 6)
+  })
+
+  it('100% weight offload on H100 (PCIe 50 GB/s) slows decode by the byte ratio', () => {
+    const weightBytes = calculateModelWeightVRAM(
+      calculateMoEBatchedParams(llama3_70b, 1),
+      'fp16',
+      llama3_70b,
+    ).mul(BYTES_PER_GB)
+    const kvBytes = calculateKVCacheVRAM({
+      model: llama3_70b,
+      sequenceLength: 2048,
+      batchSize: 1,
+      kvPrecision: 'fp16',
+    }).mul(BYTES_PER_GB)
+    const bandwidth = new Decimal(h100_80gb_sxm.memory_bandwidth_gbps).mul(1e9)
+    const linkGBps = 50
+
+    const baselineMemorySeconds = weightBytes.add(kvBytes).div(bandwidth)
+    const offloadedMemorySeconds = kvBytes
+      .div(bandwidth)
+      .add(weightBytes.div(new Decimal(linkGBps).mul(1e9)))
+    const expectedRatio = offloadedMemorySeconds.div(baselineMemorySeconds).toNumber()
+
+    const result = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+      offload: { weightFraction: 1, kvOffloaded: false, linkGBps },
+    })
+
+    expect(result.offloadSlowdown).not.toBeNull()
+    // Compute time is negligible next to memory time for this model/GPU (see the
+    // memory-bound test above), so the byte-ratio approximation is close but not
+    // exact — compute still contributes a hair to both the numerator and
+    // denominator of the real roofline.
+    expect(result.offloadSlowdown as number).toBeCloseTo(expectedRatio, 1)
+  })
+
+  it('KV offload adds the batch KV bytes to the host-link time', () => {
+    const withoutKV = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+      offload: { weightFraction: 0.5, kvOffloaded: false, linkGBps: 50 },
+    })
+    const withKV = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+      offload: { weightFraction: 0.5, kvOffloaded: true, linkGBps: 50 },
+    })
+
+    expect(withKV.tokensPerSecond.toNumber()).toBeLessThan(withoutKV.tokensPerSecond.toNumber())
+    expect(withKV.offloadSlowdown as number).toBeGreaterThan(withoutKV.offloadSlowdown as number)
+  })
+
+  it('offloadSlowdown is null without an offload param', () => {
+    const result = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+    })
+    expect(result.offloadSlowdown).toBeNull()
+  })
+})

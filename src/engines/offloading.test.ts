@@ -1,7 +1,22 @@
+import gpusData from '@data/gpus.json'
+import { validateGPUs } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
-import { calculateOffloadedVRAM } from './offloading'
+import {
+  calculateOffloadedVRAM,
+  defaultHostCapacityGB,
+  hostLinkGBps,
+  offloadWeightFraction,
+  roundOffloadSlowdown,
+} from './offloading'
 import type { InferenceVRAMBreakdown, OffloadingConfig } from './types'
+
+const gpus = validateGPUs(gpusData)
+function findGPU(id: string) {
+  const gpu = gpus.find((g) => g.id === id)
+  if (!gpu) throw new Error(`fixture GPU not found in gpus.json: ${id}`)
+  return gpu
+}
 
 describe('calculateOffloadedVRAM', () => {
   // Mock baseline breakdown
@@ -27,8 +42,6 @@ describe('calculateOffloadedVRAM', () => {
 
     expect(result.onDevice).toEqual(baselineBreakdown)
     expect(result.offloaded.total.toNumber()).toBe(0)
-    expect(result.slowdownFactor).toBe(1.0)
-    expect(result.performanceImpact).toBe('No offloading (GPU only)')
   })
 
   it('50% percentage offload moves half of model weights', () => {
@@ -97,7 +110,6 @@ describe('calculateOffloadedVRAM', () => {
     expect(result.onDevice.kvCache.toNumber()).toBe(0)
     expect(result.offloaded.kvCache.toNumber()).toBe(8)
     expect(result.offloaded.total.toNumber()).toBe(8)
-    expect(result.performanceImpact).toContain('KV cache on CPU adds per-token latency')
   })
 
   it('both model weights and KV cache offloaded together', () => {
@@ -136,27 +148,6 @@ describe('calculateOffloadedVRAM', () => {
     expect(result.onDevice.modelWeights.toNumber()).toBe(35)
   })
 
-  it('NVMe target has higher slowdown than CPU/RAM', () => {
-    const configCPU: OffloadingConfig = {
-      enabled: true,
-      target: 'cpu-ram',
-      mode: 'percentage',
-      offloadPercentage: 50,
-      offloadLayers: 0,
-      kvCacheOffload: false,
-    }
-
-    const configNVMe: OffloadingConfig = {
-      ...configCPU,
-      target: 'nvme',
-    }
-
-    const resultCPU = calculateOffloadedVRAM(baselineBreakdown, configCPU)
-    const resultNVMe = calculateOffloadedVRAM(baselineBreakdown, configNVMe)
-
-    expect(resultNVMe.slowdownFactor).toBeGreaterThan(resultCPU.slowdownFactor)
-  })
-
   it('activations and framework overhead always remain on GPU', () => {
     const config: OffloadingConfig = {
       enabled: true,
@@ -192,50 +183,83 @@ describe('calculateOffloadedVRAM', () => {
 
     expect(result.onDevice.total.toNumber()).toBe(expectedTotal.toNumber())
   })
+})
 
-  it('performance impact scales with offloaded amount for CPU/RAM', () => {
-    // Small offload (4GB or less)
-    const smallConfig: OffloadingConfig = {
-      enabled: true,
-      target: 'cpu-ram',
-      mode: 'percentage',
-      offloadPercentage: 10, // ~4GB
-      offloadLayers: 0,
-      kvCacheOffload: false,
-    }
-
-    const smallResult = calculateOffloadedVRAM(baselineBreakdown, smallConfig)
-    expect(smallResult.slowdownFactor).toBe(2)
-    expect(smallResult.performanceImpact).toBe('~2x slower')
-
-    // Large offload (>24GB)
-    const largeConfig: OffloadingConfig = {
-      enabled: true,
-      target: 'cpu-ram',
-      mode: 'percentage',
-      offloadPercentage: 100, // 40GB
-      offloadLayers: 0,
-      kvCacheOffload: false,
-    }
-
-    const largeResult = calculateOffloadedVRAM(baselineBreakdown, largeConfig)
-    expect(largeResult.slowdownFactor).toBe(25)
-    expect(largeResult.performanceImpact).toBe('~15-50x slower')
-  })
-
-  it('NVMe offloading has extreme slowdown for large amounts', () => {
+describe('offloadWeightFraction', () => {
+  it('percentage mode returns the direct fraction', () => {
     const config: OffloadingConfig = {
       enabled: true,
-      target: 'nvme',
+      target: 'cpu-ram',
       mode: 'percentage',
-      offloadPercentage: 100, // 40GB to NVMe
+      offloadPercentage: 50,
       offloadLayers: 0,
       kvCacheOffload: false,
     }
+    expect(offloadWeightFraction(config)).toBe(0.5)
+  })
 
-    const result = calculateOffloadedVRAM(baselineBreakdown, config)
+  it('layers mode divides by total layers, clamped to 1', () => {
+    const config: OffloadingConfig = {
+      enabled: true,
+      target: 'cpu-ram',
+      mode: 'layers',
+      offloadPercentage: 0,
+      offloadLayers: 10,
+      kvCacheOffload: false,
+    }
+    expect(offloadWeightFraction(config, 80)).toBe(0.125)
+    expect(offloadWeightFraction({ ...config, offloadLayers: 999 }, 80)).toBe(1)
+  })
+})
 
-    expect(result.slowdownFactor).toBe(50)
-    expect(result.performanceImpact).toBe('~30-100x slower')
+describe('hostLinkGBps', () => {
+  it('nvme uses the local-nvme KV tier preset (12 GB/s), regardless of GPU', () => {
+    expect(hostLinkGBps('nvme', 'nvidia-h100-80gb-sxm')).toBe(12)
+    expect(hostLinkGBps('nvme', 'nvidia-gb300-nvl72')).toBe(12)
+  })
+
+  it('cpu-ram uses the exact Grace link for a Grace-host GPU', () => {
+    expect(hostLinkGBps('cpu-ram', 'nvidia-gb300-nvl72')).toBe(225)
+    expect(hostLinkGBps('cpu-ram', 'nvidia-gb300-desktop-252gb')).toBe(396)
+  })
+
+  it('cpu-ram falls back to generic PCIe 5 (50 GB/s) for a non-Grace GPU', () => {
+    expect(hostLinkGBps('cpu-ram', 'nvidia-h100-80gb-sxm')).toBe(50)
+  })
+})
+
+describe('defaultHostCapacityGB', () => {
+  it('datacenter tier: 2048 GB cpu-ram, 30720 GB nvme', () => {
+    const gpu = findGPU('nvidia-h100-80gb-sxm')
+    expect(gpu.tier).toBe('datacenter')
+    expect(defaultHostCapacityGB('cpu-ram', gpu)).toBe(2048)
+    expect(defaultHostCapacityGB('nvme', gpu)).toBe(30720)
+  })
+
+  it('non-datacenter tiers: 128 GB cpu-ram, 2000 GB nvme', () => {
+    const consumer = { tier: 'consumer' as const }
+    const apple = { tier: 'apple-silicon' as const }
+    expect(defaultHostCapacityGB('cpu-ram', consumer)).toBe(128)
+    expect(defaultHostCapacityGB('nvme', consumer)).toBe(2000)
+    expect(defaultHostCapacityGB('cpu-ram', apple)).toBe(128)
+    expect(defaultHostCapacityGB('nvme', apple)).toBe(2000)
+  })
+})
+
+describe('roundOffloadSlowdown', () => {
+  it('rounds to 2 significant figures', () => {
+    expect(roundOffloadSlowdown(31.4)).toBe(31)
+    expect(roundOffloadSlowdown(5.678)).toBe(5.7)
+    expect(roundOffloadSlowdown(123.4)).toBe(120)
+  })
+
+  it('null below the 1.05x threshold or when there is no offload', () => {
+    expect(roundOffloadSlowdown(null)).toBeNull()
+    expect(roundOffloadSlowdown(1)).toBeNull()
+    expect(roundOffloadSlowdown(1.04)).toBeNull()
+  })
+
+  it('1.05x and above is a measurable slowdown', () => {
+    expect(roundOffloadSlowdown(1.05)).toBe(1.1)
   })
 })

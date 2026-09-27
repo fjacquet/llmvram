@@ -68,6 +68,12 @@ export interface PerformanceEstimate {
   isMemoryBound: boolean
   /** Primary bottleneck classification */
   bottleneck: 'compute' | 'memory' | 'balanced'
+  /**
+   * Decode step time with offloading applied, divided by step time without —
+   * how much slower decode is because bytes travel over the host link
+   * instead of HBM. Null when no offloading is configured.
+   */
+  offloadSlowdown: number | null
 }
 
 /**
@@ -286,8 +292,11 @@ export interface OffloadingConfig {
 /**
  * VRAM breakdown after applying offloading
  *
- * Shows memory remaining on GPU vs offloaded to CPU/RAM or NVMe,
- * with performance impact estimate.
+ * Shows memory remaining on GPU vs offloaded to CPU/RAM or NVMe. The
+ * performance impact of offloading is computed separately by
+ * `estimatePerformance` (see `PerformanceEstimate.offloadSlowdown`), which
+ * models decode as bytes read over the host link rather than a static
+ * heuristic here.
  */
 export interface OffloadedVRAMBreakdown {
   /** VRAM remaining on GPU after offloading */
@@ -301,10 +310,6 @@ export interface OffloadedVRAMBreakdown {
     /** Total offloaded memory */
     total: Decimal
   }
-  /** Estimated performance impact description */
-  performanceImpact: string
-  /** Estimated slowdown multiplier (e.g. 2.0 = 2x slower) */
-  slowdownFactor: number
 }
 
 /**
