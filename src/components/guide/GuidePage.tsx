@@ -218,14 +218,16 @@ export function GuidePage() {
         <SectionHeading id="offloading">Offloading</SectionHeading>
         <P>
           When VRAM is insufficient, offload parts of the model to system memory or storage. Enable
-          the toggle to reveal offloading options.
+          the toggle to reveal offloading options. Every decode step reads the offloaded weights
+          and/or KV cache over the host link (PCIe, NVMe, or Grace NVLink-C2C on a Grace-host GPU)
+          instead of GPU memory; the results show the resulting slowdown as a computed ratio (e.g.
+          &quot;≈ 31× slower decode than all-in-GPU&quot;), not a fixed range.
         </P>
 
         <SubHeading>Offload Target</SubHeading>
         <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1 mb-3">
           <li>
-            <strong>CPU/RAM</strong> — Offload via PCIe to system memory. 2-15x slower depending on
-            offload percentage.
+            <strong>CPU/RAM</strong> — Offload via PCIe (or Grace NVLink-C2C) to system memory.
           </li>
           <li>
             <strong>NVMe SSD</strong> — Offload to storage. Slower than CPU/RAM but useful when
@@ -244,6 +246,14 @@ export function GuidePage() {
         <P>
           Checkbox to offload the entire KV cache to CPU/RAM. This is separate from weight
           offloading and adds per-token latency during generation.
+        </P>
+
+        <SubHeading>Host Capacity</SubHeading>
+        <P>
+          &quot;Host capacity per server (GB)&quot; checks the offloaded memory against what the
+          host(s) can actually hold, defaulting to a per-tier/target estimate (e.g. 2048 GB cpu-ram
+          / 30720 GB nvme on datacenter GPUs); exceeding it across all servers is flagged as not
+          fitting, even when the on-device share fits the GPU.
         </P>
 
         {/* Parameters */}

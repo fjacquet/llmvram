@@ -65,8 +65,11 @@ const KV_TIER_RESUME_OVERHEAD_S = 0.03
 /**
  * Engine KV sizes are GiB (BYTES_PER_GB = 1024^3, like vram_gb); tier capacity (TB)
  * and bandwidth (GB/s) are decimal, as storage and network vendors quote them.
+ *
+ * Exported so every GiB -> decimal-GB conversion in the codebase (offloaded
+ * memory vs. host capacity, tier capacity, etc.) shares this one constant.
  */
-const DECIMAL_GB_PER_GIB = BYTES_PER_GB.toNumber() / 1e9
+export const DECIMAL_GB_PER_GIB = BYTES_PER_GB.toNumber() / 1e9
 
 /**
  * Bounds for tier settings, applied once at the store boundary (uiStore.setKVTier),

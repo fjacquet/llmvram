@@ -27,7 +27,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
   fabric (1.6TbE / 800GbE SONiC RoCEv2, InfiniBand XDR/NDR, 400GbE, 100GbE, or a custom port speed).
   Tensor parallelism runs inside each server; pipeline parallelism runs across servers
 - **Interconnect Selector**: Pick the active interconnect variant for GPUs with multiple options
-- **Offloading**: CPU/RAM and NVMe offloading simulation with performance impact
+- **Offloading**: CPU/RAM and NVMe offloading simulation; decode reads offloaded bytes over the host link every step (PCIe, NVMe, or Grace NVLink-C2C), and a host-capacity check flags offloaded memory that doesn't fit the host(s)
 - **Performance Estimation**: Tokens/sec from the bytes each decode step reads (active weights plus
   every session's KV cache) and, on multiple GPUs, all-reduce latency and pipeline fill;
   prompt-processing time and time-to-first-token modelled from prefill FLOPs (linear weight term

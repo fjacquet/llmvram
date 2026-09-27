@@ -40,6 +40,7 @@ const baseState = {
   offloadPercentage: 0,
   offloadLayers: 0,
   kvCacheOffload: false,
+  offloadHostCapacityGB: null,
   mode: 'inference' as const,
   trainingMethod: 'lora' as const,
   optimizer: 'adamw' as const,
@@ -245,6 +246,81 @@ describe('URL Serializer', () => {
       expect(deserialized?.op).toBe(50)
       expect(deserialized?.ol).toBe(20)
       expect(deserialized?.ko).toBe(true)
+      expect(deserialized?.hc).toBeUndefined()
+    })
+
+    it('should round-trip the offload host capacity override alongside offloading', () => {
+      const state = {
+        ...baseState,
+        selectedModel: null,
+        selectedGPU: null,
+        quantization: 'fp16' as const,
+        sequenceLength: 2048,
+        numGPUs: 1,
+        offloadingEnabled: true,
+        offloadTarget: 'cpu-ram' as const,
+        offloadMode: 'percentage' as const,
+        offloadPercentage: 100,
+        offloadLayers: 0,
+        kvCacheOffload: true,
+        offloadHostCapacityGB: 4096,
+      }
+
+      const serialized = serializeToURL(state)
+      const deserialized = deserializeFromURL(serialized)
+
+      expect(deserialized).not.toBeNull()
+      expect(deserialized?.hc).toBe(4096)
+    })
+
+    it('should omit the host capacity override when offloading is disabled', () => {
+      const state = {
+        ...baseState,
+        selectedModel: null,
+        selectedGPU: null,
+        quantization: 'fp16' as const,
+        sequenceLength: 2048,
+        numGPUs: 1,
+        offloadHostCapacityGB: 4096,
+      }
+
+      const serialized = serializeToURL(state)
+      const deserialized = deserializeFromURL(serialized)
+
+      expect(deserialized?.hc).toBeUndefined()
+    })
+
+    it('tolerates an invalid hand-edited hc (0) instead of discarding the whole hash', () => {
+      // A hand-edited hash with hc=0 (or any non-positive value) must not fail the
+      // whole schema — the rest of the configuration (model, GPU, everything else)
+      // should still restore; only the host capacity override is dropped, exactly
+      // like a store-level clamp would (see uiStore.setOffloadHostCapacityGB).
+      const hash = compressToEncodedURIComponent(
+        JSON.stringify({
+          modelId: 'meta-llama-llama-3-70b',
+          gpuId: 'nvidia-h100-80gb-sxm',
+          q: 'gptq',
+          sl: 4096,
+          bs: 1,
+          kvq: 'fp16',
+          ng: 4,
+          ss: 'tensor-parallel',
+          oe: true,
+          ot: 'cpu-ram',
+          om: 'percentage',
+          op: 100,
+          ol: 0,
+          ko: true,
+          hc: 0,
+        }),
+      )
+
+      const decoded = deserializeFromURL(hash)
+
+      expect(decoded).not.toBeNull()
+      expect(decoded?.modelId).toBe('meta-llama-llama-3-70b')
+      expect(decoded?.oe).toBe(true)
+      expect(decoded?.hc).toBeUndefined()
     })
 
     it('should NOT serialize training fields when mode is inference', () => {

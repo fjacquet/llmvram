@@ -141,6 +141,7 @@ export function useURLSync() {
       if (urlState.op !== undefined) store.setOffloadPercentage(urlState.op)
       if (urlState.ol !== undefined) store.setOffloadLayers(urlState.ol)
       if (urlState.ko !== undefined) store.setKVCacheOffload(urlState.ko)
+      if (urlState.hc !== undefined) store.setOffloadHostCapacityGB(urlState.hc)
     }
 
     // Restore training mode and parameters

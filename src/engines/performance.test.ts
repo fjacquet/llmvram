@@ -4,7 +4,12 @@ import { validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { BYTES_PER_GB, INTERCONNECT_SPECS } from './constants'
-import { calculateInferenceVRAM, calculateMoEBatchedParams, splitMoEParams } from './inference'
+import {
+  calculateInferenceVRAM,
+  calculateMoEActiveParams,
+  calculateMoEBatchedParams,
+  splitMoEParams,
+} from './inference'
 import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
 import { calculateMultiGPUVRAM, resolveInterconnect } from './multi-gpu'
 import { estimatePerformance, expertAllToAllSeconds } from './performance'
@@ -986,5 +991,306 @@ describe('estimatePerformance - decode honors measured weight_refs', () => {
     const expected = new Decimal(batchSize).div(stageSeconds)
 
     expect(withRef.tokensPerSecond.toString()).toBe(expected.toString())
+  })
+})
+
+describe('estimatePerformance - offloading (decode over host link)', () => {
+  it('0% offload leaves tokens/sec unchanged', () => {
+    const base = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+    })
+    const withZeroOffload = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+      offload: { weightFraction: 0, kvOffloaded: false, linkGBps: 50 },
+    })
+
+    expect(withZeroOffload.tokensPerSecond.toString()).toBe(base.tokensPerSecond.toString())
+    expect(withZeroOffload.offloadSlowdown).not.toBeNull()
+    expect(withZeroOffload.offloadSlowdown as number).toBeCloseTo(1, 6)
+  })
+
+  it('100% weight offload on H100 (PCIe 50 GB/s) slows decode by the byte ratio', () => {
+    const weightBytes = calculateModelWeightVRAM(
+      calculateMoEBatchedParams(llama3_70b, 1),
+      'fp16',
+      llama3_70b,
+    ).mul(BYTES_PER_GB)
+    const kvBytes = calculateKVCacheVRAM({
+      model: llama3_70b,
+      sequenceLength: 2048,
+      batchSize: 1,
+      kvPrecision: 'fp16',
+    }).mul(BYTES_PER_GB)
+    const bandwidth = new Decimal(h100_80gb_sxm.memory_bandwidth_gbps).mul(1e9)
+    const linkGBps = 50
+
+    const baselineMemorySeconds = weightBytes.add(kvBytes).div(bandwidth)
+    const offloadedMemorySeconds = kvBytes
+      .div(bandwidth)
+      .add(weightBytes.div(new Decimal(linkGBps).mul(1e9)))
+    const expectedRatio = offloadedMemorySeconds.div(baselineMemorySeconds).toNumber()
+
+    const result = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+      offload: { weightFraction: 1, kvOffloaded: false, linkGBps },
+    })
+
+    expect(result.offloadSlowdown).not.toBeNull()
+    // Compute time is negligible next to memory time for this model/GPU (see the
+    // memory-bound test above), so the byte-ratio approximation is close but not
+    // exact — compute still contributes a hair to both the numerator and
+    // denominator of the real roofline.
+    expect(result.offloadSlowdown as number).toBeCloseTo(expectedRatio, 1)
+  })
+
+  it('KV offload adds the batch KV bytes to the host-link time', () => {
+    const withoutKV = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+      offload: { weightFraction: 0.5, kvOffloaded: false, linkGBps: 50 },
+    })
+    const withKV = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+      offload: { weightFraction: 0.5, kvOffloaded: true, linkGBps: 50 },
+    })
+
+    expect(withKV.tokensPerSecond.toNumber()).toBeLessThan(withoutKV.tokensPerSecond.toNumber())
+    expect(withKV.offloadSlowdown as number).toBeGreaterThan(withoutKV.offloadSlowdown as number)
+  })
+
+  it('offloadSlowdown is null without an offload param', () => {
+    const result = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp16',
+      sequenceLength: 2048,
+      batchSize: 1,
+    })
+    expect(result.offloadSlowdown).toBeNull()
+  })
+})
+
+describe('estimatePerformance - offload bytes match the per-GPU share (fix round 1)', () => {
+  it('MLA KV offload under TP8 charges the full duplicated KV per GPU, not KV/gpusPerStage', () => {
+    // MLA duplicates the whole KV cache on every TP rank (kvCacheTPShards returns 1),
+    // while the weights are still split 8 ways. Charging the offloaded KV bytes as
+    // kvBytes / (stages * gpusPerStage) — as if KV were TP-sharded like the weights —
+    // undercounts the per-GPU host-link read by exactly gpusPerStage (8x here).
+    const mla: Model = {
+      ...llama3_70b,
+      num_kv_heads: 64,
+      kv_cache_elements_per_token: 40960,
+      use_mla: true,
+    }
+    const gpu = h100_80gb_sxm
+    const quantization = 'fp8'
+    const sequenceLength = 8192
+    const batchSize = 1
+    const gpusPerStage = 8
+    const linkGBps = 50
+
+    const singleGPU = calculateInferenceVRAM({
+      model: mla,
+      quantization,
+      sequenceLength,
+      batchSize,
+    })
+    const multi = calculateMultiGPUVRAM(
+      singleGPU,
+      mla,
+      gpu.vram_gb,
+      gpusPerStage,
+      'tensor-parallel',
+      gpu,
+    )
+
+    const activeParams = calculateMoEActiveParams(mla)
+    const decodeParams = calculateMoEBatchedParams(mla, batchSize)
+    const weightBytes = calculateModelWeightVRAM(decodeParams, quantization, mla).mul(BYTES_PER_GB)
+    const kvBytes = calculateKVCacheVRAM({
+      model: mla,
+      sequenceLength,
+      batchSize,
+      kvPrecision: 'fp16',
+    }).mul(BYTES_PER_GB)
+    // Single node, tensor-parallel: stages = 1, kvShards = kvCacheTPShards(mla, 8) = 1 (MLA).
+    const perGPUWeightBytes = weightBytes.div(gpusPerStage)
+    const perGPUKVBytes = kvBytes // MLA: kvShards = 1, the full cache lives on every GPU
+
+    const offload = { weightFraction: 0, kvOffloaded: true, linkGBps }
+    // Correct: the offloaded KV per GPU is the SAME full duplicated copy that was on
+    // that GPU's HBM (perGPUKVBytes), read once per GPU over the link.
+    const correctOffloadSeconds = perGPUKVBytes.div(new Decimal(linkGBps).mul(1e9))
+    // Buggy (pre-fix): kvBytes / (stages * gpusPerStage) — as if MLA sharded KV like TP.
+    const buggyOffloadSeconds = kvBytes.div(gpusPerStage).div(new Decimal(linkGBps).mul(1e9))
+    expect(correctOffloadSeconds.div(buggyOffloadSeconds).toNumber()).toBeCloseTo(gpusPerStage, 6)
+
+    const memorySeconds = perGPUWeightBytes
+      .div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
+      .add(correctOffloadSeconds)
+    const flopsPerToken = new Decimal(activeParams)
+      .mul(2e9)
+      .add(new Decimal(4).mul(mla.num_hidden_layers).mul(sequenceLength).mul(mla.hidden_size))
+    const decodeGpuTFLOPS = gpu.fp16_tflops ?? gpu.fp32_tflops ?? 0
+    const computeSeconds = flopsPerToken
+      .mul(batchSize)
+      .div(gpusPerStage)
+      .div(new Decimal(decodeGpuTFLOPS).mul(1e12))
+    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+    const commSecondsPerLayer = (2 * link.allreduceLatencyUs) / 1e6
+    const stageSeconds = Decimal.max(memorySeconds, computeSeconds).add(
+      commSecondsPerLayer * mla.num_hidden_layers,
+    )
+    const expectedTokensPerSecond = new Decimal(batchSize).div(stageSeconds)
+
+    const baselineMemorySeconds = perGPUWeightBytes
+      .add(perGPUKVBytes)
+      .div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
+    const baselineStageSeconds = Decimal.max(baselineMemorySeconds, computeSeconds).add(
+      commSecondsPerLayer * mla.num_hidden_layers,
+    )
+    const expectedOffloadSlowdown = stageSeconds.div(baselineStageSeconds).toNumber()
+
+    const result = estimatePerformance({
+      model: mla,
+      gpu,
+      quantization,
+      sequenceLength,
+      batchSize,
+      multiGPUResult: multi,
+      offload,
+    })
+
+    expect(result.tokensPerSecond.toString()).toBe(expectedTokensPerSecond.toString())
+    expect(result.offloadSlowdown).toBeCloseTo(expectedOffloadSlowdown, 6)
+  })
+
+  it('expert-parallel weight offload charges the replicated base per GPU, not base/N', () => {
+    // Expert parallelism replicates the base weights on every GPU and shards only the
+    // routed experts. Charging the offloaded weight bytes as weightBytes / gpusPerStage
+    // (as if the base were sharded too) undercounts the per-GPU host-link read.
+    const moe: Model = {
+      ...llama3_70b,
+      architecture: 'moe',
+      num_parameters_billion: 671,
+      active_parameters_billion: 37,
+      num_experts: 256,
+      num_experts_per_token: 8,
+      kv_cache_elements_per_token: 35136,
+    }
+    const gpu: GPU = { ...h100_80gb_sxm, vram_gb: 288, interconnect: 'nvlink-5' }
+    const quantization = 'fp8'
+    const sequenceLength = 131072
+    const batchSize = 64
+    const gpusPerStage = 8
+    const linkGBps = 50
+
+    const singleGPU = calculateInferenceVRAM({
+      model: moe,
+      quantization,
+      sequenceLength,
+      batchSize,
+    })
+    const multi = calculateMultiGPUVRAM(
+      singleGPU,
+      moe,
+      gpu.vram_gb,
+      gpusPerStage,
+      'expert-parallel',
+      gpu,
+    )
+
+    const activeParams = calculateMoEActiveParams(moe)
+    const decodeParams = calculateMoEBatchedParams(moe, batchSize)
+    const split = splitMoEParams(moe)
+    if (!split) throw new Error('expected moe to split into base + routed experts')
+    const weightBytes = calculateModelWeightVRAM(decodeParams, quantization, moe).mul(BYTES_PER_GB)
+    const perGPUWeightBytes = calculateModelWeightVRAM(
+      split.baseB + Math.max(0, decodeParams - split.baseB) / gpusPerStage,
+      quantization,
+      moe,
+    ).mul(BYTES_PER_GB)
+    // Sanity: the base really is disproportionately large — EP's per-GPU weight bytes
+    // (replicated base + 1/N routed) exceed a naive equal split of the total.
+    const naivePerGPUWeightBytes = weightBytes.div(gpusPerStage)
+    expect(perGPUWeightBytes.greaterThan(naivePerGPUWeightBytes)).toBe(true)
+
+    const kvBytes = calculateKVCacheVRAM({
+      model: moe,
+      sequenceLength,
+      batchSize,
+      kvPrecision: 'fp16',
+    }).mul(BYTES_PER_GB)
+    // Expert-parallel: stages = 1, kvShards = gpusPerStage.
+    const perGPUKVBytes = kvBytes.div(gpusPerStage)
+
+    const offload = { weightFraction: 1, kvOffloaded: false, linkGBps }
+    const correctOffloadSeconds = perGPUWeightBytes.div(new Decimal(linkGBps).mul(1e9))
+    const buggyOffloadSeconds = naivePerGPUWeightBytes.div(new Decimal(linkGBps).mul(1e9))
+    expect(correctOffloadSeconds.greaterThan(buggyOffloadSeconds)).toBe(true)
+
+    const memorySeconds = perGPUKVBytes
+      .div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
+      .add(correctOffloadSeconds)
+    const flopsPerToken = new Decimal(activeParams)
+      .mul(2e9)
+      .add(new Decimal(4).mul(moe.num_hidden_layers).mul(sequenceLength).mul(moe.hidden_size))
+    const decodeGpuTFLOPS = gpu.fp16_tflops ?? gpu.fp32_tflops ?? 0
+    const computeSeconds = flopsPerToken
+      .mul(batchSize)
+      .div(gpusPerStage)
+      .div(new Decimal(decodeGpuTFLOPS).mul(1e12))
+    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+    const commSecondsPerLayer = expertAllToAllSeconds(
+      batchSize / gpusPerStage,
+      split.expertsPerToken,
+      moe.hidden_size,
+      link.bandwidthGBps / 2,
+      link.allreduceLatencyUs,
+    )
+    const stageSeconds = Decimal.max(memorySeconds, computeSeconds).add(
+      commSecondsPerLayer * moe.num_hidden_layers,
+    )
+    const expectedTokensPerSecond = new Decimal(batchSize).div(stageSeconds)
+
+    const baselineMemorySeconds = perGPUWeightBytes
+      .add(perGPUKVBytes)
+      .div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
+    const baselineStageSeconds = Decimal.max(baselineMemorySeconds, computeSeconds).add(
+      commSecondsPerLayer * moe.num_hidden_layers,
+    )
+    const expectedOffloadSlowdown = stageSeconds.div(baselineStageSeconds).toNumber()
+
+    const result = estimatePerformance({
+      model: moe,
+      gpu,
+      quantization,
+      sequenceLength,
+      batchSize,
+      multiGPUResult: multi,
+      offload,
+    })
+
+    expect(result.tokensPerSecond.toString()).toBe(expectedTokensPerSecond.toString())
+    expect(result.offloadSlowdown).toBeCloseTo(expectedOffloadSlowdown, 6)
   })
 })

@@ -81,6 +81,7 @@ function reconstructPerformanceEstimate(serialized: {
   isComputeBound: boolean
   isMemoryBound: boolean
   bottleneck: 'compute' | 'memory' | 'balanced'
+  offloadSlowdown: number | null
 }): PerformanceEstimate {
   return {
     tokensPerSecond: new Decimal(serialized.tokensPerSecond),
@@ -92,6 +93,7 @@ function reconstructPerformanceEstimate(serialized: {
     isComputeBound: serialized.isComputeBound,
     isMemoryBound: serialized.isMemoryBound,
     bottleneck: serialized.bottleneck,
+    offloadSlowdown: serialized.offloadSlowdown,
   }
 }
 
@@ -176,8 +178,6 @@ function reconstructOffloadingBreakdown(
       kvCache: string
       total: string
     }
-    performanceImpact: string
-    slowdownFactor: number
   } | null,
 ): OffloadedVRAMBreakdown | null {
   if (!serialized) return null
@@ -188,8 +188,6 @@ function reconstructOffloadingBreakdown(
       kvCache: new Decimal(serialized.offloaded.kvCache),
       total: new Decimal(serialized.offloaded.total),
     },
-    performanceImpact: serialized.performanceImpact,
-    slowdownFactor: serialized.slowdownFactor,
   }
 }
 
@@ -356,12 +354,25 @@ export function useInferenceCalculation(
 
           // Offloading calculation (if enabled)
           let offloading = null
+          let offloadForPerf: {
+            weightFraction: number
+            kvOffloaded: boolean
+            linkGBps: number
+          } | null = null
           if (offloadingConfig?.enabled) {
             offloading = offloadingModule.calculateOffloadedVRAM(
               vram,
               offloadingConfig,
               model.num_hidden_layers,
             )
+            offloadForPerf = {
+              weightFraction: offloadingModule.offloadWeightFraction(
+                offloadingConfig,
+                model.num_hidden_layers,
+              ),
+              kvOffloaded: offloadingConfig.kvCacheOffload,
+              linkGBps: offloadingModule.hostLinkGBps(offloadingConfig.target, effectiveGPU.id),
+            }
           }
 
           // Multi-GPU/multi-node calculation (before performance so scaling can be applied)
@@ -402,6 +413,7 @@ export function useInferenceCalculation(
             batchSize,
             kvQuantization,
             multiGPUResult: multiGPU,
+            offload: offloadForPerf,
           })
 
           setResult({ vram, performance, offloading, multiGPU, interconnectWarning })

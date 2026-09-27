@@ -1,3 +1,5 @@
+import { DECIMAL_GB_PER_GIB } from '@engines/kv-tier'
+import { roundOffloadSlowdown } from '@engines/offloading'
 import type { weightSource } from '@engines/quantization'
 import type {
   InferenceVRAMBreakdown,
@@ -7,6 +9,22 @@ import type {
 import { formatDuration } from '@utils/formatDuration'
 import type { GPU, Model } from '@utils/schemas'
 import type Decimal from 'decimal.js'
+
+export interface ExportPptxOffload {
+  target: 'cpu-ram' | 'nvme'
+  mode: 'percentage' | 'layers'
+  percentage: number
+  layers: number
+  kvOffloaded: boolean
+  /** Total offloaded memory, GiB */
+  offloadedGiB: number
+  /** Decode offload slowdown ratio (see PerformanceEstimate.offloadSlowdown); null = negligible */
+  slowdown: number | null
+  /** Host capacity actually checked against (per-server capacity x server count), decimal GB */
+  hostCapacityGB: number
+  /** Whether the offloaded memory exceeds hostCapacityGB */
+  exceedsHost: boolean
+}
 
 export interface ExportPptxParams {
   model: Model
@@ -18,6 +36,8 @@ export interface ExportPptxParams {
   numNodes: number
   sequenceLength: number
   batchSize: number
+  /** Concurrent users/sessions sized for; shown as a config row when it differs from batchSize */
+  concurrentUsers: number
   vram: InferenceVRAMBreakdown
   performance: PerformanceEstimate
   multiGPU: MultiGPUVRAMBreakdown | null
@@ -27,6 +47,8 @@ export interface ExportPptxParams {
   tierSessionsHeld: number | null
   /** The repo weights were measured from, or null when estimated — same shape as weightSource() */
   weightSource: ReturnType<typeof weightSource>
+  /** CPU/RAM or NVMe offloading state; null when offloading is disabled */
+  offload: ExportPptxOffload | null
 }
 
 function gbStr(val: Decimal): string {
@@ -69,6 +91,8 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     maxSessions,
     tierSessionsHeld,
     weightSource,
+    concurrentUsers,
+    offload,
   } = params
 
   const PptxGenJS = (await import('pptxgenjs-plus')).default
@@ -130,6 +154,24 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
   const contextK =
     model.context_length != null ? `${((model.context_length ?? 0) / 1000).toFixed(0)}K` : 'N/A'
 
+  // Offloading rows: what's offloaded, how much slower decode is, and — when the
+  // offloaded memory doesn't fit the host(s) — that it doesn't. See
+  // hostLinkGBps/defaultHostCapacityGB (engines/offloading.ts) for how the caller
+  // (ResultsPanel) derives offload.slowdown and offload.hostCapacityGB.
+  const offloadTargetLabel = offload?.target === 'nvme' ? 'NVMe' : 'CPU RAM'
+  const offloadAmountLabel = offload
+    ? offload.mode === 'percentage'
+      ? `${offload.percentage}% of weights`
+      : `${offload.layers} layers`
+    : ''
+  const offloadDesc = offload
+    ? `${offloadTargetLabel}: ${offloadAmountLabel}${offload.kvOffloaded ? ' + KV cache' : ''}, ${offload.offloadedGiB.toLocaleString('en-US', { maximumFractionDigits: 0 })} GiB`
+    : ''
+  const slowdownRounded = offload ? roundOffloadSlowdown(offload.slowdown) : null
+  const slowdownLabel =
+    slowdownRounded === null ? 'no measurable slowdown' : `≈ ${slowdownRounded}× slower decode`
+  const neededHostGB = offload ? offload.offloadedGiB * DECIMAL_GB_PER_GIB : 0
+
   const configRows: [string, string][] = [
     ['Model', model.name],
     ['Architecture', model.architecture.toUpperCase()],
@@ -140,8 +182,25 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     ['Number of GPUs', String(numGPUs)],
     ...(numNodes > 1 ? ([['Servers', String(numNodes)]] as [string, string][]) : []),
     ['Quantization', quantization.toUpperCase()],
-    ['Sequence Length', `${sequenceLength.toLocaleString()} tokens`],
+    ['Sequence Length', `${sequenceLength.toLocaleString('en-US')} tokens`],
     ['Batch Size', String(batchSize)],
+    ...(concurrentUsers !== batchSize
+      ? ([['Concurrent users', concurrentUsers.toLocaleString('en-US')]] as [string, string][])
+      : []),
+    ...(offload
+      ? ([
+          ['Offloading', offloadDesc],
+          ['Offload slowdown', slowdownLabel],
+          ...(offload.exceedsHost
+            ? [
+                [
+                  'Host capacity',
+                  `exceeded: ${neededHostGB.toLocaleString('en-US', { maximumFractionDigits: 0 })} GB needed vs ${offload.hostCapacityGB.toLocaleString('en-US', { maximumFractionDigits: 0 })} GB`,
+                ],
+              ]
+            : []),
+        ] as [string, string][])
+      : []),
   ]
 
   slide1.addTable(
@@ -365,6 +424,23 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
         color: C.bodyText,
       },
     )
+
+    // The per-GPU chart and stats above show only what's actually on the GPU —
+    // offloaded memory lives on the host, outside that figure.
+    if (offload) {
+      slide3.addText(
+        `Offloaded to host: ${offload.offloadedGiB.toLocaleString('en-US', { maximumFractionDigits: 0 })} GiB (not included per GPU)`,
+        {
+          x: 0.4,
+          y: 4.05,
+          w: 12.5,
+          h: 0.3,
+          fontSize: 11,
+          italic: true,
+          color: C.bodyText,
+        },
+      )
+    }
   }
 
   // ─── Slide 4: Performance Estimate ──────────────────────────────────────────

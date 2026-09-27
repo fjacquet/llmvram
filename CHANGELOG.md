@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Host capacity check for offloaded memory: a "Host capacity per server (GB)" input in the Offloading panel (defaulting to a per-tier/target estimate — e.g. 2048 GB cpu-ram / 30720 GB nvme on datacenter GPUs, 128 GB / 2000 GB otherwise) flags when the offloaded weights and/or KV cache exceed what the host(s) can actually hold, in the results and in the PPTX export.
+
+### Fixed
+
+- Offloading no longer left decode speed unchanged: `estimatePerformance` now reads offloaded weight and KV bytes over the host link (PCIe, NVMe, or Grace NVLink-C2C) every decode step, instead of ignoring the offload configuration entirely. The static "~2-5x slower" style heuristic is replaced by a computed `offloadSlowdown` ratio shown in the UI and export ("≈ 31× slower decode than all-in-GPU").
+- PPTX export omitted concurrent users and the offloading configuration entirely; both now appear on the summary slide when relevant, along with the offload slowdown and host-capacity rows.
+- `exportPptx.ts`'s Sequence Length row used the host's default locale (`toLocaleString()` with no argument), rendering "4.096" instead of "4,096" under a non-English locale. Now explicit `'en-US'`, matching every other formatted number in the export.
+
 ## [1.12.0] - 2026-09-27
 
 ### Added

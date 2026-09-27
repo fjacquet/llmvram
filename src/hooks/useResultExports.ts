@@ -5,14 +5,15 @@ import type { GPU, Model } from '@utils/schemas'
 import { toast } from 'sonner'
 
 /**
- * Capacity figures computed in ResultsPanel after `result` is known — the max
- * sessions and KV tier depend on the displayed breakdown, which isn't
- * available yet when useResultExports itself is called, so they are passed
- * in at export time instead of at hook-construction time.
+ * Capacity and offload figures computed in ResultsPanel after `result` is
+ * known — max sessions, the KV tier, and offloading depend on the displayed
+ * breakdown, which isn't available yet when useResultExports itself is
+ * called, so they are passed in at export time instead of at
+ * hook-construction time.
  */
 type ExportPptxCapacity = Pick<
   ExportPptxParams,
-  'maxSessions' | 'tierSessionsHeld' | 'weightSource'
+  'maxSessions' | 'tierSessionsHeld' | 'weightSource' | 'concurrentUsers' | 'offload'
 >
 
 interface UseResultExportsParams {

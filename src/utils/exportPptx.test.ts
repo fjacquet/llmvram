@@ -169,6 +169,8 @@ describe('exportPptx', () => {
       maxSessions: null,
       tierSessionsHeld: null,
       weightSource: null,
+      concurrentUsers: 1,
+      offload: null,
     })
 
     // Slide 1 (config summary) is the first addTable call.
@@ -226,6 +228,8 @@ describe('exportPptx', () => {
       maxSessions: null,
       tierSessionsHeld: null,
       weightSource: null,
+      concurrentUsers: 1,
+      offload: null,
     })
 
     const configRows = tableRows(0)
@@ -255,6 +259,8 @@ describe('exportPptx', () => {
       maxSessions: null,
       tierSessionsHeld: null,
       weightSource: null,
+      concurrentUsers: 1,
+      offload: null,
     })
 
     expect(
@@ -284,6 +290,8 @@ describe('exportPptx', () => {
       maxSessions: 42,
       tierSessionsHeld: 100,
       weightSource: 'meta-llama/Llama-3.1-70B',
+      concurrentUsers: 1,
+      offload: null,
     })
 
     // Slide 4's table is the third addTable call (slide1 config, slide2
@@ -316,6 +324,8 @@ describe('exportPptx', () => {
       maxSessions: null,
       tierSessionsHeld: null,
       weightSource: null,
+      concurrentUsers: 1,
+      offload: null,
     })
 
     const perfRows = tableRows(2)
@@ -347,6 +357,8 @@ describe('exportPptx', () => {
       maxSessions: null,
       tierSessionsHeld: null,
       weightSource: null,
+      concurrentUsers: 1,
+      offload: null,
     })
 
     // Slide 4's metric cards used to start at y 0.9 while the heading occupied
@@ -360,5 +372,206 @@ describe('exportPptx', () => {
     for (const card of cards) {
       expect(card.opts.y ?? 0).toBeGreaterThanOrEqual(headingBottom)
     }
+  })
+
+  it('formats Sequence Length with en-US regardless of the host locale', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 1,
+      offload: null,
+    })
+
+    const configRows = tableRows(0)
+    expect(configRows).toContainEqual(['Sequence Length', '4,096 tokens'])
+  })
+
+  it('shows a Concurrent users row only when it differs from batchSize', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 4096,
+      offload: null,
+    })
+
+    const configRows = tableRows(0)
+    expect(configRows).toContainEqual(['Concurrent users', '4,096'])
+  })
+
+  it('adds Offloading and Offload slowdown rows, and a Host capacity row when exceeded', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 1,
+      offload: {
+        target: 'cpu-ram',
+        mode: 'percentage',
+        percentage: 100,
+        layers: 0,
+        kvOffloaded: true,
+        offloadedGiB: 92278,
+        slowdown: 31.4,
+        hostCapacityGB: 2048,
+        exceedsHost: true,
+      },
+    })
+
+    const configRows = tableRows(0)
+    expect(configRows).toContainEqual([
+      'Offloading',
+      'CPU RAM: 100% of weights + KV cache, 92,278 GiB',
+    ])
+    expect(configRows).toContainEqual(['Offload slowdown', '≈ 31× slower decode'])
+    expect(
+      configRows.some(([label, value]) => label === 'Host capacity' && value.includes('exceeded')),
+    ).toBe(true)
+  })
+
+  it('omits the Host capacity row when offload fits, and reports no measurable slowdown below 1.05x', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 1,
+      offload: {
+        target: 'cpu-ram',
+        mode: 'percentage',
+        percentage: 5,
+        layers: 0,
+        kvOffloaded: false,
+        offloadedGiB: 2,
+        slowdown: 1.01,
+        hostCapacityGB: 2048,
+        exceedsHost: false,
+      },
+    })
+
+    const configRows = tableRows(0)
+    expect(configRows.some(([label]) => label === 'Host capacity')).toBe(false)
+    expect(configRows).toContainEqual(['Offload slowdown', 'no measurable slowdown'])
+  })
+
+  it('notes offloaded memory on the multi-GPU slide when offload is set', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    const multiGPU = calculateMultiNodeVRAM({
+      singleGPU,
+      model,
+      gpuVramGB: 80,
+      gpusPerNode: 8,
+      numNodes: 1,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu,
+      fabric: FABRIC_SPECS['ethernet-800g'],
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: multiGPU.numGPUs,
+      numNodes: multiGPU.numNodes,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 1,
+      offload: {
+        target: 'cpu-ram',
+        mode: 'percentage',
+        percentage: 50,
+        layers: 0,
+        kvOffloaded: false,
+        offloadedGiB: 500,
+        slowdown: 3,
+        hostCapacityGB: 2048,
+        exceedsHost: false,
+      },
+    })
+
+    expect(
+      texts.some((t) => t.text.includes('Offloaded to host: 500 GiB (not included per GPU)')),
+    ).toBe(true)
   })
 })

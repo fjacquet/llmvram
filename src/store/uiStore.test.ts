@@ -84,3 +84,35 @@ describe('uiStore: host-grace KV tier guard', () => {
     expect(useUIStore.getState().kvTier.tier).toBe('none')
   })
 })
+
+describe('uiStore: offloadHostCapacityGB clamp', () => {
+  beforeEach(async () => {
+    const { useUIStore } = await import('@store/uiStore')
+    useUIStore.setState({ offloadHostCapacityGB: null })
+  })
+
+  it('accepts a positive finite value', async () => {
+    const { useUIStore } = await import('@store/uiStore')
+    useUIStore.getState().setOffloadHostCapacityGB(4096)
+    expect(useUIStore.getState().offloadHostCapacityGB).toBe(4096)
+  })
+
+  it('clamps non-finite, zero, negative, and null to null', async () => {
+    const { useUIStore } = await import('@store/uiStore')
+    useUIStore.getState().setOffloadHostCapacityGB(4096)
+    useUIStore.getState().setOffloadHostCapacityGB(Number.NaN)
+    expect(useUIStore.getState().offloadHostCapacityGB).toBeNull()
+
+    useUIStore.getState().setOffloadHostCapacityGB(4096)
+    useUIStore.getState().setOffloadHostCapacityGB(0)
+    expect(useUIStore.getState().offloadHostCapacityGB).toBeNull()
+
+    useUIStore.getState().setOffloadHostCapacityGB(4096)
+    useUIStore.getState().setOffloadHostCapacityGB(-10)
+    expect(useUIStore.getState().offloadHostCapacityGB).toBeNull()
+
+    useUIStore.getState().setOffloadHostCapacityGB(4096)
+    useUIStore.getState().setOffloadHostCapacityGB(null)
+    expect(useUIStore.getState().offloadHostCapacityGB).toBeNull()
+  })
+})
