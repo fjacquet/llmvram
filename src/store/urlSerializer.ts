@@ -89,7 +89,14 @@ export const URLStateSchema = z.object({
   op: z.number().optional(), // offloadPercentage
   ol: z.number().optional(), // offloadLayers
   ko: z.boolean().optional(), // kvCacheOffload
-  hc: z.number().positive().optional(), // offloadHostCapacityGB
+  // offloadHostCapacityGB. Preprocessed rather than a plain `.positive().optional()`:
+  // a hand-edited hash with hc <= 0 (or non-finite) must not fail the whole schema —
+  // it's dropped to "no override" instead, matching uiStore.setOffloadHostCapacityGB's
+  // own clamp, so the rest of the configuration still restores.
+  hc: z.preprocess(
+    (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined),
+    z.number().positive().optional(),
+  ),
   // Mode (only present if training; absence = inference for backward compat)
   m: z.enum(['inference', 'training']).optional(),
   // Training parameters (only present when mode=training)

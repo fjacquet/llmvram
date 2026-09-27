@@ -290,6 +290,39 @@ describe('URL Serializer', () => {
       expect(deserialized?.hc).toBeUndefined()
     })
 
+    it('tolerates an invalid hand-edited hc (0) instead of discarding the whole hash', () => {
+      // A hand-edited hash with hc=0 (or any non-positive value) must not fail the
+      // whole schema — the rest of the configuration (model, GPU, everything else)
+      // should still restore; only the host capacity override is dropped, exactly
+      // like a store-level clamp would (see uiStore.setOffloadHostCapacityGB).
+      const hash = compressToEncodedURIComponent(
+        JSON.stringify({
+          modelId: 'meta-llama-llama-3-70b',
+          gpuId: 'nvidia-h100-80gb-sxm',
+          q: 'gptq',
+          sl: 4096,
+          bs: 1,
+          kvq: 'fp16',
+          ng: 4,
+          ss: 'tensor-parallel',
+          oe: true,
+          ot: 'cpu-ram',
+          om: 'percentage',
+          op: 100,
+          ol: 0,
+          ko: true,
+          hc: 0,
+        }),
+      )
+
+      const decoded = deserializeFromURL(hash)
+
+      expect(decoded).not.toBeNull()
+      expect(decoded?.modelId).toBe('meta-llama-llama-3-70b')
+      expect(decoded?.oe).toBe(true)
+      expect(decoded?.hc).toBeUndefined()
+    })
+
     it('should NOT serialize training fields when mode is inference', () => {
       const state = {
         ...baseState,
