@@ -663,10 +663,12 @@ export function softWarnings(
   if (config.mode !== 'inference') return []
   const out: SoftWarning[] = []
   if (config.numNodes > 1 && gpu && (gpu.unified_memory === true || gpu.max_gpus_per_node === 1)) {
+    const isDGX = gpu.id === 'nvidia-gb10' || gpu.id === 'nvidia-gb300-desktop-252gb'
     out.push({
       id: 'W3',
-      message:
-        'Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2; use the 200GbE fabric preset.',
+      message: isDGX
+        ? 'Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2; use the 200GbE fabric preset.'
+        : `Small clusters: ${gpu.name} servers are joined over the network, one GPU per server; prefill and decode pay a network hop per server.`,
     })
   }
   const stages =

@@ -93,7 +93,7 @@ this from `FRAMEWORK_PRESETS.none.mode`.
 |---|---|---|
 | W1 | sequenceLength > model context | existing RoPE/YaRN warning |
 | W2 | TP degree > interconnect recommendedMaxTPDegree | existing |
-| W3 | multi-node unified-memory or single-GPU-per-node clusters | "Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2; use the 200GbE fabric preset." |
+| W3 | multi-node unified-memory or single-GPU-per-node clusters | DGX Spark / DGX Station: "Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2; use the 200GbE fabric preset." Any other such GPU: "Small clusters: {gpu} servers are joined over the network, one GPU per server; prefill and decode pay a network hop per server." |
 | W4 | custom GPU without FLOPS | memory-bound fallback note |
 | W5 | quantization format vs GPU generation | support note |
 | W6 | pipeline stages > num_hidden_layers | "{n} pipeline stages exceed {model}'s {L} layers; some stages would be empty." |

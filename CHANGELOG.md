@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- W3 soft warning: the DGX Spark/DGX Station text is now shown only for those two GPUs; any other multi-node cluster of single-GPU-per-server or unified-memory parts (e.g. Apple M3 Ultra) gets a generic "servers are joined over the network" message naming the GPU.
+
 ## [2.0.0] - 2026-09-27
 
 ### Breaking changes

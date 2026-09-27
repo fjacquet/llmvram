@@ -850,6 +850,28 @@ describe('softWarnings', () => {
     expect(softWarnings({ ...base, numNodes: 2 }, L70, H100)).toEqual([])
   })
 
+  it('W3: keeps the DGX-specific text only for DGX Spark and DGX Station', () => {
+    const spark = findGPU('nvidia-gb10')
+    const station = findGPU('nvidia-gb300-desktop-252gb')
+    const dgxText =
+      'Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2; use the 200GbE fabric preset.'
+    expect(softWarnings({ ...base, numNodes: 2 }, L70, spark)).toEqual([
+      { id: 'W3', message: dgxText },
+    ])
+    expect(softWarnings({ ...base, numNodes: 2 }, L70, station)).toEqual([
+      { id: 'W3', message: dgxText },
+    ])
+  })
+
+  it('W3: uses a generic message naming the GPU for any other one-GPU-per-server part', () => {
+    expect(softWarnings({ ...base, numNodes: 2 }, L70, M3)).toEqual([
+      {
+        id: 'W3',
+        message: `Small clusters: ${M3.name} servers are joined over the network, one GPU per server; prefill and decode pay a network hop per server.`,
+      },
+    ])
+  })
+
   it('W6: more pipeline stages than layers', () => {
     const w = softWarnings(
       { ...base, numGPUs: 8, numNodes: 8, shardingStrategy: 'pipeline-parallel' },
