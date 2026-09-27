@@ -361,4 +361,32 @@ describe('exportPptx', () => {
       expect(card.opts.y ?? 0).toBeGreaterThanOrEqual(headingBottom)
     }
   })
+
+  it('formats Sequence Length with en-US regardless of the host locale', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+    })
+
+    const configRows = tableRows(0)
+    expect(configRows).toContainEqual(['Sequence Length', '4,096 tokens'])
+  })
 })

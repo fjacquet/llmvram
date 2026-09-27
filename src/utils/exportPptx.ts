@@ -140,7 +140,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     ['Number of GPUs', String(numGPUs)],
     ...(numNodes > 1 ? ([['Servers', String(numNodes)]] as [string, string][]) : []),
     ['Quantization', quantization.toUpperCase()],
-    ['Sequence Length', `${sequenceLength.toLocaleString()} tokens`],
+    ['Sequence Length', `${sequenceLength.toLocaleString('en-US')} tokens`],
     ['Batch Size', String(batchSize)],
   ]
 
