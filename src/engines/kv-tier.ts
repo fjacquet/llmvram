@@ -34,13 +34,17 @@ export const DEFAULT_KV_TIER: KVTierSettings = {
   capacityTB: null,
 }
 
-/** Per-GPU read bandwidth presets, GB/s. All estimates; basis in each comment. */
+/**
+ * Per-GPU read bandwidth presets, GB/s. All estimates; basis in each comment.
+ *
+ * host-grace's gbpsPerGPU (225, the NVL72 figure) is a fallback only, used
+ * when no GPU id is available to resolve the real per-GPU figure — see
+ * graceLinkGBps, which callers should prefer whenever a GPU id is in hand.
+ */
 export const KV_TIER_PRESETS: Record<
   Exclude<KVTierType, 'none'>,
   { label: string; gbpsPerGPU: number }
 > = {
-  // NVLink-C2C 900 GB/s per Grace superchip, shared by 2 GPUs, one direction.
-  // NVIDIA publishes no per-GPU figure; estimate.
   'host-grace': { label: 'Host memory (Grace NVLink-C2C)', gbpsPerGPU: 225 },
   // PCIe 5 x16 ~64 GB/s theoretical, ~50 practical.
   'host-pcie': { label: 'Host memory (PCIe 5)', gbpsPerGPU: 50 },
@@ -85,16 +89,27 @@ export function clampKVTier(s: KVTierSettings): KVTierSettings {
 }
 
 /**
- * Whether a GPU id sits on a Grace superchip host (NVLink-C2C to the CPU),
- * which is what the `host-grace` KV tier preset models.
+ * Per-GPU read bandwidth (GB/s) between a GPU and its Grace host's memory
+ * over NVLink-C2C, for the `host-grace` KV tier preset; null when the GPU has
+ * no Grace host at all.
+ *
+ * NVIDIA quotes 900 GB/s bidirectional per Grace-GPU superchip link, i.e. 450
+ * GB/s in one direction. GB300 NVL72 pairs 2 GPUs to each Grace CPU, sharing
+ * that one-direction figure: 225 GB/s each (NVIDIA publishes no per-GPU
+ * figure; estimate). The GB300 Desktop Superchip pairs 1 GPU to 1 Grace CPU,
+ * so the link itself isn't the bottleneck — the Grace LPDDR5X behind it is:
+ * "DGX Station GB300: 900 GB/s NVLink-C2C, 496 GB LPDDR5X at 396 GB/s
+ * (NVIDIA / Tom's Hardware); memory-bound."
  *
  * HGX B300 (`nvidia-gb300-288gb`) is an x86 host, not Grace, despite the
  * GB300 name. GB10 (`nvidia-gb10`) has no separate host tier: its Grace
  * memory is already one unified pool shared with the GPU, not a second tier
  * to park KV cache into.
  */
-export function hasGraceHost(gpuId: string): boolean {
-  return gpuId === 'nvidia-gb300-nvl72' || gpuId === 'nvidia-gb300-desktop-252gb'
+export function graceLinkGBps(gpuId: string): number | null {
+  if (gpuId === 'nvidia-gb300-nvl72') return 225
+  if (gpuId === 'nvidia-gb300-desktop-252gb') return 396
+  return null
 }
 
 /**
@@ -109,12 +124,26 @@ export function hasGraceHost(gpuId: string): boolean {
  * the GPU is set the tier is still whatever it was before the restore.
  */
 export function resetTierForGPU(tier: KVTierSettings, gpuId: string | null): KVTierSettings {
-  if (tier.tier !== 'host-grace' || hasGraceHost(gpuId ?? '')) return tier
+  if (tier.tier !== 'host-grace' || graceLinkGBps(gpuId ?? '') !== null) return tier
   return { ...tier, tier: 'none' }
 }
 
-export function tierBandwidthGBps(settings: KVTierSettings): number | null {
+/**
+ * @param gpuId Resolves the exact host-grace figure (graceLinkGBps) when the
+ *   tier is `host-grace` and no custom bandwidth is set; falls back to the
+ *   generic KV_TIER_PRESETS figure if the id doesn't match a Grace GPU
+ *   (shouldn't happen in practice — resetTierForGPU keeps the two in sync).
+ */
+export function tierBandwidthGBps(
+  settings: KVTierSettings,
+  gpuId: string | null = null,
+): number | null {
   if (settings.tier === 'none') return null
+  if (settings.tier === 'host-grace') {
+    return (
+      settings.customGBps ?? graceLinkGBps(gpuId ?? '') ?? KV_TIER_PRESETS['host-grace'].gbpsPerGPU
+    )
+  }
   return settings.customGBps ?? KV_TIER_PRESETS[settings.tier].gbpsPerGPU
 }
 
@@ -184,8 +213,10 @@ export function kvTierSummary(p: {
   concurrentUsers: number
   multi: SessionMulti
   recomputeSeconds: number | null
+  /** Selected GPU id, to resolve host-grace bandwidth (graceLinkGBps) */
+  gpuId?: string | null
 }): KVTierSummary | null {
-  const bandwidth = tierBandwidthGBps(p.settings)
+  const bandwidth = tierBandwidthGBps(p.settings, p.gpuId ?? null)
   if (bandwidth === null) return null
 
   const { activeShare, burstSeconds, capacityTB } = p.settings

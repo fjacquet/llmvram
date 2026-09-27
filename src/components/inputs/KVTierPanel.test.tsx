@@ -73,6 +73,16 @@ describe('KVTierPanel', () => {
     expect(screen.getByRole('option', { name: /Grace/ })).toBeInTheDocument()
   })
 
+  it('shows the per-GPU bandwidth for the selected Grace GPU: 225 for NVL72, 396 for Desktop', () => {
+    useUIStore.setState({ selectedGPU: makeGPU('nvidia-gb300-nvl72') })
+    const { rerender } = render(<KVTierPanel />)
+    expect(screen.getByRole('option', { name: /225 GB\/s per GPU/ })).toBeInTheDocument()
+
+    useUIStore.setState({ selectedGPU: makeGPU('nvidia-gb300-desktop-252gb') })
+    rerender(<KVTierPanel />)
+    expect(screen.getByRole('option', { name: /396 GB\/s per GPU/ })).toBeInTheDocument()
+  })
+
   it('stores the active share as a fraction, clamped to 1-100%', () => {
     useUIStore.setState({ kvTier: { ...DEFAULT_KV_TIER, tier: 'network' } })
     render(<KVTierPanel />)

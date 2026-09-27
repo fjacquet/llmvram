@@ -240,6 +240,7 @@ export function ResultsPanel() {
           concurrentUsers,
           multi: result.multiGPU,
           recomputeSeconds: result.performance.prefillSeconds?.toNumber() ?? null,
+          gpuId: selectedGPU.id,
         })
 
   // Repo the weights were measured from, or null when the format is estimated

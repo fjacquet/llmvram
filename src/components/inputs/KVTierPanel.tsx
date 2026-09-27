@@ -1,5 +1,5 @@
 import { InfoTip } from '@components/common/InfoTip'
-import { hasGraceHost, KV_TIER_PRESETS, KV_TIER_TYPES, type KVTierType } from '@engines/kv-tier'
+import { graceLinkGBps, KV_TIER_PRESETS, KV_TIER_TYPES, type KVTierType } from '@engines/kv-tier'
 import { useUIStore } from '@store/uiStore'
 import { useEffect, useState } from 'react'
 
@@ -58,8 +58,13 @@ export function KVTierPanel() {
   const setKVTier = useUIStore((s) => s.setKVTier)
   const selectedGPU = useUIStore((s) => s.selectedGPU)
   const preset = kvTier.tier === 'none' ? null : KV_TIER_PRESETS[kvTier.tier]
-  const graceHost = hasGraceHost(selectedGPU?.id ?? '')
-  const tierOptions = KV_TIER_TYPES.filter((t) => t !== 'host-grace' || graceHost)
+  // Grace-host bandwidth depends on which Grace GPU is selected (225 NVL72,
+  // 396 Desktop Superchip) — resolve it once and use it everywhere the
+  // static KV_TIER_PRESETS figure would otherwise stand in for host-grace.
+  const graceGBps = graceLinkGBps(selectedGPU?.id ?? '')
+  const tierOptions = KV_TIER_TYPES.filter((t) => t !== 'host-grace' || graceGBps !== null)
+  const presetGBps =
+    kvTier.tier === 'host-grace' ? (graceGBps ?? preset?.gbpsPerGPU) : preset?.gbpsPerGPU
 
   return (
     <div className="space-y-3">
@@ -83,7 +88,10 @@ export function KVTierPanel() {
           <option key={t} value={t}>
             {t === 'none'
               ? 'None'
-              : `${KV_TIER_PRESETS[t].label} (${KV_TIER_PRESETS[t].gbpsPerGPU} GB/s per GPU)`}
+              : t === 'host-grace'
+                ? // Visible only when graceGBps !== null, so it's a real number here.
+                  `${KV_TIER_PRESETS[t].label} (${graceGBps} GB/s per GPU)`
+                : `${KV_TIER_PRESETS[t].label} (${KV_TIER_PRESETS[t].gbpsPerGPU} GB/s per GPU)`}
           </option>
         ))}
       </select>
@@ -93,7 +101,7 @@ export function KVTierPanel() {
           <NumberField
             label="Bandwidth per GPU (GB/s)"
             min={0}
-            placeholder={String(preset.gbpsPerGPU)}
+            placeholder={String(presetGBps)}
             value={kvTier.customGBps}
             commit={(raw) => setKVTier({ customGBps: parseNumber(raw) })}
           />
