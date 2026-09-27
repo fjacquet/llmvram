@@ -218,6 +218,7 @@ One decode step produces one token for each of `batchSize` sequences:
 
 - Parked sessions hold no HBM; memory and decode engines are unchanged.
 - Sessions held = `min(floor(maxConcurrentSessions / activeShare), maxConcurrentSessions + capacityTB × 1000 / kv_per_session)`: capacity bounds parked sessions only.
+- Units: engine KV is GiB (1024³ bytes, like `vram_gb`); tier capacity and bandwidth are decimal, so KV is converted (× 1.0737) before dividing.
 - `sessionKVLayout`: under TP/PP every GPU reloads its share of a session in parallel; under EP a session lives on one rank per node (N × the per-GPU average) and reloads through that link.
 - Resume = 0.03 s + KV per session per GPU / tier GB/s per GPU; compared with `prefillSeconds`.
 - Traffic = held × activeShare / burstSeconds × KV per session per GPU × GPUs per session (duplicated MLA fetched per TP rank, conservative), against tier GB/s × GPUs.

@@ -43,10 +43,15 @@ describe('tierBandwidthGBps', () => {
 })
 
 describe('resumeSeconds', () => {
+  it('reads GiB of KV over decimal GB/s', () => {
+    // 1 GiB = 1.073741824 GB
+    expect(resumeSeconds(1, 1)).toBeCloseTo(0.03 + 1.073741824, 9)
+  })
+
   it('reproduces the Dell ObjectScale anchor within 10%', () => {
     // Dell: 43 GB KV at 235K tokens, TP4 on XE9680, 837 ms to first token.
-    // Per GPU 43 / 4 GB at 12.8 GB/s per GPU (>= 51 GB/s per server).
-    const s = resumeSeconds(43 / 4, 12.8)
+    // Engine KV is in GiB: 43e9 bytes / 1024^3 per GPU share, at 12.8 GB/s per GPU.
+    const s = resumeSeconds(43e9 / 1024 ** 3 / 4, 12.8)
     expect(s).toBeGreaterThan(0.837 * 0.9)
     expect(s).toBeLessThan(0.837 * 1.1)
   })
@@ -83,9 +88,9 @@ describe('kvTierSummary', () => {
   })
 
   it('caps the parked sessions by the tier capacity', () => {
-    // 100 hot in HBM + 1 TB / 8 GB = 125 parked = 225 (below 100 / 0.25 = 400)
+    // 100 hot in HBM + 1 TB (1e12 bytes) / 8 GiB = 116 parked = 216 (below 400)
     const s = kvTierSummary({ ...base, settings: { ...network, capacityTB: 1 } })
-    expect(s?.sessionsHeld).toBe(225)
+    expect(s?.sessionsHeld).toBe(216)
   })
 
   it('never holds fewer than fit in HBM, even with a tiny tier', () => {
@@ -106,7 +111,8 @@ describe('kvTierSummary', () => {
   it('prices tier traffic as resumes per second times one session of KV', () => {
     // 400 held x 25% active / 30 s burst = 3.33 resumes/s x 8 GB = 26.7 GB/s
     const s = kvTierSummary(base)
-    expect(s?.trafficGBps).toBeCloseTo(((400 * 0.25) / 30) * 2 * 4, 6)
+    // GiB of KV per resume, reported in decimal GB/s like the tier bandwidth
+    expect(s?.trafficGBps).toBeCloseTo(((400 * 0.25) / 30) * 2 * 4 * 1.073741824, 6)
     expect(s?.tierGBps).toBe(12.5 * 4)
   })
 

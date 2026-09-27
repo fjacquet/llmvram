@@ -1,3 +1,4 @@
+import { BYTES_PER_GB } from './constants'
 import type { ShardingStrategy } from './types'
 
 /**
@@ -58,6 +59,12 @@ export const KV_TIER_PRESETS: Record<
 const KV_TIER_RESUME_OVERHEAD_S = 0.03
 
 /**
+ * Engine KV sizes are GiB (BYTES_PER_GB = 1024^3, like vram_gb); tier capacity (TB)
+ * and bandwidth (GB/s) are decimal, as storage and network vendors quote them.
+ */
+const DECIMAL_GB_PER_GIB = BYTES_PER_GB.toNumber() / 1e9
+
+/**
  * Bounds for tier settings, applied once at the store boundary (uiStore.setKVTier),
  * so the engine below can trust its input: active share 1-100%, burst >= 1 s, and a
  * custom bandwidth or capacity that is positive and finite, else null.
@@ -82,8 +89,9 @@ export function tierBandwidthGBps(settings: KVTierSettings): number | null {
   return settings.customGBps ?? KV_TIER_PRESETS[settings.tier].gbpsPerGPU
 }
 
+/** @param kvPerSessionPerGPUGB GiB (engine unit); @param gbpsPerGPU decimal GB/s */
 export function resumeSeconds(kvPerSessionPerGPUGB: number, gbpsPerGPU: number): number {
-  return KV_TIER_RESUME_OVERHEAD_S + kvPerSessionPerGPUGB / gbpsPerGPU
+  return KV_TIER_RESUME_OVERHEAD_S + (kvPerSessionPerGPUGB * DECIMAL_GB_PER_GIB) / gbpsPerGPU
 }
 
 interface KVTierSummary {
@@ -159,7 +167,7 @@ export function kvTierSummary(p: {
   // capacity bounds parked sessions, never the ones that already fit in HBM.
   const parkedCapacity =
     capacityTB && kvPerSessionGB > 0
-      ? Math.floor((capacityTB * 1000) / kvPerSessionGB)
+      ? Math.floor((capacityTB * 1000) / (kvPerSessionGB * DECIMAL_GB_PER_GIB))
       : Number.POSITIVE_INFINITY
   const sessionsHeld = Math.min(
     Math.floor(p.maxHotSessions / activeShare),
@@ -170,7 +178,10 @@ export function kvTierSummary(p: {
   // Every GPU of a session fetches its own part; duplicated MLA KV is fetched once
   // per tensor-parallel rank (conservative: assumes no cross-rank de-duplication).
   const trafficGBps =
-    ((sessionsHeld * activeShare) / burstSeconds) * kvPerSessionPerGPUGB * gpusPerSession
+    ((sessionsHeld * activeShare) / burstSeconds) *
+    kvPerSessionPerGPUGB *
+    gpusPerSession *
+    DECIMAL_GB_PER_GIB
   const tierGBps = bandwidth * (p.multi?.numGPUs ?? 1)
   return {
     sessionsHeld,
