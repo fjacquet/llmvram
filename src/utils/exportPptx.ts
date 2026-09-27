@@ -1,3 +1,4 @@
+import type { weightSource } from '@engines/quantization'
 import type {
   InferenceVRAMBreakdown,
   MultiGPUVRAMBreakdown,
@@ -20,6 +21,12 @@ interface ExportPptxParams {
   vram: InferenceVRAMBreakdown
   performance: PerformanceEstimate
   multiGPU: MultiGPUVRAMBreakdown | null
+  /** Sessions that fit at this context (vLLM's "Maximum concurrency"); absent when unknown */
+  maxSessions?: number
+  /** Sessions held with the KV storage tier active; null/absent when no tier is set */
+  tierSessionsHeld?: number | null
+  /** The repo weights were measured from, or null when estimated — same shape as weightSource() */
+  weightSource?: ReturnType<typeof weightSource>
 }
 
 function gbStr(val: Decimal): string {
@@ -59,6 +66,9 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     vram,
     performance,
     multiGPU,
+    maxSessions,
+    tierSessionsHeld,
+    weightSource,
   } = params
 
   const PptxGenJS = (await import('pptxgenjs')).default
@@ -440,6 +450,28 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     })
   })
 
+  // Capacity rows: sessions that fit, sessions held with the KV tier, and
+  // whether the weight sizes above are measured or estimated. Optional/absent
+  // fields are omitted rather than shown as "N/A" (see ResultsPanel: not every
+  // configuration has a KV tier, and a GPU without FLOPS data can still lack
+  // a max-sessions figure).
+  const capacityRows: [string, string][] = []
+  if (maxSessions !== undefined) {
+    capacityRows.push([
+      `Max concurrent sessions (at ${sequenceLength.toLocaleString()} tokens)`,
+      maxSessions.toLocaleString(),
+    ])
+  }
+  if (typeof tierSessionsHeld === 'number') {
+    capacityRows.push(['Sessions held with KV tier', tierSessionsHeld.toLocaleString()])
+  }
+  if (weightSource !== undefined) {
+    capacityRows.push([
+      'Weights',
+      weightSource ? `measured from ${weightSource}` : 'estimated (no reference checkpoint)',
+    ])
+  }
+
   // Performance details table below metric boxes
   slide4.addTable(
     [
@@ -470,6 +502,10 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
         { text: 'GPU Memory Bandwidth', options: { fill: C.whiteFill } },
         { text: `${gpu.memory_bandwidth_gbps} GB/s`, options: { fill: C.whiteFill } },
       ],
+      ...capacityRows.map(([k, v], i) => [
+        { text: k, options: { fill: (5 + i) % 2 === 0 ? C.whiteFill : C.altRowFill } },
+        { text: v, options: { fill: (5 + i) % 2 === 0 ? C.whiteFill : C.altRowFill } },
+      ]),
     ],
     {
       x: 0.4,

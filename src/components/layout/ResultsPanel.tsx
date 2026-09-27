@@ -242,6 +242,9 @@ export function ResultsPanel() {
           recomputeSeconds: result.performance.prefillSeconds?.toNumber() ?? null,
         })
 
+  // Repo the weights were measured from, or null when the format is estimated
+  const weightSourceRepo = weightSource(selectedModel, quantization)
+
   /**
    * Generate descriptive label for snapshot
    */
@@ -447,7 +450,13 @@ export function ResultsPanel() {
               </button>
               <button
                 type="button"
-                onClick={handleExportPptx}
+                onClick={() =>
+                  handleExportPptx({
+                    maxSessions: maxSessions ?? undefined,
+                    tierSessionsHeld: tierSummary?.sessionsHeld ?? null,
+                    weightSource: weightSourceRepo,
+                  })
+                }
                 className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
               >
                 Export PPTX
@@ -517,7 +526,7 @@ export function ResultsPanel() {
               tierSummary={tierSummary}
               kvTier={kvTier}
               prefillSeconds={result.performance.prefillSeconds}
-              weightSourceRepo={weightSource(selectedModel, quantization)}
+              weightSourceRepo={weightSourceRepo}
               quantization={quantization}
             />
 

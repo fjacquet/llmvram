@@ -1,8 +1,21 @@
+import type { weightSource } from '@engines/quantization'
 import type { QuantizationFormat } from '@engines/types'
 import type { UseInferenceCalculationResult } from '@hooks/useInferenceCalculation'
 import { exportPptx } from '@utils/exportPptx'
 import type { GPU, Model } from '@utils/schemas'
 import { toast } from 'sonner'
+
+/**
+ * Capacity figures computed in ResultsPanel after `result` is known — the max
+ * sessions and KV tier depend on the displayed breakdown, which isn't
+ * available yet when useResultExports itself is called, so they are passed
+ * in at export time instead of at hook-construction time.
+ */
+interface ExportPptxCapacity {
+  maxSessions?: number
+  tierSessionsHeld?: number | null
+  weightSource?: ReturnType<typeof weightSource>
+}
 
 interface UseResultExportsParams {
   selectedModel: Model | null
@@ -90,7 +103,7 @@ export function useResultExports({
     }
   }
 
-  const handleExportPptx = async () => {
+  const handleExportPptx = async (capacity?: ExportPptxCapacity) => {
     if (!result || !selectedModel || !selectedGPU) return
     try {
       await exportPptx({
@@ -106,6 +119,9 @@ export function useResultExports({
         vram: result.vram,
         performance: result.performance,
         multiGPU: result.multiGPU,
+        maxSessions: capacity?.maxSessions,
+        tierSessionsHeld: capacity?.tierSessionsHeld,
+        weightSource: capacity?.weightSource,
       })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'PPTX export failed')

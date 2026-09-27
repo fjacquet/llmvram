@@ -253,6 +253,66 @@ describe('exportPptx', () => {
     ).toBe(true)
   })
 
+  it('adds capacity rows to the performance table when provided', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: 42,
+      tierSessionsHeld: 100,
+      weightSource: 'meta-llama/Llama-3.1-70B',
+    })
+
+    // Slide 4's table is the third addTable call (slide1 config, slide2
+    // breakdown, slide4 performance — slide3 has no table).
+    const perfRows = tableRows(2)
+    expect(perfRows).toContainEqual(['Max concurrent sessions (at 4,096 tokens)', '42'])
+    expect(perfRows).toContainEqual(['Sessions held with KV tier', '100'])
+    expect(perfRows).toContainEqual(['Weights', 'measured from meta-llama/Llama-3.1-70B'])
+  })
+
+  it('omits capacity rows when not provided, and labels weights estimated when null', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      weightSource: null,
+    })
+
+    const perfRows = tableRows(2)
+    expect(perfRows.some(([label]) => label.startsWith('Max concurrent sessions'))).toBe(false)
+    expect(perfRows.some(([label]) => label === 'Sessions held with KV tier')).toBe(false)
+    expect(perfRows).toContainEqual(['Weights', 'estimated (no reference checkpoint)'])
+  })
+
   it('keeps every slide heading clear of the content below it', async () => {
     const singleGPU = calculateInferenceVRAM({
       model,

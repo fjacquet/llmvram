@@ -11,10 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Measured weight sizes: each model carries weight_refs per format ({repo, gib}) measured from published checkpoints (native release, NVIDIA NVFP4, RedHatAI FP8/INT4, unsloth/bartowski GGUF, AWQ/GPTQ). The engine uses them for memory and decode; the results say whether weights are measured or estimated. Corrects under-counts of up to 44% (Gemma 4 31B NVFP4) where checkpoints keep tensors in 16-bit. Formats without a reliable reference checkpoint stay estimated.
 - npm run refresh:models audits models.json against Hugging Face (config via text_config, exact safetensors counts, weight_refs drift, missing MLA / sliding / linear-state fields), measures weight_refs (--measure <id>) and drafts new roster entries (--draft). It never writes models.json.
+- Warning in the multi-user metrics block when the configured batch size is below concurrent users: only `batchSize` requests decode per step, so the rest queue — which is why per-user TTFT is long.
+- PPTX export now carries capacity data on the Performance slide: max concurrent sessions at the configured context, sessions held with the KV storage tier (when set), and whether the weight sizes are measured or estimated.
+- A note that "GB" in this app means GiB (1024³ bytes), as nvidia-smi reports — added to the results footer, the guide's Results Panel section, and the PPTX summary slide.
 
 ### Changed
 
 - Fallback bytes per parameter from the format definitions: INT4 0.5625 (16-bit scale per group of 32), AWQ/GPTQ 0.52 (scale and zero per group of 128, was 0.6), GGUF Q2_K 0.366 (median published file, was 0.328).
+- The Grace host-memory KV storage tier preset is only offered for GPUs with a Grace host (GB300 NVL72, GB300 Desktop Superchip); it falls back to "none" if the selected GPU changes to a non-Grace part.
+- Internal: ResultsPanel split into `useResultExports`, `PerformanceSection`, and `CapacitySection` for readability; no behavior or wording change.
 
 ### Fixed
 
