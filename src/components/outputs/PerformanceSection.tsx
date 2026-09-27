@@ -93,6 +93,11 @@ export function PerformanceSection({
               </p>
             </div>
           </div>
+          {batchSize < concurrentUsers && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-3">
+              {`Only ${batchSize} of ${concurrentUsers} users decode at once (batch size ${batchSize}); the rest queue, hence the long TTFT. Raise batch size to serve them concurrently.`}
+            </p>
+          )}
         </div>
       )}
     </div>
