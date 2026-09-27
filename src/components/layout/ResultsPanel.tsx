@@ -4,10 +4,13 @@ import { MemoryBreakdownTable } from '@components/outputs/MemoryBreakdownTable'
 import { MultiGPUBreakdownChart } from '@components/outputs/MultiGPUBreakdownChart'
 import { PerformanceSection } from '@components/outputs/PerformanceSection'
 import { Recommendations } from '@components/outputs/Recommendations'
+import { SoftWarnings } from '@components/outputs/SoftWarnings'
 import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownChart'
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
+import { VerdictBlock } from '@components/outputs/VerdictBlock'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
 import { maxConcurrentSessions } from '@engines/concurrency'
+import { softWarnings } from '@engines/config-rules'
 import { DECIMAL_GB_PER_GIB, kvTierSummary } from '@engines/kv-tier'
 import { defaultHostCapacityGB, roundOffloadSlowdown } from '@engines/offloading'
 import { weightSource } from '@engines/quantization'
@@ -19,7 +22,7 @@ import { useTrainingCalculation } from '@hooks/useTrainingCalculation'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 /**
@@ -42,6 +45,7 @@ export function ResultsPanel() {
     numGPUs,
     numNodes,
     interNodeFabric,
+    interconnectOverride,
     shardingStrategy,
     offloadingEnabled,
     offloadTarget,
@@ -58,6 +62,7 @@ export function ResultsPanel() {
   const { snapshots, addSnapshot } = useComparisonStore()
 
   const resultsDivRef = useRef<HTMLDivElement>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
   // Build offloading config if enabled (memoized to prevent render loops)
   const offloadingConfig = useMemo<OffloadingConfig | undefined>(
@@ -104,6 +109,7 @@ export function ResultsPanel() {
     batchSize,
     numGPUs,
     numNodes,
+    interconnectOverride,
     result,
   })
 
@@ -450,86 +456,142 @@ export function ResultsPanel() {
     return renderTrainingResults()
   }
 
-  // Continue with inference mode (everything below is unchanged)
+  const fit = result.multiGPU ? (
+    <FitIndicator
+      totalVRAM={result.multiGPU.totalPerGPU}
+      availableVRAM={selectedGPU.vram_gb}
+      numGPUs={result.multiGPU.numGPUs}
+    />
+  ) : (
+    <FitIndicator totalVRAM={displayBreakdown.total} availableVRAM={selectedGPU.vram_gb} />
+  )
+
   return (
     <div
       ref={resultsDivRef}
       className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
     >
       <div className="space-y-6">
-        {/* VRAM Section */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              VRAM Requirements
-            </h2>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportPDF}
-                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
-              >
-                Export PDF
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  handleExportPptx({
-                    maxSessions,
-                    tierSessionsHeld: tierSummary?.sessionsHeld ?? null,
-                    weightSource: weightSourceRepo,
-                    concurrentUsers,
-                    offload: result.offloading
-                      ? {
-                          target: offloadTarget,
-                          mode: offloadMode,
-                          percentage: offloadPercentage,
-                          layers: offloadLayers,
-                          kvOffloaded: kvCacheOffload,
-                          offloadedGiB: result.offloading.offloaded.total.toNumber(),
-                          slowdown: result.performance.offloadSlowdown,
-                          hostCapacityGB: (hostCapacityPerServerGB ?? 0) * numNodes,
-                          exceedsHost: hostExceeded,
-                        }
-                      : null,
-                  })
-                }
-                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
-              >
-                Export PPTX
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveToComparison}
-                disabled={snapshots.length >= 3}
-                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {snapshots.length >= 3 ? (
-                  'Max 3 saved'
-                ) : (
-                  <>
-                    <PlusIcon className="h-4 w-4" />
-                    Save to Compare
-                  </>
-                )}
-              </button>
-            </div>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">VRAM Requirements</h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
+            >
+              Export PDF
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleExportPptx({
+                  maxSessions,
+                  tierSessionsHeld: tierSummary?.sessionsHeld ?? null,
+                  weightSource: weightSourceRepo,
+                  concurrentUsers,
+                  offload: result.offloading
+                    ? {
+                        target: offloadTarget,
+                        mode: offloadMode,
+                        percentage: offloadPercentage,
+                        layers: offloadLayers,
+                        kvOffloaded: kvCacheOffload,
+                        offloadedGiB: result.offloading.offloaded.total.toNumber(),
+                        slowdown: result.performance.offloadSlowdown,
+                        hostCapacityGB: (hostCapacityPerServerGB ?? 0) * numNodes,
+                        exceedsHost: hostExceeded,
+                      }
+                    : null,
+                })
+              }
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
+            >
+              Export PPTX
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveToComparison}
+              disabled={snapshots.length >= 3}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {snapshots.length >= 3 ? (
+                'Max 3 saved'
+              ) : (
+                <>
+                  <PlusIcon className="h-4 w-4" />
+                  Save to Compare
+                </>
+              )}
+            </button>
           </div>
-          <div className="space-y-6">
-            {/* Fit Indicator - shows per-GPU utilization for multi-GPU, total for single */}
-            {result.multiGPU ? (
-              <FitIndicator
-                totalVRAM={result.multiGPU.totalPerGPU}
-                availableVRAM={selectedGPU.vram_gb}
-                numGPUs={result.multiGPU.numGPUs}
-              />
-            ) : (
-              <FitIndicator
-                totalVRAM={displayBreakdown.total}
-                availableVRAM={selectedGPU.vram_gb}
-              />
-            )}
+        </div>
 
+        <VerdictBlock
+          fit={fit}
+          performance={result.performance}
+          batchSize={batchSize}
+          maxSessions={maxSessions}
+          sequenceLength={sequenceLength}
+        />
+
+        {/* Warnings stay visible: they change the answer */}
+        {/* Host capacity exceeded */}
+        {hostExceeded && hostCapacityPerServerGB !== null && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <p className="text-sm text-red-800 dark:text-red-200">
+              Does not fit: offloaded{' '}
+              {offloadedHostGB.toLocaleString('en-US', { maximumFractionDigits: 0 })} GB exceeds
+              host capacity{' '}
+              {hostCapacityPerServerGB.toLocaleString('en-US', { maximumFractionDigits: 0 })} GB (
+              {numNodes} server{numNodes === 1 ? '' : 's'})
+            </p>
+          </div>
+        )}
+
+        {/* Interconnect Warning */}
+        {result.interconnectWarning && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              ⚠ {result.interconnectWarning}
+            </p>
+          </div>
+        )}
+
+        <SoftWarnings
+          warnings={softWarnings(
+            { mode, numGPUs, numNodes, shardingStrategy },
+            selectedModel,
+            selectedGPU,
+          )}
+        />
+
+        {/* Recommendations: GPU/quantization advice, not applicable to a
+            host-capacity-only problem (the red message above covers that). */}
+        {deviceDoesNotFit && (
+          <Recommendations
+            gpu={selectedGPU}
+            breakdown={result.vram}
+            currentQuantization={quantization}
+            currentSequenceLength={sequenceLength}
+            // numGPUs from the store is per-node; Recommendations renders
+            // "Current {numGPUs}x" and must report the true cluster total
+            // (see IMPORTANT-1 in the multi-node fix wave, and the
+            // matching fallback in useResultExports above).
+            numGPUs={result.multiGPU?.numGPUs ?? numGPUs}
+            multiGPUBreakdown={result.multiGPU}
+          />
+        )}
+
+        <details
+          data-testid="result-details"
+          open={detailsOpen}
+          onToggle={(e) => setDetailsOpen(e.currentTarget.open)}
+        >
+          <summary className="cursor-pointer text-lg font-semibold text-gray-900 dark:text-white">
+            Details
+          </summary>
+          <div className="mt-4 space-y-6">
             {/* Offloading Summary */}
             {result.offloading && (
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
@@ -555,19 +617,6 @@ export function ResultsPanel() {
                     })()}
                   </p>
                 </div>
-              </div>
-            )}
-
-            {/* Host capacity exceeded */}
-            {hostExceeded && hostCapacityPerServerGB !== null && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <p className="text-sm text-red-800 dark:text-red-200">
-                  Does not fit: offloaded{' '}
-                  {offloadedHostGB.toLocaleString('en-US', { maximumFractionDigits: 0 })} GB exceeds
-                  host capacity{' '}
-                  {hostCapacityPerServerGB.toLocaleString('en-US', { maximumFractionDigits: 0 })} GB
-                  ({numNodes} server{numNodes === 1 ? '' : 's'})
-                </p>
               </div>
             )}
 
@@ -601,58 +650,32 @@ export function ResultsPanel() {
               />
             )}
 
-            {/* Interconnect Warning */}
-            {result.interconnectWarning && (
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                <p className="text-sm text-amber-800 dark:text-amber-200">
-                  ⚠ {result.interconnectWarning}
-                </p>
-              </div>
-            )}
+            {/* Performance Section */}
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Performance Estimate
+              </h2>
+              <PerformanceSection
+                performance={result.performance}
+                concurrentUsers={concurrentUsers}
+                batchSize={batchSize}
+              >
+                <CapacitySection
+                  maxSessions={maxSessions}
+                  sequenceLength={sequenceLength}
+                  concurrentUsers={concurrentUsers}
+                  tierSummary={tierSummary}
+                  kvTier={kvTier}
+                  prefillSeconds={result.performance.prefillSeconds}
+                />
+              </PerformanceSection>
+            </div>
 
-            {/* Recommendations: GPU/quantization advice, not applicable to a
-                host-capacity-only problem (the red message above covers that). */}
-            {deviceDoesNotFit && (
-              <Recommendations
-                gpu={selectedGPU}
-                breakdown={result.vram}
-                currentQuantization={quantization}
-                currentSequenceLength={sequenceLength}
-                // numGPUs from the store is per-node; Recommendations renders
-                // "Current {numGPUs}x" and must report the true cluster total
-                // (see IMPORTANT-1 in the multi-node fix wave, and the
-                // matching fallback in useResultExports above).
-                numGPUs={result.multiGPU?.numGPUs ?? numGPUs}
-                multiGPUBreakdown={result.multiGPU}
-              />
-            )}
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              GB here means GiB (1024³ bytes), as nvidia-smi reports.
+            </p>
           </div>
-        </div>
-
-        {/* Performance Section */}
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            Performance Estimate
-          </h2>
-          <PerformanceSection
-            performance={result.performance}
-            concurrentUsers={concurrentUsers}
-            batchSize={batchSize}
-          >
-            <CapacitySection
-              maxSessions={maxSessions}
-              sequenceLength={sequenceLength}
-              concurrentUsers={concurrentUsers}
-              tierSummary={tierSummary}
-              kvTier={kvTier}
-              prefillSeconds={result.performance.prefillSeconds}
-            />
-          </PerformanceSection>
-        </div>
-
-        <p className="text-xs text-gray-400 dark:text-gray-500">
-          GB here means GiB (1024³ bytes), as nvidia-smi reports.
-        </p>
+        </details>
       </div>
     </div>
   )

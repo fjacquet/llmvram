@@ -12,7 +12,6 @@ import { useUIStore } from '@store/uiStore'
 import { validateGPUs } from '@utils/schemas'
 import { useMemo, useState } from 'react'
 import { type CustomGPUInput, createCustomGPU, type GPU } from '@/types/gpu'
-import { InterconnectSelector } from './InterconnectSelector'
 
 // Validate GPUs data at module load
 const gpus = validateGPUs(gpusData)
@@ -407,9 +406,6 @@ export function GPUSelector() {
           )}
         </div>
       )}
-
-      {/* Interconnect variant selector (only shown for GPUs with multiple options) */}
-      <InterconnectSelector />
 
       {/* Custom GPU form */}
       {showCustomForm && (

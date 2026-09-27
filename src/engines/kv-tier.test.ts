@@ -7,7 +7,6 @@ import {
   graceLinkGBps,
   type KVTierSettings,
   kvTierSummary,
-  resetTierForGPU,
   resumeSeconds,
   sessionKVLayout,
   tierBandwidthGBps,
@@ -83,23 +82,6 @@ describe('graceLinkGBps', () => {
     expect(graceLinkGBps('nvidia-gb300-288gb')).toBeNull()
     expect(graceLinkGBps('nvidia-gb10')).toBeNull()
     expect(graceLinkGBps('nvidia-h100-80gb-sxm')).toBeNull()
-  })
-})
-
-describe('resetTierForGPU', () => {
-  const grace: KVTierSettings = { ...DEFAULT_KV_TIER, tier: 'host-grace' }
-
-  it('falls back to none when the new GPU has no Grace host', () => {
-    expect(resetTierForGPU(grace, 'nvidia-h100-80gb-sxm').tier).toBe('none')
-    expect(resetTierForGPU(grace, null).tier).toBe('none')
-  })
-
-  it('keeps host-grace when the new GPU still has a Grace host', () => {
-    expect(resetTierForGPU(grace, 'nvidia-gb300-nvl72').tier).toBe('host-grace')
-  })
-
-  it('leaves a non-host-grace tier untouched regardless of the GPU', () => {
-    expect(resetTierForGPU(network, 'nvidia-h100-80gb-sxm')).toBe(network)
   })
 })
 

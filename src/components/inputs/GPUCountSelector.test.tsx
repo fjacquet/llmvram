@@ -1,99 +1,114 @@
+import gpusData from '@data/gpus.json'
+import modelsData from '@data/models.json'
 import { MAX_GPUS_PER_NODE } from '@engines/constants'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { maxGPUsFor } from '@utils/gpuLimits'
-import type { GPU } from '@utils/schemas'
+import { validateGPUs, validateModels } from '@utils/schemas'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-function gpuWithBound(name: string, max: number): GPU {
-  return {
-    id: 'test-gpu',
-    name,
-    manufacturer: 'nvidia',
-    vram_gb: 80,
-    memory_bandwidth_gbps: 2000,
-    memory_type: 'HBM3',
-    bus_width: 5120,
-    max_gpus_per_node: max,
-    tier: 'datacenter',
-  }
-}
-
 // The real uiStore wraps its state in zustand's `persist` middleware, which throws in
-// jsdom (no localStorage backing). Build a plain store with the same shape instead —
-// the established pattern in this repo (see NodeCountSelector.test.tsx).
+// jsdom (no localStorage backing). Build a plain store with the fields the component
+// and useAllowedOptions read.
 const { useUIStore } = vi.hoisted(() => {
   const { create } = require('zustand') as typeof import('zustand')
-
-  interface MockState {
-    numGPUs: number
-    selectedGPU: unknown
-    mode: string
-    shardingStrategy: string
-    setNumGPUs: (value: number) => void
-  }
-
-  const useUIStore = create<MockState>((set) => ({
+  const useUIStore = create<Record<string, unknown>>((set) => ({
     numGPUs: 1,
+    numNodes: 1,
     selectedGPU: null,
+    selectedModel: null,
     mode: 'inference',
     shardingStrategy: 'tensor-parallel',
-    setNumGPUs: (value) => set({ numGPUs: value }),
+    offloadingEnabled: false,
+    kvCacheOffload: false,
+    frameworkPreset: 'none',
+    setNumGPUs: (value: number) => set({ numGPUs: value }),
   }))
-
   return { useUIStore }
 })
 
 vi.mock('@store/uiStore', () => ({ useUIStore }))
 
-// Import after mock setup
 import { GPUCountSelector } from './GPUCountSelector'
+
+const gpus = validateGPUs(gpusData)
+const models = validateModels(modelsData)
+const gpu = (id: string) => gpus.find((g) => g.id === id) ?? null
+const model = (id: string) => models.find((m) => m.id === id) ?? null
 
 describe('GPUCountSelector', () => {
   beforeEach(() => {
     useUIStore.setState({
       numGPUs: 1,
-      selectedGPU: gpuWithBound('Test 8-way', 8),
+      numNodes: 1,
+      selectedGPU: gpu('nvidia-h100-80gb-sxm'),
+      selectedModel: null,
       mode: 'inference',
       shardingStrategy: 'tensor-parallel',
     })
   })
 
-  it('caps the slider at the selected GPU max_gpus_per_node', () => {
+  it('offers every count up to max_gpus_per_node with no model selected', () => {
     render(<GPUCountSelector />)
-    expect(screen.getByRole('slider')).toHaveAttribute('max', '8')
+    expect(screen.getByRole('slider')).toHaveAttribute('max', '7') // 8 stops: 1..8
   })
 
-  it('raises the cap to 72 for an NVL72-class part', () => {
-    useUIStore.setState({ selectedGPU: gpuWithBound('Test NVL72', 72) })
+  it('raises the range to 72 stops for an NVL72 rack under pipeline parallel', () => {
+    useUIStore.setState({
+      selectedGPU: gpu('nvidia-gb300-nvl72'),
+      shardingStrategy: 'pipeline-parallel',
+    })
     render(<GPUCountSelector />)
-    expect(screen.getByRole('slider')).toHaveAttribute('max', '72')
+    expect(screen.getByRole('slider')).toHaveAttribute('max', '71')
+  })
+
+  it('offers only valid tensor-parallel degrees (R14): Llama 3.1 70B on 8 GPUs = 1, 2, 4, 8', () => {
+    useUIStore.setState({ selectedModel: model('meta-llama-llama-3.1-70b') })
+    render(<GPUCountSelector />)
+    const slider = screen.getByRole('slider')
+    expect(slider).toHaveAttribute('max', '3')
+    fireEvent.change(slider, { target: { value: '2' } })
+    expect(useUIStore.getState().numGPUs).toBe(4)
   })
 
   it('renders no slider for a single-GPU part', () => {
-    useUIStore.setState({ selectedGPU: gpuWithBound('Test single', 1) })
+    useUIStore.setState({ selectedGPU: gpu('apple-m3-ultra') })
     render(<GPUCountSelector />)
     expect(screen.queryByRole('slider')).not.toBeInTheDocument()
     expect(screen.getByText(/Single GPU/)).toBeInTheDocument()
   })
 
-  it('falls back to the same bound clampGPUCount uses when no GPU is selected', () => {
-    // The component used to answer 8 here while clampGPUCount answered
-    // MAX_GPUS_PER_NODE, so the slider and the store disagreed about what "no
-    // GPU selected" means. Both now read maxGPUsFor, so this asserts against the
-    // shared definition rather than restating a literal that can drift from it.
-    // The state is unreachable in the app (InputPanel gates this section on
-    // selectedGPU); the point is that there is one answer, not two.
+  it('falls back to the shared bound when no GPU is selected', () => {
     useUIStore.setState({ selectedGPU: null })
     render(<GPUCountSelector />)
-    expect(screen.getByRole('slider')).toHaveAttribute('max', String(maxGPUsFor(null)))
+    expect(screen.getByRole('slider')).toHaveAttribute('max', String(maxGPUsFor(null) - 1))
     expect(maxGPUsFor(null)).toBe(MAX_GPUS_PER_NODE)
   })
 
-  it('drops the false claim that 8 is the largest GPU domain in current hardware', () => {
+  it('states the cap in its tooltip', () => {
     render(<GPUCountSelector />)
     // InfoTip only renders its `text` prop into the DOM once its trigger is opened.
     fireEvent.click(screen.getByRole('button', { name: /more info/i }))
     expect(screen.getByText(/Capped at 8/)).toBeInTheDocument()
-    expect(screen.queryByText(/fully connected GPU domain/)).not.toBeInTheDocument()
+  })
+
+  it('summarizes one replica across servers', () => {
+    useUIStore.setState({ numGPUs: 8, numNodes: 2 })
+    render(<GPUCountSelector />)
+    expect(
+      screen.getByText('8 GPUs per server × 2 servers per replica, tensor parallel'),
+    ).toBeInTheDocument()
+  })
+
+  it('names expert parallel correctly (was "pipeline parallel")', () => {
+    useUIStore.setState({
+      selectedModel: model('deepseek-r1'),
+      shardingStrategy: 'expert-parallel',
+      numGPUs: 8,
+      numNodes: 1,
+    })
+    render(<GPUCountSelector />)
+    expect(
+      screen.getByText('8 GPUs per replica (in one server), expert parallel'),
+    ).toBeInTheDocument()
   })
 })

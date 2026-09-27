@@ -2,10 +2,11 @@ import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { PP_ACTIVATION_STASHING_OVERHEAD } from './constants'
 import {
-  fabricDecodeEfficiency,
-  fabricPrefillEfficiency,
-  perNodeFabricGBps,
-  pipelineBubbleEfficiency,
+  effectiveFraction,
+  interNodeGBps,
+  maxNumBatchedTokens,
+  prefillMicrobatches,
+  prefillPipelineFill,
 } from './fabric'
 import { calculateMultiGPUVRAM } from './multi-gpu'
 import type {
@@ -39,7 +40,8 @@ import type {
  *   singleGPU, model: llama405b, gpuVramGB: 288,
  *   gpusPerNode: 8, numNodes: 4,
  *   intraNodeStrategy: 'tensor-parallel', gpu: mi355x,
- *   fabric: FABRIC_SPECS['ethernet-800g'], batchSize: 1, quantization: 'fp16',
+ *   fabric: FABRIC_SPECS['ethernet-800g'], batchSize: 1, sequenceLength: 8192,
+ *   quantization: 'fp16',
  * })
  * ```
  */
@@ -53,6 +55,7 @@ export function calculateMultiNodeVRAM(params: {
   gpu: GPU
   fabric: FabricSpec
   batchSize: number
+  sequenceLength: number
   quantization: QuantizationFormat
 }): MultiGPUVRAMBreakdown {
   const {
@@ -65,6 +68,7 @@ export function calculateMultiNodeVRAM(params: {
     gpu,
     fabric,
     batchSize,
+    sequenceLength,
     quantization,
   } = params
 
@@ -138,10 +142,12 @@ export function calculateMultiNodeVRAM(params: {
     quantization,
   )
 
-  const perNodeGBps = perNodeFabricGBps(fabric.portGBps, gpusPerNode)
-  const interNodePrefillEfficiency = fabricPrefillEfficiency(perNodeGBps, fabric.classFactor)
-  const interNodeDecodeEfficiency = fabricDecodeEfficiency(perNodeGBps)
-  const bubbleEfficiency = pipelineBubbleEfficiency(batchSize, numNodes)
+  // Section 3b (ADR 0007): stage handoffs cost bytes over the fabric (performance.ts
+  // prices them from interNodeGBps), and prefill pipelines M = ceil(B x T / C)
+  // microbatches across the node stages, C being vLLM's max_num_batched_tokens.
+  const gbps = interNodeGBps(fabric.portGBps, gpusPerNode, effectiveFraction(gpu))
+  const microbatches = prefillMicrobatches(batchSize, sequenceLength, maxNumBatchedTokens(gpu))
+  const bubbleEfficiency = prefillPipelineFill(microbatches, numNodes)
   const intraNodeEfficiency = inner.intraNodeEfficiency
 
   return {
@@ -150,11 +156,10 @@ export function calculateMultiNodeVRAM(params: {
     numNodes,
     gpusPerNode,
     intraNodeEfficiency,
-    interNodeDecodeEfficiency,
-    interNodePrefillEfficiency,
+    interNodeGBps: gbps,
     bubbleEfficiency,
-    scalingEfficiency: intraNodeEfficiency * interNodeDecodeEfficiency * bubbleEfficiency,
-    prefillScalingEfficiency: intraNodeEfficiency * interNodePrefillEfficiency * bubbleEfficiency,
+    scalingEfficiency: intraNodeEfficiency,
+    prefillScalingEfficiency: intraNodeEfficiency * bubbleEfficiency,
     singleGPUBaseline: singleGPU.total,
   }
 }

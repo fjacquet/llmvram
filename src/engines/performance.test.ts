@@ -4,7 +4,8 @@ import type { GPU, Model } from '@utils/schemas'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
-import { BYTES_PER_GB, INTERCONNECT_SPECS } from './constants'
+import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU } from './constants'
+import { effectiveFraction, FABRIC_SPECS, fabricHopSeconds, interNodeGBps } from './fabric'
 import {
   calculateInferenceVRAM,
   calculateMoEActiveParams,
@@ -12,10 +13,12 @@ import {
   splitMoEParams,
 } from './inference'
 import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
+import { DEFAULT_KV_TIER, kvTierSummary } from './kv-tier'
 import { calculateMultiGPUVRAM, resolveInterconnect } from './multi-gpu'
+import { calculateMultiNodeVRAM } from './multi-node'
 import { estimatePerformance, expertAllToAllSeconds } from './performance'
 import { calculateModelWeightVRAM } from './quantization'
-import type { MultiGPUVRAMBreakdown } from './types'
+import type { FabricType, MultiGPUVRAMBreakdown, QuantizationFormat } from './types'
 
 // Test fixtures
 const h100_80gb_sxm: GPU = {
@@ -572,8 +575,7 @@ describe('estimatePerformance - multi-GPU scaling', () => {
     numNodes: 1,
     gpusPerNode: 2,
     intraNodeEfficiency: 0.9,
-    interNodeDecodeEfficiency: 1,
-    interNodePrefillEfficiency: 1,
+    interNodeGBps: 0,
     bubbleEfficiency: 1,
     scalingEfficiency: 0.9,
     // Single node (numNodes === 1): prefillScalingEfficiency equals scalingEfficiency, which
@@ -694,6 +696,7 @@ describe('multi-node roofline separation', () => {
       numGPUs: 32,
       numNodes: 4,
       gpusPerNode: 8,
+      interNodeGBps: 320,
       scalingEfficiency: 0.9,
       prefillScalingEfficiency: 0.5,
     }
@@ -1033,7 +1036,7 @@ describe('estimatePerformance - decode honors measured weight_refs', () => {
     const perGPUBytes = perGPUWeightBytes.add(perGPUKVBytes) // stages = 1
     const memorySeconds = perGPUBytes.div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
 
-    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu, gpusPerStage)]
     const commSecondsPerLayer = expertAllToAllSeconds(
       batchSize / gpusPerStage,
       split.expertsPerToken,
@@ -1209,7 +1212,7 @@ describe('estimatePerformance - offload bytes match the per-GPU share (fix round
       .mul(batchSize)
       .div(gpusPerStage)
       .div(new Decimal(decodeGpuTFLOPS).mul(1e12))
-    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu, gpusPerStage)]
     const commSecondsPerLayer = (2 * link.allreduceLatencyUs) / 1e6
     const stageSeconds = Decimal.max(memorySeconds, computeSeconds).add(
       commSecondsPerLayer * mla.num_hidden_layers,
@@ -1313,7 +1316,7 @@ describe('estimatePerformance - offload bytes match the per-GPU share (fix round
       .mul(batchSize)
       .div(gpusPerStage)
       .div(new Decimal(decodeGpuTFLOPS).mul(1e12))
-    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu, gpusPerStage)]
     const commSecondsPerLayer = expertAllToAllSeconds(
       batchSize / gpusPerStage,
       split.expertsPerToken,
@@ -1438,7 +1441,7 @@ describe('MoE decode reads the base and touched experts at measured rates', () =
       .add(perGPUKVBytes)
       .div(new Decimal(b300.memory_bandwidth_gbps).mul(1e9))
 
-    const link = INTERCONNECT_SPECS[resolveInterconnect(b300)]
+    const link = INTERCONNECT_SPECS[resolveInterconnect(b300, numGPUs)]
     const commSecondsPerLayer = expertAllToAllSeconds(
       batchSize / numGPUs,
       split.expertsPerToken,
@@ -1453,5 +1456,230 @@ describe('MoE decode reads the base and touched experts at measured rates', () =
 
     const avg = run(averaged, batchSize, ep).tokensPerSecond.toNumber()
     expect(result.tokensPerSecond.toNumber()).toBeLessThan(avg)
+  })
+})
+
+describe('bridge-aware decode (spec Section 3 impact anchor)', () => {
+  const gpu = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-pcie')
+  const model = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-70b')
+  if (!gpu || !model) throw new Error('fixture not found')
+  const sequenceLength = 8192
+  const batchSize = 1
+
+  const tps = (numGPUs: number) => {
+    const single = calculateInferenceVRAM({ model, quantization: 'fp8', sequenceLength, batchSize })
+    const multi = calculateMultiGPUVRAM(
+      single,
+      model,
+      gpu.vram_gb,
+      numGPUs,
+      'tensor-parallel',
+      gpu,
+      'fp8',
+    )
+    return estimatePerformance({
+      model,
+      gpu,
+      quantization: 'fp8',
+      sequenceLength,
+      batchSize,
+      multiGPUResult: multi,
+    }).tokensPerSecond.toNumber()
+  }
+  // Hand-priced from the corrected data: weights and KV split across the TP group,
+  // read at 2000 GB/s, plus two all-reduces per layer at the resolved link's latency.
+  const expected = (numGPUs: number, latencyUs: number) => {
+    const weights = calculateModelWeightVRAM(model.num_parameters_billion, 'fp8', model).mul(
+      BYTES_PER_GB,
+    )
+    const kv = calculateKVCacheVRAM({ model, sequenceLength, batchSize, kvPrecision: 'fp16' }).mul(
+      BYTES_PER_GB,
+    )
+    const kvShards = Math.min(numGPUs, model.num_kv_heads ?? model.num_attention_heads)
+    const memorySeconds = weights
+      .div(numGPUs)
+      .add(kv.div(kvShards))
+      .div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
+    const stageSeconds = memorySeconds.add((2 * latencyUs * model.num_hidden_layers) / 1e6)
+    return new Decimal(1).div(stageSeconds).toNumber()
+  }
+
+  it('TP-8 crosses PCIe 5; TP-2 stays on the NVLink 3 bridge', () => {
+    expect(tps(8) / expected(8, INTERCONNECT_SPECS['pcie-5'].allreduceLatencyUs)).toBeCloseTo(1, 9)
+    expect(tps(2) / expected(2, INTERCONNECT_SPECS['nvlink-3'].allreduceLatencyUs)).toBeCloseTo(
+      1,
+      9,
+    )
+  })
+
+  it('TP-8 decode drops about a quarter versus the old NVLink pricing (spec: -25.7%)', () => {
+    const change = tps(8) / expected(8, INTERCONNECT_SPECS['nvlink-4'].allreduceLatencyUs) - 1
+    expect(change).toBeGreaterThan(-0.27)
+    expect(change).toBeLessThan(-0.24)
+  })
+})
+
+describe('multi-node prefill and decode from bytes over the fabric (spec Section 3b)', () => {
+  const allModels = validateModels(modelsData)
+  const allGPUs = validateGPUs(gpusData)
+  const model = allModels.find((m) => m.id === 'meta-llama-llama-3.1-70b')
+  const h100 = allGPUs.find((g) => g.id === 'nvidia-h100-80gb-sxm')
+  const gb10 = allGPUs.find((g) => g.id === 'nvidia-gb10')
+  const b200 = allGPUs.find((g) => g.id === 'nvidia-b200-192gb')
+  if (!model || !h100 || !gb10 || !b200) throw new Error('fixture not found')
+
+  function run(
+    gpu: GPU,
+    o: {
+      gpusPerNode: number
+      numNodes: number
+      batchSize: number
+      sequenceLength: number
+      fabric: Exclude<FabricType, 'custom'>
+      quantization: QuantizationFormat
+    },
+  ) {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: o.quantization,
+      sequenceLength: o.sequenceLength,
+      batchSize: o.batchSize,
+    })
+    const multi = calculateMultiNodeVRAM({
+      singleGPU,
+      model,
+      gpuVramGB: gpu.vram_gb,
+      gpusPerNode: o.gpusPerNode,
+      numNodes: o.numNodes,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu,
+      fabric: FABRIC_SPECS[o.fabric],
+      batchSize: o.batchSize,
+      sequenceLength: o.sequenceLength,
+      quantization: o.quantization,
+    })
+    const perf = estimatePerformance({
+      model,
+      gpu,
+      quantization: o.quantization,
+      sequenceLength: o.sequenceLength,
+      batchSize: o.batchSize,
+      multiGPUResult: multi,
+    })
+    return { singleGPU, multi, perf }
+  }
+  const hgx = {
+    gpusPerNode: 8,
+    batchSize: 1,
+    sequenceLength: 8192,
+    fabric: 'ethernet-400g' as const,
+    quantization: 'fp8' as const,
+  }
+
+  it('2-node batch-1 prefill = single-node prefill + one hop of the whole prompt, exactly', () => {
+    const one = run(h100, { ...hgx, numNodes: 1 })
+    const two = run(h100, { ...hgx, numNodes: 2 })
+    const gbps = interNodeGBps(FABRIC_SPECS['ethernet-400g'].portGBps, 8, effectiveFraction(h100))
+    expect(two.multi.interNodeGBps).toBeCloseTo(320, 10)
+    const hop = fabricHopSeconds(8192, model.hidden_size, gbps)
+    expect(two.perf.prefillSeconds?.toNumber()).toBeCloseTo(
+      (one.perf.prefillSeconds?.toNumber() ?? Number.NaN) + hop,
+      10,
+    )
+  })
+
+  it('degraded (no-FLOPS) TTFT gets the same multi-node hop term as the FLOPS path', () => {
+    const noFlopsH100: GPU = { ...h100, fp16_tflops: undefined, fp32_tflops: undefined }
+    const two = run(noFlopsH100, { ...hgx, numNodes: 2 })
+    expect(two.perf.prefillEstimateDegraded).toBe(true)
+    expect(two.multi.interNodeGBps).toBeGreaterThan(0)
+
+    const hop =
+      (fabricHopSeconds(hgx.sequenceLength, model.hidden_size, two.multi.interNodeGBps) *
+        (two.multi.numNodes - 1)) /
+      hgx.batchSize
+    // The degraded formula without the hop term, at the SAME tokensPerSecond this run
+    // produced — isolates exactly what the fix adds, without also picking up decode's
+    // own (pre-existing, unrelated) hop cost from a differently-shaped single-node run.
+    const withoutHop = new Decimal(1).div(two.perf.tokensPerSecond.mul(0.5))
+    expect(two.perf.timeToFirstToken.sub(withoutHop).toNumber()).toBeCloseTo(hop, 10)
+  })
+
+  it('2x GB10 on 200 GbE: TTFT within 1% of one GB10 (was 15x slower under the heuristic)', () => {
+    const single = estimatePerformance({
+      model,
+      gpu: gb10,
+      quantization: 'fp8',
+      sequenceLength: 8192,
+      batchSize: 1,
+    })
+    const two = run(gb10, {
+      gpusPerNode: 1,
+      numNodes: 2,
+      batchSize: 1,
+      sequenceLength: 8192,
+      fabric: 'ethernet-200g',
+      quantization: 'fp8',
+    })
+    const ratio = two.perf.timeToFirstToken.div(single.timeToFirstToken).toNumber()
+    expect(Math.abs(ratio - 1)).toBeLessThan(0.01)
+  })
+
+  it('doubling port speed changes decode by under 1%', () => {
+    const slow = run(h100, { ...hgx, numNodes: 2, batchSize: 32, fabric: 'ethernet-400g' })
+    const fast = run(h100, { ...hgx, numNodes: 2, batchSize: 32, fabric: 'ethernet-800g' })
+    const change = fast.perf.tokensPerSecond.div(slow.perf.tokensPerSecond).toNumber() - 1
+    expect(change).toBeGreaterThanOrEqual(0)
+    expect(change).toBeLessThan(0.01)
+  })
+
+  it('batch 32 pipelines M = ceil(B x T / C) = 32 microbatches over 2 nodes', () => {
+    const { multi } = run(h100, { ...hgx, numNodes: 2, batchSize: 32 })
+    expect(multi.bubbleEfficiency).toBeCloseTo(32 / 33, 12)
+    expect(multi.prefillScalingEfficiency).toBeCloseTo(
+      INTERCONNECT_SPECS['nvlink-4'].tpScalingEfficiency * (32 / 33),
+      12,
+    )
+    const longPrompt = run(h100, { ...hgx, numNodes: 2, batchSize: 1, sequenceLength: 32768 })
+    expect(longPrompt.multi.bubbleEfficiency).toBeCloseTo(4 / 5, 12) // M = 32768 / 8192
+  })
+
+  it('single node, batch > 1: prefill is exactly the per-prompt formula (burst / B cancels)', () => {
+    const { perf } = run(h100, { ...hgx, numNodes: 1, batchSize: 8 })
+    const promptTokens = 8192
+    const flops =
+      calculateMoEActiveParams(model) * 2e9 * promptTokens +
+      2 * model.num_hidden_layers * promptTokens ** 2 * model.hidden_size
+    const effective =
+      (h100.fp16_tflops ?? 0) *
+      1e12 *
+      PREFILL_MFU.toNumber() *
+      8 *
+      INTERCONNECT_SPECS['nvlink-4'].tpScalingEfficiency
+    expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(flops / effective, 9)
+  })
+
+  it('KV-tier verdict on the tightest config: B200x8, 4 nodes, 1.6T, batch 32 still resumes faster', () => {
+    const { singleGPU, multi, perf } = run(b200, {
+      gpusPerNode: 8,
+      numNodes: 4,
+      batchSize: 32,
+      sequenceLength: 8192,
+      fabric: 'ethernet-1600g',
+      quantization: 'fp16',
+    })
+    const summary = kvTierSummary({
+      settings: { ...DEFAULT_KV_TIER, tier: 'network' },
+      maxHotSessions: 32,
+      perGPUKVGB: multi.perGPU.kvCache.toNumber(),
+      totalKVGB: singleGPU.kvCache.toNumber(),
+      concurrentUsers: 32,
+      multi,
+      recomputeSeconds: perf.prefillSeconds?.toNumber() ?? null,
+      gpuId: b200.id,
+    })
+    expect(summary?.resumeFaster).toBe(true)
+    expect(summary?.resumeSeconds).toBeCloseTo(0.037, 3)
+    expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(0.048, 2)
   })
 })

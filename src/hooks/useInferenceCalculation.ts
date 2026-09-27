@@ -17,6 +17,7 @@
  * ```
  */
 
+import { applyInterconnectOverride } from '@engines/multi-gpu'
 import type {
   InferenceVRAMBreakdown,
   KVCachePrecision,
@@ -122,8 +123,7 @@ function reconstructMultiGPUBreakdown(
     numNodes: number
     gpusPerNode: number
     intraNodeEfficiency: number
-    interNodeDecodeEfficiency: number
-    interNodePrefillEfficiency: number
+    interNodeGBps: number
     bubbleEfficiency: number
     scalingEfficiency: number
     prefillScalingEfficiency: number
@@ -149,8 +149,7 @@ function reconstructMultiGPUBreakdown(
     numNodes: serialized.numNodes,
     gpusPerNode: serialized.gpusPerNode,
     intraNodeEfficiency: serialized.intraNodeEfficiency,
-    interNodeDecodeEfficiency: serialized.interNodeDecodeEfficiency,
-    interNodePrefillEfficiency: serialized.interNodePrefillEfficiency,
+    interNodeGBps: serialized.interNodeGBps,
     bubbleEfficiency: serialized.bubbleEfficiency,
     scalingEfficiency: serialized.scalingEfficiency,
     prefillScalingEfficiency: serialized.prefillScalingEfficiency,
@@ -253,10 +252,7 @@ export function useInferenceCalculation(
       return
     }
 
-    // Apply interconnect override when user selects a variant different from the GPU default
-    const effectiveGPU = interconnectOverride
-      ? { ...gpu, interconnect: interconnectOverride as GPU['interconnect'] }
-      : gpu
+    const effectiveGPU = applyInterconnectOverride(gpu, interconnectOverride)
 
     setLoading(true)
     setError(null)
@@ -394,6 +390,7 @@ export function useInferenceCalculation(
               gpu: effectiveGPU,
               fabric: fabricModule.resolveFabricSpec(interNodeFabric, customFabric),
               batchSize,
+              sequenceLength,
               quantization,
             })
             // Validation is per-node: the interconnect bounds apply inside a

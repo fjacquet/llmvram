@@ -1,4 +1,5 @@
 import { DECIMAL_GB_PER_GIB } from '@engines/kv-tier'
+import { interconnectLabel } from '@engines/multi-gpu'
 import { roundOffloadSlowdown } from '@engines/offloading'
 import type { weightSource } from '@engines/quantization'
 import type {
@@ -7,6 +8,7 @@ import type {
   PerformanceEstimate,
 } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
+import { firstTokenLabel } from '@utils/perfLabels'
 import type { GPU, Model } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 
@@ -28,6 +30,9 @@ export interface ExportPptxOffload {
 
 export interface ExportPptxParams {
   model: Model
+  /** The effective GPU multiGPU/performance were computed from — with any
+   *  interconnectOverride already applied (see useResultExports), not the raw store
+   *  selection, or the Interconnect BW row can name a link the numbers weren't. */
   gpu: GPU
   quantization: string
   /** Total GPUs across the whole cluster (gpusPerNode × numNodes), not per-server */
@@ -179,7 +184,12 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     ['Context Length', `${contextK} tokens`],
     ['GPU', gpu.name],
     ['GPU VRAM', `${gpu.vram_gb} GB`],
-    ['Number of GPUs', String(numGPUs)],
+    [
+      'GPUs per replica',
+      numNodes > 1
+        ? `${numGPUs / numNodes} per server × ${numNodes} servers (${numGPUs} total)`
+        : `${numGPUs} (in one server)`,
+    ],
     ...(numNodes > 1 ? ([['Servers', String(numNodes)]] as [string, string][]) : []),
     ['Quantization', quantization.toUpperCase()],
     ['Sequence Length', `${sequenceLength.toLocaleString('en-US')} tokens`],
@@ -398,9 +408,14 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       },
     )
 
-    // Stats summary below chart
+    // Stats summary below chart. interconnectLabel already renders "{name} — {n} GB/s"
+    // (or "NVLink bridge — {n} GB/s") from the same (gpu, groupSize) pair multi-gpu.ts
+    // used to compute interconnectBandwidthGBps, so this always names the link the
+    // numbers actually came from — no re-assembly from a split label needed. `gpu`
+    // must be the caller's effective GPU (interconnect override already applied, see
+    // useResultExports), not the raw store selection, or the two can disagree.
     const bandwidth =
-      multiGPU.interconnectBandwidthGBps > 0 ? `${multiGPU.interconnectBandwidthGBps} GB/s` : 'N/A'
+      multiGPU.interconnectBandwidthGBps > 0 ? interconnectLabel(gpu, multiGPU.gpusPerNode) : 'N/A'
 
     slide3.addText(
       [
@@ -477,7 +492,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
   // Four metric boxes
   const metricBoxes: { label: string; value: string }[] = [
     { label: 'Decode Speed', value: `${performance.tokensPerSecond.toFixed(1)} tok/s` },
-    { label: 'Time to First Token', value: ttftLabel },
+    { label: firstTokenLabel(batchSize), value: ttftLabel },
     { label: 'Bottleneck', value: bottleneckLabel },
     {
       label: 'Prompt Processing',
@@ -566,7 +581,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
         },
       ],
       [
-        { text: 'Time to First Token', options: { fill: C.altRowFill } },
+        { text: firstTokenLabel(batchSize), options: { fill: C.altRowFill } },
         { text: ttftLabel, options: { fill: C.altRowFill } },
       ],
       [

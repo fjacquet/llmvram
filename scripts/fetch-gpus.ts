@@ -27,10 +27,11 @@ const GPUS: GPU[] = [
     memory_bandwidth_gbps: 2000,
     memory_type: 'HBM3',
     bus_width: 5120,
-    fp16_tflops: 989,
+    fp16_tflops: 756, // Dense: the datasheet's 1,513 TF is with sparsity
     fp32_tflops: 51,
     tdp_watts: 350,
-    interconnect: 'nvlink-4',
+    interconnect: 'pcie-5',
+    nvlink_bridge: { type: 'nvlink-3', size: 2 }, // 2-way bridge, 600 GB/s (NVIDIA H100 datasheet; Lenovo LP1732)
     max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/h100/',
@@ -51,9 +52,12 @@ const GPUS: GPU[] = [
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/h100/',
   },
+  // H200 SXM: HGX 4- or 8-GPU NVSwitch baseboards only (NVIDIA HGX AI Factory
+  // reference architecture). The PCIe card is a separate row below (H200 NVL);
+  // this id stays SXM so old links resolve to the product they most likely meant.
   {
     id: 'nvidia-h200-141gb',
-    name: 'NVIDIA H200 141GB',
+    name: 'NVIDIA H200 141GB SXM',
     manufacturer: 'nvidia',
     vram_gb: 141,
     memory_bandwidth_gbps: 4800,
@@ -63,10 +67,31 @@ const GPUS: GPU[] = [
     fp32_tflops: 51,
     tdp_watts: 700,
     interconnect: 'nvlink-4',
-    interconnect_options: ['nvlink-4', 'pcie-5'],
     max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/h200/',
+  },
+  // H200 NVL: the PCIe card. 2- or 4-way NVLink bridges at 900 GB/s (HPE
+  // PSN1014857028PLEN / PSN1014856854VNEN), up to 8 cards per server. PNY H200 NVL
+  // datasheet: 141 GB HBM3e, 4.8 TB/s, 60 TF FP32, 1,671 TF FP16 with sparsity
+  // = 835 dense, up to 600 W.
+  {
+    id: 'nvidia-h200-nvl-141gb',
+    name: 'NVIDIA H200 NVL 141GB (PCIe)',
+    manufacturer: 'nvidia',
+    vram_gb: 141,
+    memory_bandwidth_gbps: 4800,
+    memory_type: 'HBM3e',
+    bus_width: 5120,
+    fp16_tflops: 835,
+    fp32_tflops: 60,
+    tdp_watts: 600,
+    interconnect: 'pcie-5',
+    nvlink_bridge: { type: 'nvlink-4', size: 4 },
+    max_gpus_per_node: 8,
+    tier: 'datacenter',
+    spec_url:
+      'https://www.pny.com/file%20library/company/support/linecards/data-center-gpus/h200-nvl-datasheet.pdf',
   },
   // HGX B200 ships 1.44TB across 8 GPUs = 180GB each. 192GB is the physical
   // HBM3e stack size before reserved capacity; 180GB is the software-visible
@@ -149,7 +174,8 @@ const GPUS: GPU[] = [
     fp16_tflops: 312,
     fp32_tflops: 19.5,
     tdp_watts: 300,
-    interconnect: 'nvlink',
+    interconnect: 'pcie-4',
+    nvlink_bridge: { type: 'nvlink-3', size: 2 }, // 2-way bridge, 600 GB/s (NVIDIA A100 page)
     max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/a100/',
@@ -165,7 +191,7 @@ const GPUS: GPU[] = [
     fp16_tflops: 312,
     fp32_tflops: 19.5,
     tdp_watts: 400,
-    interconnect: 'nvlink',
+    interconnect: 'nvlink-3', // NVSwitch at 600 GB/s (was priced at NVLink 4's 900)
     max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/a100/',
@@ -181,7 +207,7 @@ const GPUS: GPU[] = [
     fp16_tflops: 366,
     fp32_tflops: 91.6,
     tdp_watts: 350,
-    interconnect: 'none',
+    interconnect: 'pcie-4',
     max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/l40s/',
@@ -215,7 +241,7 @@ const GPUS: GPU[] = [
     fp16_tflops: 182.2,
     fp32_tflops: 91.1,
     tdp_watts: 300,
-    interconnect: 'none',
+    interconnect: 'pcie-4',
     max_gpus_per_node: 8,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/products/workstations/rtx-6000/',
@@ -279,11 +305,14 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3e',
     bus_width: 8192,
     fp16_tflops: 2500, // DGX Station page: 5 PF FP16 "with sparsity unless otherwise noted"
-    interconnect: 'nvlink-5',
+    interconnect: 'none', // one GPU; NVLink-C2C links it to the CPU, not to another GPU
     max_gpus_per_node: 1,
     tier: 'consumer',
     spec_url: 'https://www.nvidia.com/en-us/products/workstations/dgx-station/',
   },
+  // DGX Spark: one GB10 per unit, no GPU-to-GPU link. Two or four Sparks cluster
+  // over ConnectX-7 200 GbE as separate servers (NVIDIA Sync cluster assistant), so
+  // model them as numNodes with the 200GbE fabric preset, not as 2 GPUs per node.
   {
     id: 'nvidia-gb10',
     name: 'NVIDIA GB10 (DGX Spark)',
@@ -295,10 +324,11 @@ const GPUS: GPU[] = [
     fp16_tflops: 213,
     fp32_tflops: 31,
     tdp_watts: 140,
-    interconnect: 'nvlink-5',
-    interconnect_options: ['nvlink-5', 'pcie-5'],
-    max_gpus_per_node: 2,
+    interconnect: 'none',
+    max_gpus_per_node: 1,
     tier: 'consumer',
+    unified_memory: true,
+    gpudirect_rdma: false, // DGX Spark: no GPUDirect RDMA; NCCL send/recv ~9 GB/s vs 24.6 GB/s raw RDMA (multimodalflow.net, secondary source)
     spec_url: 'https://www.nvidia.com/en-us/products/workstations/dgx-spark/',
   },
 
@@ -382,6 +412,7 @@ const GPUS: GPU[] = [
     max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    unified_memory: true,
     spec_url:
       'https://www.apple.com/newsroom/2022/03/apple-unveils-m1-ultra-the-worlds-most-powerful-chip-for-a-personal-computer/',
   },
@@ -397,6 +428,7 @@ const GPUS: GPU[] = [
     max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    unified_memory: true,
     spec_url: 'https://www.apple.com/newsroom/2023/06/apple-introduces-m2-ultra/',
   },
   {
@@ -411,6 +443,7 @@ const GPUS: GPU[] = [
     max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    unified_memory: true,
     spec_url:
       'https://www.apple.com/newsroom/2025/03/apple-reveals-m3-ultra-taking-apple-silicon-to-a-new-extreme/',
   },
@@ -426,6 +459,7 @@ const GPUS: GPU[] = [
     max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    unified_memory: true,
     spec_url:
       'https://www.apple.com/newsroom/2026/03/apple-debuts-m5-pro-and-m5-max-to-supercharge-the-most-demanding-pro-workflows/',
   },
@@ -441,6 +475,7 @@ const GPUS: GPU[] = [
     max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    unified_memory: true,
     spec_url: 'https://www.apple.com/newsroom/2024/10/apple-introduces-m4-pro-and-m4-max/',
   },
   {
@@ -455,6 +490,7 @@ const GPUS: GPU[] = [
     max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    unified_memory: true,
     spec_url:
       'https://www.apple.com/newsroom/2023/10/apple-unveils-m3-m3-pro-and-m3-max-the-most-advanced-chips-for-a-personal-computer/',
   },
@@ -470,6 +506,7 @@ const GPUS: GPU[] = [
     max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    unified_memory: true,
     spec_url:
       'https://www.apple.com/newsroom/2023/01/apple-unveils-m2-pro-and-m2-max-next-generation-chips-for-next-level-workflows/',
   },
@@ -485,6 +522,7 @@ const GPUS: GPU[] = [
     max_gpus_per_node: 1,
     tier: 'apple-silicon',
     interconnect: 'unified',
+    unified_memory: true,
     spec_url:
       'https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/',
   },

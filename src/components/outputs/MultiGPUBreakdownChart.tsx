@@ -181,11 +181,10 @@ export function MultiGPUBreakdownChart({
               : 'Pipeline parallel across all GPUs.'}
           </p>
           <p>
-            Efficiency (modelled from bandwidth, not measured):{' '}
+            Modelled from bandwidth, not measured:{' '}
             {(breakdown.intraNodeEfficiency * 100).toFixed(0)}% intra-server ·{' '}
-            {(breakdown.interNodePrefillEfficiency * 100).toFixed(0)}% inter-server on prefill ·{' '}
-            {(breakdown.interNodeDecodeEfficiency * 100).toFixed(0)}% on decode ·{' '}
-            {(breakdown.bubbleEfficiency * 100).toFixed(0)}% pipeline fill
+            {breakdown.interNodeGBps.toFixed(0)} GB/s effective between servers ·{' '}
+            {(breakdown.bubbleEfficiency * 100).toFixed(0)}% pipeline fill on prefill
           </p>
         </div>
       )}

@@ -35,6 +35,9 @@ src/
 │   ├── performance.ts          # Tokens/sec and TTFT estimation
 │   ├── multi-gpu.ts            # Multi-GPU distribution and overhead
 │   ├── offloading.ts           # CPU/RAM/NVMe offloading simulation
+│   ├── config-rules.ts         # Rule table: normalizeConfig, allowedOptions, soft warnings, notices
+│   ├── fabric.ts               # Scale-out fabric presets, stage-hop time, prefill microbatch fill
+│   ├── multi-node.ts           # Pipeline stages across servers over multi-gpu.ts
 │   ├── constants.ts            # Shared constants (bytes per format)
 │   ├── types.ts                # Engine-specific types
 │   └── index.ts                # Barrel export
@@ -85,7 +88,7 @@ src/
 ├── workers/                    # Web Workers
 │   └── calculation.worker.ts   # Offloads engine calculations to background thread
 ├── data/                       # Static databases
-│   ├── gpus.json               # 28 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
+│   ├── gpus.json               # 29 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
 │   └── models.json             # 54 curated models (sorted alphabetically by name) + context_length, license, hf_url
 └── test/                       # Test infrastructure
     └── setup.ts                # @testing-library/jest-dom + cleanup
@@ -227,6 +230,8 @@ One decode step produces one token for each of `batchSize` sequences:
 ### Multi-GPU Engine (`multi-gpu.ts`)
 
 Distributes memory the way vLLM allocates it. Requires a `GPU` object to resolve the interconnect.
+The interconnect is resolved per group size: an NVLink bridge (`nvlink_bridge`) carries a group
+only while it fits, larger groups use the card's PCIe link (`resolveInterconnect(gpu, groupSize)`).
 
 **Tensor Parallelism:**
 
@@ -248,6 +253,8 @@ Distributes memory the way vLLM allocates it. Requires a `GPU` object to resolve
 - No NCCL buffers; `communicationOverhead` is 0.
 - Across servers, nodes are always pipeline stages (`multi-node.ts`).
 
+**Multi-node (`multi-node.ts`, `fabric.ts`):** nodes are pipeline stages. A stage hop costs `tokens × hidden × 2 × 2 B / (eta × port × GPUs per node) + 10 µs`; decode adds `(N − 1)/stages` hops of B tokens per step, prefill pipelines `M = ceil(B × T / C)` microbatches (speedup `N × M / (M + N − 1)`) plus `(N − 1)` prompt hops, both amortized per request over B.
+
 ### Offloading Engine (`offloading.ts`)
 
 Simulates CPU/RAM and NVMe offloading:
@@ -262,16 +269,7 @@ Simulates CPU/RAM and NVMe offloading:
 
 ### Zustand Store (`uiStore.ts`)
 
-Single store with all calculator state:
-
-- Model/GPU selection (ID or custom specs)
-- Quantization format (weight + KV cache independently)
-- Sequence length, batch size
-- Multi-GPU config (count, sharding strategy)
-- Offloading settings
-- Concurrent users count (1–65,536)
-- Interconnect override for GPUs with multiple options
-- Dark mode preference: defaults to `prefers-color-scheme` on first visit, tracks live OS changes via `matchMedia`, persisted to localStorage
+Single store with all calculator state (`UIConfig`, defaults in `DEFAULT_UI_CONFIG`). Every configuration action goes through one `commit()`: merge the patch, run `normalizeConfig` from `config-rules.ts` on the whole config (mode-gated rules, fixpoint in at most 4 passes), and write `pendingNotice` when something was corrected. `useConfigNotices` (mounted in `App.tsx`) toasts it once per action and clears it. Action intents that are not rules: picking vLLM/TGI switches to inference; enabling offloading on unified memory picks NVMe. Only the dark-mode preference is persisted to localStorage; everything else lives in the URL hash.
 
 ### URL Persistence (`urlSerializer.ts`)
 
@@ -281,6 +279,7 @@ Single store with all calculator state:
 - 300ms debounce on updates
 - Custom model/GPU serialize full parameters for complete restoration
 - `deserializeFromURL` returns null on any failure (graceful degradation)
+- Restore: `urlStateToConfig` maps the parsed link to a whole config (framework preset taken raw, training keys ga/gc/fa/co and interconnect override `io` included) and the store applies it with one `restoreConfig` call, normalized once ("Shared link adjusted"). Numeric keys are not range-checked by the schema: R1/R10 correct them.
 
 ### Comparison Store (`comparisonStore.ts`)
 
@@ -333,24 +332,13 @@ flowchart TB
             Header["Header.tsx\nApp title, dark mode toggle, tabs"]
             subgraph Split["Split Screen"]
                 subgraph Left["InputPanel.tsx (sticky on desktop)"]
-                    MS["ModelSelector"]
-                    GS["GPUSelector"]
-                    IS["InterconnectSelector"]
-                    QP["QuantizationPicker"]
-                    KVQ["KVQuantizationPicker"]
-                    SL["SequenceLengthInput"]
-                    BS["BatchSizeInput"]
-                    CU["ConcurrentUsersInput"]
-                    GC["GPUCountSelector"]
-                    SS["ShardingStrategySelector"]
-                    OP["OffloadingPanel"]
+                    Essential["Essential: ModelSelector, QuantizationPicker, GPUSelector, GPUCountSelector, NodeCountSelector, SequenceLengthInput, ConcurrentUsersInput"]
+                    Advanced["Advanced (details): BatchSizeInput, KVQuantizationPicker, ShardingStrategySelector, InterNodeFabricSelector, InterconnectSelector, OffloadingPanel, KVTierPanel"]
                 end
                 subgraph Right["ResultsPanel.tsx"]
-                    FI["FitIndicator"]
-                    VBC["VRAMBreakdownChart"]
-                    MBT["MemoryBreakdownTable"]
-                    MGBC["MultiGPUBreakdownChart"]
-                    Recs["Recommendations"]
+                    Verdict["VerdictBlock (FitIndicator, decode, first token, sessions)"]
+                    Warnings["Warnings + SoftWarnings + Recommendations"]
+                    Details["Details (details): charts, tables, MultiGPUBreakdownChart, PerformanceSection"]
                 end
             end
             subgraph Comparison["ComparisonView.tsx (tab)"]

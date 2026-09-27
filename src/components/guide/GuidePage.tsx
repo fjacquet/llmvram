@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 const SECTIONS = [
   { id: 'quick-start', label: 'Quick Start' },
+  { id: 'whats-new', label: "What's new in 2.0" },
   { id: 'mode-toggle', label: 'Mode Toggle' },
   { id: 'model-config', label: 'Model Configuration' },
   { id: 'gpu-selection', label: 'GPU Selection' },
@@ -10,6 +11,7 @@ const SECTIONS = [
   { id: 'parameters', label: 'Parameters' },
   { id: 'training-config', label: 'Training Configuration' },
   { id: 'results', label: 'Results Panel' },
+  { id: 'why-changed', label: 'Why a setting changed' },
   { id: 'comparison', label: 'Comparison View' },
   { id: 'sharing', label: 'URL Sharing' },
   { id: 'glossary', label: 'Glossary' },
@@ -92,11 +94,11 @@ export function GuidePage() {
         <SectionHeading id="quick-start">Quick Start</SectionHeading>
         <ol className="list-decimal list-inside text-sm text-gray-700 dark:text-gray-300 space-y-2 mb-4">
           <li>
-            <strong>Pick a model</strong> — Search or scroll the curated list of 37 models, or
+            <strong>Pick a model</strong> — Search or scroll the curated list of 54 models, or
             define a custom model with your own parameter count and architecture details.
           </li>
           <li>
-            <strong>Pick a GPU</strong> — Choose from 20 GPUs across NVIDIA, AMD, and Apple Silicon,
+            <strong>Pick a GPU</strong> — Choose from 29 GPUs across NVIDIA, AMD, and Apple Silicon,
             or enter custom hardware specs.
           </li>
           <li>
@@ -105,6 +107,43 @@ export function GuidePage() {
             recommendations.
           </li>
         </ol>
+
+        {/* What's new in 2.0 */}
+        <SectionHeading id="whats-new">What&apos;s new in 2.0</SectionHeading>
+        <P>
+          <strong>Layout.</strong> The essential inputs stay visible: mode, model, format, GPU, GPUs
+          per replica, servers, context and concurrent users. Everything else sits under{' '}
+          <strong>Advanced</strong>, which opens by itself and shows &quot;N settings changed&quot;
+          whenever one of its values differs from the default. Results lead with a verdict (does it
+          fit, decode speed, first-token delay, sessions); charts and tables are under{' '}
+          <strong>Details</strong>. The PDF export opens every section before it captures.
+        </P>
+        <P>
+          <strong>Rules.</strong> A combination that cannot run is no longer offered, and a change
+          that makes another setting impossible corrects that setting and says why in one notice
+          (&quot;Adjusted for …&quot;). A shared link that encodes an impossible combination opens
+          corrected, with a &quot;Shared link adjusted&quot; notice.
+        </P>
+        <P>
+          <strong>GPU data, per card.</strong> H100 PCIe and A100 PCIe pair cards over a 2-card
+          NVLink bridge (600 GB/s); larger groups cross PCIe 5 / PCIe 4, and H100 PCIe FP16 is the
+          dense 756 TFLOPS. A100 SXM uses NVLink 3 (600 GB/s). The H200 entry is the SXM product
+          (HGX 4 or 8); the new H200 NVL entry is the PCIe card with a 4-way bridge at 900 GB/s. DGX
+          Spark (GB10) is one GPU per unit: cluster Sparks as servers over 200 GbE. DGX Station is a
+          single GPU. L40S and RTX 6000 Ada are PCIe 4. Apple Silicon and GB10 are marked unified
+          memory.
+        </P>
+        <P>
+          <strong>Multi-server.</strong> Prefill and decode across servers are now computed from the
+          bytes crossing the network, not from an efficiency curve. Small clusters get much faster
+          first tokens; a single request over many HGX servers gets slower (it walks the servers one
+          after another).
+        </P>
+        <P>
+          <strong>Existing links.</strong> They open with the corrected values and a notice. Numbers
+          change for the cards above and for most multi-server setups. An old H200 link opens as
+          H200 SXM.
+        </P>
 
         {/* Mode Toggle */}
         <SectionHeading id="mode-toggle">Mode Toggle</SectionHeading>
@@ -122,7 +161,7 @@ export function GuidePage() {
         <SectionHeading id="model-config">Model Configuration</SectionHeading>
         <SubHeading>Model Selector</SubHeading>
         <P>
-          A searchable dropdown with 37 curated models (LLaMA, Mistral, Qwen, DeepSeek, etc.). Each
+          A searchable dropdown with 54 curated models (LLaMA, Mistral, Qwen, DeepSeek, etc.). Each
           entry shows the parameter count in billions and a &quot;MoE&quot; badge for
           Mixture-of-Experts models. Select &quot;Custom model...&quot; at the bottom to specify
           your own architecture.
@@ -170,8 +209,11 @@ export function GuidePage() {
         </P>
         <P>
           <strong>Key specs that affect calculations:</strong> VRAM determines fit/no-fit. Memory
-          bandwidth determines inference speed (tokens/sec). FP16 TFLOPS determines compute
-          throughput. Interconnect type (NVLink, PCIe) affects multi-GPU efficiency.
+          bandwidth determines decode speed. FP16 TFLOPS (dense) determines prefill. The scale-up
+          link sets multi-GPU cost: NVSwitch baseboards connect 4 or 8 GPUs (HGX), an NVL72 rack up
+          to 72; NVLink bridges pair 2 PCIe cards (H100/A100 PCIe) or up to 4 (H200 NVL), and a
+          larger group crosses PCIe. Unified-memory parts (Apple Silicon, DGX Spark) have no
+          separate host memory.
         </P>
         <P>
           Select &quot;Custom GPU...&quot; to specify any hardware with name, VRAM (required),
@@ -182,15 +224,21 @@ export function GuidePage() {
         <SectionHeading id="hardware-config">Hardware Configuration</SectionHeading>
         <P>This section appears after selecting a GPU.</P>
 
-        <SubHeading>Number of GPUs</SubHeading>
+        <SubHeading>GPUs per replica (in one server)</SubHeading>
         <P>
-          Slider from 1 to 8 GPUs. Multiple GPUs allow running models that exceed a single
-          GPU&apos;s VRAM. The calculator accounts for NCCL buffers, replicated layer norms, and KV
-          cache that tensor parallelism cannot split (MLA models, or more GPUs than KV heads).
+          The parallel degree of one model replica inside one server, capped by what the part forms
+          in one node. Under tensor parallelism only degrees vLLM accepts are offered (they divide
+          the attention heads; most models allow 1, 2, 4 and 8). With several servers the summary
+          reads &quot;8 GPUs per server × 2 servers per replica, tensor parallel&quot;. An 8-GPU
+          server running four 2-GPU replicas is sized as one 2-GPU replica. In fine-tuning mode
+          (with a DeepSpeed ZeRO preset) the same control is labelled &quot;Number of GPUs&quot;.
         </P>
 
         <SubHeading>Sharding Strategy</SubHeading>
-        <P>Visible when using 2+ GPUs. Two options:</P>
+        <P>
+          Visible whenever the GPU forms multi-GPU servers, so pipeline parallel can be chosen
+          before picking a count tensor parallel cannot run. Options:
+        </P>
         <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1 mb-3">
           <li>
             <strong>Tensor Parallel</strong> — Splits each layer horizontally across GPUs. Requires
@@ -211,10 +259,11 @@ export function GuidePage() {
           </li>
         </ul>
         <P>
-          A colored badge shows the detected interconnect and its bandwidth. Green = NVLink
-          (excellent), Yellow = PCIe (adequate), Red = none (multi-GPU may not work). A warning
-          appears if the tensor parallel degree exceeds the recommended maximum for the
-          interconnect.
+          A colored badge shows the detected interconnect and its bandwidth. A bridged card shows
+          &quot;NVLink bridge&quot; only while the group fits the bridge; beyond it the badge and
+          the maths both use PCIe. Green = NVLink (excellent), Yellow = PCIe (adequate), Red = none
+          (multi-GPU may not work). A warning appears if the tensor parallel degree exceeds the
+          recommended maximum for the interconnect.
         </P>
 
         {/* Offloading */}
@@ -237,6 +286,10 @@ export function GuidePage() {
             system memory is also limited.
           </li>
         </ul>
+        <P>
+          On unified-memory parts (Apple Silicon, DGX Spark) only NVMe is offered: RAM is already
+          the GPU&apos;s memory, so there is nothing to offload into.
+        </P>
 
         <SubHeading>Offload Mode</SubHeading>
         <P>
@@ -373,6 +426,22 @@ export function GuidePage() {
         <SectionHeading id="results">Results Panel</SectionHeading>
         <P>GB here means GiB (1024³ bytes), as nvidia-smi reports.</P>
 
+        <SubHeading>Verdict and details</SubHeading>
+        <P>
+          The verdict block answers first: whether the configuration fits, decode speed, the
+          first-token figure and how many sessions fit. Warnings stay visible under it. Charts, the
+          memory table, the multi-GPU split, the weight source, the KV tier summary and per-user
+          metrics are under Details. Export PDF opens every collapsed section for the capture.
+        </P>
+        <SubHeading>First token with a batch (burst)</SubHeading>
+        <P>
+          At batch size 1 the figure is the time to the first token. At batch size B above 1 it is
+          labelled &quot;Prefill per request (amortized over batch B)&quot;: the prefill of a burst
+          of B prompts divided by B. In a real burst the first request answers sooner and the last
+          one waits about B times longer. Across servers the prompt also crosses the network once
+          per server boundary.
+        </P>
+
         <SubHeading>Fit Indicator</SubHeading>
         <P>A color-coded status bar showing GPU utilization:</P>
         <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1 mb-3">
@@ -458,6 +527,64 @@ export function GuidePage() {
           enable offloading, use multiple GPUs, or upgrade GPU.
         </P>
 
+        {/* Why a setting changed */}
+        <SectionHeading id="why-changed">Why a setting changed</SectionHeading>
+        <P>
+          When a change makes another setting impossible, the calculator corrects it and shows one
+          notice listing every correction. The rules:
+        </P>
+        <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1 mb-3">
+          <li>
+            <strong>GPU count above what the part forms in one server</strong> is capped (8 on an
+            HGX baseboard, 72 on an NVL72 rack, 1 on a DGX Spark or a Mac).
+          </li>
+          <li>
+            <strong>Tensor-parallel degree vLLM cannot run</strong>: the GPU count must divide the
+            model&apos;s attention heads (and match its KV heads). Llama 3.1 70B runs on 1, 2, 4 or
+            8 GPUs; asking for 6 sets 4. Choose pipeline parallel to use 6.
+          </li>
+          <li>
+            <strong>Expert parallel on a dense model</strong> switches to tensor parallel.
+          </li>
+          <li>
+            <strong>Unified memory</strong> (Apple Silicon, DGX Spark): RAM is the GPU&apos;s
+            memory, so CPU-RAM offload, host-memory KV tiers and CPU optimizer offload are turned
+            off. NVMe offload stays available.
+          </li>
+          <li>
+            <strong>Grace host KV tier</strong> needs a Grace host (GB300 NVL72, DGX Station).
+          </li>
+          <li>
+            <strong>KV cache offload</strong> already keeps all KV off the GPU, so a KV tier is
+            turned off.
+          </li>
+          <li>
+            <strong>Interconnect variant</strong> not offered on the selected GPU resets to its
+            default.
+          </li>
+          <li>
+            <strong>vLLM and TGI</strong> are inference engines: switching to fine-tuning clears
+            them. CPU optimizer offload needs a DeepSpeed ZeRO preset.
+          </li>
+          <li>
+            <strong>Out-of-range numbers</strong> (offloaded layers beyond the model, batch 0,
+            context below 512, more than 8 servers) are brought into range.
+          </li>
+        </ul>
+        <P>
+          Warnings that keep your value: context beyond the model&apos;s native length, a
+          tensor-parallel degree above what the interconnect scales to, small clusters of single-GPU
+          units, experts that do not split evenly across the GPUs, more pipeline stages than layers.
+        </P>
+        <P>
+          <strong>Resetting.</strong> &quot;Reset advanced settings&quot;, inside the Advanced
+          section, puts batch size, KV precision, sharding strategy, fabric, interconnect variant,
+          offloading and the KV tier back to their defaults; model, GPU, GPU count, servers, format,
+          context and concurrent users are untouched. &quot;Reset all&quot;, the icon button in the
+          header, returns to the empty starting state and clears the shared-link URL. Both show one
+          &quot;Reset to defaults&quot; notice listing what changed.
+        </P>
+
         {/* Comparison View */}
         <SectionHeading id="comparison">Comparison View</SectionHeading>
         <P>
@@ -470,10 +597,13 @@ export function GuidePage() {
         {/* URL Sharing */}
         <SectionHeading id="sharing">URL Sharing</SectionHeading>
         <P>
-          Every configuration change is automatically encoded into the URL hash using LZ-String
-          compression. Click the link icon in the header to copy the current URL to clipboard. Share
-          it with colleagues — they&apos;ll see the exact same configuration when they open the
-          link.
+          Every configuration change is encoded into the URL hash using LZ-String compression. Click
+          the link icon in the header to copy the current URL. A link restores the whole
+          configuration in one step, including the fine-tuning settings (gradient accumulation,
+          gradient checkpointing, Flash Attention, framework preset, CPU optimizer offload) and the
+          interconnect variant. If the link encodes a combination that is no longer allowed (or a
+          GPU whose data was corrected), it opens corrected with a &quot;Shared link adjusted&quot;
+          notice explaining what changed.
         </P>
 
         {/* Glossary */}

@@ -406,6 +406,7 @@ describe('multi-node end to end', () => {
       gpu: mi355x,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 32,
+      sequenceLength: 131072,
       quantization: 'fp16',
     })
     const twoNodes = calculateMultiNodeVRAM({
@@ -418,6 +419,7 @@ describe('multi-node end to end', () => {
       gpu: mi355x,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 32,
+      sequenceLength: 131072,
       quantization: 'fp16',
     })
 

@@ -1,4 +1,4 @@
-import { FABRIC_SPECS, PP_BASE_EFFICIENCY, resolveFabricSpec } from '@engines/fabric'
+import { FABRIC_SPECS, resolveFabricSpec } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { calculateMultiGPUVRAM } from '@engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '@engines/multi-node'
@@ -51,6 +51,7 @@ const base = {
   gpu: mi355x,
   fabric: FABRIC_SPECS['ethernet-800g'],
   batchSize: 1,
+  sequenceLength: 4096,
   quantization: 'fp16' as const,
 }
 
@@ -133,18 +134,22 @@ describe('calculateMultiNodeVRAM', () => {
     )
   })
 
-  it('separates decode from prefill efficiency once nodes > 1', () => {
+  it('keeps decode efficiency intra-node only; prefill adds the pipeline fill', () => {
     const result = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4 })
-    expect(result.interNodeDecodeEfficiency).toBeGreaterThan(result.interNodePrefillEfficiency)
-    expect(result.scalingEfficiency).toBeGreaterThan(result.prefillScalingEfficiency)
+    expect(result.scalingEfficiency).toBe(result.intraNodeEfficiency)
+    expect(result.prefillScalingEfficiency).toBeCloseTo(
+      result.intraNodeEfficiency * result.bubbleEfficiency,
+      12,
+    )
   })
 
-  it('charges a pipeline bubble at batch 1 across nodes', () => {
+  it('gives one request within one scheduler chunk no cross-node prefill speedup', () => {
+    // B = 1, T = 4096 <= C = 16384 (288 GB MI355X): M = 1, fill = 1 / 4
     const result = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4 })
-    expect(result.bubbleEfficiency).toBeCloseTo(0.571, 3)
+    expect(result.bubbleEfficiency).toBeCloseTo(0.25, 12)
   })
 
-  it('rewards a faster fabric', () => {
+  it('reports the effective bandwidth between servers: port x GPUs per node x eta', () => {
     const slow = calculateMultiNodeVRAM({
       ...base,
       gpusPerNode: 8,
@@ -157,7 +162,19 @@ describe('calculateMultiNodeVRAM', () => {
       numNodes: 4,
       fabric: FABRIC_SPECS['ethernet-1600g'],
     })
-    expect(fast.prefillScalingEfficiency).toBeGreaterThan(slow.prefillScalingEfficiency)
+    expect(slow.interNodeGBps).toBeCloseTo(12.5 * 8 * 0.8, 10)
+    expect(fast.interNodeGBps).toBeCloseTo(200 * 8 * 0.8, 10)
+  })
+
+  it('handles a 72-GPU NVL72 node per stage', () => {
+    const result = calculateMultiNodeVRAM({
+      ...base,
+      gpusPerNode: 72,
+      numNodes: 2,
+      fabric: resolveFabricSpec('ethernet-800g', null),
+    })
+    expect(result.interNodeGBps).toBeCloseTo(100 * 72 * 0.8, 10)
+    expect(result.totalPerGPU.isFinite()).toBe(true)
   })
 
   it('rejects a node count below 1', () => {
@@ -182,21 +199,5 @@ describe('calculateMultiNodeVRAM', () => {
     // numGPUs === 1 passthrough branch.
     expect(fourNodesOneGPU.totalPerGPU.lessThan(oneNodeOneGPU.totalPerGPU)).toBe(true)
     expect(fourNodesOneGPU.perGPU.total.lessThan(oneNodeOneGPU.perGPU.total)).toBe(true)
-  })
-
-  it('puts a 72-GPU NVL72 node at the pipeline efficiency ceiling, not beyond it', () => {
-    const result = calculateMultiNodeVRAM({
-      ...base,
-      gpusPerNode: 72,
-      numNodes: 2,
-      fabric: resolveFabricSpec('ethernet-800g', null),
-    })
-
-    // perNodeFabricGBps = 100 GB/s x 72 = 7200, well above FABRIC_REFERENCE_GBPS
-    // (1600), so L clamps to 0 and prefill efficiency sits at PP_BASE_EFFICIENCY.
-    expect(result.interNodePrefillEfficiency).toBeLessThanOrEqual(PP_BASE_EFFICIENCY)
-    expect(result.interNodePrefillEfficiency).toBeGreaterThan(0.9)
-    expect(result.interNodeDecodeEfficiency).toBeLessThanOrEqual(1)
-    expect(result.totalPerGPU.isFinite()).toBe(true)
   })
 })

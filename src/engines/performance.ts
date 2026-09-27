@@ -1,6 +1,7 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU } from './constants'
+import { fabricHopSeconds } from './fabric'
 import {
   calculateMoEActiveParams,
   calculateMoEBatchedParams,
@@ -84,7 +85,14 @@ export function expertAllToAllSeconds(
  */
 function decodeLayout(model: Model, multi: MultiGPUVRAMBreakdown | null | undefined) {
   if (!multi || multi.numGPUs <= 1) {
-    return { strategy: null, stages: 1, gpusPerStage: 1, kvShards: 1, interNodeEfficiency: 1 }
+    return {
+      strategy: null,
+      stages: 1,
+      gpusPerStage: 1,
+      kvShards: 1,
+      numNodes: 1,
+      interNodeGBps: 0,
+    }
   }
   const intraPP = multi.strategy === 'pipeline-parallel'
   const gpusPerStage = intraPP ? 1 : multi.gpusPerNode
@@ -96,7 +104,8 @@ function decodeLayout(model: Model, multi: MultiGPUVRAMBreakdown | null | undefi
     stages: multi.numNodes * (intraPP ? multi.gpusPerNode : 1),
     gpusPerStage,
     kvShards,
-    interNodeEfficiency: multi.interNodeDecodeEfficiency,
+    numNodes: multi.numNodes,
+    interNodeGBps: multi.interNodeGBps,
   }
 }
 
@@ -252,12 +261,14 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
 
   // 4. Roofline per stage, plus communication per layer: two all-reduces for tensor
   //    parallelism (after attention and after the MLP), one dispatch + combine
-  //    all-to-all for expert parallelism. A step flows through the stages in
-  //    turn; with batchSize sequences in flight the pipeline overlaps them, less
-  //    the bubble B / (B + stages - 1). A decode token cannot be split into
-  //    micro-batches (unlike a prompt, see fabric.ts pipelineBubbleEfficiency), so
-  //    at batch 1 pipeline parallelism gives no decode speedup.
-  const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+  //    all-to-all for expert parallelism. Across servers each step also crosses N - 1
+  //    stage boundaries with B tokens (Section 3b), spread over the stages
+  //    (conservative: vLLM sends asynchronously). A step flows through the stages in
+  //    turn; with batchSize sequences in flight the pipeline overlaps them, less the
+  //    bubble B / (B + stages - 1). A decode token cannot be split into micro-batches
+  //    (unlike a prompt, see fabric.ts prefillPipelineFill), so at batch 1 pipeline
+  //    parallelism gives no decode speedup.
+  const link = INTERCONNECT_SPECS[resolveInterconnect(gpu, layout.gpusPerStage)]
   const layersPerStage = model.num_hidden_layers / layout.stages
   let commSecondsPerLayer = 0
   if (layout.strategy === 'tensor-parallel') {
@@ -272,13 +283,17 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
       link.allreduceLatencyUs,
     )
   }
-  const stageSeconds = Decimal.max(memorySeconds, computeSeconds).add(
-    commSecondsPerLayer * layersPerStage,
-  )
+  const multiNode = layout.numNodes > 1 && layout.interNodeGBps > 0
+  const hopSecondsPerStage = multiNode
+    ? ((layout.numNodes - 1) / layout.stages) *
+      fabricHopSeconds(batchSize, model.hidden_size, layout.interNodeGBps)
+    : 0
+  const stageSeconds = Decimal.max(memorySeconds, computeSeconds)
+    .add(commSecondsPerLayer * layersPerStage)
+    .add(hopSecondsPerStage)
   const tokensPerSecond = new Decimal(batchSize)
     .div(stageSeconds)
     .mul(new Decimal(batchSize).div(batchSize + layout.stages - 1))
-    .mul(layout.interNodeEfficiency)
 
   // Offload slowdown: this step's time versus the same step with nothing
   // offloaded (full weights + KV in HBM, no host-link read). Compute and
@@ -289,9 +304,9 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   if (offload) {
     const baselinePerGPUBytes = perGPUWeightBytes.add(perGPUKVBytes).div(layout.stages)
     const baselineMemorySeconds = baselinePerGPUBytes.div(bandwidthBytesPerSec)
-    const baselineStageSeconds = Decimal.max(baselineMemorySeconds, computeSeconds).add(
-      commSecondsPerLayer * layersPerStage,
-    )
+    const baselineStageSeconds = Decimal.max(baselineMemorySeconds, computeSeconds)
+      .add(commSecondsPerLayer * layersPerStage)
+      .add(hopSecondsPerStage)
     offloadSlowdown = stageSeconds.div(baselineStageSeconds).toNumber()
   }
 
@@ -323,7 +338,9 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   //    bandwidth-bound decode above. Two terms:
   //      linear:    2 * activeParams * T          (precision-independent FLOPs)
   //      attention: 2 * layers * T^2 * hidden      (1/2 * 4 * T^2 * D * L, causal)
-  //    Batch is NOT applied: TTFT is a per-request latency for one sequence of T tokens.
+  //    Per request: a burst of B prompts takes B times the FLOPs on the same machine, so
+  //    dividing by B leaves one prompt's FLOPs (ADR 0007). Across servers the pipeline
+  //    fill (prefillScalingEfficiency) and N - 1 hops of the prompt are amortized the same way.
   const promptTokens = new Decimal(sequenceLength)
   const linearFLOPs = new Decimal(activeParams).mul(2e9).mul(promptTokens)
   const attentionFLOPs = new Decimal(2)
@@ -339,6 +356,14 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   let prefillEstimateDegraded = false
   let timeToFirstToken: Decimal
 
+  // Across servers, a prompt also crosses N - 1 stage boundaries (Section 3b),
+  // amortized the same way as the FLOPS path below; 0 on a single node.
+  const hopSeconds = multiNode
+    ? new Decimal(fabricHopSeconds(sequenceLength, model.hidden_size, layout.interNodeGBps))
+        .mul(layout.numNodes - 1)
+        .div(batchSize)
+    : new Decimal(0)
+
   // Same FLOPS figure and same guard as the decode roofline above — one source, so a
   // change to the selection policy cannot desynchronise the two rooflines.
   if (decodeGpuTFLOPS > 0) {
@@ -350,14 +375,15 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
         .mul(multiGPUResult.prefillScalingEfficiency)
     }
 
-    prefillSeconds = linearFLOPs.add(attentionFLOPs).div(effectiveFLOPS)
+    prefillSeconds = linearFLOPs.add(attentionFLOPs).div(effectiveFLOPS).add(hopSeconds)
     timeToFirstToken = prefillSeconds.add(new Decimal(1).div(tokensPerSecond))
   } else {
     // No usable FLOPS data (missing, zero, or negative): prefill time is not
     // computable. Fall back to the previous heuristic rather than returning
-    // Infinity or NaN, and mark the estimate degraded.
+    // Infinity or NaN, and mark the estimate degraded. Still gets the same
+    // multi-node hop term as the FLOPS path above, so TTFT stays consistent.
     prefillEstimateDegraded = true
-    timeToFirstToken = new Decimal(1).div(tokensPerSecond.mul(0.5))
+    timeToFirstToken = new Decimal(1).div(tokensPerSecond.mul(0.5)).add(hopSeconds)
   }
 
   return {

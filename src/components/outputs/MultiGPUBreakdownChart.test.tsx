@@ -196,6 +196,7 @@ describe('MultiGPUBreakdownChart', () => {
       gpu,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 1,
+      sequenceLength: 4096,
       quantization: 'fp16',
     })
     expect(multiNodeBreakdown.numGPUs).toBe(32)
@@ -211,6 +212,8 @@ describe('MultiGPUBreakdownChart', () => {
     expect(
       screen.getByText('Tensor parallel within each server, pipeline parallel across them.'),
     ).toBeInTheDocument()
+    // 100 GB/s per port x 8 GPUs x eta 0.8 (HGX assumption, fabric.ts)
+    expect(screen.getByText(/640 GB\/s effective between servers/)).toBeInTheDocument()
     expect(screen.queryByText(/4 servers/)).not.toBeInTheDocument()
   })
 

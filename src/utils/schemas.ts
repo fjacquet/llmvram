@@ -42,6 +42,19 @@ export const QUANTIZATION_FORMATS = [
   'gguf-q2_k',
 ] as const
 
+/** GPU.interconnect values (scale-up link as the data states it) */
+const GPU_INTERCONNECTS = [
+  'none',
+  'nvlink',
+  'nvlink-3',
+  'nvlink-4',
+  'nvlink-5',
+  'pcie-4',
+  'pcie-5',
+  'infinity-fabric',
+  'unified',
+] as const
+
 // GPU Schema based on research (dbgpu fields)
 export const GPUSchema = z.object({
   id: z.string().min(1),
@@ -76,32 +89,34 @@ export const GPUSchema = z.object({
 
   // Power and interconnect
   tdp_watts: z.number().positive().optional(),
-  interconnect: z
-    .enum([
-      'none',
-      'nvlink',
-      'nvlink-4',
-      'nvlink-5',
-      'pcie-4',
-      'pcie-5',
-      'infinity-fabric',
-      'unified',
-    ])
+  interconnect: z.enum(GPU_INTERCONNECTS).optional(),
+  interconnect_options: z.array(z.enum(GPU_INTERCONNECTS)).optional(),
+  /**
+   * NVLink bridge between PCIe cards (H100/A100 PCIe pair 2 cards; H200 NVL up to 4).
+   * The bridge carries a tensor-parallel group only while it fits: a larger group
+   * crosses the card's PCIe link (`interconnect`). See resolveInterconnect.
+   */
+  nvlink_bridge: z
+    .object({
+      type: z.enum(['nvlink-3', 'nvlink-4', 'nvlink-5']),
+      size: z.number().int().min(2),
+    })
     .optional(),
-  interconnect_options: z
-    .array(
-      z.enum([
-        'none',
-        'nvlink',
-        'nvlink-4',
-        'nvlink-5',
-        'pcie-4',
-        'pcie-5',
-        'infinity-fabric',
-        'unified',
-      ]),
-    )
-    .optional(),
+  /**
+   * Whether this GPU's scale-out NIC supports GPUDirect RDMA. False only on
+   * `nvidia-gb10` (DGX Spark): NCCL send/recv reaches ~9 GB/s vs 24.6 GB/s raw RDMA
+   * (multimodalflow.net, secondary source). Undefined (every other GPU, and every
+   * custom GPU) reads as `true` in fabric.ts's `effectiveFraction`. This is the only
+   * source for eta: never key it off `gpu.id`.
+   */
+  gpudirect_rdma: z.boolean().optional(),
+
+  /**
+   * CPU and GPU share one memory pool (Apple Silicon, GB10 DGX Spark). The only
+   * source for "no separate host memory" (config-rules R6): never infer it from
+   * `interconnect === 'unified'` or from the tier.
+   */
+  unified_memory: z.boolean().optional(),
 
   // Classification
   tier: z.enum(['datacenter', 'consumer', 'apple-silicon']),

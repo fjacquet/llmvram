@@ -1,4 +1,5 @@
 import { Layout } from '@components/layout/Layout'
+import { useConfigNotices } from '@hooks/useConfigNotices'
 import { useDarkMode } from '@hooks/useDarkMode'
 import { useURLSync } from '@hooks/useURLSync'
 import { Toaster } from 'sonner'
@@ -14,6 +15,9 @@ export default function App() {
 
   // Sync calculator state with URL hash for sharing
   useURLSync()
+
+  // Toast grouped configuration-rule corrections
+  useConfigNotices()
 
   return (
     <>

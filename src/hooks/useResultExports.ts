@@ -1,3 +1,4 @@
+import { applyInterconnectOverride } from '@engines/multi-gpu'
 import type { QuantizationFormat } from '@engines/types'
 import type { UseInferenceCalculationResult } from '@hooks/useInferenceCalculation'
 import { type ExportPptxParams, exportPptx } from '@utils/exportPptx'
@@ -24,6 +25,9 @@ interface UseResultExportsParams {
   batchSize: number
   numGPUs: number
   numNodes: number
+  /** The variant picked in InterconnectSelector; applied the same way useInferenceCalculation
+   *  does, so the export names the link its numbers actually came from. */
+  interconnectOverride: string | null
   result: UseInferenceCalculationResult['result']
 }
 
@@ -41,6 +45,7 @@ export function useResultExports({
   batchSize,
   numGPUs,
   numNodes,
+  interconnectOverride,
   result,
 }: UseResultExportsParams) {
   const handleExportPDF = async () => {
@@ -60,6 +65,12 @@ export function useResultExports({
       const wasDark = root.classList.contains('dark')
       if (wasDark) root.classList.remove('dark')
 
+      // Collapsed sections (Advanced, Details) would be missing from the PDF: open every
+      // <details> for the capture, then put each back exactly as the user left it.
+      const sections = Array.from(captureEl.querySelectorAll('details'))
+      const wasOpen = sections.map((d) => d.open)
+      for (const d of sections) d.open = true
+
       let canvas: HTMLCanvasElement
       try {
         canvas = await html2canvasPro(captureEl, {
@@ -74,6 +85,9 @@ export function useResultExports({
         })
       } finally {
         if (wasDark) root.classList.add('dark')
+        sections.forEach((d, i) => {
+          d.open = wasOpen[i] ?? false
+        })
       }
 
       const imgData = canvas.toDataURL('image/jpeg', 0.97)
@@ -105,9 +119,13 @@ export function useResultExports({
   const handleExportPptx = async (capacity: ExportPptxCapacity) => {
     if (!result || !selectedModel || !selectedGPU) return
     try {
+      // Same effective GPU useInferenceCalculation computed result.multiGPU from
+      // (interconnect override applied, bridge dropped) — otherwise the deck can
+      // name a link (e.g. "NVLink bridge") the numbers were never computed from.
+      const effectiveGPU = applyInterconnectOverride(selectedGPU, interconnectOverride)
       await exportPptx({
         model: selectedModel,
-        gpu: selectedGPU,
+        gpu: effectiveGPU,
         quantization,
         // numGPUs from the store is per-node; the deck must report the true
         // cluster total (see IMPORTANT-1 in the multi-node fix wave).

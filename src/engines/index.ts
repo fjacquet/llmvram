@@ -19,11 +19,14 @@ export { calculateCPUOffloadMemory, calculateZeROMemoryPerGPU } from './deepspee
 
 // Scale-out fabric
 export {
+  effectiveFraction,
   FABRIC_SPECS,
-  fabricDecodeEfficiency,
-  fabricPrefillEfficiency,
+  fabricHopSeconds,
+  interNodeGBps,
+  maxNumBatchedTokens,
   perNodeFabricGBps,
-  pipelineBubbleEfficiency,
+  prefillMicrobatches,
+  prefillPipelineFill,
   resolveFabricSpec,
 } from './fabric'
 

@@ -38,7 +38,7 @@ export function FrameworkPresetPicker() {
         <option value="deepspeed-zero3">DeepSpeed ZeRO-3 (8-10x memory savings)</option>
         <option value="unsloth">Unsloth (optimized single-GPU)</option>
         <option value="vllm">vLLM (inference only)</option>
-        <option value="tgi">TGI (inference only)</option>
+        <option value="tgi">TGI (archived, inference only)</option>
       </select>
 
       {/* Description text */}

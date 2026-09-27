@@ -1,13 +1,21 @@
 import { InfoTip } from '@components/common/InfoTip'
 import { INTERCONNECT_LABELS, INTERCONNECT_SPECS } from '@engines/constants'
-import { resolveInterconnect } from '@engines/multi-gpu'
+import {
+  applyInterconnectOverride,
+  bridgeApplies,
+  interconnectLabel as linkLabel,
+  resolveInterconnect,
+} from '@engines/multi-gpu'
+import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
+import { maxGPUsFor } from '@utils/gpuLimits'
 
 /**
  * Sharding strategy selector (Tensor Parallel vs Pipeline Parallel)
  *
- * Only visible when there is more than one GPU per server. This selects the
- * INTRA-node strategy; across servers the strategy is always pipeline parallel.
+ * Visible whenever the selected GPU forms multi-GPU servers (`maxGPUsFor(gpu) > 1`),
+ * not only once numGPUs itself is above 1. This selects the INTRA-node strategy;
+ * across servers the strategy is always pipeline parallel.
  * Shows:
  * - Radio buttons for TP/PP selection with descriptions
  * - Interconnect information badge from selected GPU
@@ -18,16 +26,28 @@ export function ShardingStrategySelector() {
   const shardingStrategy = useUIStore((s) => s.shardingStrategy)
   const setShardingStrategy = useUIStore((s) => s.setShardingStrategy)
   const selectedGPU = useUIStore((s) => s.selectedGPU)
-  const isMoE = useUIStore((s) => s.selectedModel?.architecture === 'moe')
+  const interconnectOverride = useUIStore((s) => s.interconnectOverride)
+  const { strategies } = useAllowedOptions()
 
-  // Only render when multi-GPU is active
-  if (numGPUs <= 1) {
+  // Visible whenever the part forms multi-GPU servers (not only at numGPUs > 1), so
+  // pipeline parallel is reachable before R14 snaps a tensor-parallel degree.
+  if (maxGPUsFor(selectedGPU) <= 1) {
     return null
   }
 
-  // Resolve interconnect type and spec
-  const interconnectType = selectedGPU ? resolveInterconnect(selectedGPU) : 'none'
+  // Apply the interconnect override the user picked (InterconnectSelector) before
+  // resolving the link: useInferenceCalculation computes the actual numbers from this
+  // same effective GPU, so the badge must never name a link the maths doesn't use
+  // (e.g. showing "NVLink bridge" while an override forces PCIe).
+  const effectiveGPU = selectedGPU
+    ? applyInterconnectOverride(selectedGPU, interconnectOverride)
+    : null
+
+  // Resolve the link for THIS group size: an NVLink bridge only carries a group that fits it
+  const interconnectType = effectiveGPU ? resolveInterconnect(effectiveGPU, numGPUs) : 'none'
   const interconnectSpec = INTERCONNECT_SPECS[interconnectType]
+  const bridgeSize =
+    effectiveGPU && bridgeApplies(effectiveGPU, numGPUs) ? effectiveGPU.nvlink_bridge.size : null
 
   // Determine badge color based on interconnect type
   let badgeColorClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
@@ -44,12 +64,10 @@ export function ShardingStrategySelector() {
     badgeColorClass = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
   }
 
-  // Human-readable interconnect name. INTERCONNECT_LABELS also bakes in a
-  // bandwidth figure ("Infinity Fabric — 1075 GB/s"), but this badge already
-  // renders bandwidthGBps separately, so only the name portion is reused here
-  // to avoid printing the bandwidth twice.
-  const interconnectLabel =
-    INTERCONNECT_LABELS[interconnectType]?.split(' — ')[0] ?? interconnectType.toUpperCase()
+  // The badge renders bandwidthGBps separately, so only the name part of the label is used
+  const interconnectLabel = (
+    effectiveGPU ? linkLabel(effectiveGPU, numGPUs) : (INTERCONNECT_LABELS.none ?? 'None')
+  ).split(' — ')[0]
 
   // Check if TP degree exceeds recommended maximum
   const tpExceedsMax =
@@ -117,7 +135,7 @@ export function ShardingStrategySelector() {
         </button>
 
         {/* Expert Parallel + DP attention (MoE only) */}
-        {isMoE && (
+        {strategies.includes('expert-parallel') && (
           <button
             type="button"
             onClick={() => setShardingStrategy('expert-parallel')}
@@ -146,36 +164,40 @@ export function ShardingStrategySelector() {
         )}
       </div>
 
-      {/* Interconnect information badge */}
-      <div
-        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${badgeColorClass}`}
-      >
-        {interconnectType === 'none' ? (
-          'No interconnect detected. Multi-GPU may not be supported for this GPU.'
-        ) : interconnectType.startsWith('nvlink') || interconnectType === 'infinity-fabric' ? (
-          <>
-            {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
-            {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — Excellent for
-            TP up to {interconnectSpec.recommendedMaxTPDegree} GPUs
-          </>
-        ) : (
-          <>
-            {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
-            {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — TP recommended
-            up to {interconnectSpec.recommendedMaxTPDegree} GPUs
-          </>
-        )}
-      </div>
+      {numGPUs > 1 && (
+        <>
+          {/* Interconnect information badge */}
+          <div
+            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${badgeColorClass}`}
+          >
+            {interconnectType === 'none' ? (
+              'No interconnect detected. Multi-GPU may not be supported for this GPU.'
+            ) : interconnectType.startsWith('nvlink') || interconnectType === 'infinity-fabric' ? (
+              <>
+                {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
+                {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — Excellent
+                for TP up to {bridgeSize ?? interconnectSpec.recommendedMaxTPDegree} GPUs
+              </>
+            ) : (
+              <>
+                {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
+                {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — TP
+                recommended up to {interconnectSpec.recommendedMaxTPDegree} GPUs
+              </>
+            )}
+          </div>
 
-      {/* Warning for TP degree exceeding recommended max */}
-      {tpExceedsMax && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-          <p className="text-xs text-amber-800 dark:text-amber-200">
-            ⚠ Tensor Parallel with {numGPUs} GPUs per server may experience performance degradation
-            on {interconnectLabel}. Recommended maximum: {interconnectSpec.recommendedMaxTPDegree}{' '}
-            GPUs.
-          </p>
-        </div>
+          {/* Warning for TP degree exceeding recommended max */}
+          {tpExceedsMax && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                ⚠ Tensor Parallel with {numGPUs} GPUs per server may experience performance
+                degradation on {interconnectLabel}. Recommended maximum:{' '}
+                {interconnectSpec.recommendedMaxTPDegree} GPUs.
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

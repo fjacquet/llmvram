@@ -1,5 +1,6 @@
 import { InfoTip } from '@components/common/InfoTip'
-import { graceLinkGBps, KV_TIER_PRESETS, KV_TIER_TYPES, type KVTierType } from '@engines/kv-tier'
+import { graceLinkGBps, KV_TIER_PRESETS, type KVTierType } from '@engines/kv-tier'
+import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
 import { useEffect, useState } from 'react'
 
@@ -62,7 +63,7 @@ export function KVTierPanel() {
   // 396 Desktop Superchip) — resolve it once and use it everywhere the
   // static KV_TIER_PRESETS figure would otherwise stand in for host-grace.
   const graceGBps = graceLinkGBps(selectedGPU?.id ?? '')
-  const tierOptions = KV_TIER_TYPES.filter((t) => t !== 'host-grace' || graceGBps !== null)
+  const tierOptions = useAllowedOptions().kvTiers
   const presetGBps =
     kvTier.tier === 'host-grace' ? (graceGBps ?? preset?.gbpsPerGPU) : preset?.gbpsPerGPU
 

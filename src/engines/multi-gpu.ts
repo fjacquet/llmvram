@@ -129,8 +129,7 @@ function calculateTensorParallelVRAM(
     numNodes: 1,
     gpusPerNode: numGPUs,
     intraNodeEfficiency: scalingEfficiency,
-    interNodeDecodeEfficiency: 1,
-    interNodePrefillEfficiency: 1,
+    interNodeGBps: 0,
     bubbleEfficiency: 1,
     scalingEfficiency,
     prefillScalingEfficiency: scalingEfficiency,
@@ -208,8 +207,7 @@ function calculatePipelineParallelVRAM(
     gpusPerNode: numGPUs,
     // PP has lower communication overhead than TP; use flat 95% efficiency
     intraNodeEfficiency: 1 - PP_COMMUNICATION_OVERHEAD.toNumber(),
-    interNodeDecodeEfficiency: 1,
-    interNodePrefillEfficiency: 1,
+    interNodeGBps: 0,
     bubbleEfficiency: 1,
     scalingEfficiency: 1 - PP_COMMUNICATION_OVERHEAD.toNumber(),
     prefillScalingEfficiency: 1 - PP_COMMUNICATION_OVERHEAD.toNumber(),
@@ -282,8 +280,7 @@ function calculateExpertParallelVRAM(
     numNodes: 1,
     gpusPerNode: numGPUs,
     intraNodeEfficiency: interconnectSpec.tpScalingEfficiency,
-    interNodeDecodeEfficiency: 1,
-    interNodePrefillEfficiency: 1,
+    interNodeGBps: 0,
     bubbleEfficiency: 1,
     scalingEfficiency: interconnectSpec.tpScalingEfficiency,
     prefillScalingEfficiency: interconnectSpec.tpScalingEfficiency,
@@ -357,8 +354,7 @@ export function calculateMultiGPUVRAM(
       numNodes: 1,
       gpusPerNode: 1,
       intraNodeEfficiency: 1.0,
-      interNodeDecodeEfficiency: 1,
-      interNodePrefillEfficiency: 1,
+      interNodeGBps: 0,
       bubbleEfficiency: 1,
       scalingEfficiency: 1.0,
       prefillScalingEfficiency: 1.0,
@@ -367,7 +363,7 @@ export function calculateMultiGPUVRAM(
   }
 
   // Multi-GPU calculation
-  const interconnectType = resolveInterconnect(gpu)
+  const interconnectType = resolveInterconnect(gpu, numGPUs)
 
   if (strategy === 'tensor-parallel') {
     return calculateTensorParallelVRAM(singleGPU, model, gpuVramGB, numGPUs, interconnectType)
@@ -386,25 +382,50 @@ export function calculateMultiGPUVRAM(
 }
 
 /**
- * Resolve GPU interconnect string to engine InterconnectType
+ * Whether an NVLink bridge carries a group of this size — the guard shared by
+ * resolveInterconnect, interconnectLabel and the sharding-strategy UI (DRY: this was
+ * three copies of `gpu.nvlink_bridge && groupSize <= gpu.nvlink_bridge.size`).
+ */
+export function bridgeApplies(
+  gpu: GPU,
+  groupSize: number,
+): gpu is GPU & { nvlink_bridge: NonNullable<GPU['nvlink_bridge']> } {
+  return gpu.nvlink_bridge != null && groupSize <= gpu.nvlink_bridge.size
+}
+
+/**
+ * Apply the interconnect variant the user picked (config-rules R5/R13): it replaces
+ * the bridge too, because the user explicitly chose the link. This is the ONE place
+ * that logic lives — useInferenceCalculation computes the numbers from this GPU, so
+ * anything else that describes the same result (e.g. an export) must build its label
+ * from this same effective GPU, not the raw store selection, or it can name a link
+ * (e.g. "NVLink bridge") the numbers were never actually computed from.
+ */
+export function applyInterconnectOverride(gpu: GPU, override: string | null): GPU {
+  return override
+    ? { ...gpu, interconnect: override as GPU['interconnect'], nvlink_bridge: undefined }
+    : gpu
+}
+
+/**
+ * Resolve the link a group of `groupSize` GPUs actually talks over.
  *
- * Maps GPU.interconnect field to standardized InterconnectType enum.
+ * An NVLink bridge (H100/A100 PCIe pairs, H200 NVL up to 4) carries the group only
+ * while it fits the bridge; a larger group crosses the card's own link, which the
+ * rest of this function maps from GPU.interconnect.
  *
  * @param gpu - GPU configuration
- * @returns InterconnectType
- *
+ * @param groupSize - GPUs in the tensor/expert-parallel group (1 = no traffic)
  * @example
- * ```ts
- * resolveInterconnect({ interconnect: 'nvlink-4', tier: 'datacenter' }) // 'nvlink-4'
- * resolveInterconnect({ interconnect: 'nvlink', tier: 'datacenter' }) // 'nvlink-4'
- * resolveInterconnect({ interconnect: undefined, tier: 'datacenter' }) // 'pcie-5'
- * resolveInterconnect({ interconnect: 'unified', tier: 'apple-silicon' }) // 'none'
- * ```
+ * resolveInterconnect(h100Pcie, 2) // 'nvlink-3': the 2-GPU bridge carries the pair
+ * resolveInterconnect(h100Pcie, 4) // 'pcie-5': group exceeds the bridge, falls to the card's own link
  */
-export function resolveInterconnect(gpu: GPU): InterconnectType {
+export function resolveInterconnect(gpu: GPU, groupSize: number): InterconnectType {
+  if (bridgeApplies(gpu, groupSize)) return gpu.nvlink_bridge.type
   const interconnect = gpu.interconnect
 
   // Direct mapping for specific types
+  if (interconnect === 'nvlink-3') return 'nvlink-3'
   if (interconnect === 'nvlink-4') return 'nvlink-4'
   if (interconnect === 'nvlink-5') return 'nvlink-5'
   if (interconnect === 'pcie-4') return 'pcie-4'
@@ -427,6 +448,18 @@ export function resolveInterconnect(gpu: GPU): InterconnectType {
   }
 
   return 'none'
+}
+
+/**
+ * Display name of the resolved link, labelling a bridge by its bandwidth
+ * ("NVLink bridge — 600 GB/s") so the badge never shows NVLink while the maths uses PCIe.
+ */
+export function interconnectLabel(gpu: GPU, groupSize: number): string {
+  const type = resolveInterconnect(gpu, groupSize)
+  if (bridgeApplies(gpu, groupSize)) {
+    return `NVLink bridge — ${INTERCONNECT_SPECS[type].bandwidthGBps} GB/s`
+  }
+  return INTERCONNECT_LABELS[type] ?? type
 }
 
 /**
@@ -458,7 +491,7 @@ export function validateInterconnect(
   numGPUs: number,
   strategy: ShardingStrategy,
 ): InterconnectValidation {
-  const interconnectType = resolveInterconnect(gpu)
+  const interconnectType = resolveInterconnect(gpu, numGPUs)
   const spec = INTERCONNECT_SPECS[interconnectType]
 
   // Single GPU is always valid

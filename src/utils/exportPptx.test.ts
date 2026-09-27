@@ -1,8 +1,10 @@
+import gpusData from '@data/gpus.json'
 import { FABRIC_SPECS } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
+import { applyInterconnectOverride } from '@engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '@engines/multi-node'
 import type { PerformanceEstimate } from '@engines/types'
-import type { GPU, Model } from '@utils/schemas'
+import { type GPU, type Model, validateGPUs } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,7 +44,16 @@ const shapes: RecordedShape[] = []
 
 class MockSlide {
   addText = vi.fn((text: unknown, opts?: Box) => {
-    if (typeof text === 'string') texts.push({ text, opts: opts ?? {} })
+    if (typeof text === 'string') {
+      texts.push({ text, opts: opts ?? {} })
+    } else if (Array.isArray(text)) {
+      // Rich-text runs (e.g. the slide 3 stats line: alternating bold labels and
+      // plain values) — concatenate so a test can still search the joined string.
+      const joined = text
+        .map((run) => (run && typeof run === 'object' && 'text' in run ? String(run.text) : ''))
+        .join('')
+      texts.push({ text: joined, opts: opts ?? {} })
+    }
   })
   addShape = vi.fn((kind: string, opts?: Box) => {
     shapes.push({ kind, opts: opts ?? {} })
@@ -151,6 +162,7 @@ describe('exportPptx', () => {
       gpu,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 1,
+      sequenceLength: 4096,
       quantization: 'fp16',
     })
 
@@ -176,8 +188,8 @@ describe('exportPptx', () => {
 
     // Slide 1 (config summary) is the first addTable call.
     const configRows = tableRows(0)
-    expect(configRows).toContainEqual(['Number of GPUs', '32'])
-    expect(configRows).not.toContainEqual(['Number of GPUs', '8'])
+    expect(configRows).toContainEqual(['GPUs per replica', '8 per server × 4 servers (32 total)'])
+    expect(configRows.some(([label]) => label === 'Number of GPUs')).toBe(false)
     expect(configRows).toContainEqual(['Servers', '4'])
 
     // Slide 3's bar chart is a single stacked bar (one category, five series) —
@@ -207,6 +219,102 @@ describe('exportPptx', () => {
     expect(barChart?.opts.y).toBeGreaterThanOrEqual(headingBottom)
   })
 
+  it('shows the resolved interconnect link name next to the bandwidth', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+    const multiGPU = calculateMultiNodeVRAM({
+      singleGPU,
+      model,
+      gpuVramGB: 80,
+      gpusPerNode: 8,
+      numNodes: 1,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu,
+      fabric: FABRIC_SPECS['ethernet-800g'],
+      batchSize: 1,
+      sequenceLength: 4096,
+      quantization: 'fp16',
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: multiGPU.numGPUs,
+      numNodes: multiGPU.numNodes,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 1,
+      offload: null,
+    })
+
+    // gpu.interconnect is nvlink-4 with no bridge, so the resolved link is "NVLink 4".
+    const stats = texts.find((t) => t.text.includes('Interconnect BW:'))
+    expect(stats?.text).toContain(`NVLink 4 — ${multiGPU.interconnectBandwidthGBps} GB/s`)
+  })
+
+  it('names the override link, not the bridge, when the caller passes the effective GPU', async () => {
+    // nvidia-h100-80gb-pcie carries a 2-GPU NVLink bridge natively; a user who picked
+    // an interconnect override in InterconnectSelector gets that link's numbers
+    // instead (useResultExports applies it before calling exportPptx).
+    const bridgedGpu = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-pcie')
+    if (!bridgedGpu) throw new Error('fixture GPU not found')
+    const effectiveGpu = applyInterconnectOverride(bridgedGpu, 'pcie-5')
+
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+    const multiGPU = calculateMultiNodeVRAM({
+      singleGPU,
+      model,
+      gpuVramGB: effectiveGpu.vram_gb,
+      gpusPerNode: 2,
+      numNodes: 1,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu: effectiveGpu,
+      fabric: FABRIC_SPECS['ethernet-800g'],
+      batchSize: 1,
+      sequenceLength: 4096,
+      quantization: 'fp16',
+    })
+
+    await exportPptx({
+      model,
+      gpu: effectiveGpu,
+      quantization: 'fp16',
+      numGPUs: multiGPU.numGPUs,
+      numNodes: multiGPU.numNodes,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 1,
+      offload: null,
+    })
+
+    const stats = texts.find((t) => t.text.includes('Interconnect BW:'))
+    expect(stats?.text).not.toContain('NVLink bridge')
+    expect(stats?.text).toContain(`PCIe 5 — ${multiGPU.interconnectBandwidthGBps} GB/s`)
+    expect(multiGPU.interconnectBandwidthGBps).toBe(128)
+  })
+
   it('omits the Servers row for a single-node configuration', async () => {
     const singleGPU = calculateInferenceVRAM({
       model,
@@ -234,7 +342,7 @@ describe('exportPptx', () => {
     })
 
     const configRows = tableRows(0)
-    expect(configRows).toContainEqual(['Number of GPUs', '1'])
+    expect(configRows).toContainEqual(['GPUs per replica', '1 (in one server)'])
     expect(configRows.some(([label]) => label === 'Servers')).toBe(false)
   })
 
@@ -541,6 +649,7 @@ describe('exportPptx', () => {
       gpu,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 1,
+      sequenceLength: 4096,
       quantization: 'fp16',
     })
 
@@ -575,5 +684,36 @@ describe('exportPptx', () => {
     expect(
       texts.some((t) => t.text.includes('Offloaded to host: 500 GiB (not included per GPU)')),
     ).toBe(true)
+  })
+
+  it('labels the first-token row as amortized over the batch when B > 1 (ADR 0007)', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 8,
+    })
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 8,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 8,
+      offload: null,
+    })
+    const perfRows = tableRows(2)
+    expect(
+      perfRows.some(([label]) => label === 'Prefill per request (amortized over batch 8)'),
+    ).toBe(true)
+    expect(perfRows.some(([label]) => label === 'Time to First Token')).toBe(false)
   })
 })
