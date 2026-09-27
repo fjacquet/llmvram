@@ -1,7 +1,7 @@
 # MoE Weight Split: Base and Experts at Their Measured Rates
 
 **Date:** 2026-09-27
-**Status:** Design approved in conversation 2026-09-27 (approach B, fallback 1)
+**Status:** Design approved in conversation 2026-09-27 (approach B, fallback 1); wide-dtype rule amended from a second probe (I32-packed int4, F8 NVFP4 scales)
 
 ## Context
 
@@ -37,19 +37,21 @@ This was finding I-4 of the weight-refs final review, documented as Domain Pitfa
 
 ## Evidence (Hugging Face `?expand[]=safetensors`, 2026-09-27)
 
-| Checkpoint | Wider than lowest type | Lowest type |
+| Checkpoint | Wide (>= 16-bit float) | Quantized storage |
 |---|---|---|
 | moonshotai/Kimi-K3 | BF16 57.18B, F32 0.01B | U8 2722.74B |
-| nvidia/Kimi-K3-NVFP4 | F8_E4M3 36.18B, BF16 21.00B, F32 0.01B | U8 1361.37B |
+| nvidia/Kimi-K3-NVFP4 | BF16 21.00B, F32 0.01B | U8 1361.37B, F8_E4M3 36.18B |
 | deepseek-ai/DeepSeek-R1 | BF16 3.92B | F8_E4M3 680.57B |
+| Qwen/Qwen3-235B-A22B-GPTQ-Int4 | F16 1.29B | I32 233.80B (packed int4) |
+| nvidia/Qwen3-235B-A22B-NVFP4 | BF16 1.29B | U8 116.90B, F8_E4M3 14.61B (block scales) |
 | openai/gpt-oss-120b | BF16 2.17B | U8 114.66B |
 | Qwen/Qwen3-235B-A22B | (single type) | BF16 235.09B |
 | RedHatAI/Qwen3-235B-A22B-FP8-dynamic | BF16 1.38B | F8_E4M3 233.80B |
 
 The U8 count is not reliable: Kimi K3 native reports logical parameters (2722.7B)
-while the NVIDIA NVFP4 build reports packed bytes (1361.4B). Counts for 8-bit and
-wider types are real parameters at known widths. The design therefore never uses the
-lowest type's count; its bytes come from the measured file total.
+while the NVIDIA NVFP4 build reports packed bytes (1361.4B). Counts for 16-bit and
+wider floating-point types are real parameters at known widths. The design therefore
+never uses a quantized-storage count; those bytes come from the measured file total.
 
 ## Section 1: Data and measurement
 
@@ -59,14 +61,16 @@ New optional field on a weight ref:
 high_precision?: { params_b: number; gib: number }
 ```
 
-- Sum over every dtype in the summary except the lowest-width one, when the
-  summary lists more than one dtype. Widths: F64 8, F32/I32 4, BF16/F16/I16 2,
-  F8_* / I8 / U8 1. The lowest-width dtype is the one with the smallest width; ties
-  (e.g. F8_E4M3 and U8) resolve to the one with the larger count.
-- `params_b` = count / 1e9; `gib` = sum(count x width) / 1024^3.
-- Written only for MoE models (`architecture: 'moe'`) and only for safetensors refs
-  whose summary has more than one dtype. GGUF refs and single-type checkpoints get
-  no field.
+- Wide dtypes are the floating-point types of 16 bits or more: `BF16`, `F16`, `F32`,
+  `F64` (widths 2, 2, 4, 8). Every other dtype (`F8_*`, `U8`, `I8`, `I32`, ...) is
+  quantized storage. Packed int4 (AWQ, GPTQ, compressed-tensors W4A16) is stored as
+  `I32`, and NVIDIA NVFP4 stores its FP4 block scales as `F8_E4M3` (nvidia/Qwen3-235B-
+  A22B-NVFP4: F8 14.61B = U8 116.9B x 2 / 16), so width alone cannot identify the base.
+- `params_b` = sum of wide counts / 1e9; `gib` = sum(count x width) / 1024^3.
+- Written only for MoE models (`architecture: 'moe'`), only for safetensors refs of
+  quantized formats (not `fp32`, `fp16`, `bf16`, whose checkpoints are uniform and whose
+  average is already exact), and only when the summary has at least one wide and one
+  non-wide dtype. GGUF refs get no field.
 - `refresh:models --measure <id>` prints it inside each ref; the default audit
   compares it with the live summary within 1% like `gib`.
 - Data integrity (`models.test.ts`): `high_precision.gib <= gib`,
@@ -74,7 +78,8 @@ high_precision?: { params_b: number; gib: number }
 
 ## Section 2: Engine
 
-One helper in `src/engines/quantization.ts`:
+One helper in `src/engines/inference.ts`, beside `splitMoEParams` (quantization.ts
+exports a `weightRef(format, model)` accessor so the fp16/bf16 twin rule stays in one place):
 
 ```ts
 moeWeightSplit(model, format): { baseGiB: Decimal; routedGiB: Decimal; measured: boolean } | null
@@ -118,7 +123,7 @@ For MoE models the weight-source line adds "base/expert split measured" or
   batch-1 decode tokens/s below the previous figure; a GGUF ref stays on the fallback.
 - Guards: removing the helper from each consumer fails a test (mutation-checked).
 - Auditor: pure extraction of `high_precision` from summary fixtures (Kimi native,
-  NVIDIA NVFP4 tie between F8 and U8, DeepSeek FP8, single-type skip). No network in CI.
+  NVIDIA NVFP4 with F8 scales, GPTQ I32, DeepSeek FP8, single-type skip). No network in CI.
 
 ## Section 5: Delivery and docs
 
