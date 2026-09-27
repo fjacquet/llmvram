@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fallback bytes per parameter from the format definitions: INT4 0.5625 (16-bit scale per group of 32), AWQ/GPTQ 0.52 (scale and zero per group of 128, was 0.6), GGUF Q2_K 0.366 (median published file, was 0.328).
 
+### Fixed
+
+- fp16 and bf16 now share a measured weight_refs entry: both are 2 bytes/param, but every measured checkpoint is bf16, so fp16 — the default quantization — always showed "estimated". It now shows "Measured from" the bf16 repo (and vice versa).
+- Gemma 4 31B and Gemma 4 26B A4B parameter counts corrected to the exact Hugging Face safetensors totals (31.27B and 25.81B, were 32.7B and 26.5B).
+
 ## [1.11.0] - 2026-09-27
 
 ### Added
