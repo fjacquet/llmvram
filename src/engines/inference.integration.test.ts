@@ -144,8 +144,8 @@ describe('Integration: Full Calculation Pipeline', () => {
     })
 
     // Verify VRAM breakdown
-    // Model weights: 70B * 0.6 bytes/param = ~39.12 GB
-    expect(vram.modelWeights.toNumber()).toBeCloseTo(39.12, 1)
+    // Model weights: 70B * 0.52 bytes/param = ~33.90 GB
+    expect(vram.modelWeights.toNumber()).toBeCloseTo(33.9, 1)
 
     // KV cache: 2 * 80 layers * 8192 hidden * 4096 seq * 1 batch * 2 bytes * (8/64 GQA)
     // = 2 * 80 * 8192 * 4096 * 1 * 2 * 0.125 / (1024^3) = ~1.25 GB
@@ -153,7 +153,7 @@ describe('Integration: Full Calculation Pipeline', () => {
 
     // Total should fit on H100 80GB
     expect(vram.total.toNumber()).toBeLessThan(80)
-    expect(vram.total.toNumber()).toBeGreaterThan(40) // Should be ~42 GB
+    expect(vram.total.toNumber()).toBeGreaterThan(30) // Should be ~36.6 GB
 
     // Framework overhead should be 1GB
     expect(vram.frameworkOverhead.toNumber()).toBe(1.0)
@@ -179,7 +179,7 @@ describe('Integration: Full Calculation Pipeline', () => {
     //   attentionFLOPs = 2 * 80 * 4096^2 * 8192        =  21,990,232,555,520
     //   effectiveFLOPS = 989e12 * 0.45 (PREFILL_MFU)   = 445,050,000,000,000
     //   prefillSeconds = totalFLOPs / effectiveFLOPS   ≈ 1.338 s
-    //   decodeSeconds  = 1 / tokensPerSecond (GPTQ, ~79.76 tok/s) ≈ 0.0125 s
+    //   decodeSeconds  = 1 / tokensPerSecond (GPTQ, ~88.76 tok/s) ≈ 0.0113 s
     //   TTFT           ≈ 1.35 s
     expect(performance.timeToFirstToken.toNumber()).toBeGreaterThan(1.3)
     expect(performance.timeToFirstToken.toNumber()).toBeLessThan(1.4)
@@ -348,7 +348,7 @@ describe('Integration: Full Calculation Pipeline', () => {
   })
 
   it('quantization formats: GPTQ vs FP16 comparison', () => {
-    // GPTQ (4-bit + overhead) should be ~3.3x smaller than FP16
+    // GPTQ (4-bit + overhead) should be ~3.85x smaller than FP16
     const vramFP16 = calculateInferenceVRAM({
       model: llama3_70b,
       quantization: 'fp16',
@@ -365,9 +365,9 @@ describe('Integration: Full Calculation Pipeline', () => {
       kvQuantization: 'fp16',
     })
 
-    // Model weights ratio: 2.0 bytes (FP16) / 0.6 bytes (GPTQ) = 3.33x
+    // Model weights ratio: 2.0 bytes (FP16) / 0.52 bytes (GPTQ) = 3.846x
     const weightRatio = vramFP16.modelWeights.div(vramGPTQ.modelWeights).toNumber()
-    expect(weightRatio).toBeCloseTo(3.33, 1)
+    expect(weightRatio).toBeCloseTo(3.846, 1)
 
     // GPTQ should save significant VRAM
     const totalSavings = vramFP16.total.sub(vramGPTQ.total).toNumber()

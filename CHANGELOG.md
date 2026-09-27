@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Measured weight sizes: each model carries weight_refs per format ({repo, gib}) measured from published checkpoints (native release, NVIDIA NVFP4, RedHatAI FP8/INT4, unsloth/bartowski GGUF, AWQ/GPTQ). The engine uses them for memory and decode; the results say whether weights are measured or estimated. Corrects under-counts of up to 44% (Gemma 4 31B NVFP4) where checkpoints keep tensors in 16-bit. Formats without a reliable reference checkpoint stay estimated.
+- npm run refresh:models audits models.json against Hugging Face (config via text_config, exact safetensors counts, weight_refs drift, missing MLA / sliding / linear-state fields), measures weight_refs (--measure <id>) and drafts new roster entries (--draft). It never writes models.json.
+
+### Changed
+
+- Fallback bytes per parameter from the format definitions: INT4 0.5625 (16-bit scale per group of 32), AWQ/GPTQ 0.52 (scale and zero per group of 128, was 0.6), GGUF Q2_K 0.366 (median published file, was 0.328).
+
+### Fixed
+
+- fp16 and bf16 now share a measured weight_refs entry: both are 2 bytes/param, but every measured checkpoint is bf16, so fp16 — the default quantization — always showed "estimated". It now shows "Measured from" the bf16 repo (and vice versa).
+- Gemma 4 31B and Gemma 4 26B A4B parameter counts corrected to the exact Hugging Face safetensors totals (31.27B and 25.81B, were 32.7B and 26.5B).
+
 ## [1.11.0] - 2026-09-27
 
 ### Added

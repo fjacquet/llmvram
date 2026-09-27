@@ -243,11 +243,11 @@ export function calculateActivationMemory(
  *   batchSize: 1,
  *   kvQuantization: 'fp16',
  * })
- * // breakdown.modelWeights: ~39.12 GB (70B * 0.6 bytes/param)
+ * // breakdown.modelWeights: ~33.90 GB (70B * 0.52 bytes/param)
  * // breakdown.kvCache: ~1.25 GB (with GQA 8x reduction)
  * // breakdown.activations: ~0.46 GB
  * // breakdown.frameworkOverhead: 1.0 GB
- * // breakdown.total: ~41.83 GB (fits on H100 80GB)
+ * // breakdown.total: ~36.61 GB (fits on H100 80GB)
  *
  * // Mixtral 8x7B FP16 (MoE)
  * const moeBreakdown = calculateInferenceVRAM({
@@ -278,7 +278,7 @@ export function calculateInferenceVRAM(params: {
   } = params
 
   // 1. Model weights (uses TOTAL params for MoE, not active)
-  const modelWeights = calculateModelWeightVRAM(model.num_parameters_billion, quantization)
+  const modelWeights = calculateModelWeightVRAM(model.num_parameters_billion, quantization, model)
 
   // 2. KV cache (applies GQA/MQA reduction automatically)
   // concurrentUsers drives KV cache sizing — each active session holds its full context

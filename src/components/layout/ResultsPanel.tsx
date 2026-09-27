@@ -11,6 +11,7 @@ import {
   perUserTokensPerSecond,
 } from '@engines/concurrency'
 import { kvTierSummary } from '@engines/kv-tier'
+import { weightSource } from '@engines/quantization'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
@@ -581,6 +582,28 @@ export function ResultsPanel() {
             {/* Single-GPU Breakdown Chart and Table */}
             <VRAMBreakdownChart breakdown={displayBreakdown} />
             <MemoryBreakdownTable breakdown={displayBreakdown} />
+            {(() => {
+              const source = weightSource(selectedModel, quantization)
+              return (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {source ? (
+                    <>
+                      Weights measured from{' '}
+                      <a
+                        href={`https://huggingface.co/${source}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline"
+                      >
+                        {source}
+                      </a>
+                    </>
+                  ) : (
+                    `Weights estimated: no reference checkpoint for ${quantization}`
+                  )}
+                </p>
+              )
+            })()}
 
             {/* Multi-GPU Breakdown Chart */}
             {result.multiGPU && (

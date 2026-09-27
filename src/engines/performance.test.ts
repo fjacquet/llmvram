@@ -1,9 +1,14 @@
+import modelsData from '@data/models.json'
 import type { GPU, Model } from '@utils/schemas'
+import { validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
-import { calculateInferenceVRAM } from './inference'
-import { calculateMultiGPUVRAM } from './multi-gpu'
+import { BYTES_PER_GB, INTERCONNECT_SPECS } from './constants'
+import { calculateInferenceVRAM, calculateMoEBatchedParams, splitMoEParams } from './inference'
+import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
+import { calculateMultiGPUVRAM, resolveInterconnect } from './multi-gpu'
 import { estimatePerformance, expertAllToAllSeconds } from './performance'
+import { calculateModelWeightVRAM } from './quantization'
 import type { MultiGPUVRAMBreakdown } from './types'
 
 // Test fixtures
@@ -121,9 +126,9 @@ describe('estimatePerformance', () => {
 
   it('should show higher throughput for GPTQ quantized models', () => {
     // LLaMA 3 70B GPTQ on H100
-    // Model size: 70B * 0.6 bytes ≈ 42GB = ~39.12 GiB
-    // Memory-bound TPS: 3350 GB/s / 39.12 GB ≈ 85.6 tokens/sec
-    // Should be ~3.3x faster than FP16 due to smaller model size
+    // Model size: 70B * 0.52 bytes ≈ 36.4GB = ~33.90 GiB
+    // Memory-bound TPS: 3350 GB/s / 33.90 GB ≈ 98.8 tokens/sec (before KV cache bytes)
+    // Should be ~3.8x faster than FP16 due to smaller model size
     const fp16_result = estimatePerformance({
       model: llama3_70b,
       gpu: h100_80gb_sxm,
@@ -145,9 +150,9 @@ describe('estimatePerformance', () => {
       fp16_result.tokensPerSecond.toNumber() * 2.5,
     )
 
-    // Verify GPTQ throughput is in expected range (75-90 tok/s)
-    expect(gptq_result.tokensPerSecond.toNumber()).toBeGreaterThan(75)
-    expect(gptq_result.tokensPerSecond.toNumber()).toBeLessThan(90)
+    // Verify GPTQ throughput is in expected range (85-95 tok/s)
+    expect(gptq_result.tokensPerSecond.toNumber()).toBeGreaterThan(85)
+    expect(gptq_result.tokensPerSecond.toNumber()).toBeLessThan(95)
 
     // Should still be memory-bound
     expect(gptq_result.bottleneck).toBe('memory')
@@ -326,16 +331,16 @@ describe('estimatePerformance', () => {
     }
 
     // Create GPU with bandwidth and FLOPS tuned for balanced performance
-    // Model size in INT4: 10B * 0.5 bytes = 5GB
+    // Model size in INT4: 10B * 0.5625 bytes = 5.625GB
     // Target: ~500 tok/s for both bounds
-    // Memory-bound: 2500 GB/s / 5 GB = 500 tok/s
+    // Memory-bound: 2812.5 GB/s / 5.625 GB = 500 tok/s
     // Compute-bound: 10 TFLOPS / (10B * 2) = 10e12 / 20e9 = 500 tok/s
     const balanced_gpu: GPU = {
       id: 'balanced-gpu',
       name: 'Balanced GPU',
       manufacturer: 'nvidia',
       vram_gb: 24,
-      memory_bandwidth_gbps: 2500,
+      memory_bandwidth_gbps: 2812.5,
       memory_type: 'HBM3',
       bus_width: 4096,
       fp16_tflops: 10,
@@ -840,5 +845,146 @@ describe('expert-parallel decode', () => {
       }).tokensPerSecond.toNumber()
     }
     expect(run('expert-parallel')).toBeGreaterThan(run('tensor-parallel'))
+  })
+})
+
+// Fixtures pulled from the real database (not hand-written) so their weight_refs stay
+// anchored to a measured checkpoint. I-2 (spec §3): the decode path must read the same
+// effective bytes-per-parameter as the memory sizing, not the format constant.
+describe('estimatePerformance - decode honors measured weight_refs', () => {
+  const llama8b = validateModels(modelsData).find(
+    (m) => m.id === 'meta-llama-llama-3.1-8b',
+  ) as Model
+  const gemmaMoe = validateModels(modelsData).find(
+    (m) => m.id === 'google-gemma-4-26b-a4b',
+  ) as Model
+
+  it('dense, single GPU: memory-bound decode reads the fp8 ref, not the fp8 constant', () => {
+    const gpu = h100_80gb_sxm
+    const sequenceLength = 4096
+    const batchSize = 1
+    const run = (model: Model) =>
+      estimatePerformance({ model, gpu, quantization: 'fp8', sequenceLength, batchSize })
+        .tokensPerSecond
+
+    const withRef = run(llama8b)
+    const withoutRef = run({ ...llama8b, weight_refs: undefined })
+
+    // The fp8 ref (8.46 GiB) implies ~1.136 bytes/param, heavier than the 1.0 constant,
+    // so honoring it must read more bytes and be slower.
+    expect(withRef.lessThan(withoutRef)).toBe(true)
+
+    const weightBytes = calculateModelWeightVRAM(
+      llama8b.num_parameters_billion,
+      'fp8',
+      llama8b,
+    ).mul(BYTES_PER_GB)
+    const kvBytes = calculateKVCacheVRAM({
+      model: llama8b,
+      sequenceLength,
+      batchSize,
+      kvPrecision: 'fp16',
+    }).mul(BYTES_PER_GB)
+    const expected = new Decimal(gpu.memory_bandwidth_gbps).mul(1e9).div(weightBytes.add(kvBytes))
+    expect(withRef.toString()).toBe(expected.toString())
+  })
+
+  it('MoE batch path: memory-bound decode reads the nvfp4 ref for the batched expert subset', () => {
+    const gpu = h100_80gb_sxm
+    const sequenceLength = 8192
+    const batchSize = 32
+    const run = (model: Model) =>
+      estimatePerformance({ model, gpu, quantization: 'nvfp4', sequenceLength, batchSize })
+        .tokensPerSecond
+
+    const withRef = run(gemmaMoe)
+    const withoutRef = run({ ...gemmaMoe, weight_refs: undefined })
+    expect(withRef.equals(withoutRef)).toBe(false)
+
+    const decodeParams = calculateMoEBatchedParams(gemmaMoe, batchSize)
+    const weightBytes = calculateModelWeightVRAM(decodeParams, 'nvfp4', gemmaMoe).mul(BYTES_PER_GB)
+    const kvBytes = calculateKVCacheVRAM({
+      model: gemmaMoe,
+      sequenceLength,
+      batchSize,
+      kvPrecision: 'fp16',
+    }).mul(BYTES_PER_GB)
+    const expected = new Decimal(batchSize)
+      .mul(gpu.memory_bandwidth_gbps)
+      .mul(1e9)
+      .div(weightBytes.add(kvBytes))
+    expect(withRef.toString()).toBe(expected.toString())
+  })
+
+  it('expert-parallel branch: per-GPU weight bytes use the ref for the base + routed share', () => {
+    const gpu = h100_80gb_sxm
+    const sequenceLength = 8192
+    const batchSize = 16
+    const numGPUs = 8
+    const run = (model: Model) => {
+      const single = calculateInferenceVRAM({
+        model,
+        quantization: 'nvfp4',
+        sequenceLength,
+        batchSize,
+      })
+      const multi = calculateMultiGPUVRAM(
+        single,
+        model,
+        gpu.vram_gb,
+        numGPUs,
+        'expert-parallel',
+        gpu,
+      )
+      return estimatePerformance({
+        model,
+        gpu,
+        quantization: 'nvfp4',
+        sequenceLength,
+        batchSize,
+        multiGPUResult: multi,
+      })
+    }
+
+    const withRef = run(gemmaMoe)
+    const withoutRef = run({ ...gemmaMoe, weight_refs: undefined })
+    expect(withRef.tokensPerSecond.equals(withoutRef.tokensPerSecond)).toBe(false)
+    expect(withRef.bottleneck).toBe('memory')
+
+    const split = splitMoEParams(gemmaMoe)
+    if (!split) throw new Error('expected gemmaMoe to split into base + routed experts')
+    const gpusPerStage = numGPUs // single node, non-pipeline strategy: stages = 1
+    const decodeParams = calculateMoEBatchedParams(gemmaMoe, batchSize)
+    const perGPUWeightBytes = calculateModelWeightVRAM(
+      split.baseB + Math.max(0, decodeParams - split.baseB) / gpusPerStage,
+      'nvfp4',
+      gemmaMoe,
+    ).mul(BYTES_PER_GB)
+    const kvBytes = calculateKVCacheVRAM({
+      model: gemmaMoe,
+      sequenceLength,
+      batchSize,
+      kvPrecision: 'fp16',
+    }).mul(BYTES_PER_GB)
+    const stateBytes = calculateLinearStateVRAM(gemmaMoe, batchSize).mul(BYTES_PER_GB)
+    const perGPUKVBytes = kvBytes
+      .sub(stateBytes)
+      .div(gpusPerStage)
+      .add(stateBytes.div(gpusPerStage))
+    const perGPUBytes = perGPUWeightBytes.add(perGPUKVBytes) // stages = 1
+    const memorySeconds = perGPUBytes.div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
+
+    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+    const commSecondsPerLayer = expertAllToAllSeconds(
+      batchSize / gpusPerStage,
+      split.expertsPerToken,
+      gemmaMoe.hidden_size,
+      link.bandwidthGBps / 2,
+      link.allreduceLatencyUs,
+    )
+    const stageSeconds = memorySeconds.add(commSecondsPerLayer * gemmaMoe.num_hidden_layers)
+    const expected = new Decimal(batchSize).div(stageSeconds)
+
+    expect(withRef.tokensPerSecond.toString()).toBe(expected.toString())
   })
 })

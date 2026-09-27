@@ -15,6 +15,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
 
 - **VRAM Estimation**: Model weights, KV cache, activations, and framework overhead
 - **24 Quantization Formats**: FP32, FP16, BF16, FP8, MXFP4, INT8, INT4, NF4, GPTQ, AWQ, GGUF Q2-Q8, NVFP4/6
+- **Measured weights**: weight sizes come from published checkpoints per format where one exists, and the results say whether a figure is measured or estimated
 - **KV Cache Quantization**: Independent from weight quantization (FP16, FP8, INT8, INT4)
 - **Concurrent Users**: Size KV cache for 1–65,536 simultaneous sessions; shows per-user tok/s and TTFT, and the maximum sessions that fit at the chosen context
 - **KV Storage Tier**: Park idle sessions on host memory, NVMe or network storage; shows sessions held, resume vs recompute and tier traffic

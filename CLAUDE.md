@@ -17,7 +17,7 @@ npm run lint:fix         # Biome auto-fix
 npm run format           # Biome format (write)
 npm run test             # Vitest in watch mode
 npm run test:coverage    # Vitest single run with v8 coverage
-npm run refresh:models   # Fetch model configs from HuggingFace → src/data/models-fetched.json
+npm run refresh:models   # Audit models.json vs Hugging Face; --measure <id> prints weight_refs; --draft drafts new roster ids (never writes models.json)
 npm run refresh:gpus     # Regenerate src/data/gpus.json from scripts/fetch-gpus.ts
 ```
 
@@ -45,6 +45,7 @@ scripts/          # Data refresh scripts (tsx) — fetch from HuggingFace, valid
 - **Static data + custom input**: Curated JSON databases for common GPUs/models, plus `CustomGPUInput`/`CustomModelInput` interfaces for user-specified hardware/models.
 - **MoE models use total parameters**: For MoE models like Mixtral, `num_parameters_billion` is the **total** parameter count (e.g., 46.7B), not active-per-token (e.g., 13B). All expert weights must fit in VRAM.
 - **KV sizes are known-good values, not formulas**: `kv_cache_elements_per_token` (full-attention layers) and `kv_sliding_elements_per_token` + `kv_sliding_window` (windowed layers) and `linear_state_bytes_per_session` (linear-attention / SSM state, in bytes because its dtype varies) are what vLLM allocates, confirmed by a second source (HF transformers cache shapes or a published figure). Never re-derive them by hand; every value in `models.test.ts` carries its source.
+- **Weight sizes are measured per format**: weight_refs[format] = {repo, gib} from the reference checkpoint (native, nvidia NVFP4, RedHatAI FP8/INT4, unsloth→bartowski GGUF, most-downloaded AWQ/GPTQ), produced by `refresh:models --measure`. effectiveBytesPerParameter uses it for memory and decode; BYTES_PER_PARAMETER is only the fallback.
 - **Decode = bytes per step / bandwidth + communication**: one step reads the weights once plus each sequence's KV at the full context, per GPU share; tensor parallelism adds two all-reduce latencies per layer (`INTERCONNECT_SPECS.allreduceLatencyUs`); pipeline stages overlap by `B / (B + stages - 1)`. Decode never multiplies by `scalingEfficiency`; prefill uses `prefillScalingEfficiency`.
 - **Expert parallelism splits MoE by `splitMoEParams`**: routed = (total − active) / (1 − k/E), base = the rest (checked against Kimi K3 config, 0.1% / 3%). Under `'expert-parallel'` the base is replicated, experts and KV divide by N, and each MoE layer pays `expertAllToAllSeconds`. Intra-node only; nodes stay pipeline stages.
 - **Models sorted by name**: Entries in `src/data/models.json` must always be sorted alphabetically by `name`. After adding or modifying models, re-sort the array.
@@ -82,6 +83,7 @@ When implementing VRAM calculations, be aware of these critical estimation error
 6. **`fp16_tflops` is DENSE**: H100 989, B200 2250, GB300 2500, MI300X 1307. NVIDIA's Blackwell pages ("with sparsity unless otherwise noted") and AMD ("4.6/5.0 PFLOPS") both publish FP16 *with sparsity* — double the dense figure. Dense FP16 = dense FP8 / 2. A test guards every GPU below 2600.
 7. **Two interconnect tables, two unit conventions**: `INTERCONNECT_SPECS` (scale-up, GPU-to-GPU in one chassis) is **bidirectional** per-GPU; `FABRIC_SPECS` (scale-out, server-to-server) `portGBps` is **unidirectional** per port. Mixing them halves or doubles the answer.
 8. **B200 is 180GB, not 192GB**: 192 is the physical HBM3e stack size before reserved capacity. HGX B200 ships 1.44TB across 8 GPUs. Use the allocatable figure.
+9. **`weight_refs` give one averaged bytes/param for the whole checkpoint**: a mixed-precision MoE checkpoint (base often BF16, routed experts quantized) is split by parameter fraction and priced at that single average rate — both in `multi-gpu.ts` expert-parallel per-GPU memory and in `performance.ts` MoE/EP decode bytes. Real checkpoints keep the base disproportionately 16-bit, so this understates both (Kimi K3 mxfp4 EP8: ~207 GiB estimated vs ~272 GiB real). Follow-up: record 16-bit vs quantized parameter counts per ref instead of one blended figure.
 
 See `docs/vram-calculation-pitfalls.md` for the complete reference (`.planning/research/` is the frozen v1 research).
 

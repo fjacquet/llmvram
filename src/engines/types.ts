@@ -1,4 +1,4 @@
-import { MAX_SEQUENCE_LENGTH } from '@utils/schemas'
+import { MAX_SEQUENCE_LENGTH, QUANTIZATION_FORMATS } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 import { z } from 'zod'
 
@@ -13,31 +13,7 @@ import { z } from 'zod'
  *
  * Reference: .planning/research/PITFALLS.md - Quantization overhead section
  */
-export type QuantizationFormat =
-  | 'fp32'
-  | 'fp16'
-  | 'bf16'
-  | 'fp8'
-  | 'mxfp4'
-  | 'nvfp6'
-  | 'nvfp4'
-  | 'int8'
-  | 'int4'
-  | 'nf4'
-  | 'gptq'
-  | 'awq'
-  | 'gguf-q8_0'
-  | 'gguf-q6_k'
-  | 'gguf-q5_k_s'
-  | 'gguf-q5_k_m'
-  | 'gguf-q5_0'
-  | 'gguf-q4_k_s'
-  | 'gguf-q4_k_m'
-  | 'gguf-q4_0'
-  | 'gguf-q3_k_l'
-  | 'gguf-q3_k_m'
-  | 'gguf-q3_k_s'
-  | 'gguf-q2_k'
+export type QuantizationFormat = (typeof QUANTIZATION_FORMATS)[number]
 
 /**
  * KV cache quantization precision formats
@@ -107,32 +83,7 @@ export const CalculationInputSchema = z.object({
   /** Number of concurrent sequences */
   batchSize: z.number().int().min(1).max(64),
   /** Model weight quantization format */
-  quantization: z.enum([
-    'fp32',
-    'fp16',
-    'bf16',
-    'fp8',
-    'mxfp4',
-    'nvfp6',
-    'nvfp4',
-    'int8',
-    'int4',
-    'nf4',
-    'gptq',
-    'awq',
-    'gguf-q8_0',
-    'gguf-q6_k',
-    'gguf-q5_k_s',
-    'gguf-q5_k_m',
-    'gguf-q5_0',
-    'gguf-q4_k_s',
-    'gguf-q4_k_m',
-    'gguf-q4_0',
-    'gguf-q3_k_l',
-    'gguf-q3_k_m',
-    'gguf-q3_k_s',
-    'gguf-q2_k',
-  ]),
+  quantization: z.enum(QUANTIZATION_FORMATS),
   /** KV cache quantization (defaults to fp16) */
   kvQuantization: z.enum(['fp16', 'fp8', 'int8', 'int4']).default('fp16'),
 })

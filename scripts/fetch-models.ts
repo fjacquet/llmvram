@@ -1,34 +1,27 @@
+/**
+ * npm run refresh:models              audit models.json against Hugging Face (drift report)
+ * npm run refresh:models -- --strict  same, exit 1 on any drift
+ * npm run refresh:models -- --measure <model-id>   print weight_refs JSON to paste
+ * npm run refresh:models -- --draft   draft roster ids missing from models.json
+ * Never writes models.json. Spec: docs/superpowers/specs/2026-09-27-weight-refs-and-model-audit-design.md
+ */
 import { writeFile } from 'node:fs/promises'
-import existingModels from '../src/data/models.json' with { type: 'json' }
-import { type Model, validateModels } from '../src/utils/schemas'
-
-// Lookup of already-curated models by hf_url, used to carry forward hand-verified
-// fields (active_parameters_billion) that this script cannot derive on its own.
-// Keyed by hf_url rather than id: curated ids are hand-shortened (e.g.
-// "google-gemma-4-26b-a4b" vs the generated "google-gemma-4-26b-a4b-it"), so an
-// id-based lookup would silently miss most entries. hf_url always matches
-// `https://huggingface.co/${modelId}` exactly.
-const existingModelsByUrl = new Map<string, Model>(
-  existingModels.filter((m) => m.hf_url).map((m) => [m.hf_url as string, m as Model]),
-)
-
-// Fallback lookup keyed on the repo name alone — the last path segment of hf_url, without
-// the org. This is the one identifier that survives the case the url map cannot cover: a
-// model rehomed to a different org (THUDM/GLM-4.7 -> zai-org/GLM-4.7) keeps its repo name
-// and changes only the owner, so the full-url lookup misses and a hand-verified
-// active_parameters_billion would vanish without a word.
-//
-// Not keyed on the display name: curated names are hand-written with spaces ("GLM 4.7")
-// while this script derives them from the repo ("GLM-4.7"), so a name key would never hit.
-function repoNameOf(url: string): string {
-  return url.split('/').pop() ?? url
-}
-
-const curatedActiveParamsByRepoName = new Map<string, number>(
-  existingModels
-    .filter((m) => m.hf_url !== undefined && m.active_parameters_billion !== undefined)
-    .map((m) => [repoNameOf(m.hf_url as string), m.active_parameters_billion as number]),
-)
+import curated from '../src/data/models.json' with { type: 'json' }
+import type { QuantizationFormat } from '../src/engines/types'
+import type { Model } from '../src/utils/schemas'
+import { fetchConfig, fetchSafetensors, fetchTree, searchRepos } from './hf'
+import {
+  compareModel,
+  configFields,
+  knownGoodGaps,
+  MEASURED_FORMATS,
+  nativeFormat,
+  pickReference,
+  refDrift,
+  sameModel,
+  totalGiB,
+  weightFiles,
+} from './model-audit'
 
 // Model IDs to fetch — current-generation curated roster (2026-08-18 refresh).
 // NOTE: multimodal models (Gemma 4, Qwen3.6, MiniMax M3, Mistral 3) expose the
@@ -82,187 +75,102 @@ const MODEL_IDS = [
   'LiquidAI/LFM2.5-2.6B',
 ]
 
-interface HFConfig {
-  model_type: string
-  hidden_size: number
-  num_hidden_layers: number
-  num_attention_heads: number
-  num_key_value_heads?: number
-  intermediate_size?: number
-  num_local_experts?: number
-  num_experts_per_tok?: number
-  // Many other fields we don't need
-  [key: string]: unknown
+const models = curated as Model[]
+const repoOf = (m: Model) => (m.hf_url ?? '').replace('https://huggingface.co/', '')
+
+async function audit(strict: boolean) {
+  let problems = 0
+  for (const m of models) {
+    const repo = repoOf(m)
+    const [cfg, st] = await Promise.all([fetchConfig(repo), fetchSafetensors(repo)])
+    const lines: string[] = []
+    if (!cfg) lines.push('config: skipped (gated or missing)')
+    else {
+      for (const d of compareModel(m, configFields(cfg), st ? st.total / 1e9 : null)) {
+        lines.push(`${d.field}: curated ${d.curated}, measured ${d.measured}`)
+      }
+      for (const g of knownGoodGaps(m, cfg)) lines.push(`missing curated field: ${g}`)
+    }
+    for (const [format, ref] of Object.entries(m.weight_refs ?? {})) {
+      if (!ref) continue
+      const msg = refDrift(format as QuantizationFormat, ref.gib, await fetchTree(ref.repo))
+      if (msg) lines.push(`weight_refs.${msg}`)
+    }
+    if (lines.length) {
+      problems += lines.filter((l) => !l.includes('skipped')).length
+      console.log(`${m.name}\n  ${lines.join('\n  ')}`)
+    }
+  }
+  console.log(problems ? `\n${problems} drift item(s)` : '\nNo drift')
+  if (strict && problems) process.exit(1)
 }
 
-async function fetchModelConfig(modelId: string): Promise<Model> {
-  const url = `https://huggingface.co/${modelId}/raw/main/config.json`
-  console.log(`Fetching ${modelId}...`)
-
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${modelId}: ${response.statusText}`)
-  }
-
-  const config: HFConfig = await response.json()
-
-  // Determine architecture (MoE if has num_local_experts)
-  const architecture = config.num_local_experts ? 'moe' : 'dense'
-
-  // Estimate parameter count based on architecture
-  // This is a rough estimate - ideally we'd parse model.safetensors.index.json
-  const numParams = estimateParameterCount(config)
-
-  // Create model entry
-  // Use intermediate_size from config, or estimate as 4*hidden_size if missing
-  const intermediateSize = config.intermediate_size ?? config.hidden_size * 4
-
-  const model: Model = {
-    id: modelId.replace('/', '-').toLowerCase(),
-    name: modelId.split('/')[1] || modelId,
-    architecture,
-    num_parameters_billion: numParams,
-    hidden_size: config.hidden_size,
-    num_hidden_layers: config.num_hidden_layers,
-    num_attention_heads: config.num_attention_heads,
-    num_kv_heads: config.num_key_value_heads,
-    intermediate_size: intermediateSize,
-  }
-
-  // Add MoE fields if present
-  if (architecture === 'moe') {
-    model.num_experts = config.num_local_experts
-    model.num_experts_per_token = config.num_experts_per_tok
-  }
-
-  // hf_url is always derivable from the fetched modelId — set it here so the field
-  // order below matches the curated file (num_experts_per_token, hf_url,
-  // active_parameters_billion), keeping active_parameters_billion last.
-  model.hf_url = `https://huggingface.co/${modelId}`
-
-  // Carry forward a hand-verified active_parameters_billion from the curated
-  // models.json so a refresh never drops a value this script cannot derive itself.
-  // This assignment must stay last: curated models.json always places
-  // active_parameters_billion after hf_url (and, when present, context_length/license).
-  const existing = existingModelsByUrl.get(model.hf_url)
-  const byRepoName = curatedActiveParamsByRepoName.get(repoNameOf(model.hf_url))
-
-  if (existing?.active_parameters_billion !== undefined) {
-    model.active_parameters_billion = existing.active_parameters_billion
-  } else if (byRepoName !== undefined) {
-    // The primary lookup is keyed on the full hf_url, which is not stable: a model rehomed
-    // to a new org (THUDM/GLM-4.7 -> zai-org/GLM-4.7 happened in this database) misses the
-    // map and silently drops a hand-verified value, dropping the model to the derived tier
-    // and moving its decode throughput by an order of magnitude. Match on the repo name as
-    // a second chance, and say so — a refresh must never lose one of these quietly.
-    model.active_parameters_billion = byRepoName
-    console.warn(
-      `WARN ${model.name}: owner changed for ${repoNameOf(model.hf_url)}; carried ` +
-        `active_parameters_billion=${byRepoName} forward by repo name. ` +
-        `Verify ${model.hf_url} is the right repo.`,
-    )
-  }
-
-  return model
-}
-
-/**
- * Warn when a curated active_parameters_billion is impossible regardless of
- * architecture: at or above the model's total, or non-positive. Catches a
- * stale/mistyped hand-entered value on refresh without ever overwriting a
- * verified one. This intentionally does not attempt a dimension-based derivation:
- * `intermediate_size` in this database is not per-expert across all architectures
- * (e.g. it holds the dense/shared FFN width for DeepSeek-style models), so any
- * formula built on it produces false positives on correct, verified values.
- */
-function checkActiveParamsConsistency(model: Model): void {
-  // `=== undefined`, not falsy: a hand-edited 0 must reach the non-positive branch below
-  // rather than being skipped as "absent".
-  if (model.active_parameters_billion === undefined) return
-
-  if (model.active_parameters_billion >= model.num_parameters_billion) {
-    console.warn(
-      `WARN ${model.name}: active_parameters_billion=${model.active_parameters_billion} ` +
-        `is >= num_parameters_billion=${model.num_parameters_billion}`,
-    )
-  } else if (model.active_parameters_billion <= 0) {
-    console.warn(
-      `WARN ${model.name}: active_parameters_billion=${model.active_parameters_billion} ` +
-        `must be positive`,
-    )
-  }
-}
-
-function estimateParameterCount(config: HFConfig): number {
-  // Rough parameter count estimation based on architecture
-  // For production, parse model.safetensors.index.json for exact count
-  const h = config.hidden_size
-  const l = config.num_hidden_layers
-  // Use intermediate_size if present, otherwise estimate as 4*hidden_size
-  const i = config.intermediate_size ?? h * 4
-
-  // Embedding + layers + output
-  // Very rough: (vocab * h) + l * (4*h^2 + 3*h*i) + (vocab * h)
-  // Simplified for estimation
-  const perLayerParams = 4 * h * h + 3 * h * i
-
-  if (config.num_local_experts) {
-    // MoE: shared layers + expert layers
-    const expertsPerLayer = config.num_local_experts
-    const totalParams = (l * perLayerParams * expertsPerLayer) / 1e9
-    return Math.round(totalParams * 10) / 10 // Round to 1 decimal
-  }
-
-  const totalParams = (l * perLayerParams) / 1e9
-  return Math.round(totalParams * 10) / 10
-}
-
-async function main() {
-  console.log(`Fetching ${MODEL_IDS.length} model configurations from HuggingFace...`)
-  console.log(
-    `Note: Many models are gated and require authentication. This script fetches public models only.\n`,
+async function measureRefs(repo: string) {
+  const [cfg, st, tree] = await Promise.all([
+    fetchConfig(repo),
+    fetchSafetensors(repo),
+    fetchTree(repo),
+  ])
+  const refs: Partial<Record<QuantizationFormat, { repo: string; gib: number }>> = {}
+  const native = nativeFormat(cfg ?? {}, st?.parameters)
+  const own = tree ? weightFiles(tree, native) : null
+  if (own && own !== 'ambiguous' && own.length) refs[native] = { repo, gib: totalGiB(own) }
+  const candidates = (await searchRepos(repo.split('/')[1] ?? repo)).filter(
+    (c) => c !== repo && sameModel(c, repo),
   )
-
-  const models: Model[] = []
-  const errors: string[] = []
-
-  for (const modelId of MODEL_IDS) {
-    try {
-      const model = await fetchModelConfig(modelId)
-      checkActiveParamsConsistency(model)
-      models.push(model)
-    } catch (error) {
-      const errorMsg = `Failed to fetch ${modelId}: ${error}`
-      console.error(errorMsg)
-      errors.push(errorMsg)
+  const trees = new Map<string, Awaited<ReturnType<typeof fetchTree>>>()
+  for (const format of MEASURED_FORMATS) {
+    if (refs[format]) continue
+    const ref = pickReference(format, candidates)
+    if (!ref) continue
+    if (!trees.has(ref)) trees.set(ref, await fetchTree(ref))
+    const files = trees.get(ref)
+    if (!files) continue
+    const picked = weightFiles(files, format)
+    if (picked === 'ambiguous') {
+      console.warn(`WARN ${ref} ${format}: ambiguous file sets, skipped`)
+      continue
     }
+    if (picked.length) refs[format] = { repo: ref, gib: totalGiB(picked) }
   }
-
-  console.log(`\nSuccessfully fetched ${models.length} models`)
-  if (errors.length > 0) {
-    console.error(`\nFailed to fetch ${errors.length} models (likely gated):`)
-    for (const err of errors) {
-      console.error(`  - ${err}`)
-    }
-    console.error(`\nFor gated models, manually add specs from HuggingFace model cards.`)
-  }
-
-  // Validate all models against schema
-  console.log('\nValidating models against Zod schema...')
-  try {
-    validateModels(models)
-    console.log('✓ All models valid')
-  } catch (error) {
-    console.error('✗ Validation failed:', error)
-    process.exit(1)
-  }
-
-  // Write to temporary file for review
-  const outputPath = 'src/data/models-fetched.json'
-  await writeFile(outputPath, JSON.stringify(models, null, 2))
-  console.log(`\n✓ Wrote ${models.length} models to ${outputPath}`)
-  console.log(`\nIMPORTANT: Review ${outputPath} and manually merge with models.json as needed.`)
-  console.log(`The curated models.json includes gated models that cannot be auto-fetched.`)
+  return refs
 }
 
-main().catch(console.error)
+async function measure(id: string) {
+  const m = models.find((x) => x.id === id)
+  if (!m) throw new Error(`unknown model id ${id}`)
+  console.log(JSON.stringify({ [id]: await measureRefs(repoOf(m)) }, null, 2))
+}
+
+async function draft() {
+  const known = new Set(models.map(repoOf))
+  const drafts = []
+  for (const repo of MODEL_IDS.filter((r) => !known.has(r))) {
+    const cfg = await fetchConfig(repo)
+    const st = await fetchSafetensors(repo)
+    if (!cfg) {
+      console.warn(`WARN ${repo}: skipped (gated or missing)`)
+      continue
+    }
+    const f = configFields(cfg)
+    drafts.push({
+      id: repo.replace('/', '-').toLowerCase(),
+      name: repo.split('/')[1],
+      architecture: f.num_experts ? 'moe' : 'dense',
+      num_parameters_billion: st ? Math.round((st.total / 1e9) * 10) / 10 : undefined,
+      ...f,
+      hf_url: `https://huggingface.co/${repo}`,
+      weight_refs: await measureRefs(repo),
+    })
+  }
+  await writeFile('src/data/models-fetched.json', `${JSON.stringify(drafts, null, 2)}\n`)
+  console.log(
+    `Wrote ${drafts.length} draft(s) to src/data/models-fetched.json; review and merge by hand.`,
+  )
+}
+
+const args = process.argv.slice(2)
+const at = args.indexOf('--measure')
+if (at >= 0) await measure(args[at + 1] ?? '')
+else if (args.includes('--draft')) await draft()
+else await audit(args.includes('--strict'))

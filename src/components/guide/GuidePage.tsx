@@ -156,6 +156,11 @@ export function GuidePage() {
             inference
           </li>
         </ul>
+        <P>
+          Where a published checkpoint exists for the chosen format, the weight size is measured
+          from it (the results name the repository); otherwise it is estimated from the
+          format&apos;s bytes per parameter.
+        </P>
 
         {/* GPU Selection */}
         <SectionHeading id="gpu-selection">GPU Selection</SectionHeading>

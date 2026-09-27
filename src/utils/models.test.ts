@@ -1,4 +1,6 @@
 import modelsData from '@data/models.json'
+import { BYTES_PER_PARAMETER } from '@engines/constants'
+import { calculateInferenceVRAM } from '@engines/inference'
 import { describe, expect, it } from 'vitest'
 import { ModelSchema, validateModels } from './schemas'
 
@@ -353,5 +355,93 @@ describe('Model Database Validation', () => {
   it('stores the corrected Nemotron Ultra layer count (108, not 128)', () => {
     const ultra = modelsData.find((m) => m.id === 'nvidia-nemotron-3-ultra-550b-a55b')
     expect(ultra?.num_hidden_layers).toBe(108)
+  })
+
+  it('gives every weight ref a size plausible for its format', () => {
+    // Implied bytes per parameter; a size pasted under the wrong format falls outside.
+    const band = (format: string): [number, number] => {
+      if (format.startsWith('gguf-')) {
+        const c = BYTES_PER_PARAMETER[format as keyof typeof BYTES_PER_PARAMETER].toNumber()
+        return [c * 0.6, c * 1.4]
+      }
+      const bands: Record<string, [number, number]> = {
+        // Upper bound above 1.0: some vendor NVFP4 recipes keep a real fraction of
+        // tensors 16-bit rather than quantizing them (Gemma 4 31B nvidia/Gemma-4-31B-IT-NVFP4
+        // keeps 10.5B of 31.27B params BF16 per the design spec's recipe table), which
+        // pushes the checkpoint's average bytes/param past 1.0. Verified 2026-09-27.
+        nvfp4: [0.5, 1.1],
+        mxfp4: [0.5, 1.0],
+        int4: [0.5, 1.0],
+        awq: [0.5, 1.0],
+        gptq: [0.5, 1.0],
+        fp8: [0.95, 1.3],
+        bf16: [1.9, 2.1],
+        fp16: [1.9, 2.1],
+      }
+      return bands[format] ?? [0, Number.POSITIVE_INFINITY]
+    }
+    let refs = 0
+    for (const m of modelsData) {
+      const w = (m as { weight_refs?: Record<string, { repo: string; gib: number }> }).weight_refs
+      for (const [format, ref] of Object.entries(w ?? {})) {
+        refs++
+        expect(ref.repo, `${m.id} ${format}`).toMatch(/^[\w.-]+\/[\w.-]+$/)
+        const bpp = (ref.gib * 1024 ** 3) / (m.num_parameters_billion * 1e9)
+        const [lo, hi] = band(format)
+        expect(bpp, `${m.id} ${format} ${bpp.toFixed(3)} bytes/param`).toBeGreaterThanOrEqual(lo)
+        expect(bpp, `${m.id} ${format} ${bpp.toFixed(3)} bytes/param`).toBeLessThanOrEqual(hi)
+      }
+    }
+    expect(refs).toBeGreaterThan(100)
+  })
+
+  it('agrees with num_parameters_billion within 2% for every bf16 weight ref', () => {
+    // A bf16 checkpoint is pure 16-bit, so its file size implies the real parameter
+    // count directly: gib * 1024^3 / 2 bytes. Exempted models keep non-BF16 tensors
+    // that inflate the file beyond what num_parameters_billion (a deduplicated count)
+    // predicts, for a documented reason — never a silent tolerance loosening.
+    const EXEMPT: Record<string, string> = {
+      // safetensors API: {"parameters":{"F32":3072,"BF16":32913263168},"total":31577937344}.
+      // num_parameters_billion (31.6) matches the deduplicated `total` (31.578B) within
+      // 0.1%, but the checkpoint stores the tied embedding table twice on disk (32.913B
+      // BF16 elements, not deduplicated) plus 3072 F32 elements, so the measured gib
+      // implies ~2.083 bytes/param against the dedup count. Verified 2026-09-27.
+      'nvidia-nemotron-3.5-lightning-30b-a3b': '3072 F32 elements + duplicated BF16 embedding',
+    }
+    for (const m of modelsData) {
+      const ref = (m as { weight_refs?: Record<string, { repo: string; gib: number }> }).weight_refs
+        ?.bf16
+      if (!ref) continue
+      const impliedParamsBillion = (ref.gib * 1024 ** 3) / 2 / 1e9
+      if (m.id in EXEMPT) continue
+      const diff =
+        Math.abs(impliedParamsBillion - m.num_parameters_billion) / m.num_parameters_billion
+      expect(
+        diff,
+        `${m.id}: implied ${impliedParamsBillion.toFixed(3)}B vs curated ${m.num_parameters_billion}B`,
+      ).toBeLessThanOrEqual(0.02)
+    }
+  })
+
+  it('matches the independent 2026-09-26 checkpoint measurements through the engine', () => {
+    // [model id, format, reference repo, file GiB measured by the spike]
+    const ANCHORS: [string, string, string, number][] = [
+      ['google-gemma-4-31b', 'nvfp4', 'nvidia/Gemma-4-31B-IT-NVFP4', 30.4],
+      ['moonshotai-kimi-k3', 'mxfp4', 'moonshotai/Kimi-K3', 1453.7],
+      ['meta-llama-llama-3.1-8b', 'fp8', 'RedHatAI/Meta-Llama-3.1-8B-Instruct-FP8', 8.5],
+      ['deepseek-r1', 'gguf-q2_k', 'unsloth/DeepSeek-R1-GGUF', 227.3],
+      ['qwen-qwen3.8-27b', 'awq', 'cyankiwi/Qwen3.8-27B-AWQ-INT4', 19.6],
+    ]
+    for (const [id, format, repo, fileGiB] of ANCHORS) {
+      const m = validateModels(modelsData).find((x) => x.id === id)
+      expect(m?.weight_refs?.[format as never]?.repo, `${id} ${format}`).toBe(repo)
+      const weights = calculateInferenceVRAM({
+        model: m as never,
+        quantization: format as never,
+        sequenceLength: 4096,
+        batchSize: 1,
+      }).modelWeights.toNumber()
+      expect(Math.abs(weights - fileGiB) / fileGiB, `${id} ${format}`).toBeLessThan(0.01)
+    }
   })
 })
