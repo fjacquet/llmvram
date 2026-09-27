@@ -24,6 +24,22 @@ export function getBytesPerParameter(format: QuantizationFormat): Decimal {
   return BYTES_PER_PARAMETER[format]
 }
 
+/** fp16 and bf16 are both 2 bytes/param, so a checkpoint measured in one covers the other. */
+const FORMAT_TWIN: Partial<Record<QuantizationFormat, QuantizationFormat>> = {
+  fp16: 'bf16',
+  bf16: 'fp16',
+}
+
+/**
+ * A model's weight_refs entry for `format`, or its fp16/bf16 twin's entry when `format`
+ * itself has none. The data only ever measures bf16 checkpoints (spec 2026-09-27), so
+ * without this fp16 — the store's default quantization — would always read "estimated".
+ */
+function resolveRef(format: QuantizationFormat, model?: Model) {
+  const twin = FORMAT_TWIN[format]
+  return model?.weight_refs?.[format] ?? (twin ? model?.weight_refs?.[twin] : undefined)
+}
+
 /**
  * Bytes per parameter for a model in a format: the measured checkpoint when the model
  * has a weight_refs entry for it, else the format constant.
@@ -32,7 +48,7 @@ export function getBytesPerParameter(format: QuantizationFormat): Decimal {
  * a measured size (spec 2026-09-27) beats any single constant.
  */
 export function effectiveBytesPerParameter(format: QuantizationFormat, model?: Model): Decimal {
-  const ref = model?.weight_refs?.[format]
+  const ref = resolveRef(format, model)
   if (ref && model) {
     return new Decimal(ref.gib)
       .mul(BYTES_PER_GB)
@@ -83,5 +99,5 @@ export function calculateModelWeightVRAM(
 
 /** The repo a weight figure was measured from, or null when it is an estimate. */
 export function weightSource(model: Model, format: QuantizationFormat): string | null {
-  return model.weight_refs?.[format]?.repo ?? null
+  return resolveRef(format, model)?.repo ?? null
 }

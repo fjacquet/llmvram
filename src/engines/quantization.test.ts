@@ -270,6 +270,57 @@ describe('measured weight_refs', () => {
   })
 })
 
+// I-3 (spec §3): fp16 and bf16 are the same size, but the data only ever measures bf16
+// checkpoints (35 bf16 refs, 0 fp16), so fp16 — the store's default format — must fall
+// back to the bf16 ref rather than showing "estimated" for every model.
+describe('fp16 and bf16 share a measured ref', () => {
+  const base: Model = {
+    id: 'google-gemma-4-31b',
+    name: 'Gemma 4 31B',
+    architecture: 'dense',
+    num_parameters_billion: 32.7,
+    hidden_size: 5376,
+    num_hidden_layers: 60,
+    num_attention_heads: 32,
+    intermediate_size: 21504,
+  }
+  const bf16Only: Model = {
+    ...base,
+    weight_refs: { bf16: { repo: 'google/gemma-4-31B-it', gib: 58.25 } },
+  }
+  const fp16Only: Model = {
+    ...base,
+    weight_refs: { fp16: { repo: 'some-org/gemma-4-31b-fp16', gib: 58.25 } },
+  }
+
+  it('fp16 uses the bf16 ref when only bf16 is measured', () => {
+    expect(effectiveBytesPerParameter('fp16', bf16Only).toString()).toBe(
+      effectiveBytesPerParameter('bf16', bf16Only).toString(),
+    )
+    expect(calculateModelWeightVRAM(32.7, 'fp16', bf16Only).toString()).toBe(
+      calculateModelWeightVRAM(32.7, 'bf16', bf16Only).toString(),
+    )
+  })
+
+  it('bf16 uses the fp16 ref when only fp16 is measured', () => {
+    expect(effectiveBytesPerParameter('bf16', fp16Only).toString()).toBe(
+      effectiveBytesPerParameter('fp16', fp16Only).toString(),
+    )
+  })
+
+  it('leaves other formats unaffected by the fp16/bf16 twin', () => {
+    // bf16Only has no nvfp4 ref, and fp16/bf16 are not nvfp4's twin: falls to the constant.
+    expect(effectiveBytesPerParameter('nvfp4', bf16Only).toString()).toBe(
+      effectiveBytesPerParameter('nvfp4').toString(),
+    )
+  })
+
+  it('weightSource(fp16) names the bf16 repo', () => {
+    expect(weightSource(bf16Only, 'fp16')).toBe('google/gemma-4-31B-it')
+    expect(weightSource(fp16Only, 'bf16')).toBe('some-org/gemma-4-31b-fp16')
+  })
+})
+
 describe('source-derived fallback constants', () => {
   it('int4 carries a 16-bit scale per group of 32 (Kimi K2 quantization_config)', () => {
     expect(effectiveBytesPerParameter('int4').toNumber()).toBe((4 + 16 / 32) / 8)
