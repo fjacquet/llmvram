@@ -111,8 +111,14 @@ export function weightFiles(
     const hits = files.filter(
       (f) => f.path.endsWith('.gguf') && !/mmproj|draft|UD-|IQ\d/i.test(f.path) && re.test(f.path),
     )
-    // One file set = one name once the shard suffix is removed
-    const sets = new Set(hits.map((f) => f.path.replace(/-\d+-of-\d+\.gguf$/, '.gguf')))
+    // One file set = one name once the shard index is removed, keeping the shard total: two
+    // complete re-packs of the same weights under different totals (e.g. -of-53 vs -of-56)
+    // are different candidate representations, not one set to sum together.
+    const ggufSetKey = (path: string) => {
+      const m = path.match(/^(.*)-\d+-of-(\d+)\.gguf$/)
+      return m ? `${m[1]}:${m[2]}.gguf` : path
+    }
+    const sets = new Set(hits.map((f) => ggufSetKey(f.path)))
     return sets.size > 1 ? 'ambiguous' : hits
   }
   const st = files.filter(
@@ -120,11 +126,13 @@ export function weightFiles(
   )
   const hf = st.filter((f) => !/consolidated/.test(f.path))
   const candidates = hf.length ? hf : st
-  // Group by shard set (directory + base name, shard suffix stripped) so a sharded set never
-  // collides with a same-named standalone file — they're different candidate representations.
+  // Group by shard set (directory + base name + shard total, index stripped) so a sharded set
+  // never collides with a same-named standalone file, and two complete re-packs of the same
+  // weights under different totals (e.g. -of-53 vs -of-56) are different candidate
+  // representations, not one set to sum together.
   const setKey = (path: string) => {
-    const stripped = path.replace(/-\d+-of-\d+\.safetensors$/, '')
-    return stripped === path ? `single:${path}` : `shard:${stripped}`
+    const m = path.match(/^(.*)-\d+-of-(\d+)\.safetensors$/)
+    return m ? `shard:${m[1]}:${m[2]}` : `single:${path}`
   }
   const sets = new Set(candidates.map((f) => setKey(f.path)))
   return sets.size > 1 ? 'ambiguous' : candidates
@@ -187,7 +195,9 @@ export function pickReference(format: QuantizationFormat, candidates: string[]):
     case 'nvfp4':
       return find(/^nvidia\/.*NVFP4/i, /NVFP4/i)
     case 'fp8':
-      return find(/^RedHatAI\/.*FP8/i, /FP8/i)
+      // Exclude mixed-precision repos (e.g. "...-NVFP4-FP8") that quantize most weights to
+      // NVFP4 and only activations/attention to FP8 — their bytes/param belongs under nvfp4.
+      return find(/^RedHatAI\/(?!.*NVFP4).*FP8/i, /(?!.*NVFP4)FP8/i)
     case 'int4':
       return find(/^RedHatAI\/.*(w4a16|INT4)/i, /^(?!.*(AWQ|GPTQ)).*(w4a16|INT4)/i)
     case 'awq':

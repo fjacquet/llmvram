@@ -26,7 +26,11 @@ async function getJSON(url: string): Promise<unknown | null> {
 }
 
 export async function fetchConfig(repo: string): Promise<Record<string, unknown> | null> {
-  return (await getJSON(`https://huggingface.co/${repo}/resolve/main/config.json`)) as Record<
+  const cfg = await getJSON(`https://huggingface.co/${repo}/resolve/main/config.json`)
+  if (cfg) return cfg as Record<string, unknown>
+  // Some native Mistral releases (e.g. Mistral Large 3) ship params.json instead of
+  // config.json, with quantization_config in the same compressed-tensors shape.
+  return (await getJSON(`https://huggingface.co/${repo}/resolve/main/params.json`)) as Record<
     string,
     unknown
   > | null

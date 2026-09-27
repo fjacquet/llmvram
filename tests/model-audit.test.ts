@@ -134,6 +134,20 @@ describe('weightFiles', () => {
     expect(weightFiles([{ path: 'config.json', size: 1000 }], 'fp8')).toEqual([])
   })
 
+  it('reports two complete shard sets of the same weights (different totals) as ambiguous, not summed', () => {
+    // Model-SafeTensors/MiniMax-M3-INT4 (2026-09-26) ships both a 53-shard and a 56-shard
+    // re-pack of the same weights; stripping "-N-of-M" blind to M merged them into one set
+    // and doubled the measured size.
+    const files = [
+      { path: 'model-00001-of-00002.safetensors', size: 5 * GiB },
+      { path: 'model-00002-of-00002.safetensors', size: 5 * GiB },
+      { path: 'model-00001-of-00003.safetensors', size: 3 * GiB },
+      { path: 'model-00002-of-00003.safetensors', size: 3 * GiB },
+      { path: 'model-00003-of-00003.safetensors', size: 4 * GiB },
+    ]
+    expect(weightFiles(files, 'fp8')).toBe('ambiguous')
+  })
+
   it('sums safetensors shards padded with a 6-digit shard total (moonshotai/Kimi-K3)', () => {
     const files = [
       { path: 'model-00001-of-000096.safetensors', size: 10 * GiB },
@@ -198,6 +212,18 @@ describe('reference selection', () => {
     expect(pickReference('awq', candidates)).toBe('cyankiwi/gemma-4-31B-it-AWQ-4bit')
     expect(pickReference('gguf-q4_k_m', candidates)).toBe('unsloth/gemma-4-31B-it-GGUF')
     expect(pickReference('gptq', candidates)).toBeNull()
+  })
+
+  it('skips a mixed NVFP4+FP8 checkpoint for the fp8 slot, preferring the pure-FP8 repo', () => {
+    // RedHatAI/Qwen3.8-2.4T-A95B-NVFP4-FP8 (2026-09-26 measurement) has higher downloads than
+    // the pure FP8 repo but quantizes MLP weights to NVFP4 (format: "mixed-precision"); its
+    // measured bytes/param (~0.57) belongs under nvfp4, not fp8.
+    const mixed = [
+      'RedHatAI/Qwen3.8-2.4T-A95B-NVFP4-FP8',
+      'RedHatAI/Qwen3.8-2.4T-A95B-FP8',
+      'nvidia/Qwen3.8-2.4T-A95B-NVFP4',
+    ]
+    expect(pickReference('fp8', mixed)).toBe('RedHatAI/Qwen3.8-2.4T-A95B-FP8')
   })
 
   it('matches derivatives of the same model only', () => {
