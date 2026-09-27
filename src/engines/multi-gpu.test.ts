@@ -1,4 +1,6 @@
-import type { GPU, Model } from '@utils/schemas'
+import gpusData from '@data/gpus.json'
+import modelsData from '@data/models.json'
+import { type GPU, type Model, validateGPUs, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { INTERCONNECT_SPECS } from './constants'
@@ -952,6 +954,38 @@ describe('expert parallel + DP attention', () => {
       batchSize: 1,
     })
     expect(() => calculateMultiGPUVRAM(dense, llama70b, 80, 8, 'expert-parallel', h100)).toThrow()
+  })
+})
+
+describe('expert-parallel memory with a measured split', () => {
+  const models = validateModels(modelsData)
+  const kimi = models.find((m) => m.id === 'moonshotai-kimi-k3')
+  const gb300 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-gb300-nvl72')
+  if (!kimi || !gb300) throw new Error('fixture')
+  const single = calculateInferenceVRAM({
+    model: kimi,
+    quantization: 'mxfp4',
+    sequenceLength: 4096,
+    batchSize: 1,
+  })
+
+  it('Kimi K3 mxfp4 EP8 replicates the BF16 base: ~272 GiB of weights per GPU (was 207)', () => {
+    const r = calculateMultiGPUVRAM(
+      single,
+      kimi,
+      gb300.vram_gb,
+      8,
+      'expert-parallel',
+      gb300,
+      'mxfp4',
+    )
+    expect(r.perGPU.modelWeights.toNumber()).toBeCloseTo(271.94, 0)
+  })
+
+  it('scales an offloaded on-device weight figure by the base share', () => {
+    const half = { ...single, modelWeights: single.modelWeights.div(2) }
+    const r = calculateMultiGPUVRAM(half, kimi, gb300.vram_gb, 8, 'expert-parallel', gb300, 'mxfp4')
+    expect(r.perGPU.modelWeights.toNumber()).toBeCloseTo(271.94 / 2, 0)
   })
 })
 

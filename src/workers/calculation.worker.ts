@@ -227,6 +227,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
           gpu,
           fabric: resolveFabricSpec(interNodeFabric ?? 'ethernet-800g', customFabric ?? null),
           batchSize,
+          quantization,
         })
 
         // Validation is per-node: the interconnect bounds apply inside a

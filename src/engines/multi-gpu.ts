@@ -9,12 +9,13 @@ import {
   PP_ACTIVATION_STASHING_OVERHEAD,
   PP_COMMUNICATION_OVERHEAD,
 } from './constants'
-import { splitMoEParams } from './inference'
+import { moeWeightSplit, splitMoEParams } from './inference'
 import type {
   InferenceVRAMBreakdown,
   InterconnectType,
   InterconnectValidation,
   MultiGPUVRAMBreakdown,
+  QuantizationFormat,
   ShardingStrategy,
 } from './types'
 
@@ -233,6 +234,7 @@ function calculateExpertParallelVRAM(
   gpuVramGB: number,
   numGPUs: number,
   interconnectType: InterconnectType,
+  quantization: QuantizationFormat | undefined,
 ): MultiGPUVRAMBreakdown {
   const split = splitMoEParams(model)
   if (!split) {
@@ -240,10 +242,15 @@ function calculateExpertParallelVRAM(
   }
   const interconnectSpec = INTERCONNECT_SPECS[interconnectType]
 
-  // Same bytes per parameter for base and experts: split the quantized total.
-  const routedFraction = new Decimal(split.routedB).div(split.baseB + split.routedB)
-  const routedWeights = singleGPU.modelWeights.mul(routedFraction)
-  const replicatedMemory = singleGPU.modelWeights.sub(routedWeights)
+  // The replicated base and the routed experts at their own rates (moeWeightSplit),
+  // applied as shares of the on-device weights so offloading still scales them.
+  // No quantization passed in: keep the parameter-fraction split unchanged.
+  const weightSplit = quantization ? moeWeightSplit(model, quantization) : null
+  const baseShare = weightSplit
+    ? weightSplit.baseGiB.div(weightSplit.baseGiB.add(weightSplit.routedGiB))
+    : new Decimal(split.baseB).div(split.baseB + split.routedB)
+  const replicatedMemory = singleGPU.modelWeights.mul(baseShare)
+  const routedWeights = singleGPU.modelWeights.sub(replicatedMemory)
   const weightsPerGPU = replicatedMemory.add(routedWeights.div(numGPUs))
 
   const kvCachePerGPU = singleGPU.kvCache.div(numGPUs)
@@ -321,6 +328,7 @@ export function calculateMultiGPUVRAM(
   numGPUs: number,
   strategy: ShardingStrategy,
   gpu: GPU,
+  quantization?: QuantizationFormat,
 ): MultiGPUVRAMBreakdown {
   // Validate numGPUs range
   if (numGPUs < 1 || numGPUs > MAX_GPUS_PER_NODE) {
@@ -365,7 +373,14 @@ export function calculateMultiGPUVRAM(
     return calculateTensorParallelVRAM(singleGPU, model, gpuVramGB, numGPUs, interconnectType)
   }
   if (strategy === 'expert-parallel') {
-    return calculateExpertParallelVRAM(singleGPU, model, gpuVramGB, numGPUs, interconnectType)
+    return calculateExpertParallelVRAM(
+      singleGPU,
+      model,
+      gpuVramGB,
+      numGPUs,
+      interconnectType,
+      quantization,
+    )
   }
   return calculatePipelineParallelVRAM(singleGPU, model, gpuVramGB, numGPUs)
 }
