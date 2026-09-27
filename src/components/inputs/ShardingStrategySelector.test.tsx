@@ -16,6 +16,7 @@ const { useUIStore } = vi.hoisted(() => {
     offloadingEnabled: false,
     kvCacheOffload: false,
     frameworkPreset: 'none',
+    interconnectOverride: null as string | null,
     setShardingStrategy: () => {},
     selectedGPU: null as unknown,
     selectedModel: null as unknown,
@@ -33,7 +34,14 @@ const model = (id: string) => models.find((m) => m.id === id) ?? null
 const gpu = (id: string) => gpus.find((g) => g.id === id) ?? null
 
 describe('ShardingStrategySelector', () => {
-  beforeEach(() => useUIStore.setState({ selectedModel: null, selectedGPU: null, numGPUs: 8 }))
+  beforeEach(() =>
+    useUIStore.setState({
+      selectedModel: null,
+      selectedGPU: null,
+      numGPUs: 8,
+      interconnectOverride: null,
+    }),
+  )
 
   it('offers expert parallelism for a MoE model', () => {
     useUIStore.setState({ selectedModel: model('deepseek-r1') })
@@ -53,6 +61,20 @@ describe('ShardingStrategySelector', () => {
     expect(screen.getByText(/NVLink bridge: 600 GB\/s/)).toBeInTheDocument()
     unmount()
     useUIStore.setState({ numGPUs: 4 })
+    render(<ShardingStrategySelector />)
+    expect(screen.getByText(/PCIe 5: 128 GB\/s/)).toBeInTheDocument()
+    expect(screen.queryByText(/NVLink bridge/)).not.toBeInTheDocument()
+  })
+
+  it('shows the override link, not the bridge, when interconnectOverride is set on a bridged GPU', () => {
+    // At TP-2 this part's own bridge would otherwise carry the group (see the test
+    // above) — an active override must win, matching what useInferenceCalculation
+    // computes the actual numbers from (ADR: badge never contradicts the maths).
+    useUIStore.setState({
+      selectedGPU: gpu('nvidia-h100-80gb-pcie'),
+      numGPUs: 2,
+      interconnectOverride: 'pcie-5',
+    })
     render(<ShardingStrategySelector />)
     expect(screen.getByText(/PCIe 5: 128 GB\/s/)).toBeInTheDocument()
     expect(screen.queryByText(/NVLink bridge/)).not.toBeInTheDocument()

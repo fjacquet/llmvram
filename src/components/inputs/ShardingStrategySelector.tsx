@@ -1,6 +1,7 @@
 import { InfoTip } from '@components/common/InfoTip'
 import { INTERCONNECT_LABELS, INTERCONNECT_SPECS } from '@engines/constants'
 import {
+  applyInterconnectOverride,
   bridgeApplies,
   interconnectLabel as linkLabel,
   resolveInterconnect,
@@ -25,6 +26,7 @@ export function ShardingStrategySelector() {
   const shardingStrategy = useUIStore((s) => s.shardingStrategy)
   const setShardingStrategy = useUIStore((s) => s.setShardingStrategy)
   const selectedGPU = useUIStore((s) => s.selectedGPU)
+  const interconnectOverride = useUIStore((s) => s.interconnectOverride)
   const { strategies } = useAllowedOptions()
 
   // Visible whenever the part forms multi-GPU servers (not only at numGPUs > 1), so
@@ -33,11 +35,19 @@ export function ShardingStrategySelector() {
     return null
   }
 
+  // Apply the interconnect override the user picked (InterconnectSelector) before
+  // resolving the link: useInferenceCalculation computes the actual numbers from this
+  // same effective GPU, so the badge must never name a link the maths doesn't use
+  // (e.g. showing "NVLink bridge" while an override forces PCIe).
+  const effectiveGPU = selectedGPU
+    ? applyInterconnectOverride(selectedGPU, interconnectOverride)
+    : null
+
   // Resolve the link for THIS group size: an NVLink bridge only carries a group that fits it
-  const interconnectType = selectedGPU ? resolveInterconnect(selectedGPU, numGPUs) : 'none'
+  const interconnectType = effectiveGPU ? resolveInterconnect(effectiveGPU, numGPUs) : 'none'
   const interconnectSpec = INTERCONNECT_SPECS[interconnectType]
   const bridgeSize =
-    selectedGPU && bridgeApplies(selectedGPU, numGPUs) ? selectedGPU.nvlink_bridge.size : null
+    effectiveGPU && bridgeApplies(effectiveGPU, numGPUs) ? effectiveGPU.nvlink_bridge.size : null
 
   // Determine badge color based on interconnect type
   let badgeColorClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
@@ -56,7 +66,7 @@ export function ShardingStrategySelector() {
 
   // The badge renders bandwidthGBps separately, so only the name part of the label is used
   const interconnectLabel = (
-    selectedGPU ? linkLabel(selectedGPU, numGPUs) : (INTERCONNECT_LABELS.none ?? 'None')
+    effectiveGPU ? linkLabel(effectiveGPU, numGPUs) : (INTERCONNECT_LABELS.none ?? 'None')
   ).split(' — ')[0]
 
   // Check if TP degree exceeds recommended maximum
