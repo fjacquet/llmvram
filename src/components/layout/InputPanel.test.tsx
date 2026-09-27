@@ -1,6 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
-import { act, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -115,6 +115,20 @@ describe('InputPanel layout (ADR 0005)', () => {
     act(() => useUIStore.getState().setBatchSize(8))
     expect(screen.getByTestId('advanced-settings')).toHaveAttribute('open')
     expect(screen.getByText(/1 setting changed/)).toBeVisible()
+  })
+
+  it('does not reopen after the user closes it, when the changed count rises from 1 to 2', () => {
+    render(<InputPanel />)
+    act(() => useUIStore.getState().setBatchSize(8))
+    const advanced = screen.getByTestId('advanced-settings')
+    expect(advanced).toHaveAttribute('open')
+    act(() => {
+      ;(advanced as HTMLDetailsElement).open = false
+      fireEvent(advanced, new Event('toggle'))
+    })
+    expect(advanced).not.toHaveAttribute('open')
+    act(() => useUIStore.getState().setKVQuantization('fp8'))
+    expect(advanced).not.toHaveAttribute('open')
   })
 
   it('keeps the strategy reachable at 1 GPU on a multi-GPU part, so pipeline parallel is choosable before R14 snaps', () => {
