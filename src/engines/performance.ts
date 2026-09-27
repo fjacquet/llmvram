@@ -190,19 +190,28 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   // and are read over the host link every step instead of from HBM (hostLinkGBps
   // resolves linkGBps from the target and GPU). Only the on-GPU share still
   // counts as an HBM read, so it's subtracted here rather than read twice.
+  //
+  // The offloaded share is taken out of perGPUWeightBytes/perGPUKVBytes — the
+  // SAME per-GPU figures the on-device HBM math below uses — not out of the
+  // global weightBytes/kvBytes divided by gpusPerStage. Those two disagree
+  // whenever a GPU's actual share isn't a plain 1/gpusPerStage split: MLA
+  // duplicates the full KV on every TP rank (kvShards can be 1 while
+  // gpusPerStage is 8, so dividing by gpusPerStage undercounts the per-GPU
+  // link read by kvShards/gpusPerStage), and expert parallelism replicates
+  // the base weights across every GPU rather than sharding them (dividing by
+  // gpusPerStage there undercounts the base's contribution too).
   const offload = params.offload ?? null
-  const offloadedWeightBytes = offload ? weightBytes.mul(offload.weightFraction) : new Decimal(0)
-  const offloadedKvBytes = offload?.kvOffloaded ? kvBytes : new Decimal(0)
-  const onDevicePerGPUWeightBytes = offload
-    ? perGPUWeightBytes.mul(1 - offload.weightFraction)
-    : perGPUWeightBytes
-  const onDevicePerGPUKVBytes = offload?.kvOffloaded ? new Decimal(0) : perGPUKVBytes
+  const offloadedPerGPUWeightBytes = offload
+    ? perGPUWeightBytes.mul(offload.weightFraction)
+    : new Decimal(0)
+  const offloadedPerGPUKVBytes = offload?.kvOffloaded ? perGPUKVBytes : new Decimal(0)
+  const onDevicePerGPUWeightBytes = perGPUWeightBytes.sub(offloadedPerGPUWeightBytes)
+  const onDevicePerGPUKVBytes = perGPUKVBytes.sub(offloadedPerGPUKVBytes)
   // Serial with the HBM read (conservative; matches vLLM cpu_offload_gb streaming).
   const offloadSecondsPerStep = offload
-    ? offloadedWeightBytes
-        .add(offloadedKvBytes)
+    ? offloadedPerGPUWeightBytes
+        .add(offloadedPerGPUKVBytes)
         .div(layout.stages)
-        .div(layout.gpusPerStage)
         .div(new Decimal(offload.linkGBps).mul(1e9))
     : new Decimal(0)
 
