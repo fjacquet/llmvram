@@ -166,6 +166,9 @@ describe('exportPptx', () => {
       vram: singleGPU,
       performance,
       multiGPU,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
     })
 
     // Slide 1 (config summary) is the first addTable call.
@@ -220,6 +223,9 @@ describe('exportPptx', () => {
       vram: singleGPU,
       performance,
       multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
     })
 
     const configRows = tableRows(0)
@@ -246,6 +252,9 @@ describe('exportPptx', () => {
       vram: singleGPU,
       performance,
       multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
     })
 
     expect(
@@ -304,6 +313,8 @@ describe('exportPptx', () => {
       vram: singleGPU,
       performance,
       multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
       weightSource: null,
     })
 
@@ -332,6 +343,10 @@ describe('exportPptx', () => {
       batchSize: 1,
       vram: singleGPU,
       performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
     })
 
     // Slide 4's metric cards used to start at y 0.9 while the heading occupied
