@@ -40,6 +40,7 @@ const baseState = {
   offloadPercentage: 0,
   offloadLayers: 0,
   kvCacheOffload: false,
+  offloadHostCapacityGB: null,
   mode: 'inference' as const,
   trainingMethod: 'lora' as const,
   optimizer: 'adamw' as const,
@@ -245,6 +246,48 @@ describe('URL Serializer', () => {
       expect(deserialized?.op).toBe(50)
       expect(deserialized?.ol).toBe(20)
       expect(deserialized?.ko).toBe(true)
+      expect(deserialized?.hc).toBeUndefined()
+    })
+
+    it('should round-trip the offload host capacity override alongside offloading', () => {
+      const state = {
+        ...baseState,
+        selectedModel: null,
+        selectedGPU: null,
+        quantization: 'fp16' as const,
+        sequenceLength: 2048,
+        numGPUs: 1,
+        offloadingEnabled: true,
+        offloadTarget: 'cpu-ram' as const,
+        offloadMode: 'percentage' as const,
+        offloadPercentage: 100,
+        offloadLayers: 0,
+        kvCacheOffload: true,
+        offloadHostCapacityGB: 4096,
+      }
+
+      const serialized = serializeToURL(state)
+      const deserialized = deserializeFromURL(serialized)
+
+      expect(deserialized).not.toBeNull()
+      expect(deserialized?.hc).toBe(4096)
+    })
+
+    it('should omit the host capacity override when offloading is disabled', () => {
+      const state = {
+        ...baseState,
+        selectedModel: null,
+        selectedGPU: null,
+        quantization: 'fp16' as const,
+        sequenceLength: 2048,
+        numGPUs: 1,
+        offloadHostCapacityGB: 4096,
+      }
+
+      const serialized = serializeToURL(state)
+      const deserialized = deserializeFromURL(serialized)
+
+      expect(deserialized?.hc).toBeUndefined()
     })
 
     it('should NOT serialize training fields when mode is inference', () => {

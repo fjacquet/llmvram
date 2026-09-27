@@ -1,5 +1,51 @@
 import { InfoTip } from '@components/common/InfoTip'
+import { defaultHostCapacityGB } from '@engines/offloading'
 import { useUIStore } from '@store/uiStore'
+import { useEffect, useState } from 'react'
+
+const inputClass =
+  'w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+
+/** Parses a number field; empty or non-finite becomes null. The store clamps the rest. */
+const parseNumber = (raw: string): number | null => {
+  const n = Number(raw)
+  return raw.trim() === '' || !Number.isFinite(n) ? null : n
+}
+
+/**
+ * Number input that keeps what the user types and commits on blur, so clearing a
+ * field or typing digit by digit never snaps to a clamped value mid-edit.
+ * Mirrors KVTierPanel's NumberField (same commit-on-blur pattern).
+ */
+function NumberField(props: {
+  label: string
+  value: number | null
+  commit: (raw: string) => void
+  placeholder?: string
+  min?: number
+}) {
+  const shown = props.value === null ? '' : String(props.value)
+  const [text, setText] = useState(shown)
+  useEffect(() => setText(shown), [shown])
+  return (
+    <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+      {props.label}
+      <input
+        type="number"
+        min={props.min}
+        aria-label={props.label}
+        placeholder={props.placeholder}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          props.commit(text)
+          setText(shown)
+        }}
+        className={inputClass}
+      />
+    </label>
+  )
+}
 
 /**
  * Offloading configuration panel
@@ -27,9 +73,13 @@ export function OffloadingPanel() {
   const setOffloadLayers = useUIStore((s) => s.setOffloadLayers)
   const kvCacheOffload = useUIStore((s) => s.kvCacheOffload)
   const setKVCacheOffload = useUIStore((s) => s.setKVCacheOffload)
+  const offloadHostCapacityGB = useUIStore((s) => s.offloadHostCapacityGB)
+  const setOffloadHostCapacityGB = useUIStore((s) => s.setOffloadHostCapacityGB)
   const selectedModel = useUIStore((s) => s.selectedModel)
+  const selectedGPU = useUIStore((s) => s.selectedGPU)
 
   const totalLayers = selectedModel?.num_hidden_layers ?? 80
+  const defaultCapacity = defaultHostCapacityGB(offloadTarget, selectedGPU ?? { tier: 'consumer' })
 
   return (
     <div className="space-y-4">
@@ -223,6 +273,17 @@ export function OffloadingPanel() {
                 </p>
               </div>
             </label>
+          </div>
+
+          {/* Host Capacity */}
+          <div className="max-w-xs">
+            <NumberField
+              label="Host capacity per server (GB)"
+              min={0}
+              placeholder={String(defaultCapacity)}
+              value={offloadHostCapacityGB}
+              commit={(raw) => setOffloadHostCapacityGB(parseNumber(raw))}
+            />
           </div>
         </div>
       )}

@@ -89,6 +89,7 @@ export const URLStateSchema = z.object({
   op: z.number().optional(), // offloadPercentage
   ol: z.number().optional(), // offloadLayers
   ko: z.boolean().optional(), // kvCacheOffload
+  hc: z.number().positive().optional(), // offloadHostCapacityGB
   // Mode (only present if training; absence = inference for backward compat)
   m: z.enum(['inference', 'training']).optional(),
   // Training parameters (only present when mode=training)
@@ -148,6 +149,7 @@ export function serializeToURL(state: {
   offloadPercentage: number
   offloadLayers: number
   kvCacheOffload: boolean
+  offloadHostCapacityGB: number | null
   mode: 'inference' | 'training'
   trainingMethod: FineTuningMethod
   optimizer: OptimizerType
@@ -234,6 +236,7 @@ export function serializeToURL(state: {
           op: state.offloadPercentage,
           ol: state.offloadLayers,
           ko: state.kvCacheOffload,
+          hc: state.offloadHostCapacityGB ?? undefined,
         }
       : {}),
 

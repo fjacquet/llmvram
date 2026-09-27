@@ -71,6 +71,8 @@ interface UIState {
   offloadPercentage: number
   offloadLayers: number
   kvCacheOffload: boolean
+  /** Host capacity per server (GB), overriding defaultHostCapacityGB; null = use the default */
+  offloadHostCapacityGB: number | null
 
   // Training mode
   mode: 'inference' | 'training'
@@ -117,6 +119,7 @@ interface UIState {
   setOffloadPercentage: (percentage: number) => void
   setOffloadLayers: (layers: number) => void
   setKVCacheOffload: (enabled: boolean) => void
+  setOffloadHostCapacityGB: (gb: number | null) => void
   setMode: (mode: 'inference' | 'training') => void
   setTrainingMethod: (method: FineTuningMethod) => void
   setOptimizer: (optimizer: OptimizerType) => void
@@ -159,6 +162,7 @@ export const useUIStore = create<UIState>()(
       offloadPercentage: 0,
       offloadLayers: 0,
       kvCacheOffload: false,
+      offloadHostCapacityGB: null,
       mode: 'inference',
       trainingMethod: 'lora',
       optimizer: 'adamw',
@@ -215,6 +219,8 @@ export const useUIStore = create<UIState>()(
       setOffloadPercentage: (percentage) => set({ offloadPercentage: percentage }),
       setOffloadLayers: (layers) => set({ offloadLayers: layers }),
       setKVCacheOffload: (enabled) => set({ kvCacheOffload: enabled }),
+      setOffloadHostCapacityGB: (gb) =>
+        set({ offloadHostCapacityGB: gb !== null && Number.isFinite(gb) && gb > 0 ? gb : null }),
       setMode: (mode) => set({ mode }),
       setTrainingMethod: (method) => set({ trainingMethod: method }),
       setOptimizer: (optimizer) => set({ optimizer }),
