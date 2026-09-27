@@ -98,10 +98,15 @@ export function hasGraceHost(gpuId: string): boolean {
 }
 
 /**
- * Falls the KV tier back to `none` when the newly selected GPU no longer has
- * a Grace host to hold the `host-grace` preset — used where the selected GPU
- * changes (uiStore.setSelectedGPU), so it also covers URL restore, which sets
- * the GPU through that same action.
+ * Falls the KV tier back to `none` when it no longer matches a Grace-host GPU.
+ *
+ * Called from both uiStore.setSelectedGPU (the GPU changes while `host-grace`
+ * is already active) AND uiStore.setKVTier (a patch sets `host-grace` while a
+ * non-Grace GPU is already current). Both guards are required: useURLSync
+ * restores the GPU first and the tier second from the same hash, so a shared
+ * link with a `host-grace` tier for a non-Grace GPU only surfaces as the
+ * latter — the setSelectedGPU guard alone would miss it, since at the moment
+ * the GPU is set the tier is still whatever it was before the restore.
  */
 export function resetTierForGPU(tier: KVTierSettings, gpuId: string | null): KVTierSettings {
   if (tier.tier !== 'host-grace' || hasGraceHost(gpuId ?? '')) return tier
