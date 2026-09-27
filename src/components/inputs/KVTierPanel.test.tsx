@@ -1,6 +1,7 @@
+import gpusData from '@data/gpus.json'
 import { DEFAULT_KV_TIER, type KVTierSettings } from '@engines/kv-tier'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { GPU } from '@utils/schemas'
+import { type GPU, validateGPUs } from '@utils/schemas'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Plain store instead of the persisted uiStore, which throws in jsdom
@@ -23,19 +24,13 @@ vi.mock('@store/uiStore', async () => {
 import { useUIStore } from '@store/uiStore'
 import { KVTierPanel } from './KVTierPanel'
 
-function makeGPU(id: string): GPU {
-  return {
-    id,
-    name: id,
-    manufacturer: 'nvidia',
-    vram_gb: 80,
-    memory_bandwidth_gbps: 3000,
-    memory_type: 'HBM3',
-    bus_width: 5120,
-    tier: 'datacenter',
-    interconnect: 'nvlink-4',
-    max_gpus_per_node: 8,
-  }
+const gpus = validateGPUs(gpusData)
+
+/** A real GPU row from the database, looked up by id (never hand-written). */
+function findGPU(id: string): GPU {
+  const gpu = gpus.find((g) => g.id === id)
+  if (!gpu) throw new Error(`fixture GPU not found in gpus.json: ${id}`)
+  return gpu
 }
 
 describe('KVTierPanel', () => {
@@ -62,23 +57,23 @@ describe('KVTierPanel', () => {
     render(<KVTierPanel />)
     expect(screen.queryByRole('option', { name: /Grace/ })).not.toBeInTheDocument()
 
-    useUIStore.setState({ selectedGPU: makeGPU('nvidia-h100-80gb-sxm') })
+    useUIStore.setState({ selectedGPU: findGPU('nvidia-h100-80gb-sxm') })
     render(<KVTierPanel />)
     expect(screen.queryByRole('option', { name: /Grace/ })).not.toBeInTheDocument()
   })
 
   it('shows the Grace host-memory option for a GB300 NVL72', () => {
-    useUIStore.setState({ selectedGPU: makeGPU('nvidia-gb300-nvl72') })
+    useUIStore.setState({ selectedGPU: findGPU('nvidia-gb300-nvl72') })
     render(<KVTierPanel />)
     expect(screen.getByRole('option', { name: /Grace/ })).toBeInTheDocument()
   })
 
   it('shows the per-GPU bandwidth for the selected Grace GPU: 225 for NVL72, 396 for Desktop', () => {
-    useUIStore.setState({ selectedGPU: makeGPU('nvidia-gb300-nvl72') })
+    useUIStore.setState({ selectedGPU: findGPU('nvidia-gb300-nvl72') })
     const { rerender } = render(<KVTierPanel />)
     expect(screen.getByRole('option', { name: /225 GB\/s per GPU/ })).toBeInTheDocument()
 
-    useUIStore.setState({ selectedGPU: makeGPU('nvidia-gb300-desktop-252gb') })
+    useUIStore.setState({ selectedGPU: findGPU('nvidia-gb300-desktop-252gb') })
     rerender(<KVTierPanel />)
     expect(screen.getByRole('option', { name: /396 GB\/s per GPU/ })).toBeInTheDocument()
   })
