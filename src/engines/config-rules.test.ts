@@ -1,5 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
+import { MAX_CONCURRENT_USERS } from '@engines/constants'
 import { DEFAULT_KV_TIER } from '@engines/kv-tier'
 import { type GPU, type Model, validateGPU, validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
@@ -164,11 +165,12 @@ const CASES: RuleCase[] = [
   {
     rule: 'R4',
     path: 'dependency',
-    name: 'still live in training mode',
-    config: { mode: 'training', kvTier: { ...DEFAULT_KV_TIER, burstSeconds: 0 } },
+    name: 'live in inference, inert once training hides the field',
+    config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'network', burstSeconds: 0 } },
     model: L70,
     gpu: H100,
-    expected: { kvTier: { ...DEFAULT_KV_TIER, burstSeconds: 1 } },
+    validUnder: { model: L70, gpu: H100, mode: 'training' },
+    expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'network', burstSeconds: 1 } },
   },
   {
     rule: 'R4',
@@ -360,15 +362,23 @@ const CASES: RuleCase[] = [
     rule: 'R10',
     path: 'link',
     name: 'every bound at once',
-    config: { sequenceLength: 100, numNodes: 12, concurrentUsers: 0, gradientAccumulationSteps: 0 },
+    config: { sequenceLength: 100, numNodes: 12, concurrentUsers: 0 },
     model: L70,
     gpu: H100,
     expected: {
       sequenceLength: 512,
       numNodes: 8,
       concurrentUsers: 1,
-      gradientAccumulationSteps: 1,
     },
+  },
+  {
+    rule: 'R10',
+    path: 'link',
+    name: 'gradient accumulation 0 in training',
+    config: { mode: 'training', gradientAccumulationSteps: 0 },
+    model: L70,
+    gpu: H100,
+    expected: { gradientAccumulationSteps: 1 },
   },
   // R12: KV cache offload excludes a KV tier
   {
@@ -515,6 +525,53 @@ describe('normalizeConfig: mode gating', () => {
   it('keeps inference-only corrections off in training, and the training ones off in inference', () => {
     const presetInInference = cfg({ frameworkPreset: 'vllm', cpuOffloadOptimizer: true })
     expect(normalizeConfig(presetInInference, L70, H100).corrections).toEqual([])
+  })
+
+  // Item B: R4, R9 and part of R10 used to run with modes: BOTH, so a shared link
+  // opened in training silently "corrected" a field InputPanel never shows there
+  // (ADR 0004: inert inputs are hidden and ignored, never reset).
+  it('numNodes and concurrentUsers are inert in training: a link with nn:12 is not silently trimmed', () => {
+    const training = cfg({ mode: 'training', numNodes: 12, concurrentUsers: 999999 })
+    const result = normalizeConfig(training, L70, H100)
+    expect(result.corrections).toEqual([])
+    expect(result.config.numNodes).toBe(12)
+    expect(result.config.concurrentUsers).toBe(999999)
+
+    const inference = cfg({ mode: 'inference', numNodes: 12, concurrentUsers: 999999 })
+    expect(normalizeConfig(inference, L70, H100).config).toMatchObject({
+      numNodes: 8,
+      concurrentUsers: MAX_CONCURRENT_USERS,
+    })
+  })
+
+  it('offload fields (R9) and KV tier/host capacity bounds (R4) are inert in training', () => {
+    const training = cfg({
+      mode: 'training',
+      offloadLayers: 500,
+      offloadPercentage: 150,
+      offloadHostCapacityGB: -1,
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'network', activeShare: 5 },
+    })
+    const result = normalizeConfig(training, L70, H100)
+    expect(result.corrections).toEqual([])
+    expect(result.config).toEqual(training)
+
+    const inference = { ...training, mode: 'inference' as const }
+    const inferenceResult = normalizeConfig(inference, L70, H100)
+    expect(inferenceResult.corrections.length).toBeGreaterThan(0)
+  })
+
+  it('R1: numGPUs beyond the GPU max is inert in training without a ZeRO preset (GPU count is hidden)', () => {
+    const training = cfg({ mode: 'training', frameworkPreset: 'none', numGPUs: 999 })
+    const result = normalizeConfig(training, L70, H100)
+    expect(result.corrections).toEqual([])
+    expect(result.config.numGPUs).toBe(999)
+  })
+
+  it('R1: numGPUs is still corrected in training with a ZeRO preset (GPU count is visible)', () => {
+    const training = cfg({ mode: 'training', frameworkPreset: 'deepspeed-zero3', numGPUs: 999 })
+    const result = normalizeConfig(training, L70, H100)
+    expect(result.config.numGPUs).toBe(8) // H100's max_gpus_per_node
   })
 })
 

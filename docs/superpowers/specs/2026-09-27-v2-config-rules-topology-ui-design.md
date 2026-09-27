@@ -53,8 +53,13 @@ live in the current mode, so a field hidden as inert is never corrected and
 never produces a notice. A mode switch is itself a trigger: rules that become
 live run then, with one notice. Engine throws remain as a backstop only.
 
-Live modes: R1, R4, R9 (offload fields), R10 in both modes; R2, R3, R5, R12,
-R14 in inference only (strategy, KV tier and interconnect are inert in
+Live modes: R1 in both modes (numGPUs is hidden in training without a ZeRO
+preset, so R1 skips the correction there); R4, R9 (offload fields) in
+inference only; R10 split by field — numNodes/concurrentUsers inference only,
+batchSize/sequenceLength both modes, loraRank/gradientAccumulationSteps
+training only (each field is corrected only in the mode(s) InputPanel shows
+its input); R2, R3, R5, R12, R14 in inference only (strategy, KV tier and
+interconnect are inert in
 training); R6 offload/tier parts in inference, optimizer part in training;
 R7, R8 in training.
 

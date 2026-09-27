@@ -206,14 +206,44 @@ const RANGE_LABELS = {
   gradientAccumulationSteps: 'Gradient accumulation steps',
 } as const
 
-const RANGE_BOUNDS: { field: keyof typeof RANGE_LABELS; min: number; max: number }[] = [
+type RangeBound = { field: keyof typeof RANGE_LABELS; min: number; max: number }
+
+// Split by the mode(s) each field's input is visible in (InputPanel): numNodes and
+// concurrentUsers only render in inference (NodeCountSelector, ConcurrentUsersInput);
+// batchSize and sequenceLength render in both; loraRank and gradientAccumulationSteps
+// only render in training (TrainingPanel) — loraRank has no widget at all yet, but it
+// only ever feeds a training calculation (useTrainingCalculation), never inference's.
+const RANGE_BOUNDS_INFERENCE: RangeBound[] = [
   { field: 'numNodes', min: 1, max: 8 },
-  { field: 'batchSize', min: 1, max: Number.MAX_SAFE_INTEGER },
   { field: 'concurrentUsers', min: 1, max: MAX_CONCURRENT_USERS },
+]
+const RANGE_BOUNDS_BOTH: RangeBound[] = [
+  { field: 'batchSize', min: 1, max: Number.MAX_SAFE_INTEGER },
   { field: 'sequenceLength', min: 512, max: MAX_SEQUENCE_LENGTH },
+]
+const RANGE_BOUNDS_TRAINING: RangeBound[] = [
   { field: 'loraRank', min: 1, max: Number.MAX_SAFE_INTEGER },
   { field: 'gradientAccumulationSteps', min: 1, max: Number.MAX_SAFE_INTEGER },
 ]
+
+function rangeCheck(bounds: readonly RangeBound[]): Rule['check'] {
+  return (c) =>
+    bounds.flatMap(({ field, min, max }) => {
+      const v = clampInt(c[field], min, max)
+      return v === c[field]
+        ? []
+        : [
+            fix(
+              'R10',
+              field,
+              c[field],
+              v,
+              'range',
+              `${RANGE_LABELS[field]} set to ${v.toLocaleString('en-US')}: outside the allowed range.`,
+            ),
+          ]
+    })
+}
 
 /**
  * The hard rules. Order is the dependency order (R1 and R2 before R14, R7 before R8),
@@ -224,6 +254,11 @@ export const RULES: readonly Rule[] = [
     id: 'R1',
     modes: BOTH,
     check: (c, { gpu }) => {
+      // In training, numGPUs is hidden (InputPanel's showGPUCount) unless a ZeRO
+      // preset is selected: no widget shows it, so it must not be corrected.
+      if (c.mode === 'training' && FRAMEWORK_PRESETS[c.frameworkPreset].zeroStage === null) {
+        return []
+      }
       const max = maxGPUsFor(gpu)
       const n = clampInt(c.numGPUs, 1, max)
       if (n === c.numGPUs) return []
@@ -278,7 +313,7 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R4',
-    modes: BOTH,
+    modes: INFERENCE,
     check: (c) => {
       const out: Correction[] = []
       const tier = clampKVTier(c.kvTier)
@@ -420,7 +455,7 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R9',
-    modes: BOTH,
+    modes: INFERENCE,
     check: (c, { model }) => {
       const out: Correction[] = []
       const layers = model?.num_hidden_layers ?? Number.MAX_SAFE_INTEGER
@@ -460,23 +495,18 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R10',
+    modes: INFERENCE,
+    check: rangeCheck(RANGE_BOUNDS_INFERENCE),
+  },
+  {
+    id: 'R10',
     modes: BOTH,
-    check: (c) =>
-      RANGE_BOUNDS.flatMap(({ field, min, max }) => {
-        const v = clampInt(c[field], min, max)
-        return v === c[field]
-          ? []
-          : [
-              fix(
-                'R10',
-                field,
-                c[field],
-                v,
-                'range',
-                `${RANGE_LABELS[field]} set to ${v.toLocaleString('en-US')}: outside the allowed range.`,
-              ),
-            ]
-      }),
+    check: rangeCheck(RANGE_BOUNDS_BOTH),
+  },
+  {
+    id: 'R10',
+    modes: TRAINING,
+    check: rangeCheck(RANGE_BOUNDS_TRAINING),
   },
   {
     id: 'R12',
