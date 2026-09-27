@@ -133,6 +133,25 @@ describe('weightFiles', () => {
   it('returns an empty list when no safetensors files match', () => {
     expect(weightFiles([{ path: 'config.json', size: 1000 }], 'fp8')).toEqual([])
   })
+
+  it('sums safetensors shards padded with a 6-digit shard total (moonshotai/Kimi-K3)', () => {
+    const files = [
+      { path: 'model-00001-of-000096.safetensors', size: 10 * GiB },
+      { path: 'model-00002-of-000096.safetensors', size: 10 * GiB },
+      { path: 'model-00096-of-000096.safetensors', size: 5 * GiB },
+    ]
+    const picked = weightFiles(files, 'fp8')
+    expect(picked !== 'ambiguous' && totalGiB(picked)).toBe(25)
+  })
+
+  it('sums GGUF shards padded with a 6-digit shard total', () => {
+    const files = [
+      { path: 'Model-Q8_0-00001-of-000003.gguf', size: 10 * GiB },
+      { path: 'Model-Q8_0-00002-of-000003.gguf', size: 10 * GiB },
+    ]
+    const picked = weightFiles(files, 'gguf-q8_0')
+    expect(picked !== 'ambiguous' && totalGiB(picked)).toBe(20)
+  })
 })
 
 describe('nativeFormat', () => {

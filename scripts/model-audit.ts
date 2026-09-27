@@ -107,12 +107,12 @@ export function weightFiles(
 ): RepoFile[] | 'ambiguous' {
   const tag = GGUF_TAGS[format]
   if (tag) {
-    const re = new RegExp(`(^|[-_./])${tag}(\\.gguf$|-\\d{5}-of-|/)`, 'i')
+    const re = new RegExp(`(^|[-_./])${tag}(\\.gguf$|-\\d+-of-|/)`, 'i')
     const hits = files.filter(
       (f) => f.path.endsWith('.gguf') && !/mmproj|draft|UD-|IQ\d/i.test(f.path) && re.test(f.path),
     )
     // One file set = one name once the shard suffix is removed
-    const sets = new Set(hits.map((f) => f.path.replace(/-\d{5}-of-\d{5}\.gguf$/, '.gguf')))
+    const sets = new Set(hits.map((f) => f.path.replace(/-\d+-of-\d+\.gguf$/, '.gguf')))
     return sets.size > 1 ? 'ambiguous' : hits
   }
   const st = files.filter(
@@ -123,7 +123,7 @@ export function weightFiles(
   // Group by shard set (directory + base name, shard suffix stripped) so a sharded set never
   // collides with a same-named standalone file — they're different candidate representations.
   const setKey = (path: string) => {
-    const stripped = path.replace(/-\d{5}-of-\d{5}\.safetensors$/, '')
+    const stripped = path.replace(/-\d+-of-\d+\.safetensors$/, '')
     return stripped === path ? `single:${path}` : `shard:${stripped}`
   }
   const sets = new Set(candidates.map((f) => setKey(f.path)))
