@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fp16 and bf16 now share a measured weight_refs entry: both are 2 bytes/param, but every measured checkpoint is bf16, so fp16 — the default quantization — always showed "estimated". It now shows "Measured from" the bf16 repo (and vice versa).
 - Gemma 4 31B and Gemma 4 26B A4B parameter counts corrected to the exact Hugging Face safetensors totals (31.27B and 25.81B, were 32.7B and 26.5B).
 
+### Security
+
+- PPTX export moved from `pptxgenjs` 4.0.1 (unmaintained since June 2025; depends on the placeholder `https` npm package, ships `@types/node` at runtime, bundles `jszip` 3) to its maintained fork `pptxgenjs-plus` (^4.3.4, `@node-projects/jszip` 4, same API). Chart labels are passed in the nested `string[][]` form the fork's types require; output is identical.
+
 ## [1.11.0] - 2026-09-27
 
 ### Added

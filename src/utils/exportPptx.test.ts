@@ -21,7 +21,7 @@ interface Box {
 }
 interface RecordedChart {
   type: string
-  data: Array<{ name: string; labels: string[]; values: number[] }>
+  data: Array<{ name: string; labels: string[][]; values: number[] }>
   // Chart options were originally discarded. They carry the geometry and the
   // axis bound, neither of which is visible in (type, data).
   opts: Box & { valAxisMaxVal?: number; showTitle?: boolean; title?: string }
@@ -53,7 +53,7 @@ class MockSlide {
   addChart = vi.fn(
     (
       type: string,
-      data: Array<{ name: string; labels: string[]; values: number[] }>,
+      data: Array<{ name: string; labels: string[][]; values: number[] }>,
       opts?: RecordedChart['opts'],
     ) => {
       charts.push({ type, data, opts: opts ?? {} })
@@ -70,7 +70,7 @@ class MockPptxGenJS {
   writeFile = vi.fn(async () => undefined)
 }
 
-vi.mock('pptxgenjs', () => ({ default: MockPptxGenJS }))
+vi.mock('pptxgenjs-plus', () => ({ default: MockPptxGenJS }))
 
 const { exportPptx } = await import('./exportPptx')
 
@@ -184,8 +184,8 @@ describe('exportPptx', () => {
     const barChart = charts.find((c) => c.type === 'bar')
     expect(barChart).toBeDefined()
     expect(barChart?.data[0]?.values).toHaveLength(1)
-    expect(barChart?.data[0]?.labels[0]).toContain('32 GPUs total')
-    expect(barChart?.data[0]?.labels[0]).not.toContain('8 GPUs total')
+    expect(barChart?.data[0]?.labels[0]?.[0]).toContain('32 GPUs total')
+    expect(barChart?.data[0]?.labels[0]?.[0]).not.toContain('8 GPUs total')
 
     // The value axis must be pinned to the GPU's capacity. Without a max,
     // PowerPoint auto-scales to the bar's own total and the exported bar looks

@@ -71,7 +71,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     weightSource,
   } = params
 
-  const PptxGenJS = (await import('pptxgenjs')).default
+  const PptxGenJS = (await import('pptxgenjs-plus')).default
   const pptx = new PptxGenJS()
 
   pptx.layout = 'LAYOUT_WIDE'
@@ -194,7 +194,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     [
       {
         name: 'VRAM',
-        labels: ['Model Weights', 'KV Cache', 'Activations', 'Framework Overhead'],
+        labels: [['Model Weights', 'KV Cache', 'Activations', 'Framework Overhead']],
         values: [
           vram.modelWeights.toNumber(),
           vram.kvCache.toNumber(),
@@ -281,7 +281,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     // the same number N times. The category label carries the cluster total
     // instead, so that information survives even though the mock only
     // records (type, data) and not the chart options/title.
-    const categoryLabel = [`Per GPU (${numGPUs} GPU${numGPUs === 1 ? '' : 's'} total)`]
+    const categoryLabel = [[`Per GPU (${numGPUs} GPU${numGPUs === 1 ? '' : 's'} total)`]]
 
     slide3.addChart(
       pptx.ChartType.bar,
