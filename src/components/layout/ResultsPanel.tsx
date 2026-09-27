@@ -45,6 +45,7 @@ export function ResultsPanel() {
     numGPUs,
     numNodes,
     interNodeFabric,
+    interconnectOverride,
     shardingStrategy,
     offloadingEnabled,
     offloadTarget,
@@ -108,6 +109,7 @@ export function ResultsPanel() {
     batchSize,
     numGPUs,
     numNodes,
+    interconnectOverride,
     result,
   })
 

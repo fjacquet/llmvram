@@ -17,6 +17,7 @@
  * ```
  */
 
+import { applyInterconnectOverride } from '@engines/multi-gpu'
 import type {
   InferenceVRAMBreakdown,
   KVCachePrecision,
@@ -251,15 +252,7 @@ export function useInferenceCalculation(
       return
     }
 
-    // Apply the interconnect variant the user picked; it replaces the bridge too,
-    // because the user chose the link explicitly.
-    const effectiveGPU = interconnectOverride
-      ? {
-          ...gpu,
-          interconnect: interconnectOverride as GPU['interconnect'],
-          nvlink_bridge: undefined,
-        }
-      : gpu
+    const effectiveGPU = applyInterconnectOverride(gpu, interconnectOverride)
 
     setLoading(true)
     setError(null)

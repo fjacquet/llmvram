@@ -1,8 +1,10 @@
+import gpusData from '@data/gpus.json'
 import { FABRIC_SPECS } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
+import { applyInterconnectOverride } from '@engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '@engines/multi-node'
 import type { PerformanceEstimate } from '@engines/types'
-import type { GPU, Model } from '@utils/schemas'
+import { type GPU, type Model, validateGPUs } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -259,6 +261,58 @@ describe('exportPptx', () => {
     // gpu.interconnect is nvlink-4 with no bridge, so the resolved link is "NVLink 4".
     const stats = texts.find((t) => t.text.includes('Interconnect BW:'))
     expect(stats?.text).toContain(`NVLink 4 — ${multiGPU.interconnectBandwidthGBps} GB/s`)
+  })
+
+  it('names the override link, not the bridge, when the caller passes the effective GPU', async () => {
+    // nvidia-h100-80gb-pcie carries a 2-GPU NVLink bridge natively; a user who picked
+    // an interconnect override in InterconnectSelector gets that link's numbers
+    // instead (useResultExports applies it before calling exportPptx).
+    const bridgedGpu = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-pcie')
+    if (!bridgedGpu) throw new Error('fixture GPU not found')
+    const effectiveGpu = applyInterconnectOverride(bridgedGpu, 'pcie-5')
+
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+    const multiGPU = calculateMultiNodeVRAM({
+      singleGPU,
+      model,
+      gpuVramGB: effectiveGpu.vram_gb,
+      gpusPerNode: 2,
+      numNodes: 1,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu: effectiveGpu,
+      fabric: FABRIC_SPECS['ethernet-800g'],
+      batchSize: 1,
+      sequenceLength: 4096,
+      quantization: 'fp16',
+    })
+
+    await exportPptx({
+      model,
+      gpu: effectiveGpu,
+      quantization: 'fp16',
+      numGPUs: multiGPU.numGPUs,
+      numNodes: multiGPU.numNodes,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 1,
+      offload: null,
+    })
+
+    const stats = texts.find((t) => t.text.includes('Interconnect BW:'))
+    expect(stats?.text).not.toContain('NVLink bridge')
+    expect(stats?.text).toContain(`PCIe 5 — ${multiGPU.interconnectBandwidthGBps} GB/s`)
+    expect(multiGPU.interconnectBandwidthGBps).toBe(128)
   })
 
   it('omits the Servers row for a single-node configuration', async () => {

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { INTERCONNECT_SPECS } from './constants'
 import { calculateInferenceVRAM } from './inference'
 import {
+  applyInterconnectOverride,
   calculateMultiGPUVRAM,
   interconnectLabel,
   resolveInterconnect,
@@ -698,6 +699,19 @@ describe('resolveInterconnect with NVLink bridges (spec Section 3)', () => {
     expect(interconnectLabel(h100pcie, 2)).toBe('NVLink bridge — 600 GB/s')
     expect(interconnectLabel(h200nvl, 4)).toBe('NVLink bridge — 900 GB/s')
     expect(interconnectLabel(h100pcie, 4)).toBe('PCIe 5 — 128 GB/s')
+  })
+
+  it('applyInterconnectOverride drops the bridge too, so an override on a bridged GPU never resolves to it', () => {
+    // Without an override, groupSize 2 rides the bridge (see the test above).
+    expect(resolveInterconnect(h100pcie, 2)).toBe('nvlink-3')
+
+    const overridden = applyInterconnectOverride(h100pcie, 'pcie-5')
+    expect(overridden.nvlink_bridge).toBeUndefined()
+    expect(resolveInterconnect(overridden, 2)).toBe('pcie-5')
+    expect(interconnectLabel(overridden, 2)).toBe('PCIe 5 — 128 GB/s')
+
+    // null override is a no-op: same GPU back, bridge intact
+    expect(applyInterconnectOverride(h100pcie, null)).toBe(h100pcie)
   })
 
   it('prices TP-2 over the bridge and TP-4 over PCIe (chart and PPTX read this figure)', () => {

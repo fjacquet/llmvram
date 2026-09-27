@@ -30,6 +30,9 @@ export interface ExportPptxOffload {
 
 export interface ExportPptxParams {
   model: Model
+  /** The effective GPU multiGPU/performance were computed from — with any
+   *  interconnectOverride already applied (see useResultExports), not the raw store
+   *  selection, or the Interconnect BW row can name a link the numbers weren't. */
   gpu: GPU
   quantization: string
   /** Total GPUs across the whole cluster (gpusPerNode × numNodes), not per-server */
@@ -405,13 +408,14 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       },
     )
 
-    // Stats summary below chart. Names the resolved link (e.g. "NVLink bridge") next
-    // to its bandwidth, so a deck says which link the numbers used.
-    const linkName = interconnectLabel(gpu, multiGPU.gpusPerNode).split(' — ')[0]
+    // Stats summary below chart. interconnectLabel already renders "{name} — {n} GB/s"
+    // (or "NVLink bridge — {n} GB/s") from the same (gpu, groupSize) pair multi-gpu.ts
+    // used to compute interconnectBandwidthGBps, so this always names the link the
+    // numbers actually came from — no re-assembly from a split label needed. `gpu`
+    // must be the caller's effective GPU (interconnect override already applied, see
+    // useResultExports), not the raw store selection, or the two can disagree.
     const bandwidth =
-      multiGPU.interconnectBandwidthGBps > 0
-        ? `${linkName} — ${multiGPU.interconnectBandwidthGBps} GB/s`
-        : 'N/A'
+      multiGPU.interconnectBandwidthGBps > 0 ? interconnectLabel(gpu, multiGPU.gpusPerNode) : 'N/A'
 
     slide3.addText(
       [

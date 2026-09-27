@@ -394,6 +394,20 @@ export function bridgeApplies(
 }
 
 /**
+ * Apply the interconnect variant the user picked (config-rules R5/R13): it replaces
+ * the bridge too, because the user explicitly chose the link. This is the ONE place
+ * that logic lives — useInferenceCalculation computes the numbers from this GPU, so
+ * anything else that describes the same result (e.g. an export) must build its label
+ * from this same effective GPU, not the raw store selection, or it can name a link
+ * (e.g. "NVLink bridge") the numbers were never actually computed from.
+ */
+export function applyInterconnectOverride(gpu: GPU, override: string | null): GPU {
+  return override
+    ? { ...gpu, interconnect: override as GPU['interconnect'], nvlink_bridge: undefined }
+    : gpu
+}
+
+/**
  * Resolve the link a group of `groupSize` GPUs actually talks over.
  *
  * An NVLink bridge (H100/A100 PCIe pairs, H200 NVL up to 4) carries the group only
