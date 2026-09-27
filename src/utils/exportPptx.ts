@@ -7,6 +7,7 @@ import type {
   PerformanceEstimate,
 } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
+import { firstTokenLabel } from '@utils/perfLabels'
 import type { GPU, Model } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 
@@ -477,7 +478,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
   // Four metric boxes
   const metricBoxes: { label: string; value: string }[] = [
     { label: 'Decode Speed', value: `${performance.tokensPerSecond.toFixed(1)} tok/s` },
-    { label: 'Time to First Token', value: ttftLabel },
+    { label: firstTokenLabel(batchSize), value: ttftLabel },
     { label: 'Bottleneck', value: bottleneckLabel },
     {
       label: 'Prompt Processing',
@@ -566,7 +567,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
         },
       ],
       [
-        { text: 'Time to First Token', options: { fill: C.altRowFill } },
+        { text: firstTokenLabel(batchSize), options: { fill: C.altRowFill } },
         { text: ttftLabel, options: { fill: C.altRowFill } },
       ],
       [

@@ -1,6 +1,7 @@
 import { perUserTimeToFirstToken, perUserTokensPerSecond } from '@engines/concurrency'
 import type { PerformanceEstimate } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
+import { firstTokenLabel } from '@utils/perfLabels'
 import type { ReactNode } from 'react'
 
 interface PerformanceSectionProps {
@@ -38,7 +39,9 @@ export function PerformanceSection({
           </p>
         </div>
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Time to First Token</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+            {firstTokenLabel(batchSize)}
+          </p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white">
             {formatDuration(performance.timeToFirstToken)}
           </p>

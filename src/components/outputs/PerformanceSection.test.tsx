@@ -55,4 +55,10 @@ describe('PerformanceSection', () => {
     expect(markerIndex).toBeGreaterThan(gridIndex)
     expect(multiUserIndex).toBeGreaterThan(markerIndex)
   })
+
+  it('labels the first-token figure as amortized over the batch when B > 1', () => {
+    render(<PerformanceSection performance={performance} concurrentUsers={8} batchSize={8} />)
+    expect(screen.getByText('Prefill per request (amortized over batch 8)')).toBeInTheDocument()
+    expect(screen.queryByText(/Time to First Token/i)).not.toBeInTheDocument()
+  })
 })

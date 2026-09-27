@@ -578,4 +578,35 @@ describe('exportPptx', () => {
       texts.some((t) => t.text.includes('Offloaded to host: 500 GiB (not included per GPU)')),
     ).toBe(true)
   })
+
+  it('labels the first-token row as amortized over the batch when B > 1 (ADR 0007)', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 8,
+    })
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 8,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 8,
+      offload: null,
+    })
+    const perfRows = tableRows(2)
+    expect(
+      perfRows.some(([label]) => label === 'Prefill per request (amortized over batch 8)'),
+    ).toBe(true)
+    expect(perfRows.some(([label]) => label === 'Time to First Token')).toBe(false)
+  })
 })
