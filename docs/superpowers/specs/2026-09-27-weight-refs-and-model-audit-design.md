@@ -1,7 +1,7 @@
 # Measured Weight Sizes and a Model Auditor
 
 **Date:** 2026-09-27
-**Status:** Draft, awaiting review
+**Status:** Approved 2026-09-27 (single PR)
 
 ## Context
 
@@ -173,11 +173,10 @@ committed like the KV values.
 
 ### Delivery
 
-1. **PR 1, auditor + engine:** schema field, `effectiveBytesPerParameter`, new
-   constants, rebuilt `refresh:models`, UI source line, tests. With no refs yet,
-   results move only through the corrected constants.
-2. **PR 2, data:** `weight_refs` for all 54 models via `--measure`, reviewed, plus
-   the corpus anchors. This is where per-model corrections land.
+One PR (review decision 2026-09-27), in this order so each step is testable:
+auditor modules and tests; schema field, `effectiveBytesPerParameter` and new
+constants; `weight_refs` for all 54 models via `--measure`, reviewed, plus the
+corpus anchors; UI source line; docs.
 
 ### Docs
 
