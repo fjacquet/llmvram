@@ -356,6 +356,14 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   let prefillEstimateDegraded = false
   let timeToFirstToken: Decimal
 
+  // Across servers, a prompt also crosses N - 1 stage boundaries (Section 3b),
+  // amortized the same way as the FLOPS path below; 0 on a single node.
+  const hopSeconds = multiNode
+    ? new Decimal(fabricHopSeconds(sequenceLength, model.hidden_size, layout.interNodeGBps))
+        .mul(layout.numNodes - 1)
+        .div(batchSize)
+    : new Decimal(0)
+
   // Same FLOPS figure and same guard as the decode roofline above — one source, so a
   // change to the selection policy cannot desynchronise the two rooflines.
   if (decodeGpuTFLOPS > 0) {
@@ -367,21 +375,15 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
         .mul(multiGPUResult.prefillScalingEfficiency)
     }
 
-    prefillSeconds = linearFLOPs.add(attentionFLOPs).div(effectiveFLOPS)
-    if (multiNode) {
-      prefillSeconds = prefillSeconds.add(
-        new Decimal(fabricHopSeconds(sequenceLength, model.hidden_size, layout.interNodeGBps))
-          .mul(layout.numNodes - 1)
-          .div(batchSize),
-      )
-    }
+    prefillSeconds = linearFLOPs.add(attentionFLOPs).div(effectiveFLOPS).add(hopSeconds)
     timeToFirstToken = prefillSeconds.add(new Decimal(1).div(tokensPerSecond))
   } else {
     // No usable FLOPS data (missing, zero, or negative): prefill time is not
     // computable. Fall back to the previous heuristic rather than returning
-    // Infinity or NaN, and mark the estimate degraded.
+    // Infinity or NaN, and mark the estimate degraded. Still gets the same
+    // multi-node hop term as the FLOPS path above, so TTFT stays consistent.
     prefillEstimateDegraded = true
-    timeToFirstToken = new Decimal(1).div(tokensPerSecond.mul(0.5))
+    timeToFirstToken = new Decimal(1).div(tokensPerSecond.mul(0.5)).add(hopSeconds)
   }
 
   return {

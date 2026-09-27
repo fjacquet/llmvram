@@ -6,7 +6,8 @@ import { useUIStore } from '@store/uiStore'
 /**
  * CPU offload toggle for DeepSpeed optimizer states
  *
- * Only visible when a DeepSpeed preset is selected. Enables offloading
+ * Only visible when a DeepSpeed ZeRO preset is selected and the GPU has separate
+ * host memory (R6: unified-memory GPUs never offer this). Enables offloading
  * optimizer states from GPU VRAM to CPU RAM at the cost of throughput.
  */
 export function CPUOffloadToggle() {

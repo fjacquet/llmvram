@@ -1588,6 +1588,23 @@ describe('multi-node prefill and decode from bytes over the fabric (spec Section
     )
   })
 
+  it('degraded (no-FLOPS) TTFT gets the same multi-node hop term as the FLOPS path', () => {
+    const noFlopsH100: GPU = { ...h100, fp16_tflops: undefined, fp32_tflops: undefined }
+    const two = run(noFlopsH100, { ...hgx, numNodes: 2 })
+    expect(two.perf.prefillEstimateDegraded).toBe(true)
+    expect(two.multi.interNodeGBps).toBeGreaterThan(0)
+
+    const hop =
+      (fabricHopSeconds(hgx.sequenceLength, model.hidden_size, two.multi.interNodeGBps) *
+        (two.multi.numNodes - 1)) /
+      hgx.batchSize
+    // The degraded formula without the hop term, at the SAME tokensPerSecond this run
+    // produced — isolates exactly what the fix adds, without also picking up decode's
+    // own (pre-existing, unrelated) hop cost from a differently-shaped single-node run.
+    const withoutHop = new Decimal(1).div(two.perf.tokensPerSecond.mul(0.5))
+    expect(two.perf.timeToFirstToken.sub(withoutHop).toNumber()).toBeCloseTo(hop, 10)
+  })
+
   it('2x GB10 on 200 GbE: TTFT within 1% of one GB10 (was 15x slower under the heuristic)', () => {
     const single = estimatePerformance({
       model,

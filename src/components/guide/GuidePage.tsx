@@ -229,9 +229,9 @@ export function GuidePage() {
           The parallel degree of one model replica inside one server, capped by what the part forms
           in one node. Under tensor parallelism only degrees vLLM accepts are offered (they divide
           the attention heads; most models allow 1, 2, 4 and 8). With several servers the summary
-          reads &quot;8 GPUs per server × 2 servers per replica&quot;. An 8-GPU server running four
-          2-GPU replicas is sized as one 2-GPU replica. In fine-tuning mode (with a DeepSpeed ZeRO
-          preset) the same control is labelled &quot;Number of GPUs&quot;.
+          reads &quot;8 GPUs per server × 2 servers per replica, tensor parallel&quot;. An 8-GPU
+          server running four 2-GPU replicas is sized as one 2-GPU replica. In fine-tuning mode
+          (with a DeepSpeed ZeRO preset) the same control is labelled &quot;Number of GPUs&quot;.
         </P>
 
         <SubHeading>Sharding Strategy</SubHeading>

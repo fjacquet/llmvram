@@ -84,7 +84,7 @@ When implementing VRAM calculations, be aware of these critical estimation error
 3. **Multi-GPU memory follows vLLM**: TP shards embeddings and the LM head (`VocabParallelEmbedding`), replicates only layer norms, and splits KV by `max(1, kv_heads // tp)`. MLA models (`use_mla`) duplicate their latent KV on every TP rank. Each GPU pays one framework context plus NCCL buffers (100-500MB); interconnect efficiency is a throughput cost, never memory.
 4. **Fine-tuning memory**: LoRA/QLoRA optimizer states apply only to adapter parameters (~1% of full), not the entire model.
 5. **Framework overhead**: Always add 500MB-1.5GB baseline (PyTorch + CUDA context).
-6. **`fp16_tflops` is DENSE**: H100 989, B200 2250, GB300 2500, MI300X 1307. NVIDIA's Blackwell pages ("with sparsity unless otherwise noted") and AMD ("4.6/5.0 PFLOPS") both publish FP16 *with sparsity* — double the dense figure. Dense FP16 = dense FP8 / 2. A test guards every GPU below 2600.
+6. **`fp16_tflops` is DENSE**: H100 SXM 989, B200 2250, GB300 2500, MI300X 1307. NVIDIA's Blackwell pages ("with sparsity unless otherwise noted") and AMD ("4.6/5.0 PFLOPS") both publish FP16 *with sparsity* — double the dense figure. Dense FP16 = dense FP8 / 2. A test guards every GPU below 2600.
 7. **Two interconnect tables, two unit conventions**: `INTERCONNECT_SPECS` (scale-up, GPU-to-GPU in one chassis) is **bidirectional** per-GPU; `FABRIC_SPECS` (scale-out, server-to-server) `portGBps` is **unidirectional** per port. Mixing them halves or doubles the answer.
 8. **B200 is 180GB, not 192GB**: 192 is the physical HBM3e stack size before reserved capacity. HGX B200 ships 1.44TB across 8 GPUs. Use the allocatable figure.
 

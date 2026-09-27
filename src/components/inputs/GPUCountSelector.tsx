@@ -16,8 +16,8 @@ const STRATEGY_LABELS: Record<ShardingStrategy, string> = {
  * In inference mode this is the PER-NODE count: total GPUs is this times the
  * server count from NodeCountSelector. The upper bound is the selected GPU's
  * max_gpus_per_node — 8 for an HGX or OAM baseboard, 72 for a GB300 NVL72
- * rack, 2 for a pair of DGX Sparks, 1 for Apple Silicon and the GB300 Desktop
- * Superchip.
+ * rack, 1 for Apple Silicon, the GB300 Desktop Superchip and DGX Spark (a
+ * Spark cluster is separate single-GPU nodes, not a larger per-node count).
  *
  * In training mode there is no server concept: useTrainingCalculation reads
  * this value directly as the total GPU count for ZeRO data-parallel sharding

@@ -1,6 +1,10 @@
 import { InfoTip } from '@components/common/InfoTip'
 import { INTERCONNECT_LABELS, INTERCONNECT_SPECS } from '@engines/constants'
-import { interconnectLabel as linkLabel, resolveInterconnect } from '@engines/multi-gpu'
+import {
+  bridgeApplies,
+  interconnectLabel as linkLabel,
+  resolveInterconnect,
+} from '@engines/multi-gpu'
 import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
 import { maxGPUsFor } from '@utils/gpuLimits'
@@ -8,8 +12,9 @@ import { maxGPUsFor } from '@utils/gpuLimits'
 /**
  * Sharding strategy selector (Tensor Parallel vs Pipeline Parallel)
  *
- * Only visible when there is more than one GPU per server. This selects the
- * INTRA-node strategy; across servers the strategy is always pipeline parallel.
+ * Visible whenever the selected GPU forms multi-GPU servers (`maxGPUsFor(gpu) > 1`),
+ * not only once numGPUs itself is above 1. This selects the INTRA-node strategy;
+ * across servers the strategy is always pipeline parallel.
  * Shows:
  * - Radio buttons for TP/PP selection with descriptions
  * - Interconnect information badge from selected GPU
@@ -32,9 +37,7 @@ export function ShardingStrategySelector() {
   const interconnectType = selectedGPU ? resolveInterconnect(selectedGPU, numGPUs) : 'none'
   const interconnectSpec = INTERCONNECT_SPECS[interconnectType]
   const bridgeSize =
-    selectedGPU?.nvlink_bridge && numGPUs <= selectedGPU.nvlink_bridge.size
-      ? selectedGPU.nvlink_bridge.size
-      : null
+    selectedGPU && bridgeApplies(selectedGPU, numGPUs) ? selectedGPU.nvlink_bridge.size : null
 
   // Determine badge color based on interconnect type
   let badgeColorClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'

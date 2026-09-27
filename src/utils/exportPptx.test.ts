@@ -42,7 +42,16 @@ const shapes: RecordedShape[] = []
 
 class MockSlide {
   addText = vi.fn((text: unknown, opts?: Box) => {
-    if (typeof text === 'string') texts.push({ text, opts: opts ?? {} })
+    if (typeof text === 'string') {
+      texts.push({ text, opts: opts ?? {} })
+    } else if (Array.isArray(text)) {
+      // Rich-text runs (e.g. the slide 3 stats line: alternating bold labels and
+      // plain values) — concatenate so a test can still search the joined string.
+      const joined = text
+        .map((run) => (run && typeof run === 'object' && 'text' in run ? String(run.text) : ''))
+        .join('')
+      texts.push({ text: joined, opts: opts ?? {} })
+    }
   })
   addShape = vi.fn((kind: string, opts?: Box) => {
     shapes.push({ kind, opts: opts ?? {} })
@@ -206,6 +215,50 @@ describe('exportPptx', () => {
     expect(heading).toBeDefined()
     const headingBottom = (heading?.opts.y ?? 0) + (heading?.opts.h ?? 0)
     expect(barChart?.opts.y).toBeGreaterThanOrEqual(headingBottom)
+  })
+
+  it('shows the resolved interconnect link name next to the bandwidth', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+    const multiGPU = calculateMultiNodeVRAM({
+      singleGPU,
+      model,
+      gpuVramGB: 80,
+      gpusPerNode: 8,
+      numNodes: 1,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu,
+      fabric: FABRIC_SPECS['ethernet-800g'],
+      batchSize: 1,
+      sequenceLength: 4096,
+      quantization: 'fp16',
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: multiGPU.numGPUs,
+      numNodes: multiGPU.numNodes,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 1,
+      offload: null,
+    })
+
+    // gpu.interconnect is nvlink-4 with no bridge, so the resolved link is "NVLink 4".
+    const stats = texts.find((t) => t.text.includes('Interconnect BW:'))
+    expect(stats?.text).toContain(`NVLink 4 — ${multiGPU.interconnectBandwidthGBps} GB/s`)
   })
 
   it('omits the Servers row for a single-node configuration', async () => {

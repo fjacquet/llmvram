@@ -180,7 +180,7 @@ Per-card changes (sources in the table below):
 | nvidia-a100-80gb-pcie | interconnect pcie-4; nvlink_bridge {nvlink-3, 2} |
 | nvidia-a100-80gb-sxm | interconnect nvlink-3 (600 GB/s, was priced at 900) |
 | nvidia-h200-141gb | SXM only (HGX 4/8 NVSwitch); drop interconnect_options |
-| nvidia-h200-nvl-141gb (new) | H200 NVL, NVIDIA group in `fetch-gpus.ts`: every required GPUSchema field copied from the PNY H200 NVL datasheet (vram 141, bandwidth, fp32), fp16_tflops 835 dense (datasheet 1,671 with sparsity), pcie-5, nvlink_bridge {nvlink-4, 4}, max 8, tier datacenter. Update the GPU count in README/CLAUDE.md memory (27 -> 28). |
+| nvidia-h200-nvl-141gb (new) | H200 NVL, NVIDIA group in `fetch-gpus.ts`: every required GPUSchema field copied from the PNY H200 NVL datasheet (vram 141, bandwidth, fp32), fp16_tflops 835 dense (datasheet 1,671 with sparsity), pcie-5, nvlink_bridge {nvlink-4, 4}, max 8, tier datacenter. Update the GPU count in README/CLAUDE.md memory (28 -> 29). |
 | nvidia-gb10 | max_gpus_per_node 1; interconnect none; drop interconnect_options; unified_memory |
 | nvidia-gb300-desktop-252gb | interconnect none (single GPU) |
 | nvidia-l40s, nvidia-rtx-6000-ada | explicit pcie-4 |

@@ -382,6 +382,18 @@ export function calculateMultiGPUVRAM(
 }
 
 /**
+ * Whether an NVLink bridge carries a group of this size — the guard shared by
+ * resolveInterconnect, interconnectLabel and the sharding-strategy UI (DRY: this was
+ * three copies of `gpu.nvlink_bridge && groupSize <= gpu.nvlink_bridge.size`).
+ */
+export function bridgeApplies(
+  gpu: GPU,
+  groupSize: number,
+): gpu is GPU & { nvlink_bridge: NonNullable<GPU['nvlink_bridge']> } {
+  return gpu.nvlink_bridge != null && groupSize <= gpu.nvlink_bridge.size
+}
+
+/**
  * Resolve the link a group of `groupSize` GPUs actually talks over.
  *
  * An NVLink bridge (H100/A100 PCIe pairs, H200 NVL up to 4) carries the group only
@@ -390,9 +402,12 @@ export function calculateMultiGPUVRAM(
  *
  * @param gpu - GPU configuration
  * @param groupSize - GPUs in the tensor/expert-parallel group (1 = no traffic)
+ * @example
+ * resolveInterconnect(h100Pcie, 2) // 'nvlink-3': the 2-GPU bridge carries the pair
+ * resolveInterconnect(h100Pcie, 4) // 'pcie-5': group exceeds the bridge, falls to the card's own link
  */
 export function resolveInterconnect(gpu: GPU, groupSize: number): InterconnectType {
-  if (gpu.nvlink_bridge && groupSize <= gpu.nvlink_bridge.size) return gpu.nvlink_bridge.type
+  if (bridgeApplies(gpu, groupSize)) return gpu.nvlink_bridge.type
   const interconnect = gpu.interconnect
 
   // Direct mapping for specific types
@@ -427,7 +442,7 @@ export function resolveInterconnect(gpu: GPU, groupSize: number): InterconnectTy
  */
 export function interconnectLabel(gpu: GPU, groupSize: number): string {
   const type = resolveInterconnect(gpu, groupSize)
-  if (gpu.nvlink_bridge && groupSize <= gpu.nvlink_bridge.size) {
+  if (bridgeApplies(gpu, groupSize)) {
     return `NVLink bridge — ${INTERCONNECT_SPECS[type].bandwidthGBps} GB/s`
   }
   return INTERCONNECT_LABELS[type] ?? type

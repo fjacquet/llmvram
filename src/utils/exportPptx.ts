@@ -1,4 +1,5 @@
 import { DECIMAL_GB_PER_GIB } from '@engines/kv-tier'
+import { interconnectLabel } from '@engines/multi-gpu'
 import { roundOffloadSlowdown } from '@engines/offloading'
 import type { weightSource } from '@engines/quantization'
 import type {
@@ -404,9 +405,13 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       },
     )
 
-    // Stats summary below chart
+    // Stats summary below chart. Names the resolved link (e.g. "NVLink bridge") next
+    // to its bandwidth, so a deck says which link the numbers used.
+    const linkName = interconnectLabel(gpu, multiGPU.gpusPerNode).split(' — ')[0]
     const bandwidth =
-      multiGPU.interconnectBandwidthGBps > 0 ? `${multiGPU.interconnectBandwidthGBps} GB/s` : 'N/A'
+      multiGPU.interconnectBandwidthGBps > 0
+        ? `${linkName} — ${multiGPU.interconnectBandwidthGBps} GB/s`
+        : 'N/A'
 
     slide3.addText(
       [

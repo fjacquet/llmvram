@@ -335,7 +335,11 @@ export interface URLLookups {
 }
 
 export interface RestoredConfig {
-  /** The whole configuration the link describes; the store normalizes it once */
+  /**
+   * The groups the link carries; the store merges this onto its current (default
+   * at mount) values and normalizes once. A group absent from the link keeps
+   * whatever the store already had, not necessarily DEFAULT_UI_CONFIG.
+   */
   patch: Partial<UIConfig>
   /** User-facing warnings for ids that resolved to nothing */
   missing: string[]

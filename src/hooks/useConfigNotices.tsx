@@ -15,8 +15,9 @@ export function useConfigNotices(): void {
     toast.warning(pendingNotice.title, {
       description: (
         <ul className="list-disc pl-4">
-          {pendingNotice.lines.map((line) => (
-            <li key={line}>{line}</li>
+          {pendingNotice.lines.map((line, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: lines has no stable id and can repeat the same text (e.g. two "KV tier turned off" corrections); index+text keeps keys unique where text alone would collide.
+            <li key={`${i}-${line}`}>{line}</li>
           ))}
         </ul>
       ),
