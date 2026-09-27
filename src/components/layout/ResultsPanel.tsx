@@ -208,17 +208,20 @@ export function ResultsPanel() {
   // Determine which breakdown to use for FitIndicator and display
   const displayBreakdown = result.offloading ? result.offloading.onDevice : result.vram
 
-  // Determine doesNotFit logic based on active features
-  let doesNotFit = false
+  // Determine doesNotFit logic based on active features. This is the GPU/device
+  // capacity check specifically — kept separate from the host-capacity check below
+  // so Recommendations (GPU/quantization advice) only renders for a GPU-capacity
+  // problem, not a host-RAM one it has nothing to say about.
+  let deviceDoesNotFit = false
   if (result.multiGPU) {
     // Multi-GPU: check if per-GPU total exceeds GPU capacity
-    doesNotFit = result.multiGPU.totalPerGPU.greaterThan(selectedGPU.vram_gb)
+    deviceDoesNotFit = result.multiGPU.totalPerGPU.greaterThan(selectedGPU.vram_gb)
   } else if (result.offloading) {
     // Offloading only: check if on-device total exceeds GPU capacity
-    doesNotFit = result.offloading.onDevice.total.greaterThan(selectedGPU.vram_gb)
+    deviceDoesNotFit = result.offloading.onDevice.total.greaterThan(selectedGPU.vram_gb)
   } else {
     // Single GPU, no offloading: check if total exceeds GPU capacity
-    doesNotFit = result.vram.total.greaterThan(selectedGPU.vram_gb)
+    deviceDoesNotFit = result.vram.total.greaterThan(selectedGPU.vram_gb)
   }
 
   // Host capacity: the offloaded memory (converted GiB -> decimal GB) must fit
@@ -232,7 +235,7 @@ export function ResultsPanel() {
     : 0
   const hostExceeded =
     hostCapacityPerServerGB !== null && offloadedHostGB > hostCapacityPerServerGB * numNodes
-  if (hostExceeded) doesNotFit = true
+  const doesNotFit = deviceDoesNotFit || hostExceeded
 
   // Sessions that fit at this context, from the same per-GPU breakdown as the fit check
   const perGPU = result.multiGPU ? result.multiGPU.perGPU : displayBreakdown
@@ -607,8 +610,9 @@ export function ResultsPanel() {
               </div>
             )}
 
-            {/* Recommendations */}
-            {doesNotFit && (
+            {/* Recommendations: GPU/quantization advice, not applicable to a
+                host-capacity-only problem (the red message above covers that). */}
+            {deviceDoesNotFit && (
               <Recommendations
                 gpu={selectedGPU}
                 breakdown={result.vram}
