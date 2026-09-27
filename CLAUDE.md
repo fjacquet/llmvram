@@ -55,6 +55,7 @@ scripts/          # Data refresh scripts (tsx) — fetch from HuggingFace, valid
 - **`max_gpus_per_node` is a hard bound, `recommendedMaxTPDegree` is soft advice**: the first is a per-GPU field meaning "cannot be built" (8 for an HGX/OAM baseboard, 72 for GB300 NVL72, 1 for Apple Silicon); the second lives in `INTERCONNECT_SPECS` and means "buildable but scales badly". Both apply; neither replaces the other.
 - **GPU count clamping is silent**: `clampGPUCount` in `src/utils/gpuLimits.ts` bounds `numGPUs` at the store boundary, with no toast. A shared link above the bound renders different numbers than its sender saw.
 - **Database ids are deliberately stale**: `nvidia-b200-192gb` holds a 180GB GPU. Ids are never renamed, because a changed id breaks every shared link naming it.
+- **Offloaded bytes are read over the host link every decode step**: `hostLinkGBps` (KV tier presets), capacity per server checked in the fit.
 
 ## Tech Stack & Config
 
