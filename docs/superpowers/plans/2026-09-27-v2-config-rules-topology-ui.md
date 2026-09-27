@@ -35,7 +35,7 @@
 1. **A shared link whose model cannot be resolved** (unknown id, no custom params) carrying `ss: expert-parallel, ng: 6`: restore must not throw, keeps EP/6 while no model is selected, and the first model pick then applies R2 then R14 in one notice (Task 1a null-model test, Task 2b restore test).
 2. **Non-integer, negative and out-of-range numbers in a hand-edited link** (`ng: 2.5`, `ng: -3`, `bs: 0`, `sl: 100`, `nn: 12`, `cu: 0`): the link must open (schema no longer rejects it), every value lands on an integer inside its bound, and one "Shared link adjusted" notice lists each fix (Task 2b hostile-link test).
 3. **The same correction twice in a row** (select vLLM, switch to training, back to inference, switch to training again): each action must toast again, not be swallowed as "unchanged state" (Task 2a notice-id test, Task 5 hook test).
-4. **Enabling offloading on a unified-memory GPU while the target is still `cpu-ram`**: the checkbox must turn offloading on with target NVMe (action intent), not be silently switched off again by R6, which would make the checkbox look dead (Task 2a test).
+4. **Enabling offloading on a unified-memory GPU while the target is still `cpu-ram`**: the checkbox must turn offloading on with target NVMe (action intent), not be silently switched off again by R6, which would make the checkbox look dead — and it must still surface a notice ("Offload target set to NVMe: …"), because switching the target without R6's own correction firing must not also swallow the warning the product owner requires (Task 2a test). A shared link carrying the same combination is not an action intent: it restores through the plain R6 rule, offloading OFF (Task 2b test).
 5. **PDF export when the user had manually opened or closed Advanced/Details, including when capture fails**: every `<details>` is open during capture and each returns to its exact previous state afterwards (Task 6b test).
 
 ---
@@ -46,7 +46,7 @@
 |---|---|---|
 | `src/engines/config-rules.ts` | Create | Rule table, `normalizeConfig`, TP-degree validity, `allowedOptions`, `softWarnings`, `buildNotice`, `DEFAULT_RULE_CONFIG` |
 | `src/engines/config-rules.test.ts` | Create | Per-rule 3-path table, properties, R14 degree table, mode gating, options, warnings, notices |
-| `src/store/uiStore.ts` | Modify | `UIConfig`, `DEFAULT_UI_CONFIG`, `commit()`, `pendingNotice`, `restoreConfig`, action intents |
+| `src/store/uiStore.ts` | Modify | `UIConfig`, `DEFAULT_UI_CONFIG`, `commit()`, `pendingNotice`, `restoreConfig`, `resetAdvancedSettings`, `resetAll`, action intents |
 | `src/store/uiStore.test.ts` | Modify | Real-store tests for notices, cascades, restore |
 | `src/store/urlSerializer.ts` | Modify | Loosened numeric keys, `io` key, custom-GPU fields, `urlStateToConfig` |
 | `src/store/urlSerializer.test.ts` | Modify | Round-trip of every key, pure restore mapping |
@@ -70,7 +70,9 @@
 | `src/utils/perfLabels.ts` | Create | `firstTokenLabel(batchSize)` |
 | `src/hooks/useInferenceCalculation.ts`, `src/workers/calculation.worker.ts` | Modify | `sequenceLength` to multi-node, new breakdown field, override drops bridge |
 | `src/components/inputs/*` | Modify | Options from `allowedOptions`; labels |
-| `src/components/layout/InputPanel.tsx` | Modify | Essential / Advanced layout |
+| `src/components/layout/InputPanel.tsx` | Modify | Essential / Advanced layout, "Reset advanced settings" button |
+| `src/components/layout/Header.tsx` | Modify | "Reset all" button |
+| `src/components/layout/Header.test.tsx` | Create | Reset-all button test |
 | `src/components/layout/advancedChanges.ts` | Create | Count non-default advanced settings |
 | `src/components/layout/ResultsPanel.tsx` | Modify | Verdict, warnings, collapsed details, soft warnings |
 | `src/components/outputs/VerdictBlock.tsx` | Create | Fit, decode, first token, sessions |
@@ -1005,7 +1007,7 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
   - `type SoftWarningId = 'W3' | 'W6' | 'W8'`; `interface SoftWarning { id: SoftWarningId; message: string }`
   - `function softWarnings(config: Pick<RuleConfig, 'mode' | 'numGPUs' | 'numNodes' | 'shardingStrategy'>, model: Model | null, gpu: GPU | null): SoftWarning[]`
   - `interface Notice { title: string; lines: string[] }`
-  - `type NoticeSource = 'gpu' | 'model' | 'mode' | 'link' | 'setting'`
+  - `type NoticeSource = 'gpu' | 'model' | 'mode' | 'link' | 'setting' | 'reset'`
   - `interface NoticeContext { model: Model | null; gpu: GPU | null; config: RuleConfig }`
   - `function buildNotice(corrections: Correction[], source: NoticeSource, ctx: NoticeContext): Notice | null`
 
@@ -1143,6 +1145,13 @@ describe('buildNotice', () => {
     const r = normalizeConfig(cfg({ numGPUs: 6 }), L70, H100)
     expect(buildNotice(r.corrections, 'setting', { model: L70, gpu: H100, config: r.config })?.title).toBe(
       `Adjusted for ${L70.name}`,
+    )
+  })
+
+  it('titles a reset "Reset to defaults" (Task 2a\'s resetAdvancedSettings/resetAll)', () => {
+    const r = normalizeConfig(cfg({ numGPUs: 6 }), L70, H100)
+    expect(buildNotice(r.corrections, 'reset', { model: L70, gpu: H100, config: r.config })?.title).toBe(
+      'Reset to defaults',
     )
   })
 
@@ -1296,7 +1305,7 @@ export interface Notice {
 }
 
 /** Which action produced the corrections: picks the notice title */
-export type NoticeSource = 'gpu' | 'model' | 'mode' | 'link' | 'setting'
+export type NoticeSource = 'gpu' | 'model' | 'mode' | 'link' | 'setting' | 'reset'
 
 export interface NoticeContext {
   model: Model | null
@@ -1324,8 +1333,9 @@ function subjectTitle(subject: CorrectionSubject, ctx: NoticeContext): string {
 
 /**
  * One notice per user action (spec Section 1 "Notices"): "Adjusted for {GPU/model/mode}",
- * or "Shared link adjusted" on restore. One line per rule and field, in order of first
- * appearance, carrying that pair's last message (the final value).
+ * "Shared link adjusted" on restore, or "Reset to defaults" (Section 4). One line per
+ * rule and field, in order of first appearance, carrying that pair's last message (the
+ * final value).
  */
 export function buildNotice(
   corrections: Correction[],
@@ -1338,6 +1348,7 @@ export function buildNotice(
   for (const c of corrections) lines.set(`${c.rule}:${c.field}`, c.message)
   let title: string
   if (source === 'link') title = 'Shared link adjusted'
+  else if (source === 'reset') title = 'Reset to defaults'
   else if (source === 'setting') title = subjectTitle(first.subject, ctx)
   else title = subjectTitle(source, ctx)
   return { title, lines: [...lines.values()] }
@@ -1373,13 +1384,17 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 - Test: `src/store/uiStore.test.ts`
 
 **Interfaces:**
-- Consumes: `normalizeConfig`, `pickRuleConfig`, `buildNotice`, `DEFAULT_RULE_CONFIG`, `RuleConfig`, `Notice`, `NoticeSource` (Tasks 1a/1b).
+- Consumes: `normalizeConfig`, `pickRuleConfig`, `buildNotice`, `DEFAULT_RULE_CONFIG`, `RuleConfig`, `Notice`, `NoticeSource`, `Correction` (Tasks 1a/1b); `resolveFabricSpec` (`src/engines/fabric.ts`, pre-existing production code — Task 4a only extends the module later with `effectiveFraction` and the 200GbE preset, so this import creates no ordering dependency on Task 4a).
 - Produces (exported from `src/store/uiStore.ts`):
   - `interface UIConfig extends RuleConfig { selectedModel: Model | null; selectedGPU: GPU | null; quantization: QuantizationFormat; kvQuantization: KVCachePrecision; interNodeFabric: FabricType; customFabric: CustomFabricInput | null; offloadMode: OffloadMode; trainingMethod: FineTuningMethod; optimizer: OptimizerType; trainingPrecision: TrainingPrecision; loraAlpha: number; targetModulesPercent: number; gradientCheckpointing: boolean; flashAttention: boolean }`
   - `const DEFAULT_UI_CONFIG: UIConfig`
   - `interface PendingNotice extends Notice { id: number }` (id increases on every notice, so an identical notice still re-fires React effects)
   - store state gains `pendingNotice: PendingNotice | null`, `restoreConfig(patch: Partial<UIConfig>): void`, `clearNotice(): void`; every existing setter keeps its name and signature.
   - `findModelById`, `findGPUById` unchanged.
+  - Internal `commit()` gains a 5th `extra: Correction[]` parameter (default `[]`), prepended to `normalizeConfig`'s own corrections before `buildNotice`: `setOffloadingEnabled`'s NVMe action intent uses it so the switch still warns even though it pre-empts R6 (product rule: always warn the user).
+  - `commit()` gains a 6th, optional `presetNotice?: Notice` parameter (spec Section 4): when given, its `title` wins outright and its `lines` are prepended to whatever `buildNotice` still finds from `normalizeConfig`'s own corrections (a reset can cascade into a further rule correction, e.g. R14 renormalizing `numGPUs` after `shardingStrategy` resets to tensor-parallel — spec says one notice, not two). No `pendingNotice` is written when the combined `lines` end up empty (nothing actually changed).
+  - `resetAdvancedSettings(): void` and `resetAll(): void` (spec Section 4). Both reuse `DEFAULT_UI_CONFIG` as their only source of default values — no second literal. In training, `resetAdvancedSettings` only resets `batchSize` (every other Advanced input is hidden as inert, same gate as `countAdvancedChanges`). `NoticeSource` gains `'reset'` (title "Reset to defaults"); `buildNotice` gets a matching branch, tested directly in Task 1b's `config-rules.test.ts`.
+  - `isAtDefaults(state: UIConfig): boolean` — every `UIConfig` field equals `DEFAULT_UI_CONFIG`'s. `resetAll()` uses it to decide "already at defaults, no notice"; `useURLSync` (Task 2b) uses it to keep the hash cleared past the debounced sync effect's next write.
 - Removed: `resetTierForGPU` from `src/engines/kv-tier.ts` (only the store called it).
 
 - [ ] **Step 1: Write the failing tests**
@@ -1518,13 +1533,26 @@ describe('uiStore: every action normalizes, one notice per action', () => {
     ])
   })
 
-  it('enabling offloading on unified memory with target cpu-ram switches to NVMe, with no notice', async () => {
+  it('enabling offloading on unified memory with target cpu-ram switches to NVMe, with a notice', async () => {
     const store = await freshStore()
     store.setState({ selectedModel: L70, selectedGPU: UNIFIED_M3, offloadTarget: 'cpu-ram' })
     store.getState().setOffloadingEnabled(true)
     const state = store.getState()
     expect(state.offloadingEnabled).toBe(true)
     expect(state.offloadTarget).toBe('nvme')
+    expect(state.pendingNotice?.title).toBe(`Adjusted for ${UNIFIED_M3.name}`)
+    expect(state.pendingNotice?.lines).toEqual([
+      `Offload target set to NVMe: ${UNIFIED_M3.name} has unified memory, RAM is the same pool.`,
+    ])
+  })
+
+  it('switching to a unified-memory GPU while offloading is off produces no notice', async () => {
+    const store = await freshStore()
+    store.setState({ selectedModel: L70, selectedGPU: H100, offloadingEnabled: false })
+    store.getState().setSelectedGPU(UNIFIED_M3)
+    const state = store.getState()
+    expect(state.selectedGPU).toBe(UNIFIED_M3)
+    expect(state.offloadingEnabled).toBe(false)
     expect(state.pendingNotice).toBeNull()
   })
 
@@ -1533,6 +1561,125 @@ describe('uiStore: every action normalizes, one notice per action', () => {
     store.setState({ selectedModel: L70, selectedGPU: H100 })
     store.getState().setNumGPUs(6)
     store.getState().clearNotice()
+    expect(store.getState().pendingNotice).toBeNull()
+  })
+
+  it('resetAdvancedSettings resets exactly the Advanced-section fields, keeps the essentials, one line per changed group', async () => {
+    const store = await freshStore()
+    const { DEFAULT_UI_CONFIG } = await import('@store/uiStore')
+    store.setState({
+      selectedModel: L70,
+      selectedGPU: H100,
+      numGPUs: 4,
+      numNodes: 2,
+      quantization: 'fp8',
+      sequenceLength: 8192,
+      concurrentUsers: 10,
+      batchSize: 8,
+      kvQuantization: 'fp8',
+      shardingStrategy: 'pipeline-parallel',
+      offloadingEnabled: true,
+      offloadTarget: 'nvme',
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'network' },
+    })
+    store.getState().resetAdvancedSettings()
+    const state = store.getState()
+    // Advanced fields back to their store defaults
+    expect(state.batchSize).toBe(DEFAULT_UI_CONFIG.batchSize)
+    expect(state.kvQuantization).toBe(DEFAULT_UI_CONFIG.kvQuantization)
+    expect(state.shardingStrategy).toBe(DEFAULT_UI_CONFIG.shardingStrategy)
+    expect(state.offloadingEnabled).toBe(false)
+    expect(state.offloadTarget).toBe(DEFAULT_UI_CONFIG.offloadTarget)
+    expect(state.kvTier).toEqual(DEFAULT_UI_CONFIG.kvTier)
+    // Essentials kept exactly as set
+    expect(state.selectedModel).toBe(L70)
+    expect(state.selectedGPU).toBe(H100)
+    expect(state.numGPUs).toBe(4)
+    expect(state.numNodes).toBe(2)
+    expect(state.quantization).toBe('fp8')
+    expect(state.sequenceLength).toBe(8192)
+    expect(state.concurrentUsers).toBe(10)
+    // One notice, one line per group that actually changed (not per raw field)
+    expect(state.pendingNotice?.title).toBe('Reset to defaults')
+    expect(state.pendingNotice?.lines).toEqual([
+      'Batch size reset to 1.',
+      'KV precision reset to FP16.',
+      'Sharding strategy reset to tensor parallel.',
+      'Offloading reset to off.',
+      'KV tier reset to none.',
+    ])
+  })
+
+  it('resetAdvancedSettings in training only resets batch size: the other Advanced inputs are hidden as inert', async () => {
+    const store = await freshStore()
+    store.setState({
+      selectedModel: L70,
+      selectedGPU: H100,
+      mode: 'training',
+      batchSize: 8,
+      kvQuantization: 'fp8',
+      offloadingEnabled: true,
+    })
+    store.getState().resetAdvancedSettings()
+    const state = store.getState()
+    expect(state.batchSize).toBe(1)
+    expect(state.kvQuantization).toBe('fp8')
+    expect(state.offloadingEnabled).toBe(true)
+    expect(state.pendingNotice?.lines).toEqual(['Batch size reset to 1.'])
+  })
+
+  it('a reset that cascades into a rule still surfaces as one notice (R14 after strategy resets to tensor-parallel)', async () => {
+    const store = await freshStore()
+    store.setState({
+      selectedModel: L70,
+      selectedGPU: H100,
+      numGPUs: 6,
+      shardingStrategy: 'pipeline-parallel',
+    })
+    store.getState().resetAdvancedSettings()
+    const state = store.getState()
+    // shardingStrategy resets to tensor-parallel, which R14 then finds numGPUs=6
+    // invalid for (64 heads); "keeps GPU count" yields to normalizeConfig here.
+    expect(state.numGPUs).toBe(4)
+    expect(state.pendingNotice?.title).toBe('Reset to defaults')
+    expect(state.pendingNotice?.lines).toEqual([
+      'Sharding strategy reset to tensor parallel.',
+      `GPU count set to 4: vLLM can't split ${L70.name}'s 64 attention heads across 6 GPUs. Use pipeline parallel for 6.`,
+    ])
+  })
+
+  it('resetAdvancedSettings produces no notice when the advanced fields are already at their defaults', async () => {
+    const store = await freshStore()
+    store.setState({ selectedModel: L70, selectedGPU: H100 })
+    store.getState().resetAdvancedSettings()
+    expect(store.getState().pendingNotice).toBeNull()
+  })
+
+  it('resetAll returns to the initial empty state, clears the hash, with one line', async () => {
+    const store = await freshStore()
+    const { DEFAULT_UI_CONFIG } = await import('@store/uiStore')
+    store.setState({
+      selectedModel: L70,
+      selectedGPU: H100,
+      numGPUs: 4,
+      batchSize: 8,
+    })
+    window.history.replaceState(null, '', '#some-encoded-state')
+    expect(window.location.hash).toBe('#some-encoded-state')
+    store.getState().resetAll()
+    const state = store.getState()
+    expect(state.selectedModel).toBeNull()
+    expect(state.selectedGPU).toBeNull()
+    expect(state.numGPUs).toBe(DEFAULT_UI_CONFIG.numGPUs)
+    expect(state.batchSize).toBe(DEFAULT_UI_CONFIG.batchSize)
+    expect(state.pendingNotice?.title).toBe('Reset to defaults')
+    expect(state.pendingNotice?.lines).toEqual(['Configuration reset to defaults.'])
+    expect(window.location.hash).toBe('')
+  })
+
+  it('resetAll produces no notice from a fresh store', async () => {
+    const store = await freshStore()
+    store.getState().resetAll()
     expect(store.getState().pendingNotice).toBeNull()
   })
 })
@@ -1552,6 +1699,7 @@ import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import {
   buildNotice,
+  type Correction,
   DEFAULT_RULE_CONFIG,
   type Notice,
   type NoticeSource,
@@ -1559,6 +1707,7 @@ import {
   pickRuleConfig,
   type RuleConfig,
 } from '@engines/config-rules'
+import { resolveFabricSpec } from '@engines/fabric'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
 import type { KVTierSettings } from '@engines/kv-tier'
 import type {
@@ -1685,6 +1834,10 @@ interface UIState extends UIConfig {
   setKVTier: (patch: Partial<KVTierSettings>) => void
   /** Apply a whole shared-link configuration, normalized once ("Shared link adjusted") */
   restoreConfig: (patch: Partial<UIConfig>) => void
+  /** Advanced section only (spec Section 4): keeps model, GPU, GPU count, servers, format, context, concurrent users */
+  resetAdvancedSettings: () => void
+  /** Back to the initial empty state and clears the URL hash (spec Section 4) */
+  resetAll: () => void
   clearNotice: () => void
   setIsDarkMode: (dark: boolean) => void
   toggleDarkMode: () => void
@@ -1695,12 +1848,28 @@ let noticeSeq = 0
 /**
  * The one write path for configuration (ADR 0004): merge the patch, normalize the
  * whole config once, and publish every correction as one notice.
+ *
+ * `extra` carries corrections an action intent makes on its own (not a rule
+ * `normalizeConfig` would find, since the action already avoided the rule firing) but
+ * that must still warn the user — e.g. enabling offloading on unified memory picks
+ * NVMe itself, so R6 never fires, yet the product rule is "always warn the user".
+ *
+ * `presetNotice` (spec Section 4, resets) supplies the notice directly instead of
+ * deriving it from `buildNotice`: a reset's lines describe fields going back to their
+ * defaults, which isn't a rule correction and has no `RuleId`/`CorrectionSubject` to
+ * hang off `Correction`. Its title always wins; if normalizeConfig's own rules still
+ * find something to correct (e.g. R14 renormalizing `numGPUs` after `shardingStrategy`
+ * resets to tensor-parallel), those lines are appended after the preset ones, so a
+ * reset that cascades still surfaces as one notice, not two. No `pendingNotice` is
+ * written when the combined lines end up empty (nothing actually changed).
  */
 function commit(
   set: (partial: Partial<UIState>) => void,
   get: () => UIState,
   patch: Partial<UIConfig>,
   source: NoticeSource,
+  extra: Correction[] = [],
+  presetNotice?: Notice,
 ): void {
   const next = { ...get(), ...patch }
   const { config, corrections } = normalizeConfig(
@@ -1708,16 +1877,69 @@ function commit(
     next.selectedModel,
     next.selectedGPU,
   )
-  const notice = buildNotice(corrections, source, {
+  const built = buildNotice([...extra, ...corrections], source, {
     model: next.selectedModel,
     gpu: next.selectedGPU,
     config,
   })
+  const notice = presetNotice
+    ? { title: presetNotice.title, lines: [...presetNotice.lines, ...(built?.lines ?? [])] }
+    : built
   set({
     ...patch,
     ...config,
-    ...(notice ? { pendingNotice: { ...notice, id: ++noticeSeq } } : {}),
+    ...(notice && notice.lines.length > 0 ? { pendingNotice: { ...notice, id: ++noticeSeq } } : {}),
   })
+}
+
+/**
+ * One line per Advanced-section group that changed from `DEFAULT_UI_CONFIG` (spec
+ * Section 4). Grouped the same way `countAdvancedChanges` (Task 6b) counts them —
+ * one line for "offloading" or "KV tier" even when several of their fields changed —
+ * not one line per raw `UIConfig` key. Mirrors `countAdvancedChanges`'s mode gate: in
+ * training every other Advanced-section input is hidden as inert (InputPanel never
+ * renders them), so only batch size is reset — the rest keep whatever value they held,
+ * exactly like `countAdvancedChanges` never counts them as "changed" in training.
+ */
+function describeAdvancedReset(before: UIConfig): string[] {
+  const d = DEFAULT_UI_CONFIG
+  const lines: string[] = []
+  if (before.batchSize !== d.batchSize) lines.push(`Batch size reset to ${d.batchSize}.`)
+  if (before.mode === 'training') return lines
+  if (before.kvQuantization !== d.kvQuantization) {
+    lines.push(`KV precision reset to ${d.kvQuantization.toUpperCase()}.`)
+  }
+  if (before.shardingStrategy !== d.shardingStrategy) {
+    lines.push(`Sharding strategy reset to ${d.shardingStrategy.replace('-', ' ')}.`)
+  }
+  if (before.interNodeFabric !== d.interNodeFabric || before.customFabric !== d.customFabric) {
+    lines.push(`Fabric reset to ${resolveFabricSpec(d.interNodeFabric, d.customFabric).label}.`)
+  }
+  if (before.interconnectOverride !== d.interconnectOverride) {
+    lines.push('Interconnect variant reset to the default.')
+  }
+  const offloadChanged =
+    before.offloadingEnabled !== d.offloadingEnabled ||
+    before.offloadTarget !== d.offloadTarget ||
+    before.offloadMode !== d.offloadMode ||
+    before.offloadPercentage !== d.offloadPercentage ||
+    before.offloadLayers !== d.offloadLayers ||
+    before.kvCacheOffload !== d.kvCacheOffload ||
+    before.offloadHostCapacityGB !== d.offloadHostCapacityGB
+  if (offloadChanged) lines.push('Offloading reset to off.')
+  if (JSON.stringify(before.kvTier) !== JSON.stringify(d.kvTier)) lines.push('KV tier reset to none.')
+  return lines
+}
+
+/**
+ * Every `UIConfig` field (not the store's extra `isDarkMode`/`pendingNotice`/actions)
+ * already matches `DEFAULT_UI_CONFIG`. Exported so `useURLSync` (Task 2b) can keep the
+ * hash cleared after `resetAll()`, past the debounced sync effect's next write.
+ */
+export function isAtDefaults(state: UIConfig): boolean {
+  return (Object.keys(DEFAULT_UI_CONFIG) as (keyof UIConfig)[]).every(
+    (key) => JSON.stringify(state[key]) === JSON.stringify(DEFAULT_UI_CONFIG[key]),
+  )
 }
 
 export const useUIStore = create<UIState>()(
@@ -1754,6 +1976,21 @@ export const useUIStore = create<UIState>()(
           get,
           toNVMe ? { offloadingEnabled: true, offloadTarget: 'nvme' } : { offloadingEnabled: enabled },
           'setting',
+          // The action, not a rule, made this change (R6 never fires: the patch above
+          // already leaves offloadTarget off 'cpu-ram'), but the product rule is
+          // "always warn the user", so a synthetic Correction still reaches buildNotice.
+          toNVMe && selectedGPU
+            ? [
+                {
+                  rule: 'R6',
+                  field: 'offloadTarget',
+                  from: 'cpu-ram',
+                  to: 'nvme',
+                  subject: 'gpu',
+                  message: `Offload target set to NVMe: ${selectedGPU.name} has unified memory, RAM is the same pool.`,
+                },
+              ]
+            : [],
         )
       },
       setOffloadTarget: (offloadTarget) => commit(set, get, { offloadTarget }, 'setting'),
@@ -1807,6 +2044,49 @@ export const useUIStore = create<UIState>()(
       setConcurrentUsers: (concurrentUsers) => commit(set, get, { concurrentUsers }, 'setting'),
       setKVTier: (patch) => commit(set, get, { kvTier: { ...get().kvTier, ...patch } }, 'setting'),
       restoreConfig: (patch) => commit(set, get, patch, 'link'),
+      resetAdvancedSettings: () => {
+        const before = get()
+        const lines = describeAdvancedReset(before)
+        // Training hides every Advanced input but batch size (countAdvancedChanges,
+        // InputPanel): only patch what's actually visible, so this can't silently
+        // clear an offloading/KV-tier setup the user has no way to see or re-check.
+        const patch: Partial<UIConfig> =
+          before.mode === 'training'
+            ? { batchSize: DEFAULT_UI_CONFIG.batchSize }
+            : {
+                batchSize: DEFAULT_UI_CONFIG.batchSize,
+                kvQuantization: DEFAULT_UI_CONFIG.kvQuantization,
+                shardingStrategy: DEFAULT_UI_CONFIG.shardingStrategy,
+                interNodeFabric: DEFAULT_UI_CONFIG.interNodeFabric,
+                customFabric: DEFAULT_UI_CONFIG.customFabric,
+                interconnectOverride: DEFAULT_UI_CONFIG.interconnectOverride,
+                offloadingEnabled: DEFAULT_UI_CONFIG.offloadingEnabled,
+                offloadTarget: DEFAULT_UI_CONFIG.offloadTarget,
+                offloadMode: DEFAULT_UI_CONFIG.offloadMode,
+                offloadPercentage: DEFAULT_UI_CONFIG.offloadPercentage,
+                offloadLayers: DEFAULT_UI_CONFIG.offloadLayers,
+                kvCacheOffload: DEFAULT_UI_CONFIG.kvCacheOffload,
+                offloadHostCapacityGB: DEFAULT_UI_CONFIG.offloadHostCapacityGB,
+                kvTier: DEFAULT_UI_CONFIG.kvTier,
+              }
+        commit(set, get, patch, 'reset', [], { title: 'Reset to defaults', lines })
+      },
+      resetAll: () => {
+        // A single line is enough here (spec Section 4): unlike resetAdvancedSettings,
+        // this clears everything, so there's no useful "which group" breakdown.
+        const wasAtDefaults = isAtDefaults(get())
+        commit(set, get, DEFAULT_UI_CONFIG, 'reset', [], {
+          title: 'Reset to defaults',
+          lines: wasAtDefaults ? [] : ['Configuration reset to defaults.'],
+        })
+        // Drop the shared-link hash immediately: reset means starting over, not
+        // re-sharing the config it just cleared. useURLSync's debounced sync effect
+        // (Task 2b) also fires from this same state change; its own `isAtDefaults`
+        // guard is what keeps the hash from reappearing 300ms later, not this call.
+        if (typeof window !== 'undefined') {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        }
+      },
       clearNotice: () => set({ pendingNotice: null }),
       setIsDarkMode: (dark) => set({ isDarkMode: dark }),
       toggleDarkMode: () => set({ isDarkMode: !get().isDarkMode }),
@@ -1883,14 +2163,15 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 ### Task 2b: URL restore rebuilt (whole config, normalized once)
 
 **Files:**
-- Modify: `src/store/urlSerializer.ts:48-55` (loosen `sl`, `bs`, `cu`), `:67` (`nn`), after `:124` (new `io`), `:139-172` (param type), `:205-272` (serialize `io`), append `urlStateToConfig`
-- Modify: `src/hooks/useURLSync.ts:1-157` (restore effect)
+- Modify: `src/store/urlSerializer.ts:27-46` (add positive/nonnegative checks to `customModel` and `customGPU` numeric fields), `:48-55` (loosen `sl`, `bs`, `cu`), `:56-64` (loosen `kt.a`, `kt.b`, `kt.g`, `kt.c`), `:67` (`nn`), `:79-84` (positive check on `fabc.port_gbps`), `:92-99` (loosen `hc`), `:106-108` (positive checks on `la`, `tmp`), after `:124` (new `io`), `:139-172` (param type), `:205-272` (serialize `io`), append `urlStateToConfig`
+- Modify: `src/hooks/useURLSync.ts:1-157` (restore effect), `:159-196` (keep the hash cleared once `isAtDefaults`, spec Section 4 "Reset all")
 - Test: `src/store/urlSerializer.test.ts`, `src/store/uiStore.test.ts`
 
 **Interfaces:**
-- Consumes: `UIConfig`, `restoreConfig`, `DEFAULT_UI_CONFIG` (Task 2a); `DEFAULT_KV_TIER`.
+- Consumes: `UIConfig`, `restoreConfig`, `DEFAULT_UI_CONFIG`, `isAtDefaults` (Task 2a); `DEFAULT_KV_TIER`.
 - Produces (exported from `src/store/urlSerializer.ts`):
   - `URLStateSchema` gains `io: z.string().optional()` (interconnectOverride); `sl`, `bs`, `ng` are plain `z.number()`; `cu`, `nn` are `z.number().optional()` (R10 corrects them after restore).
+  - Every numeric key a rule corrects after restore loses its schema bound so a hand-edited or old link still opens: `ng` (R1); `sl`, `nn`, `cu`, `bs` (R10); `ol`/`op` (R9, already unbounded); `kt.a`, `kt.b`, `kt.g`, `kt.c` and `hc` (R4's `clampKVTier` and its own host-capacity check — these currently carry `.min`/`.max`/`.positive()` bounds that reject a hostile value before R4 ever sees it, so this task loosens them too, the same way it loosens `sl`/`cu`/`nn`). Every numeric key **no rule reads** keeps (or gains) a `.positive()`/`.int()` schema check, since it reaches the engines unchanged: `customModel`'s `num_parameters_billion`, `hidden_size`, `num_hidden_layers`, `num_attention_heads`, `num_kv_heads`, `intermediate_size`; `customGPU`'s `vram_gb`, `fp16_tflops` (`memory_bandwidth_gbps` is `.nonnegative()`, not `.positive()` — 0 is `createCustomGPU`'s real default for an unfilled bandwidth, not just a hostile edit); `la` (loraAlpha); `tmp` (targetModulesPercent); `fabc.port_gbps`. A hand-edited 0 in one of the `.positive()` fields is rejected by `deserializeFromURL` (returns `null`), not corrected.
   - `serializeToURL(state)` param gains `interconnectOverride: string | null`.
   - `interface URLLookups { findModel: (id: string) => Model | null; findGPU: (id: string) => GPU | null }`
   - `interface RestoredConfig { patch: Partial<UIConfig>; missing: string[] }`
@@ -2013,8 +2294,27 @@ describe('urlStateToConfig', () => {
     )
     expect(decoded).toMatchObject({ sl: 100, bs: 0, ng: -3, nn: 12, cu: 0 })
   })
+
+  it('rejects a hand-edited custom model or GPU with a non-positive numeric field (no rule reads these)', () => {
+    const badModel = compressToEncodedURIComponent(
+      JSON.stringify({
+        q: 'fp16', sl: 4096, bs: 1, kvq: 'fp16', ng: 1, ss: 'tensor-parallel',
+        customModel: { name: 'x', num_parameters_billion: 0, hidden_size: 4096, num_hidden_layers: 32, num_attention_heads: 32, intermediate_size: 11008 },
+      }),
+    )
+    expect(deserializeFromURL(badModel)).toBeNull()
+    const badGPU = compressToEncodedURIComponent(
+      JSON.stringify({
+        q: 'fp16', sl: 4096, bs: 1, kvq: 'fp16', ng: 1, ss: 'tensor-parallel',
+        customGPU: { name: 'x', vram_gb: 0, memory_bandwidth_gbps: 1000 },
+      }),
+    )
+    expect(deserializeFromURL(badGPU)).toBeNull()
+  })
 })
 ```
+
+`hc` also loses its schema-level drop in this task (Step 3 below), so update the existing test `'tolerates an invalid hand-edited hc (0) instead of discarding the whole hash'`: replace `expect(decoded?.hc).toBeUndefined()` with `expect(decoded?.hc).toBe(0)`, and its comment with `// A hand-edited hash with hc=0 (or any non-positive value) must not fail the whole schema. hc now passes through raw; config-rules R4 resets it to the default (null) after restore, with a "Shared link adjusted" notice, instead of the schema silently dropping it.`
 
 Append to `src/store/uiStore.test.ts`, adding `import { compressToEncodedURIComponent } from 'lz-string'` to its imports in the same edit:
 
@@ -2091,6 +2391,34 @@ describe('uiStore: shared-link restore is one normalized action', () => {
     expect(state.pendingNotice).toBeNull()
   })
 
+  it('a link with offloading on, target cpu-ram, on a unified-memory GPU restores with offloading OFF (R6), not NVMe', async () => {
+    const store = await freshStore()
+    const { deserializeFromURL, urlStateToConfig } = await import('@store/urlSerializer')
+    const decoded = deserializeFromURL(
+      compressToEncodedURIComponent(
+        JSON.stringify({ ...base, modelId: L70.id, gpuId: UNIFIED_M3.id, oe: true, ot: 'cpu-ram' }),
+      ),
+    )
+    if (!decoded) throw new Error('expected the link to parse')
+    // UNIFIED_M3 isn't in the real database yet (Task 3a lands unified_memory data), so
+    // resolve its id through a lookup that hands back the synthetic fixture directly —
+    // the restore path (source 'link') is what's under test, not the database contents.
+    const { patch } = urlStateToConfig(decoded, {
+      findModel: (id) => (id === L70.id ? L70 : null),
+      findGPU: (id) => (id === UNIFIED_M3.id ? UNIFIED_M3 : null),
+    })
+    store.getState().restoreConfig(patch)
+    const state = store.getState()
+    // Unlike setOffloadingEnabled's action intent (unit test above), a link restore
+    // applies the plain rule: R6 turns offloading off, it does not pick NVMe.
+    expect(state.offloadingEnabled).toBe(false)
+    expect(state.offloadTarget).toBe('cpu-ram')
+    expect(state.pendingNotice?.title).toBe('Shared link adjusted')
+    expect(state.pendingNotice?.lines).toEqual([
+      `Offloading turned off: ${UNIFIED_M3.name} has unified memory, RAM is the same pool.`,
+    ])
+  })
+
   it('gives the same result whatever order the link keys come in', async () => {
     const link = { ...base, modelId: L70.id, gpuId: H100.id, ss: 'expert-parallel', ng: 6, bs: 0, sl: 100, nn: 12 }
     const entries = Object.entries(link)
@@ -2116,11 +2444,65 @@ describe('uiStore: shared-link restore is one normalized action', () => {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `npx vitest run src/store/urlSerializer.test.ts src/store/uiStore.test.ts`
-Expected: FAIL: `urlStateToConfig is not a function`; the out-of-range link returns `null` (schema `min(512)`).
+Expected: FAIL: `urlStateToConfig is not a function`; the out-of-range link returns `null` (schema `min(512)`); the non-positive `customModel`/`customGPU` link decodes non-null (no `.positive()` check yet); the updated `hc=0` test expects `0`, but the old `preprocess` still drops it to `undefined`.
 
 - [ ] **Step 3: Implement the serializer changes**
 
 In `src/store/urlSerializer.ts`:
+
+No rule reads `customModel`, `customGPU`, `la`, `tmp` or `fabc.port_gbps` — `normalizeConfig` only ever sees `selectedModel`/`selectedGPU` as opaque objects and R10 does not cover `loraAlpha`/`targetModulesPercent` — so unlike `sl`/`bs`/`cu`/`nn`/`ng` below, these keep the schema as their only gate. Replace the `customModel` object (lines 27-37) with:
+
+```ts
+  customModel: z
+    .object({
+      name: z.string(),
+      // No correcting rule reads these fields: unlike sl/bs/ng/cu/nn below, a
+      // non-positive value here has nowhere else to be caught before it reaches the
+      // engines, so the schema rejects the whole link instead of opening it corrected.
+      num_parameters_billion: z.number().positive(),
+      hidden_size: z.number().int().positive(),
+      num_hidden_layers: z.number().int().positive(),
+      num_attention_heads: z.number().int().positive(),
+      num_kv_heads: z.number().int().positive().optional(),
+      intermediate_size: z.number().int().positive(),
+    })
+    .optional(),
+```
+
+and the `customGPU` object (lines 40-47) with:
+
+```ts
+  customGPU: z
+    .object({
+      name: z.string(),
+      vram_gb: z.number().positive(),
+      // nonnegative, not positive: GPUSelector's custom-GPU form defaults an unfilled
+      // bandwidth to 0 (createCustomGPU's `input.memory_bandwidth_gbps || 0`), so 0 is a
+      // legitimate serialized value, not just a hostile edit.
+      memory_bandwidth_gbps: z.number().nonnegative(),
+      fp16_tflops: z.number().positive().optional(),
+    })
+    .optional(),
+```
+
+(Task 3a appends `unified_memory` and `nvlink_bridge` to this same object.) Replace the `fabc` object (lines 79-84) with:
+
+```ts
+  fabc: z
+    .object({
+      name: z.string(),
+      port_gbps: z.number().positive(),
+    })
+    .optional(), // customFabric
+```
+
+and the `la` and `tmp` lines (106-108) with:
+
+```ts
+  lr: z.number().optional(), // loraRank
+  la: z.number().positive().optional(), // loraAlpha
+  tmp: z.number().positive().optional(), // targetModulesPercent
+```
 
 Replace lines 49-55 with:
 
@@ -2137,10 +2519,38 @@ Replace lines 49-55 with:
   cu: z.number().optional(), // concurrentUsers (absent = 1)
 ```
 
+Replace the `kt` object (lines 56-64) with:
+
+```ts
+  kt: z
+    .object({
+      t: z.enum(KV_TIER_TYPES), // tier
+      // Not range-checked (same reasoning as sl/bs/cu above): config-rules R4's
+      // clampKVTier corrects a, b, g and c after restore, with a "Shared link
+      // adjusted" notice, instead of the schema silently rejecting the whole link.
+      g: z.number().optional(), // customGBps
+      a: z.number(), // activeShare (R4 clamps to 1-100%)
+      b: z.number(), // burstSeconds (R4 clamps to >= 1 s)
+      c: z.number().optional(), // capacityTB
+    })
+    .optional(), // KV storage tier (absent = none)
+```
+
 Replace line 67 (`nn`) with:
 
 ```ts
   nn: z.number().optional(), // numNodes (R10 bounds it to 1-8)
+```
+
+Replace the `hc` block (lines 92-99) with:
+
+```ts
+  // offloadHostCapacityGB. Not range-checked (same reasoning as kt above): a
+  // hand-edited hc <= 0 (or non-finite) must still open the link. It used to be
+  // preprocessed to `undefined` here, which restored silently with no notice;
+  // now it passes through and config-rules R4 resets it to the default (null)
+  // with a "Shared link adjusted" notice, like every other rule-corrected field.
+  hc: z.number().optional(),
 ```
 
 After the `co` line (124) add:
@@ -2270,7 +2680,7 @@ In the same edit add the imports it needs: `import { DEFAULT_KV_TIER, KV_TIER_TY
 Replace lines 1-157 of `src/hooks/useURLSync.ts` (imports through the end of the first `useEffect`) with:
 
 ```ts
-import { findGPUById, findModelById, useUIStore } from '@store/uiStore'
+import { findGPUById, findModelById, isAtDefaults, useUIStore } from '@store/uiStore'
 import { deserializeFromURL, serializeToURL, urlStateToConfig } from '@store/urlSerializer'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
@@ -2314,7 +2724,25 @@ export function useURLSync() {
   }, []) // Empty deps - only run on mount
 ```
 
-Leave the second `useEffect` (serialize on change) and the closing brace unchanged. The old `const store = useUIStore()` subscription (which re-rendered App on every store change) is gone.
+The old `const store = useUIStore()` subscription (which re-rendered App on every store change) is gone.
+
+In the second `useEffect` (serialize on change), in the subscription callback, right after `const compressed = serializeToURL(state)`, add:
+
+```ts
+        // resetAll() (spec Section 4) clears the hash itself, but this debounced
+        // effect still fires from that same state change: without this, it would
+        // write `#<encoded defaults>` ~300ms later, and the hash would visibly
+        // reappear even though it decodes to the same configuration. Keep it cleared
+        // for as long as the state stays at the defaults.
+        if (isAtDefaults(state)) {
+          if (window.location.hash) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          }
+          return
+        }
+```
+
+Leave the rest of the second `useEffect` and the closing brace unchanged.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -2353,9 +2781,10 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 - Produces:
   - `GPUSchema.interconnect` / `interconnect_options` enums include `'nvlink-3'`.
   - `GPUSchema.nvlink_bridge?: { type: 'nvlink-3' | 'nvlink-4' | 'nvlink-5'; size: number }` (size is an integer >= 2).
+  - `GPUSchema.gpudirect_rdma?: boolean` (false only on `nvidia-gb10`; undefined elsewhere, including every custom GPU). This is the data source Task 4a's `effectiveFraction(gpu)` reads for eta — never an id check.
   - `InterconnectType` includes `'nvlink-3'`; `INTERCONNECT_SPECS['nvlink-3'] = { bandwidthGBps: 600, recommendedMaxTPDegree: 8, tpScalingEfficiency: 0.89, allreduceLatencyUs: 11 }`; `INTERCONNECT_LABELS['nvlink-3'] = 'NVLink 3 — 600 GB/s'`.
   - New row `nvidia-h200-nvl-141gb`; 28 GPU rows in total.
-  - `CustomGPUInput.unified_memory?: boolean`; URL `customGPU` carries optional `unified_memory` and `nvlink_bridge`.
+  - `CustomGPUInput.unified_memory?: boolean`; URL `customGPU` carries optional `unified_memory` and `nvlink_bridge`. `CustomGPUInput` gains no `gpudirect_rdma` field: a custom GPU always reads as `true` (the HGX assumption) in `effectiveFraction`.
 
 - [ ] **Step 1: Write the failing data tests**
 
@@ -2425,12 +2854,19 @@ describe('GPU topology (v2 per-card audit, spec Section 3)', () => {
     })
   })
 
-  it('GB10 (DGX Spark) is one GPU per node, no scale-up link, unified memory', () => {
+  it('GB10 (DGX Spark) is one GPU per node, no scale-up link, unified memory, no GPUDirect RDMA', () => {
     const g = byId('nvidia-gb10')
     expect(g.max_gpus_per_node).toBe(1)
     expect(g.interconnect).toBe('none')
     expect(g.interconnect_options).toBeUndefined()
     expect(g.unified_memory).toBe(true)
+    expect(g.gpudirect_rdma).toBe(false)
+  })
+
+  it('no other database GPU sets gpudirect_rdma (undefined reads as RDMA-capable)', () => {
+    expect(gpus.filter((g) => g.gpudirect_rdma !== undefined).map((g) => g.id)).toEqual([
+      'nvidia-gb10',
+    ])
   })
 
   it('GB300 Desktop Superchip has no GPU-to-GPU link (single GPU)', () => {
@@ -2494,6 +2930,14 @@ and replace lines 79-104 (`interconnect` and `interconnect_options`) with:
       size: z.number().int().min(2),
     })
     .optional(),
+  /**
+   * Whether this GPU's scale-out NIC supports GPUDirect RDMA. False only on
+   * `nvidia-gb10` (DGX Spark): NCCL send/recv reaches ~9 GB/s vs 24.6 GB/s raw RDMA
+   * (multimodalflow.net, secondary source). Undefined (every other GPU, and every
+   * custom GPU) reads as `true` in fabric.ts's `effectiveFraction`. This is the only
+   * source for eta: never key it off `gpu.id`.
+   */
+  gpudirect_rdma: z.boolean().optional(),
 ```
 
 In `src/engines/types.ts`, add `| 'nvlink-3'` to `InterconnectType` (before `'nvlink-4'`) and add `- nvlink-3: 3rd gen NVLink (600 GB/s): A100 SXM, and the H100/A100 PCIe bridges` to its doc list.
@@ -2571,7 +3015,7 @@ Before committing, open the PNY datasheet URL above and confirm 141 GB, 4.8 TB/s
 
 `nvidia-gb300-desktop-252gb` (line 282): `interconnect: 'none', // one GPU; NVLink-C2C links it to the CPU, not to another GPU`.
 
-`nvidia-gb10` (lines 287-303): `interconnect: 'none',`, delete `interconnect_options`, `max_gpus_per_node: 1,`, add `unified_memory: true,`, and put above the row:
+`nvidia-gb10` (lines 287-303): `interconnect: 'none',`, delete `interconnect_options`, `max_gpus_per_node: 1,`, add `unified_memory: true,` and `gpudirect_rdma: false, // DGX Spark: no GPUDirect RDMA; NCCL send/recv ~9 GB/s vs 24.6 GB/s raw RDMA (multimodalflow.net, secondary source)`, and put above the row:
 
 ```ts
   // DGX Spark: one GB10 per unit, no GPU-to-GPU link. Two or four Sparks cluster
@@ -2592,7 +3036,7 @@ Expected: `✓ All GPUs valid`, `✓ Wrote 28 GPUs`; the diff touches only the r
 
 `src/components/inputs/FrameworkPresetPicker.tsx:41`: `<option value="tgi">TGI (archived, inference only)</option>`.
 
-`src/types/gpu.ts`: add `unified_memory?: boolean` to `CustomGPUInput` and, in `createCustomGPU`, after `max_gpus_per_node: 8,` add `...(input.unified_memory ? { unified_memory: true } : {}),`.
+`src/types/gpu.ts`: add `unified_memory?: boolean` to `CustomGPUInput` and, in `createCustomGPU`, after `max_gpus_per_node: 8,` add `...(input.unified_memory ? { unified_memory: true } : {}),`. Do not add a `gpudirect_rdma` field here: a custom GPU's `gpudirect_rdma` stays undefined, which `effectiveFraction` (Task 4a) reads as `true` (the HGX assumption) — the only measured no-RDMA card is GB10, in the database.
 
 `src/store/urlSerializer.ts` `customGPU` object (lines 40-47): add
 
@@ -2624,7 +3068,7 @@ In `src/engines/config-rules.test.ts` replace the `UNIFIED_M3` definition and it
   { rule: 'R6', path: 'dependency', name: 'PCIe tier then DGX Spark', config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'host-pcie' } }, model: L8, gpu: findGPU('nvidia-gb10'), validUnder: { model: L8, gpu: H100 }, expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } } },
 ```
 
-In `src/store/uiStore.test.ts` replace the `UNIFIED_M3` definition and its comment with `const UNIFIED_M3 = findGPU('apple-m3-ultra')`, and remove `validateGPU` from the `@utils/schemas` import in the same edit.
+In `src/store/uiStore.test.ts` replace the `UNIFIED_M3` definition and its comment with `const UNIFIED_M3 = findGPU('apple-m3-ultra')`, and remove `validateGPU` from the `@utils/schemas` import in the same edit. `apple-m3-ultra` now carries `unified_memory: true` for real, so simplify the Task 2b test `'a link with offloading on, target cpu-ram, on a unified-memory GPU restores with offloading OFF (R6), not NVMe'`: replace its body (from the `deserializeFromURL`/custom-lookups workaround through `store.getState().restoreConfig(patch)`) with `const state = await restore({ ...base, modelId: L70.id, gpuId: UNIFIED_M3.id, oe: true, ot: 'cpu-ram' })`, and delete the two comments explaining the custom lookup (no longer needed — `restore()`'s real `findGPUById` now resolves `UNIFIED_M3.id` to a row with `unified_memory: true`).
 
 - [ ] **Step 8: Run the tests**
 
@@ -2934,10 +3378,10 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 - Test: `src/engines/fabric.test.ts`, `src/store/urlSerializer.test.ts`
 
 **Interfaces:**
-- Consumes: `GPU` (with Task 3a data: GB10 is 128 GB, one per node).
+- Consumes: `GPU` (with Task 3a data: GB10 is 128 GB, one per node, `gpudirect_rdma: false`). Task 4a runs after Task 3a, so `GPU.gpudirect_rdma` already exists on every row when `effectiveFraction` is written.
 - Produces (exported from `src/engines/fabric.ts`):
   - `HGX_EFFECTIVE_FRACTION = 0.8` (ASSUMPTION), `GB10_EFFECTIVE_FRACTION = 0.37` (SECONDARY SOURCE), `FABRIC_HOP_LATENCY_S = 10e-6`
-  - `effectiveFraction(gpu: GPU): number` — 0.37 for `nvidia-gb10`, else 0.8
+  - `effectiveFraction(gpu: GPU): number` — reads `gpu.gpudirect_rdma` (GPU *data*, from Task 3a), not `gpu.id`: `GB10_EFFECTIVE_FRACTION` when `gpu.gpudirect_rdma === false`, else `HGX_EFFECTIVE_FRACTION`.
   - `interNodeGBps(portGBps: number, gpusPerNode: number, fraction: number): number` — `port x gpusPerNode x fraction`
   - `fabricHopSeconds(tokens: number, hiddenSize: number, gbps: number): number` — `tokens x hidden x 2 x 2 / (gbps x 1e9) + FABRIC_HOP_LATENCY_S`
   - `maxNumBatchedTokens(gpu: GPU): number` — 16384 (>= 160 GB), 8192 (>= 70 GB, not A100), else 2048
@@ -2951,7 +3395,7 @@ Append to `src/engines/fabric.test.ts`, extending its imports in the same edit t
 
 ```ts
 import gpusData from '@data/gpus.json'
-import { validateGPUs } from '@utils/schemas'
+import { validateGPU, validateGPUs } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 import {
   effectiveFraction,
@@ -2997,6 +3441,14 @@ describe('effectiveFraction', () => {
   it('uses the GB10 measurement for DGX Spark and the HGX assumption elsewhere', () => {
     expect(effectiveFraction(findGPU('nvidia-gb10'))).toBe(GB10_EFFECTIVE_FRACTION)
     expect(effectiveFraction(findGPU('nvidia-h100-80gb-sxm'))).toBe(HGX_EFFECTIVE_FRACTION)
+  })
+
+  it('is data-driven (gpudirect_rdma), not an id check: an H100 without GPUDirect RDMA still gets the secondary-source value', () => {
+    // Derived row, validated by the real schema: proves effectiveFraction reads
+    // gpu.gpudirect_rdma, not gpu.id === 'nvidia-gb10' (nvidia-h100-80gb-sxm normally
+    // has no gpudirect_rdma override and reads as RDMA-capable, see the H100 case above).
+    const noRdma = validateGPU({ ...findGPU('nvidia-h100-80gb-sxm'), gpudirect_rdma: false })
+    expect(effectiveFraction(noRdma)).toBe(GB10_EFFECTIVE_FRACTION)
   })
 })
 
@@ -3086,7 +3538,8 @@ Append at the end of the file:
 export const HGX_EFFECTIVE_FRACTION = 0.8
 
 /**
- * Share of line rate on DGX Spark (GB10), which has no GPUDirect RDMA.
+ * Share of line rate on a GPU without GPUDirect RDMA (`gpu.gpudirect_rdma === false`;
+ * DGX Spark / GB10 is the only measured case, Task 3a).
  * SECONDARY SOURCE, one measurement: NCCL send/recv ~9 GB/s vs 24.6 GB/s with RDMA on
  * a Spark 200G link (multimodalflow.net, DGX Spark dual-node NCCL RDMA).
  */
@@ -3098,9 +3551,13 @@ export const GB10_EFFECTIVE_FRACTION = 0.37
  */
 export const FABRIC_HOP_LATENCY_S = 10e-6
 
-/** eta: the fraction of the fabric's line rate a stage handoff reaches on this GPU's node */
+/**
+ * eta: the fraction of the fabric's line rate a stage handoff reaches on this GPU's
+ * node. Keyed by the GPU's own `gpudirect_rdma` data field (Task 3a), never by
+ * `gpu.id`: a custom GPU or a future no-RDMA card gets the right value automatically.
+ */
 export function effectiveFraction(gpu: GPU): number {
-  return gpu.id === 'nvidia-gb10' ? GB10_EFFECTIVE_FRACTION : HGX_EFFECTIVE_FRACTION
+  return gpu.gpudirect_rdma === false ? GB10_EFFECTIVE_FRACTION : HGX_EFFECTIVE_FRACTION
 }
 
 /**
@@ -4321,22 +4778,25 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 - Create: `src/components/layout/advancedChanges.ts`, `src/components/layout/advancedChanges.test.ts`
 - Create: `src/components/outputs/VerdictBlock.tsx`
 - Create: `src/hooks/useResultExports.test.tsx`
+- Create: `src/components/layout/Header.test.tsx`
 - Modify: `src/components/layout/InputPanel.tsx` (full body)
+- Modify: `src/components/layout/Header.tsx` (reset-all button)
 - Modify: `src/components/layout/ResultsPanel.tsx:22` (imports), `:32-60` (state), `:454-658` (inference layout)
 - Modify: `src/components/inputs/GPUSelector.tsx:15`, `:411-412` (InterconnectSelector moves to Advanced)
 - Modify: `src/components/inputs/ShardingStrategySelector.tsx:23-26`, `:149-179`
 - Modify: `src/components/inputs/GPUCountSelector.tsx:24-33`, `:78-86`
 - Modify: `src/hooks/useResultExports.ts:46-77`
 - Modify: `src/utils/exportPptx.ts:182`
-- Test: `src/components/layout/InputPanel.test.tsx`, `src/components/layout/ResultsPanel.test.tsx`, `src/components/inputs/GPUCountSelector.test.tsx`, `src/components/inputs/ShardingStrategySelector.test.tsx`, `src/utils/exportPptx.test.ts:179-180`, `:237`
+- Test: `src/components/layout/InputPanel.test.tsx`, `src/components/layout/Header.test.tsx`, `src/components/layout/ResultsPanel.test.tsx`, `src/components/inputs/GPUCountSelector.test.tsx`, `src/components/inputs/ShardingStrategySelector.test.tsx`, `src/utils/exportPptx.test.ts:179-180`, `:237`
 
 **Interfaces:**
-- Consumes: `DEFAULT_UI_CONFIG`, `UIConfig` (Task 2a); `firstTokenLabel` (Task 4c); `SoftWarnings`, `softWarnings` (Task 5); `FRAMEWORK_PRESETS`; `maxGPUsFor`.
+- Consumes: `DEFAULT_UI_CONFIG`, `UIConfig`, `resetAdvancedSettings`, `resetAll` (Task 2a); `firstTokenLabel` (Task 4c); `SoftWarnings`, `softWarnings` (Task 5); `FRAMEWORK_PRESETS`; `maxGPUsFor`.
 - Produces:
   - `countAdvancedChanges(config: UIConfig): number` — advanced settings differing from `DEFAULT_UI_CONFIG` (inference: batch size, KV precision, strategy, fabric when numNodes > 1, interconnect override, offloading, KV tier; training: batch size only).
   - `VerdictBlock(props: { fit: ReactNode; performance: PerformanceEstimate; batchSize: number; maxSessions: number | null; sequenceLength: number })`, root `data-testid="verdict"`.
   - `<details data-testid="advanced-settings">` in InputPanel, `<details data-testid="result-details">` in ResultsPanel; both controlled by component state so a recalculation (loading skeleton) never closes them.
   - PPTX config row `['GPUs per replica', '8 per server × 4 servers (32 total)']` (nodes > 1) or `['GPUs per replica', '1 (in one server)']`; no `Number of GPUs` row.
+  - A "Reset advanced settings" text button inside `<details data-testid="advanced-settings">`'s content, calling `resetAdvancedSettings()` (spec Section 4). A "Reset all" icon button in `Header.tsx`, `aria-label="Reset all settings to defaults"`, calling `resetAll()`; both rely on the existing `useConfigNotices` toast (Task 5) for the "Reset to defaults" notice — neither button toasts on its own.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4443,6 +4903,61 @@ describe('InputPanel layout (ADR 0005)', () => {
     useUIStore.setState({ mode: 'training', frameworkPreset: 'deepspeed-zero3' })
     const { container } = render(<InputPanel />)
     expect(field(container, 'gpu-count')).toBeVisible()
+  })
+
+  it('the Advanced reset button is visible inside the section, restores the defaults, and collapses "N settings changed" to 0', () => {
+    useUIStore.setState({ batchSize: 8, kvQuantization: 'fp8' })
+    render(<InputPanel />)
+    const advanced = screen.getByTestId('advanced-settings')
+    const resetButton = within(advanced).getByRole('button', { name: 'Reset advanced settings' })
+    expect(resetButton).toBeVisible()
+    expect(within(advanced).getByText(/2 settings changed/)).toBeVisible()
+    act(() => resetButton.click())
+    expect(within(advanced).queryByText(/settings? changed/)).not.toBeInTheDocument()
+    expect(useUIStore.getState().batchSize).toBe(DEFAULT_UI_CONFIG.batchSize)
+    expect(useUIStore.getState().kvQuantization).toBe(DEFAULT_UI_CONFIG.kvQuantization)
+  })
+})
+```
+
+Create `src/components/layout/Header.test.tsx` (no existing test file for `Header.tsx`):
+
+```tsx
+import { DEFAULT_UI_CONFIG, useUIStore } from '@store/uiStore'
+import { act, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Header } from './Header'
+
+vi.hoisted(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+})
+vi.mock('zustand/middleware', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('zustand/middleware')>()
+  return { ...actual, persist: (config: unknown) => config }
+})
+
+describe('Header: Reset all (spec Section 4)', () => {
+  beforeEach(() => {
+    useUIStore.setState({ ...DEFAULT_UI_CONFIG, pendingNotice: null })
+  })
+
+  it('has a labelled reset-all button that returns the store to its initial state, with one notice', () => {
+    useUIStore.setState({ batchSize: 8, numGPUs: 4 })
+    render(<Header />)
+    act(() => screen.getByRole('button', { name: 'Reset all settings to defaults' }).click())
+    const state = useUIStore.getState()
+    expect(state.batchSize).toBe(DEFAULT_UI_CONFIG.batchSize)
+    expect(state.numGPUs).toBe(DEFAULT_UI_CONFIG.numGPUs)
+    expect(state.pendingNotice?.title).toBe('Reset to defaults')
   })
 })
 ```
@@ -4604,7 +5119,7 @@ describe('useResultExports: PDF', () => {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `npx vitest run src/components/layout src/components/inputs src/hooks/useResultExports.test.tsx src/utils/exportPptx.test.ts`
-Expected: FAIL: no `advanced-settings`/`verdict`/`result-details` test ids; `advancedChanges` missing; label still "GPUs per server"; PDF leaves `advanced` closed during capture; PPTX still has `Number of GPUs`. The Task 6a tests still pass.
+Expected: FAIL: no `advanced-settings`/`verdict`/`result-details` test ids; `advancedChanges` missing; label still "GPUs per server"; PDF leaves `advanced` closed during capture; PPTX still has `Number of GPUs`; no "Reset advanced settings" button; `Header.test.tsx` fails to find a "Reset all settings to defaults" button. The Task 6a tests still pass.
 
 - [ ] **Step 3: `countAdvancedChanges`**
 
@@ -4719,6 +5234,18 @@ export function InputPanel() {
             )}
           </summary>
           <div className="mt-4 space-y-4">
+            {/* Spec Section 4: resets batch, KV precision, strategy, fabric, interconnect
+                variant, offloading and KV tier — keeps model, GPU, GPU count, servers,
+                format, context and concurrent users. Goes through commit()/normalizeConfig
+                (resetAdvancedSettings), so the "Reset to defaults" toast is the existing
+                useConfigNotices pipeline, not a button-local one. */}
+            <button
+              type="button"
+              onClick={() => state.resetAdvancedSettings()}
+              className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Reset advanced settings
+            </button>
             <BatchSizeInput />
             {isInference && (
               <>
@@ -4739,6 +5266,22 @@ export function InputPanel() {
 ```
 
 In `src/components/inputs/GPUSelector.tsx` delete line 15 (`import { InterconnectSelector } ...`) and lines 411-412 (the comment and `<InterconnectSelector />`) in one edit.
+
+In `src/components/layout/Header.tsx` add `import { ArrowPathIcon } from '@heroicons/react/24/outline'` to the existing heroicons import, `import { useUIStore } from '@store/uiStore'`, and inside `Header()` add `const resetAll = useUIStore((s) => s.resetAll)`. Add a button before the existing share button (same `<div className="flex items-center gap-2">`):
+
+```tsx
+            <button
+              type="button"
+              onClick={resetAll}
+              aria-label="Reset all settings to defaults"
+              title="Reset all"
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <ArrowPathIcon className="w-5 h-5" />
+            </button>
+```
+
+Section 4's "returns to the initial empty state and clears the URL hash" is `resetAll()`'s own job (Task 2a); the button is a one-line call plus the toast `useConfigNotices` already shows for the resulting notice.
 
 - [ ] **Step 5: Strategy selector visibility, GPU count label and summary**
 
@@ -4990,7 +5533,7 @@ No version bump: `package.json` stays at 1.13.0 (release PR later). ADR 0006 is 
 - Modify: `CLAUDE.md:47-57` (Key Patterns bullets)
 - Modify: `ARCHITECTURE.md:31-40`, `:227-250`, `:263-283`, `:333-357`
 - Modify: `README.md:25-29`, `:45`
-- Outside the repo (not committed): `~/.claude/projects/-Users-fjacquet-Projects-llmvram/memory/MEMORY.md` "Current counts" line
+- The controller updates the private memory GPU count after merge (not part of this PR).
 
 **Interfaces:** none (documentation only).
 
@@ -5091,6 +5634,14 @@ Insert after the Results Panel section (before `{/* Comparison View */}`):
           tensor-parallel degree above what the interconnect scales to, small clusters of single-GPU
           units, experts that do not split evenly across the GPUs, more pipeline stages than layers.
         </P>
+        <P>
+          <strong>Resetting.</strong> &quot;Reset advanced settings&quot;, inside the Advanced
+          section, puts batch size, KV precision, sharding strategy, fabric, interconnect variant,
+          offloading and the KV tier back to their defaults; model, GPU, GPU count, servers, format,
+          context and concurrent users are untouched. &quot;Reset all&quot;, the icon button in the
+          header, returns to the empty starting state and clears the shared-link URL. Both show one
+          &quot;Reset to defaults&quot; notice listing what changed.
+        </P>
 ```
 
 Replace the GPU Selection paragraph about interconnects (line 173-175, the "Key specs" `<P>`) with:
@@ -5183,9 +5734,10 @@ Insert above `## [1.13.0] - 2026-09-27` in `CHANGELOG.md`:
 ### Added
 
 - One configuration rule table (`src/engines/config-rules.ts`): impossible combinations are not offered, and every correction is shown in one notice per action.
-- H200 NVL (PCIe, 4-way NVLink bridge at 900 GB/s). GPU data fields `nvlink_bridge` and `unified_memory`; NVLink 3 (600 GB/s) interconnect.
+- H200 NVL (PCIe, 4-way NVLink bridge at 900 GB/s). GPU data fields `nvlink_bridge`, `unified_memory` and `gpudirect_rdma`; NVLink 3 (600 GB/s) interconnect.
 - 200GbE fabric preset (ConnectX-7) for DGX Spark / DGX Station clusters.
 - Soft warnings for small single-GPU clusters, uneven expert splits and more pipeline stages than layers.
+- "Reset advanced settings" (in the Advanced section) and "Reset all" (in the header) buttons, each showing one "Reset to defaults" notice; Reset all also clears the shared-link URL.
 
 ### Changed
 
@@ -5215,7 +5767,7 @@ Add after the `max_gpus_per_node` bullet:
 - **`nvlink_bridge` and `unified_memory` are GPU data**: a bridge carries a TP/EP group only while `groupSize <= nvlink_bridge.size`, so `resolveInterconnect(gpu, groupSize)` takes the group size and every consumer passes its own (TP/EP: GPUs per stage; badge and W2: `numGPUs`). `unified_memory` is the only source for "no separate host memory" (R6): never infer it from `interconnect === 'unified'` or the tier.
 ```
 
-Append to the `**Decode = bytes per step / bandwidth + communication**` bullet: ` Across servers each step adds (N − 1)/stages stage hops of B tokens (`fabricHopSeconds`, eta 0.8 HGX assumption / 0.37 GB10); prefill pipelines M = ceil(B·T/C) microbatches (C = vLLM max_num_batched_tokens) and adds (N − 1) prompt hops divided by B.`
+Append to the `**Decode = bytes per step / bandwidth + communication**` bullet: ` Across servers each step adds (N − 1)/stages stage hops of B tokens (`fabricHopSeconds`, eta 0.8 HGX assumption / 0.37 when `GPU.gpudirect_rdma === false`, GB10 today); prefill pipelines M = ceil(B·T/C) microbatches (C = vLLM max_num_batched_tokens) and adds (N − 1) prompt hops divided by B.`
 
 - [ ] **Step 4: ARCHITECTURE.md**
 
@@ -5247,13 +5799,10 @@ In the Component Architecture mermaid: replace the `Left` subgraph body with `Es
 
 `README.md:29` (Interconnect Selector bullet) becomes `- **Configuration rules**: impossible combinations are not offered; any correction (including on a shared link) is explained in one notice`. Line 45: add `H200 NVL` after `H200` (`H100 PCIe/SXM, H200 SXM/NVL, B200, ...`). In the Multi-GPU bullet (line 25) change `(NVLink-5/4, Infinity Fabric, PCIe-5/4)` to `(NVLink 5/4/3 and NVLink bridges, Infinity Fabric, PCIe 5/4)`.
 
-- [ ] **Step 6: Auto-memory count (outside the repo, not committed)**
-
-If the executing agent can write `~/.claude/projects/-Users-fjacquet-Projects-llmvram/memory/MEMORY.md`, change the "Current counts" line to start `- Current counts: 54 models, 28 GPUs (2026-09-27: H200 NVL split from H200 SXM.` keeping the rest of the line. Otherwise mention it in the PR description for the user.
-
-- [ ] **Step 7: Verify and commit**
+- [ ] **Step 6: Verify and commit**
 
 Run: `npx vitest run && npm run build && npm run lint:fix && npm run lint`
+
 Expected: all green (docs-only changes plus GuidePage JSX).
 
 ```bash
@@ -5268,18 +5817,21 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 
 ## Spec ambiguities resolved in this plan
 
-- **eta per GPU, not per fabric.** The spec says `classFactor` becomes `effectiveFraction`, but eta depends on the node (GB10 lacks GPUDirect RDMA). `classFactor` is dropped from `FabricSpec`; `effectiveFraction(gpu)` returns 0.37 for `nvidia-gb10` (the only measured case), 0.8 elsewhere.
+- **eta per GPU, not per fabric.** The spec says `classFactor` becomes `effectiveFraction`, but eta depends on the node (GB10 lacks GPUDirect RDMA). `classFactor` is dropped from `FabricSpec`; `effectiveFraction(gpu)` reads the new `GPU.gpudirect_rdma` data field (Task 3a) — 0.37 when it is `false` (`nvidia-gb10` is the only measured case today), 0.8 otherwise — never a `gpu.id` check, so a future no-RDMA card or a custom GPU gets the right value from its own data.
 - **Hostile links must parse.** `sl` (min 512), `nn` (1-8) and `cu` (int, max) made the whole schema fail, so "sl < 512 opens corrected" was impossible. The schema now accepts any number and R1/R10 correct after restore. `cu` keeps its `MAX_CONCURRENT_USERS` upper bound inside R10.
 - **R12 only when offloading is on.** A stale `kvCacheOffload` with offloading disabled is inert (the engine ignores it), so it does not clear a KV tier.
-- **Enabling offloading on unified memory** is action intent (target switches to NVMe), otherwise R6 would switch the checkbox straight back off.
+- **Enabling offloading on unified memory** is action intent (target switches to NVMe), otherwise R6 would switch the checkbox straight back off — but the switch still warns: `commit()`'s `extra` parameter carries a synthetic R6-shaped correction into `buildNotice` even though R6 itself never fires, because the product rule is "always warn the user". A link encoding the same combination is not an action intent, so it takes the plain R6 path (offloading off, not NVMe).
 - **R4 host capacity notice** gets its own text ("Host capacity reset to the default: it must be a positive number.") since the spec's R4 text names only the KV tier.
 - **Notice lines**: one per rule and field, carrying that pair's last message (a fixpoint can snap R14 twice). Titles for plain setting changes follow the first correction's subject.
 - **First-token label** stays "Time to first token" at batch 1; the amortized label applies for B > 1 (the figure is exactly one request's TTFT at B = 1).
 - **PPTX row**: "Number of GPUs" held the cluster total; it becomes "GPUs per replica" with `8 per server × 4 servers (32 total)` so the total is not lost.
 - **Interconnect override** replaces the bridge too (the user picked the link). After Task 3a no database GPU has `interconnect_options`, so R5/R13 and the variant picker are reachable only through custom rows; kept per spec.
-- **Derived fixtures before the data lands**: Tasks 1a/2a use `validateGPU({ ...findGPU('apple-m3-ultra'), unified_memory: true })`; Task 3a swaps it for the real row. R5 keeps one schema-validated derived row with options.
+- **Derived fixtures before the data lands**: Tasks 1a/2a use `validateGPU({ ...findGPU('apple-m3-ultra'), unified_memory: true })`; Task 3a swaps it for the real row. R5 keeps one schema-validated derived row with options. Task 4a's "is data-driven" `effectiveFraction` test keeps a second one permanently: `validateGPU({ ...findGPU('nvidia-h100-80gb-sxm'), gpudirect_rdma: false })`, proving the function reads the data field on an id that is not `nvidia-gb10`.
 - **Order independence** is tested on the pure function (every rotation of the rule table, forward and reversed) and on restore (link keys in three orders). Interactive action sequences are path-dependent by design (R14 snaps immediately), which is why a link restores in one step.
 - **H200 SXM display name** becomes "NVIDIA H200 141GB SXM" (id unchanged) to tell it apart from the NVL row.
 - **GPU count summary** keeps the spec's `"{n} GPUs per server × {m} servers per replica"` and appends `, {strategy}` (the EP label fix needs the strategy in the summary); Task 6b pins the suffixed form.
 - **R14 is bounded by the GPU** (`min(numGPUs, max_gpus_per_node)`) so a hostile count cannot loop in any rule order; with that bound R14 fires at most once, so the notice de-duplication is tested with hand-built corrections.
 - **Every setter goes through `commit()`**, including fields with no rule (quantization, fabric...): harmless, and it makes "every action normalizes" literally true. Batch size and gradient accumulation are range sliders (no NaN on edit); number fields commit on blur, so routine typing does not produce correction toasts.
+- **Reset advanced settings can move an essential.** "Keeps GPU count" yields to `normalizeConfig` when the reset itself makes the count invalid (6 under pipeline-parallel → tensor-parallel snaps to 4, R14); the notice says so, in the same "Reset to defaults" title, right after the line that caused it.
+- **Reset notices bypass `Correction`.** `resetAdvancedSettings`/`resetAll` describe fields going back to their defaults, which has no `RuleId` or `CorrectionSubject` to hang a `Correction` off. `commit()` gains an optional `presetNotice: Notice` instead: its title always wins, and its lines are prepended to whatever `buildNotice` still finds from `normalizeConfig`'s own corrections, so a reset that cascades into a further rule (R14 renormalizing `numGPUs` after `shardingStrategy` resets) still surfaces as one notice.
+- **Reset all's hash could have reappeared, so `useURLSync` guards it.** `resetAll()` clears `window.location.hash` synchronously, but `useURLSync`'s debounced sync effect still fires from that same state change ~300ms later. Left alone it would re-encode the (now default) state and write `#<encoded defaults>` back — not stale (it decodes to the same config), but visibly reappearing right after the button click, which reads as broken even though nothing is wrong. `isAtDefaults` (Task 2a) lets that effect keep the hash cleared for as long as the state stays at the defaults instead. This was weighed for Review Focus and left out once the guard was added: no reload, at any point, produces a config other than the defaults the button set.
