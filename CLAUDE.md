@@ -17,7 +17,7 @@ npm run lint:fix         # Biome auto-fix
 npm run format           # Biome format (write)
 npm run test             # Vitest in watch mode
 npm run test:coverage    # Vitest single run with v8 coverage
-npm run refresh:models   # Fetch model configs from HuggingFace → src/data/models-fetched.json
+npm run refresh:models   # Audit models.json vs Hugging Face; --measure <id> prints weight_refs; --draft drafts new roster ids (never writes models.json)
 npm run refresh:gpus     # Regenerate src/data/gpus.json from scripts/fetch-gpus.ts
 ```
 
@@ -45,6 +45,7 @@ scripts/          # Data refresh scripts (tsx) — fetch from HuggingFace, valid
 - **Static data + custom input**: Curated JSON databases for common GPUs/models, plus `CustomGPUInput`/`CustomModelInput` interfaces for user-specified hardware/models.
 - **MoE models use total parameters**: For MoE models like Mixtral, `num_parameters_billion` is the **total** parameter count (e.g., 46.7B), not active-per-token (e.g., 13B). All expert weights must fit in VRAM.
 - **KV sizes are known-good values, not formulas**: `kv_cache_elements_per_token` (full-attention layers) and `kv_sliding_elements_per_token` + `kv_sliding_window` (windowed layers) and `linear_state_bytes_per_session` (linear-attention / SSM state, in bytes because its dtype varies) are what vLLM allocates, confirmed by a second source (HF transformers cache shapes or a published figure). Never re-derive them by hand; every value in `models.test.ts` carries its source.
+- **Weight sizes are measured per format**: weight_refs[format] = {repo, gib} from the reference checkpoint (native, nvidia NVFP4, RedHatAI FP8/INT4, unsloth→bartowski GGUF, most-downloaded AWQ/GPTQ), produced by `refresh:models --measure`. effectiveBytesPerParameter uses it for memory and decode; BYTES_PER_PARAMETER is only the fallback.
 - **Decode = bytes per step / bandwidth + communication**: one step reads the weights once plus each sequence's KV at the full context, per GPU share; tensor parallelism adds two all-reduce latencies per layer (`INTERCONNECT_SPECS.allreduceLatencyUs`); pipeline stages overlap by `B / (B + stages - 1)`. Decode never multiplies by `scalingEfficiency`; prefill uses `prefillScalingEfficiency`.
 - **Expert parallelism splits MoE by `splitMoEParams`**: routed = (total − active) / (1 − k/E), base = the rest (checked against Kimi K3 config, 0.1% / 3%). Under `'expert-parallel'` the base is replicated, experts and KV divide by N, and each MoE layer pays `expertAllToAllSeconds`. Intra-node only; nodes stay pipeline stages.
 - **Models sorted by name**: Entries in `src/data/models.json` must always be sorted alphabetically by `name`. After adding or modifying models, re-sort the array.

@@ -172,9 +172,9 @@ Calculates model weight memory for 24 quantization formats:
 - GPTQ/AWQ: Includes 1.2x overhead multiplier for group quantization metadata
 - GGUF: Empirical bits-per-parameter from Artefact2 measurements (Q2_K through Q8_0)
 
-**Formula:** `weight_memory_GB = num_parameters × bytes_per_parameter / 1e9`
+**Formula:** `weight_GB = params × effectiveBytesPerParameter(format, model) / 1024³`
 
-One bytes-per-parameter figure applies to every tensor. Real checkpoints keep embeddings, attention and vision towers in BF16, so quantized formats under-count by 5-44% on small and hybrid models (2026-09 model × quantization spike).
+`effectiveBytesPerParameter` returns the measured `weight_refs[format].gib × 1024³ / (params × 1e9)` when the model has a reference checkpoint for the format (what stays 16-bit depends on the recipe, so each format is measured), else `BYTES_PER_PARAMETER[format]` (INT4 0.5625, AWQ/GPTQ 0.52, NVFP4 0.5625, GGUF from measured bpp).
 
 ### KV Cache Engine (`kv-cache.ts`)
 
