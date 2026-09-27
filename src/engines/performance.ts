@@ -1,7 +1,13 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU } from './constants'
-import { calculateMoEActiveParams, calculateMoEBatchedParams, splitMoEParams } from './inference'
+import {
+  calculateMoEActiveParams,
+  calculateMoEBatchedParams,
+  moeWeightSplit,
+  routedTouchedFraction,
+  splitMoEParams,
+} from './inference'
 import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
 import { kvCacheTPShards, resolveInterconnect } from './multi-gpu'
 import { calculateModelWeightVRAM } from './quantization'
@@ -155,7 +161,12 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   //    conservative point.
   const activeParams = calculateMoEActiveParams(model)
   const decodeParams = calculateMoEBatchedParams(model, batchSize)
-  const weightBytes = calculateModelWeightVRAM(decodeParams, quantization, model).mul(BYTES_PER_GB)
+  const weightSplit = moeWeightSplit(model, quantization)
+  const touched = routedTouchedFraction(model, batchSize)
+  const weightBytes =
+    weightSplit && touched !== null
+      ? weightSplit.baseGiB.add(weightSplit.routedGiB.mul(touched)).mul(BYTES_PER_GB)
+      : calculateModelWeightVRAM(decodeParams, quantization, model).mul(BYTES_PER_GB)
   const kvBytes = calculateKVCacheVRAM({
     model,
     sequenceLength,
@@ -171,12 +182,10 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   const layout = decodeLayout(model, multiGPUResult)
   const split = splitMoEParams(model)
   const perGPUWeightBytes =
-    layout.strategy === 'expert-parallel' && split
-      ? calculateModelWeightVRAM(
-          split.baseB + Math.max(0, decodeParams - split.baseB) / layout.gpusPerStage,
-          quantization,
-          model,
-        ).mul(BYTES_PER_GB)
+    layout.strategy === 'expert-parallel' && weightSplit && touched !== null
+      ? weightSplit.baseGiB
+          .add(weightSplit.routedGiB.mul(touched).div(layout.gpusPerStage))
+          .mul(BYTES_PER_GB)
       : weightBytes.div(layout.gpusPerStage)
   // Linear-attention state is part of kvBytes but splits across every GPU of the
   // stage (vLLM divides its heads by tp_world_size), even where MLA KV is duplicated.
