@@ -197,7 +197,9 @@ export function pickReference(format: QuantizationFormat, candidates: string[]):
     case 'fp8':
       // Exclude mixed-precision repos (e.g. "...-NVFP4-FP8") that quantize most weights to
       // NVFP4 and only activations/attention to FP8 — their bytes/param belongs under nvfp4.
-      return find(/^RedHatAI\/(?!.*NVFP4).*FP8/i, /(?!.*NVFP4)FP8/i)
+      // Both patterns are anchored at ^ so the (?!.*NVFP4) lookahead can't be dodged by
+      // starting the match later in the string (e.g. right after "NVFP4-").
+      return find(/^RedHatAI\/(?!.*NVFP4).*FP8/i, /^(?!.*NVFP4).*FP8/i)
     case 'int4':
       return find(/^RedHatAI\/.*(w4a16|INT4)/i, /^(?!.*(AWQ|GPTQ)).*(w4a16|INT4)/i)
     case 'awq':

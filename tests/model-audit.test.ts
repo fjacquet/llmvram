@@ -226,6 +226,15 @@ describe('reference selection', () => {
     expect(pickReference('fp8', mixed)).toBe('RedHatAI/Qwen3.8-2.4T-A95B-FP8')
   })
 
+  it('excludes a non-RedHatAI mixed NVFP4+FP8 repo from the fp8 fallback branch too', () => {
+    // The generic fallback pattern must be anchored: an unanchored /(?!.*NVFP4)FP8/i can start
+    // matching after "NVFP4-", so the lookahead sees nothing ahead of it and passes wrongly.
+    expect(pickReference('fp8', ['someone/Model-X-NVFP4-FP8', 'other/Model-X-FP8'])).toBe(
+      'other/Model-X-FP8',
+    )
+    expect(pickReference('fp8', ['someone/Model-X-NVFP4-FP8'])).toBeNull()
+  })
+
   it('matches derivatives of the same model only', () => {
     expect(sameModel('unsloth/gemma-4-31B-it-GGUF', 'google/gemma-4-31B-it')).toBe(true)
     expect(sameModel('unsloth/gemma-4-12B-it-GGUF', 'google/gemma-4-31B-it')).toBe(false)
