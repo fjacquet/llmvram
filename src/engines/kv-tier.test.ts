@@ -4,8 +4,10 @@ import { calculateInferenceVRAM } from './inference'
 import {
   clampKVTier,
   DEFAULT_KV_TIER,
+  hasGraceHost,
   type KVTierSettings,
   kvTierSummary,
+  resetTierForGPU,
   resumeSeconds,
   sessionKVLayout,
   tierBandwidthGBps,
@@ -54,6 +56,36 @@ describe('resumeSeconds', () => {
     const s = resumeSeconds(43e9 / 1024 ** 3 / 4, 12.8)
     expect(s).toBeGreaterThan(0.837 * 0.9)
     expect(s).toBeLessThan(0.837 * 1.1)
+  })
+})
+
+describe('hasGraceHost', () => {
+  it('is true for both Grace-host GPU ids', () => {
+    expect(hasGraceHost('nvidia-gb300-nvl72')).toBe(true)
+    expect(hasGraceHost('nvidia-gb300-desktop-252gb')).toBe(true)
+  })
+
+  it('is false for the x86 HGX B300, GB10 unified memory, and non-Grace GPUs', () => {
+    expect(hasGraceHost('nvidia-gb300-288gb')).toBe(false)
+    expect(hasGraceHost('nvidia-gb10')).toBe(false)
+    expect(hasGraceHost('nvidia-h100-80gb-sxm')).toBe(false)
+  })
+})
+
+describe('resetTierForGPU', () => {
+  const grace: KVTierSettings = { ...DEFAULT_KV_TIER, tier: 'host-grace' }
+
+  it('falls back to none when the new GPU has no Grace host', () => {
+    expect(resetTierForGPU(grace, 'nvidia-h100-80gb-sxm').tier).toBe('none')
+    expect(resetTierForGPU(grace, null).tier).toBe('none')
+  })
+
+  it('keeps host-grace when the new GPU still has a Grace host', () => {
+    expect(resetTierForGPU(grace, 'nvidia-gb300-nvl72').tier).toBe('host-grace')
+  })
+
+  it('leaves a non-host-grace tier untouched regardless of the GPU', () => {
+    expect(resetTierForGPU(network, 'nvidia-h100-80gb-sxm')).toBe(network)
   })
 })
 

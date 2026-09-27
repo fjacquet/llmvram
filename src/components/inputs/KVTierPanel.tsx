@@ -1,5 +1,5 @@
 import { InfoTip } from '@components/common/InfoTip'
-import { KV_TIER_PRESETS, KV_TIER_TYPES, type KVTierType } from '@engines/kv-tier'
+import { hasGraceHost, KV_TIER_PRESETS, KV_TIER_TYPES, type KVTierType } from '@engines/kv-tier'
 import { useUIStore } from '@store/uiStore'
 import { useEffect, useState } from 'react'
 
@@ -56,7 +56,10 @@ function NumberField(props: {
 export function KVTierPanel() {
   const kvTier = useUIStore((s) => s.kvTier)
   const setKVTier = useUIStore((s) => s.setKVTier)
+  const selectedGPU = useUIStore((s) => s.selectedGPU)
   const preset = kvTier.tier === 'none' ? null : KV_TIER_PRESETS[kvTier.tier]
+  const graceHost = hasGraceHost(selectedGPU?.id ?? '')
+  const tierOptions = KV_TIER_TYPES.filter((t) => t !== 'host-grace' || graceHost)
 
   return (
     <div className="space-y-3">
@@ -76,7 +79,7 @@ export function KVTierPanel() {
         onChange={(e) => setKVTier({ tier: e.target.value as KVTierType })}
         className={inputClass}
       >
-        {KV_TIER_TYPES.map((t) => (
+        {tierOptions.map((t) => (
           <option key={t} value={t}>
             {t === 'none'
               ? 'None'

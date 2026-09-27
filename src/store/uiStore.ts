@@ -1,7 +1,12 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
-import { clampKVTier, DEFAULT_KV_TIER, type KVTierSettings } from '@engines/kv-tier'
+import {
+  clampKVTier,
+  DEFAULT_KV_TIER,
+  type KVTierSettings,
+  resetTierForGPU,
+} from '@engines/kv-tier'
 import type {
   FabricType,
   FineTuningMethod,
@@ -186,6 +191,9 @@ export const useUIStore = create<UIState>()(
           selectedGPU: gpu,
           interconnectOverride: null,
           numGPUs: clampGPUCount(state.numGPUs, gpu),
+          // host-grace only exists on a Grace host; falls back when the GPU no
+          // longer has one. Same action URL restore uses, so this also covers it.
+          kvTier: resetTierForGPU(state.kvTier, gpu?.id ?? null),
         })),
       setInterconnectOverride: (v) => set({ interconnectOverride: v }),
       setQuantization: (quantization) => set({ quantization }),

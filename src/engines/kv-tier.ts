@@ -84,6 +84,30 @@ export function clampKVTier(s: KVTierSettings): KVTierSettings {
   }
 }
 
+/**
+ * Whether a GPU id sits on a Grace superchip host (NVLink-C2C to the CPU),
+ * which is what the `host-grace` KV tier preset models.
+ *
+ * HGX B300 (`nvidia-gb300-288gb`) is an x86 host, not Grace, despite the
+ * GB300 name. GB10 (`nvidia-gb10`) has no separate host tier: its Grace
+ * memory is already one unified pool shared with the GPU, not a second tier
+ * to park KV cache into.
+ */
+export function hasGraceHost(gpuId: string): boolean {
+  return gpuId === 'nvidia-gb300-nvl72' || gpuId === 'nvidia-gb300-desktop-252gb'
+}
+
+/**
+ * Falls the KV tier back to `none` when the newly selected GPU no longer has
+ * a Grace host to hold the `host-grace` preset — used where the selected GPU
+ * changes (uiStore.setSelectedGPU), so it also covers URL restore, which sets
+ * the GPU through that same action.
+ */
+export function resetTierForGPU(tier: KVTierSettings, gpuId: string | null): KVTierSettings {
+  if (tier.tier !== 'host-grace' || hasGraceHost(gpuId ?? '')) return tier
+  return { ...tier, tier: 'none' }
+}
+
 export function tierBandwidthGBps(settings: KVTierSettings): number | null {
   if (settings.tier === 'none') return null
   return settings.customGBps ?? KV_TIER_PRESETS[settings.tier].gbpsPerGPU
