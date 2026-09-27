@@ -20,11 +20,19 @@
     "weight_refs": {
       "fp8": {
         "repo": "deepseek-ai/DeepSeek-R1",
-        "gib": 641.3
+        "gib": 641.3,
+        "high_precision": {
+          "params_b": 3.919,
+          "gib": 7.3
+        }
       },
       "nvfp4": {
         "repo": "nvidia/DeepSeek-R1-0528-NVFP4",
-        "gib": 394.53
+        "gib": 394.53,
+        "high_precision": {
+          "params_b": 26.838,
+          "gib": 49.99
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/DeepSeek-R1-GGUF",
@@ -202,11 +210,19 @@
     "weight_refs": {
       "nvfp4": {
         "repo": "nvidia/DeepSeek-V4-Flash-0731-NVFP4",
-        "gib": 163.49
+        "gib": 163.49,
+        "high_precision": {
+          "params_b": 1.521,
+          "gib": 2.9
+        }
       },
       "int4": {
         "repo": "baicai1145/DeepSeek-V4-Flash-0731-W4A16",
-        "gib": 165.13
+        "gib": 165.13,
+        "high_precision": {
+          "params_b": 2.679,
+          "gib": 5.06
+        }
       }
     }
   },
@@ -232,7 +248,11 @@
     "weight_refs": {
       "nvfp4": {
         "repo": "nvidia/DeepSeek-V4-Pro-0813-NVFP4",
-        "gib": 876.48
+        "gib": 876.48,
+        "high_precision": {
+          "params_b": 3.045,
+          "gib": 5.84
+        }
       }
     }
   },
@@ -389,15 +409,27 @@
       },
       "nvfp4": {
         "repo": "GadflyII/GLM-4.7-Flash-NVFP4",
-        "gib": 19.04
+        "gib": 19.04,
+        "high_precision": {
+          "params_b": 2.002,
+          "gib": 3.73
+        }
       },
       "fp8": {
         "repo": "unsloth/GLM-4.7-Flash-FP8-Dynamic",
-        "gib": 30.29
+        "gib": 30.29,
+        "high_precision": {
+          "params_b": 2.561,
+          "gib": 4.77
+        }
       },
       "awq": {
         "repo": "QuantTrio/GLM-4.7-Flash-AWQ",
-        "gib": 18.41
+        "gib": 18.41,
+        "high_precision": {
+          "params_b": 2.391,
+          "gib": 4.45
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/GLM-4.7-Flash-GGUF",
@@ -466,19 +498,35 @@
       },
       "nvfp4": {
         "repo": "nvidia/GLM-5.2-NVFP4",
-        "gib": 432.9
+        "gib": 432.9,
+        "high_precision": {
+          "params_b": 28.554,
+          "gib": 53.19
+        }
       },
       "fp8": {
         "repo": "RedHatAI/GLM-5.2-FP8",
-        "gib": 703.74
+        "gib": 703.74,
+        "high_precision": {
+          "params_b": 2.104,
+          "gib": 3.92
+        }
       },
       "int4": {
         "repo": "lowbitcoffee/GLM-5.2-W4A16",
-        "gib": 361.06
+        "gib": 361.06,
+        "high_precision": {
+          "params_b": 8.544,
+          "gib": 15.91
+        }
       },
       "awq": {
         "repo": "cyankiwi/GLM-5.2-AWQ-INT4",
-        "gib": 441.65
+        "gib": 441.65,
+        "high_precision": {
+          "params_b": 27.199,
+          "gib": 50.66
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/GLM-5.2-GGUF",
@@ -508,7 +556,11 @@
     "weight_refs": {
       "mxfp4": {
         "repo": "openai/gpt-oss-120b",
-        "gib": 60.77
+        "gib": 60.77,
+        "high_precision": {
+          "params_b": 2.167,
+          "gib": 4.04
+        }
       },
       "gguf-q6_k": {
         "repo": "unsloth/gpt-oss-120b-GGUF",
@@ -566,7 +618,11 @@
     "weight_refs": {
       "mxfp4": {
         "repo": "openai/gpt-oss-20b",
-        "gib": 12.82
+        "gib": 12.82,
+        "high_precision": {
+          "params_b": 1.804,
+          "gib": 3.36
+        }
       },
       "gguf-q6_k": {
         "repo": "unsloth/gpt-oss-20b-GGUF",
@@ -955,19 +1011,35 @@
       },
       "nvfp4": {
         "repo": "unsloth/gemma-4-26B-A4B-it-NVFP4",
-        "gib": 15.75
+        "gib": 15.75,
+        "high_precision": {
+          "params_b": 1.323,
+          "gib": 2.46
+        }
       },
       "fp8": {
         "repo": "RedHatAI/gemma-4-26B-A4B-it-FP8-dynamic",
-        "gib": 26.67
+        "gib": 26.67,
+        "high_precision": {
+          "params_b": 2.061,
+          "gib": 3.84
+        }
       },
       "int4": {
         "repo": "dhruvil237/gemma-4-26B-A4B-it-W4A16",
-        "gib": 14.58
+        "gib": 14.58,
+        "high_precision": {
+          "params_b": 1.705,
+          "gib": 3.18
+        }
       },
       "awq": {
         "repo": "cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit",
-        "gib": 16.01
+        "gib": 16.01,
+        "high_precision": {
+          "params_b": 1.858,
+          "gib": 3.46
+        }
       }
     }
   },
@@ -1059,7 +1131,11 @@
     "weight_refs": {
       "fp8": {
         "repo": "moonshotai/Kimi-K2-Instruct",
-        "gib": 958.51
+        "gib": 958.51,
+        "high_precision": {
+          "params_b": 2.515,
+          "gib": 4.68
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/Kimi-K2-Instruct-GGUF",
@@ -1124,15 +1200,27 @@
     "weight_refs": {
       "int4": {
         "repo": "moonshotai/Kimi-K2-Thinking",
-        "gib": 553.42
+        "gib": 553.42,
+        "high_precision": {
+          "params_b": 11.722,
+          "gib": 21.83
+        }
       },
       "nvfp4": {
         "repo": "nvidia/Kimi-K2-Thinking-NVFP4",
-        "gib": 553.43
+        "gib": 553.43,
+        "high_precision": {
+          "params_b": 11.722,
+          "gib": 21.83
+        }
       },
       "fp8": {
         "repo": "RedHatAI/Kimi-K2-Thinking-FP8-Block",
-        "gib": 959.25
+        "gib": 959.25,
+        "high_precision": {
+          "params_b": 3.501,
+          "gib": 6.52
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/Kimi-K2-Thinking-GGUF",
@@ -1197,7 +1285,11 @@
     "weight_refs": {
       "int4": {
         "repo": "moonshotai/Kimi-K2.5",
-        "gib": 554.3
+        "gib": 554.3,
+        "high_precision": {
+          "params_b": 12.193,
+          "gib": 22.71
+        }
       },
       "nvfp4": {
         "repo": "nvidia/Kimi-K2.5-NVFP4",
@@ -1266,7 +1358,11 @@
     "weight_refs": {
       "int4": {
         "repo": "moonshotai/Kimi-K2.6",
-        "gib": 554.3
+        "gib": 554.3,
+        "high_precision": {
+          "params_b": 12.193,
+          "gib": 22.71
+        }
       },
       "nvfp4": {
         "repo": "nvidia/Kimi-K2.6-NVFP4",
@@ -1274,7 +1370,11 @@
       },
       "fp8": {
         "repo": "RedHatAI/Kimi-K2.6-FP8-BLOCK",
-        "gib": 960.13
+        "gib": 960.13,
+        "high_precision": {
+          "params_b": 3.972,
+          "gib": 7.4
+        }
       }
     }
   },
@@ -1299,7 +1399,11 @@
     "weight_refs": {
       "int4": {
         "repo": "moonshotai/Kimi-K2.7-Code",
-        "gib": 554.3
+        "gib": 554.3,
+        "high_precision": {
+          "params_b": 12.193,
+          "gib": 22.71
+        }
       },
       "nvfp4": {
         "repo": "nvidia/Kimi-K2.7-Code-NVFP4",
@@ -1329,15 +1433,27 @@
     "weight_refs": {
       "mxfp4": {
         "repo": "moonshotai/Kimi-K3",
-        "gib": 1453.74
+        "gib": 1453.74,
+        "high_precision": {
+          "params_b": 57.191,
+          "gib": 106.55
+        }
       },
       "nvfp4": {
         "repo": "nvidia/Kimi-K3-NVFP4",
-        "gib": 1499.35
+        "gib": 1499.35,
+        "high_precision": {
+          "params_b": 21.011,
+          "gib": 39.16
+        }
       },
       "fp8": {
         "repo": "RedHatAI/Kimi-K3-FP8-BLOCK",
-        "gib": 2626.28
+        "gib": 2626.28,
+        "high_precision": {
+          "params_b": 39.582,
+          "gib": 73.75
+        }
       }
     }
   },
@@ -1367,19 +1483,35 @@
       },
       "nvfp4": {
         "repo": "Firworks/Kimi-Linear-48B-A3B-Instruct-nvfp4",
-        "gib": 26.78
+        "gib": 26.78,
+        "high_precision": {
+          "params_b": 0.772,
+          "gib": 1.44
+        }
       },
       "fp8": {
         "repo": "nm-testing/Kimi-Linear-48B-A3B-Instruct-FP8-DYNAMIC",
-        "gib": 46.53
+        "gib": 46.53,
+        "high_precision": {
+          "params_b": 0.801,
+          "gib": 1.49
+        }
       },
       "awq": {
         "repo": "cyankiwi/Kimi-Linear-48B-A3B-Instruct-AWQ-4bit",
-        "gib": 28.44
+        "gib": 28.44,
+        "high_precision": {
+          "params_b": 3.484,
+          "gib": 6.49
+        }
       },
       "gptq": {
         "repo": "reinforce20001/Kimi-Linear-48B-A3B-Instruct-GPTQ-Int4",
-        "gib": 28.44
+        "gib": 28.44,
+        "high_precision": {
+          "params_b": 3.484,
+          "gib": 6.49
+        }
       },
       "gguf-q8_0": {
         "repo": "bartowski/moonshotai_Kimi-Linear-48B-A3B-Instruct-GGUF",
@@ -1731,11 +1863,19 @@
       },
       "fp8": {
         "repo": "inclusionAI/Ling-3.0-flash-fp8",
-        "gib": 119.62
+        "gib": 119.62,
+        "high_precision": {
+          "params_b": 0.91,
+          "gib": 1.69
+        }
       },
       "int4": {
         "repo": "inclusionAI/Ling-3.0-flash-int4",
-        "gib": 71.72
+        "gib": 71.72,
+        "high_precision": {
+          "params_b": 3.671,
+          "gib": 6.84
+        }
       },
       "gguf-q8_0": {
         "repo": "bartowski/Ling-3.0-flash-GGUF",
@@ -1809,11 +1949,19 @@
       },
       "fp8": {
         "repo": "inclusionAI/Ling-3.0-tiny-fp8",
-        "gib": 7.83
+        "gib": 7.83,
+        "high_precision": {
+          "params_b": 0.514,
+          "gib": 0.96
+        }
       },
       "int4": {
         "repo": "inclusionAI/Ling-3.0-tiny-int4",
-        "gib": 5.41
+        "gib": 5.41,
+        "high_precision": {
+          "params_b": 0.948,
+          "gib": 1.77
+        }
       },
       "gguf-q8_0": {
         "repo": "bartowski/Ling-3.0-tiny-GGUF",
@@ -1887,15 +2035,27 @@
       },
       "nvfp4": {
         "repo": "RedHatAI/Llama-4-Maverick-17B-128E-Instruct-NVFP4",
-        "gib": 218.38
+        "gib": 218.38,
+        "high_precision": {
+          "params_b": 5.977,
+          "gib": 11.13
+        }
       },
       "fp8": {
         "repo": "RedHatAI/Llama-4-Maverick-17B-128E-Instruct-FP8",
-        "gib": 388.13
+        "gib": 388.13,
+        "high_precision": {
+          "params_b": 15.103,
+          "gib": 28.13
+        }
       },
       "awq": {
         "repo": "kishizaki-sci/Llama-4-Maverick-17B-128E-Instruct-AWQ",
-        "gib": 200.2
+        "gib": 200.2,
+        "high_precision": {
+          "params_b": 4.215,
+          "gib": 7.85
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/Llama-4-Maverick-17B-128E-Instruct-GGUF",
@@ -1965,19 +2125,35 @@
       },
       "nvfp4": {
         "repo": "nvidia/Llama-4-Scout-17B-16E-Instruct-NVFP4",
-        "gib": 60.86
+        "gib": 60.86,
+        "high_precision": {
+          "params_b": 2.945,
+          "gib": 5.49
+        }
       },
       "fp8": {
         "repo": "RedHatAI/Llama-4-Scout-17B-16E-Instruct-FP8-dynamic",
-        "gib": 106.77
+        "gib": 106.77,
+        "high_precision": {
+          "params_b": 5.983,
+          "gib": 11.14
+        }
       },
       "int4": {
         "repo": "fahadh4ilyas/Llama-4-Scout-17B-16E-Instruct-INT4",
-        "gib": 64.59
+        "gib": 64.59,
+        "high_precision": {
+          "params_b": 9.764,
+          "gib": 18.19
+        }
       },
       "awq": {
         "repo": "kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ",
-        "gib": 58.38
+        "gib": 58.38,
+        "high_precision": {
+          "params_b": 4.204,
+          "gib": 7.83
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/Llama-4-Scout-17B-16E-Instruct-GGUF",
@@ -2106,15 +2282,27 @@
     "weight_refs": {
       "fp8": {
         "repo": "MiniMaxAI/MiniMax-M2.1",
-        "gib": 214.33
+        "gib": 214.33,
+        "high_precision": {
+          "params_b": 1.279,
+          "gib": 2.47
+        }
       },
       "nvfp4": {
         "repo": "lukealonso/MiniMax-M2.1-NVFP4",
-        "gib": 121.54
+        "gib": 121.54,
+        "high_precision": {
+          "params_b": 1.279,
+          "gib": 2.38
+        }
       },
       "awq": {
         "repo": "cyankiwi/MiniMax-M2.1-AWQ-4bit",
-        "gib": 121.53
+        "gib": 121.53,
+        "high_precision": {
+          "params_b": 8.385,
+          "gib": 15.62
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/MiniMax-M2.1-GGUF",
@@ -2178,15 +2366,27 @@
     "weight_refs": {
       "fp8": {
         "repo": "MiniMaxAI/MiniMax-M2.5",
-        "gib": 214.33
+        "gib": 214.33,
+        "high_precision": {
+          "params_b": 1.293,
+          "gib": 2.52
+        }
       },
       "nvfp4": {
         "repo": "nvidia/MiniMax-M2.5-NVFP4",
-        "gib": 130.28
+        "gib": 130.28,
+        "high_precision": {
+          "params_b": 4.009,
+          "gib": 12.55
+        }
       },
       "awq": {
         "repo": "mratsim/MiniMax-M2.5-FP8-INT4-AWQ",
-        "gib": 122.74
+        "gib": 122.74,
+        "high_precision": {
+          "params_b": 8.3,
+          "gib": 15.55
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/MiniMax-M2.5-GGUF",
@@ -2250,15 +2450,27 @@
     "weight_refs": {
       "fp8": {
         "repo": "MiniMaxAI/MiniMax-M2.7",
-        "gib": 214.33
+        "gib": 214.33,
+        "high_precision": {
+          "params_b": 1.279,
+          "gib": 2.47
+        }
       },
       "nvfp4": {
         "repo": "nvidia/MiniMax-M2.7-NVFP4",
-        "gib": 130.28
+        "gib": 130.28,
+        "high_precision": {
+          "params_b": 4.009,
+          "gib": 12.55
+        }
       },
       "awq": {
         "repo": "cyankiwi/MiniMax-M2.7-AWQ-4bit",
-        "gib": 121.53
+        "gib": 121.53,
+        "high_precision": {
+          "params_b": 8.385,
+          "gib": 15.62
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/MiniMax-M2.7-GGUF",
@@ -2290,19 +2502,35 @@
       },
       "nvfp4": {
         "repo": "nvidia/MiniMax-M3-NVFP4",
-        "gib": 232.93
+        "gib": 232.93,
+        "high_precision": {
+          "params_b": 3.37,
+          "gib": 6.36
+        }
       },
       "fp8": {
         "repo": "EmbeddedLLM/MiniMax-M3-FP8-dynamic",
-        "gib": 401.11
+        "gib": 401.11,
+        "high_precision": {
+          "params_b": 3.461,
+          "gib": 6.53
+        }
       },
       "awq": {
         "repo": "spectator2026/MiniMax-M3-AWQ-int4",
-        "gib": 224.32
+        "gib": 224.32,
+        "high_precision": {
+          "params_b": 17.145,
+          "gib": 31.94
+        }
       },
       "gptq": {
         "repo": "Sebesky/MiniMax-M3-W4A16-GPTQ",
-        "gib": 208.45
+        "gib": 208.45,
+        "high_precision": {
+          "params_b": 5.692,
+          "gib": 10.68
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/MiniMax-M3-GGUF",
@@ -2540,7 +2768,11 @@
     "weight_refs": {
       "fp8": {
         "repo": "mistralai/Mistral-Small-4-119B-2603",
-        "gib": 112.62
+        "gib": 112.62,
+        "high_precision": {
+          "params_b": 1.521,
+          "gib": 2.83
+        }
       },
       "nvfp4": {
         "repo": "mistralai/Mistral-Small-4-119B-2603-NVFP4",
@@ -2548,7 +2780,11 @@
       },
       "awq": {
         "repo": "cyankiwi/Mistral-Small-4-119B-2603-AWQ-4bit",
-        "gib": 66.07
+        "gib": 66.07,
+        "high_precision": {
+          "params_b": 6.275,
+          "gib": 11.69
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/Mistral-Small-4-119B-2603-GGUF",
@@ -2762,23 +2998,43 @@
       },
       "nvfp4": {
         "repo": "nvidia/Qwen3-235B-A22B-NVFP4",
-        "gib": 124.91
+        "gib": 124.91,
+        "high_precision": {
+          "params_b": 1.295,
+          "gib": 2.41
+        }
       },
       "fp8": {
         "repo": "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
-        "gib": 220.19
+        "gib": 220.19,
+        "high_precision": {
+          "params_b": 1.309,
+          "gib": 2.44
+        }
       },
       "int4": {
         "repo": "justinjja/Qwen3-235B-A22B-INT4-W4A16",
-        "gib": 114.7
+        "gib": 114.7,
+        "high_precision": {
+          "params_b": 3.121,
+          "gib": 5.81
+        }
       },
       "awq": {
         "repo": "QuantTrio/Qwen3-235B-A22B-Instruct-2507-AWQ",
-        "gib": 115.55
+        "gib": 115.55,
+        "high_precision": {
+          "params_b": 1.295,
+          "gib": 2.41
+        }
       },
       "gptq": {
         "repo": "Qwen/Qwen3-235B-A22B-GPTQ-Int4",
-        "gib": 116
+        "gib": 116,
+        "high_precision": {
+          "params_b": 1.295,
+          "gib": 2.41
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/Qwen3-235B-A22B-GGUF",
@@ -2909,11 +3165,19 @@
       },
       "nvfp4": {
         "repo": "nvidia/Qwen3.6-35B-A3B-NVFP4",
-        "gib": 21.82
+        "gib": 21.82,
+        "high_precision": {
+          "params_b": 1.826,
+          "gib": 3.4
+        }
       },
       "awq": {
         "repo": "QuantTrio/Qwen3.6-35B-A3B-AWQ",
-        "gib": 23.71
+        "gib": 23.71,
+        "high_precision": {
+          "params_b": 4.545,
+          "gib": 8.5
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
@@ -2946,11 +3210,19 @@
       },
       "nvfp4": {
         "repo": "nvidia/Qwen3.8-2.4T-A95B-NVFP4",
-        "gib": 1345.28
+        "gib": 1345.28,
+        "high_precision": {
+          "params_b": 35.471,
+          "gib": 66.07
+        }
       },
       "fp8": {
         "repo": "RedHatAI/Qwen3.8-2.4T-A95B-FP8",
-        "gib": 2324.68
+        "gib": 2324.68,
+        "high_precision": {
+          "params_b": 49.591,
+          "gib": 92.37
+        }
       },
       "gguf-q8_0": {
         "repo": "unsloth/Qwen3.8-2.4T-A95B-GGUF",
