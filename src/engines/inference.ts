@@ -2,7 +2,7 @@ import type { Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { BYTES_PER_GB, FRAMEWORK_OVERHEAD_GB, PREFILL_CHUNK_TOKENS } from './constants'
 import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
-import { calculateModelWeightVRAM } from './quantization'
+import { calculateModelWeightVRAM, weightRef } from './quantization'
 import type { InferenceVRAMBreakdown, KVCachePrecision, QuantizationFormat } from './types'
 
 /**
@@ -83,6 +83,15 @@ export function calculateMoEActiveParams(model: Model): number {
   return Decimal.min(nonExpertParams.add(expertParams.mul(activeRatio)), total).toNumber()
 }
 
+/** Share of routed experts a decode step reads: k/E at batch 1, 1 - (1 - k/E)^B above. */
+export function routedTouchedFraction(model: Model, batchSize: number): number | null {
+  const split = splitMoEParams(model)
+  if (!split) return null
+  const k = new Decimal(split.expertsPerToken).div(split.experts)
+  if (batchSize <= 1) return k.toNumber()
+  return new Decimal(1).sub(new Decimal(1).sub(k).pow(batchSize)).toNumber()
+}
+
 /**
  * Expected parameters read per decode step for a batch of `batchSize` sequences
  *
@@ -110,13 +119,10 @@ export function calculateMoEActiveParams(model: Model): number {
 export function calculateMoEBatchedParams(model: Model, batchSize: number): number {
   const activeParams = calculateMoEActiveParams(model)
   const split = splitMoEParams(model)
-  if (!split || batchSize <= 1) return activeParams
-
+  const fraction = routedTouchedFraction(model, batchSize)
+  if (!split || fraction === null || batchSize <= 1) return activeParams
+  const batched = new Decimal(split.baseB).add(new Decimal(split.routedB).mul(fraction))
   const total = new Decimal(model.num_parameters_billion)
-  const singleTokenFraction = new Decimal(split.expertsPerToken).div(split.experts)
-  const batchFraction = new Decimal(1).sub(new Decimal(1).sub(singleTokenFraction).pow(batchSize))
-  const batched = new Decimal(split.baseB).add(new Decimal(split.routedB).mul(batchFraction))
-
   // Never below the batch-1 figure, never above the full weight set.
   return Decimal.min(Decimal.max(batched, activeParams), total).toNumber()
 }
@@ -151,6 +157,39 @@ export function splitMoEParams(
     experts,
     expertsPerToken,
   }
+}
+
+/**
+ * Weight GiB of a MoE model's replicated base and its routed experts.
+ *
+ * With a measured `high_precision` (tensors kept as >=16-bit floats), the base is filled
+ * from those tensors first: if they cover it, the base is charged at their rate; if not,
+ * the rest of the base is charged at the rate of the remaining (quantized) bytes. Without
+ * it, the checkpoint's single average applies to both parts. Spec:
+ * docs/superpowers/specs/2026-09-27-moe-weight-split-design.md
+ */
+export function moeWeightSplit(
+  model: Model,
+  format: QuantizationFormat,
+): { baseGiB: Decimal; routedGiB: Decimal; measured: boolean } | null {
+  const split = splitMoEParams(model)
+  if (!split) return null
+  const n = new Decimal(model.num_parameters_billion)
+  const total = calculateModelWeightVRAM(model.num_parameters_billion, format, model)
+  const base = new Decimal(split.baseB)
+  const hp = weightRef(format, model)?.high_precision
+  let baseGiB: Decimal
+  if (!hp) {
+    baseGiB = total.mul(base).div(n)
+  } else if (base.lessThanOrEqualTo(hp.params_b)) {
+    baseGiB = new Decimal(hp.gib).mul(base).div(hp.params_b)
+  } else {
+    const rest = n.sub(hp.params_b)
+    const lowRate = rest.greaterThan(0) ? total.sub(hp.gib).div(rest) : new Decimal(0)
+    baseGiB = new Decimal(hp.gib).add(base.sub(hp.params_b).mul(lowRate))
+  }
+  baseGiB = Decimal.min(baseGiB, total)
+  return { baseGiB, routedGiB: total.sub(baseGiB), measured: !!hp }
 }
 
 /**
