@@ -367,7 +367,7 @@ export function calculateMultiGPUVRAM(
   }
 
   // Multi-GPU calculation
-  const interconnectType = resolveInterconnect(gpu)
+  const interconnectType = resolveInterconnect(gpu, numGPUs)
 
   if (strategy === 'tensor-parallel') {
     return calculateTensorParallelVRAM(singleGPU, model, gpuVramGB, numGPUs, interconnectType)
@@ -386,22 +386,17 @@ export function calculateMultiGPUVRAM(
 }
 
 /**
- * Resolve GPU interconnect string to engine InterconnectType
+ * Resolve the link a group of `groupSize` GPUs actually talks over.
  *
- * Maps GPU.interconnect field to standardized InterconnectType enum.
+ * An NVLink bridge (H100/A100 PCIe pairs, H200 NVL up to 4) carries the group only
+ * while it fits the bridge; a larger group crosses the card's own link, which the
+ * rest of this function maps from GPU.interconnect.
  *
  * @param gpu - GPU configuration
- * @returns InterconnectType
- *
- * @example
- * ```ts
- * resolveInterconnect({ interconnect: 'nvlink-4', tier: 'datacenter' }) // 'nvlink-4'
- * resolveInterconnect({ interconnect: 'nvlink', tier: 'datacenter' }) // 'nvlink-4'
- * resolveInterconnect({ interconnect: undefined, tier: 'datacenter' }) // 'pcie-5'
- * resolveInterconnect({ interconnect: 'unified', tier: 'apple-silicon' }) // 'none'
- * ```
+ * @param groupSize - GPUs in the tensor/expert-parallel group (1 = no traffic)
  */
-export function resolveInterconnect(gpu: GPU): InterconnectType {
+export function resolveInterconnect(gpu: GPU, groupSize: number): InterconnectType {
+  if (gpu.nvlink_bridge && groupSize <= gpu.nvlink_bridge.size) return gpu.nvlink_bridge.type
   const interconnect = gpu.interconnect
 
   // Direct mapping for specific types
@@ -428,6 +423,18 @@ export function resolveInterconnect(gpu: GPU): InterconnectType {
   }
 
   return 'none'
+}
+
+/**
+ * Display name of the resolved link, labelling a bridge by its bandwidth
+ * ("NVLink bridge — 600 GB/s") so the badge never shows NVLink while the maths uses PCIe.
+ */
+export function interconnectLabel(gpu: GPU, groupSize: number): string {
+  const type = resolveInterconnect(gpu, groupSize)
+  if (gpu.nvlink_bridge && groupSize <= gpu.nvlink_bridge.size) {
+    return `NVLink bridge — ${INTERCONNECT_SPECS[type].bandwidthGBps} GB/s`
+  }
+  return INTERCONNECT_LABELS[type] ?? type
 }
 
 /**
@@ -459,7 +466,7 @@ export function validateInterconnect(
   numGPUs: number,
   strategy: ShardingStrategy,
 ): InterconnectValidation {
-  const interconnectType = resolveInterconnect(gpu)
+  const interconnectType = resolveInterconnect(gpu, numGPUs)
   const spec = INTERCONNECT_SPECS[interconnectType]
 
   // Single GPU is always valid

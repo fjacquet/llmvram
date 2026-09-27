@@ -1033,7 +1033,7 @@ describe('estimatePerformance - decode honors measured weight_refs', () => {
     const perGPUBytes = perGPUWeightBytes.add(perGPUKVBytes) // stages = 1
     const memorySeconds = perGPUBytes.div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
 
-    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu, gpusPerStage)]
     const commSecondsPerLayer = expertAllToAllSeconds(
       batchSize / gpusPerStage,
       split.expertsPerToken,
@@ -1209,7 +1209,7 @@ describe('estimatePerformance - offload bytes match the per-GPU share (fix round
       .mul(batchSize)
       .div(gpusPerStage)
       .div(new Decimal(decodeGpuTFLOPS).mul(1e12))
-    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu, gpusPerStage)]
     const commSecondsPerLayer = (2 * link.allreduceLatencyUs) / 1e6
     const stageSeconds = Decimal.max(memorySeconds, computeSeconds).add(
       commSecondsPerLayer * mla.num_hidden_layers,
@@ -1313,7 +1313,7 @@ describe('estimatePerformance - offload bytes match the per-GPU share (fix round
       .mul(batchSize)
       .div(gpusPerStage)
       .div(new Decimal(decodeGpuTFLOPS).mul(1e12))
-    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+    const link = INTERCONNECT_SPECS[resolveInterconnect(gpu, gpusPerStage)]
     const commSecondsPerLayer = expertAllToAllSeconds(
       batchSize / gpusPerStage,
       split.expertsPerToken,
@@ -1438,7 +1438,7 @@ describe('MoE decode reads the base and touched experts at measured rates', () =
       .add(perGPUKVBytes)
       .div(new Decimal(b300.memory_bandwidth_gbps).mul(1e9))
 
-    const link = INTERCONNECT_SPECS[resolveInterconnect(b300)]
+    const link = INTERCONNECT_SPECS[resolveInterconnect(b300, numGPUs)]
     const commSecondsPerLayer = expertAllToAllSeconds(
       batchSize / numGPUs,
       split.expertsPerToken,
@@ -1453,5 +1453,65 @@ describe('MoE decode reads the base and touched experts at measured rates', () =
 
     const avg = run(averaged, batchSize, ep).tokensPerSecond.toNumber()
     expect(result.tokensPerSecond.toNumber()).toBeLessThan(avg)
+  })
+})
+
+describe('bridge-aware decode (spec Section 3 impact anchor)', () => {
+  const gpu = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-pcie')
+  const model = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-70b')
+  if (!gpu || !model) throw new Error('fixture not found')
+  const sequenceLength = 8192
+  const batchSize = 1
+
+  const tps = (numGPUs: number) => {
+    const single = calculateInferenceVRAM({ model, quantization: 'fp8', sequenceLength, batchSize })
+    const multi = calculateMultiGPUVRAM(
+      single,
+      model,
+      gpu.vram_gb,
+      numGPUs,
+      'tensor-parallel',
+      gpu,
+      'fp8',
+    )
+    return estimatePerformance({
+      model,
+      gpu,
+      quantization: 'fp8',
+      sequenceLength,
+      batchSize,
+      multiGPUResult: multi,
+    }).tokensPerSecond.toNumber()
+  }
+  // Hand-priced from the corrected data: weights and KV split across the TP group,
+  // read at 2000 GB/s, plus two all-reduces per layer at the resolved link's latency.
+  const expected = (numGPUs: number, latencyUs: number) => {
+    const weights = calculateModelWeightVRAM(model.num_parameters_billion, 'fp8', model).mul(
+      BYTES_PER_GB,
+    )
+    const kv = calculateKVCacheVRAM({ model, sequenceLength, batchSize, kvPrecision: 'fp16' }).mul(
+      BYTES_PER_GB,
+    )
+    const kvShards = Math.min(numGPUs, model.num_kv_heads ?? model.num_attention_heads)
+    const memorySeconds = weights
+      .div(numGPUs)
+      .add(kv.div(kvShards))
+      .div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
+    const stageSeconds = memorySeconds.add((2 * latencyUs * model.num_hidden_layers) / 1e6)
+    return new Decimal(1).div(stageSeconds).toNumber()
+  }
+
+  it('TP-8 crosses PCIe 5; TP-2 stays on the NVLink 3 bridge', () => {
+    expect(tps(8) / expected(8, INTERCONNECT_SPECS['pcie-5'].allreduceLatencyUs)).toBeCloseTo(1, 9)
+    expect(tps(2) / expected(2, INTERCONNECT_SPECS['nvlink-3'].allreduceLatencyUs)).toBeCloseTo(
+      1,
+      9,
+    )
+  })
+
+  it('TP-8 decode drops about a quarter versus the old NVLink pricing (spec: -25.7%)', () => {
+    const change = tps(8) / expected(8, INTERCONNECT_SPECS['nvlink-4'].allreduceLatencyUs) - 1
+    expect(change).toBeGreaterThan(-0.27)
+    expect(change).toBeLessThan(-0.24)
   })
 })

@@ -1,6 +1,6 @@
 import { InfoTip } from '@components/common/InfoTip'
 import { INTERCONNECT_LABELS, INTERCONNECT_SPECS } from '@engines/constants'
-import { resolveInterconnect } from '@engines/multi-gpu'
+import { interconnectLabel as linkLabel, resolveInterconnect } from '@engines/multi-gpu'
 import { useUIStore } from '@store/uiStore'
 
 /**
@@ -25,9 +25,13 @@ export function ShardingStrategySelector() {
     return null
   }
 
-  // Resolve interconnect type and spec
-  const interconnectType = selectedGPU ? resolveInterconnect(selectedGPU) : 'none'
+  // Resolve the link for THIS group size: an NVLink bridge only carries a group that fits it
+  const interconnectType = selectedGPU ? resolveInterconnect(selectedGPU, numGPUs) : 'none'
   const interconnectSpec = INTERCONNECT_SPECS[interconnectType]
+  const bridgeSize =
+    selectedGPU?.nvlink_bridge && numGPUs <= selectedGPU.nvlink_bridge.size
+      ? selectedGPU.nvlink_bridge.size
+      : null
 
   // Determine badge color based on interconnect type
   let badgeColorClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
@@ -44,12 +48,10 @@ export function ShardingStrategySelector() {
     badgeColorClass = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
   }
 
-  // Human-readable interconnect name. INTERCONNECT_LABELS also bakes in a
-  // bandwidth figure ("Infinity Fabric — 1075 GB/s"), but this badge already
-  // renders bandwidthGBps separately, so only the name portion is reused here
-  // to avoid printing the bandwidth twice.
-  const interconnectLabel =
-    INTERCONNECT_LABELS[interconnectType]?.split(' — ')[0] ?? interconnectType.toUpperCase()
+  // The badge renders bandwidthGBps separately, so only the name part of the label is used
+  const interconnectLabel = (
+    selectedGPU ? linkLabel(selectedGPU, numGPUs) : (INTERCONNECT_LABELS.none ?? 'None')
+  ).split(' — ')[0]
 
   // Check if TP degree exceeds recommended maximum
   const tpExceedsMax =
@@ -156,7 +158,7 @@ export function ShardingStrategySelector() {
           <>
             {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
             {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — Excellent for
-            TP up to {interconnectSpec.recommendedMaxTPDegree} GPUs
+            TP up to {bridgeSize ?? interconnectSpec.recommendedMaxTPDegree} GPUs
           </>
         ) : (
           <>

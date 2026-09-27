@@ -257,7 +257,7 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   //    the bubble B / (B + stages - 1). A decode token cannot be split into
   //    micro-batches (unlike a prompt, see fabric.ts pipelineBubbleEfficiency), so
   //    at batch 1 pipeline parallelism gives no decode speedup.
-  const link = INTERCONNECT_SPECS[resolveInterconnect(gpu)]
+  const link = INTERCONNECT_SPECS[resolveInterconnect(gpu, layout.gpusPerStage)]
   const layersPerStage = model.num_hidden_layers / layout.stages
   let commSecondsPerLayer = 0
   if (layout.strategy === 'tensor-parallel') {

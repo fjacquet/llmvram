@@ -253,9 +253,14 @@ export function useInferenceCalculation(
       return
     }
 
-    // Apply interconnect override when user selects a variant different from the GPU default
+    // Apply the interconnect variant the user picked; it replaces the bridge too,
+    // because the user chose the link explicitly.
     const effectiveGPU = interconnectOverride
-      ? { ...gpu, interconnect: interconnectOverride as GPU['interconnect'] }
+      ? {
+          ...gpu,
+          interconnect: interconnectOverride as GPU['interconnect'],
+          nvlink_bridge: undefined,
+        }
       : gpu
 
     setLoading(true)

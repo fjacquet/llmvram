@@ -5,7 +5,12 @@ import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { INTERCONNECT_SPECS } from './constants'
 import { calculateInferenceVRAM } from './inference'
-import { calculateMultiGPUVRAM, resolveInterconnect, validateInterconnect } from './multi-gpu'
+import {
+  calculateMultiGPUVRAM,
+  interconnectLabel,
+  resolveInterconnect,
+  validateInterconnect,
+} from './multi-gpu'
 
 // Test fixtures - inline model definitions for test isolation
 const llama70b: Model = {
@@ -607,47 +612,47 @@ describe('calculateMultiGPUVRAM - Bandwidth-aware overhead', () => {
 
 describe('resolveInterconnect', () => {
   it('maps nvlink-4 to nvlink-4', () => {
-    const result = resolveInterconnect(h100)
+    const result = resolveInterconnect(h100, 8)
     expect(result).toBe('nvlink-4')
   })
 
   it('maps generic nvlink to nvlink-4', () => {
     const gpu: GPU = { ...h100, interconnect: 'nvlink' }
-    const result = resolveInterconnect(gpu)
+    const result = resolveInterconnect(gpu, 8)
     expect(result).toBe('nvlink-4')
   })
 
   it('maps nvlink-5 to nvlink-5', () => {
     const gpu: GPU = { ...h100, interconnect: 'nvlink-5' }
-    const result = resolveInterconnect(gpu)
+    const result = resolveInterconnect(gpu, 8)
     expect(result).toBe('nvlink-5')
   })
 
   it('maps undefined interconnect on datacenter GPU to pcie-5', () => {
     const gpu: GPU = { ...h100, interconnect: undefined }
-    const result = resolveInterconnect(gpu)
+    const result = resolveInterconnect(gpu, 8)
     expect(result).toBe('pcie-5')
   })
 
   it('maps none interconnect on datacenter GPU to pcie-5', () => {
     const gpu: GPU = { ...h100, interconnect: 'none' }
-    const result = resolveInterconnect(gpu)
+    const result = resolveInterconnect(gpu, 8)
     expect(result).toBe('pcie-5')
   })
 
   it('maps undefined interconnect on consumer GPU to pcie-4', () => {
     const gpu: GPU = { ...rtx4090, interconnect: undefined }
-    const result = resolveInterconnect(gpu)
+    const result = resolveInterconnect(gpu, 8)
     expect(result).toBe('pcie-4')
   })
 
   it('maps pcie-4 to pcie-4', () => {
-    const result = resolveInterconnect(rtx4090)
+    const result = resolveInterconnect(rtx4090, 8)
     expect(result).toBe('pcie-4')
   })
 
   it('maps infinity-fabric to its own type', () => {
-    const result = resolveInterconnect(radeonMI300X)
+    const result = resolveInterconnect(radeonMI300X, 8)
     expect(result).toBe('infinity-fabric')
   })
 
@@ -664,8 +669,89 @@ describe('resolveInterconnect', () => {
       tier: 'apple-silicon',
       max_gpus_per_node: 1,
     }
-    const result = resolveInterconnect(m3Ultra)
+    const result = resolveInterconnect(m3Ultra, 8)
     expect(result).toBe('none')
+  })
+})
+
+describe('resolveInterconnect with NVLink bridges (spec Section 3)', () => {
+  const realGPUs = validateGPUs(gpusData)
+  const byId = (id: string) => {
+    const gpu = realGPUs.find((g) => g.id === id)
+    if (!gpu) throw new Error(`fixture GPU not found in gpus.json: ${id}`)
+    return gpu
+  }
+  const h100pcie = byId('nvidia-h100-80gb-pcie')
+  const h200nvl = byId('nvidia-h200-nvl-141gb')
+  const llama70 = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-70b')
+  const dsr1 = validateModels(modelsData).find((m) => m.id === 'deepseek-r1')
+  if (!llama70 || !dsr1) throw new Error('fixture models not found')
+
+  it('uses the bridge while the group fits it, PCIe beyond', () => {
+    expect(resolveInterconnect(h100pcie, 2)).toBe('nvlink-3')
+    expect(resolveInterconnect(h100pcie, 4)).toBe('pcie-5')
+    expect(resolveInterconnect(h200nvl, 4)).toBe('nvlink-4')
+    expect(resolveInterconnect(h200nvl, 8)).toBe('pcie-5')
+  })
+
+  it('labels the bridge by bandwidth', () => {
+    expect(interconnectLabel(h100pcie, 2)).toBe('NVLink bridge — 600 GB/s')
+    expect(interconnectLabel(h200nvl, 4)).toBe('NVLink bridge — 900 GB/s')
+    expect(interconnectLabel(h100pcie, 4)).toBe('PCIe 5 — 128 GB/s')
+  })
+
+  it('prices TP-2 over the bridge and TP-4 over PCIe (chart and PPTX read this figure)', () => {
+    const single = calculateInferenceVRAM({
+      model: llama70,
+      quantization: 'fp8',
+      sequenceLength: 8192,
+      batchSize: 1,
+    })
+    const tp2 = calculateMultiGPUVRAM(
+      single,
+      llama70,
+      h100pcie.vram_gb,
+      2,
+      'tensor-parallel',
+      h100pcie,
+    )
+    const tp4 = calculateMultiGPUVRAM(
+      single,
+      llama70,
+      h100pcie.vram_gb,
+      4,
+      'tensor-parallel',
+      h100pcie,
+    )
+    expect(tp2.interconnectBandwidthGBps).toBe(600)
+    expect(tp4.interconnectBandwidthGBps).toBe(128)
+  })
+
+  it('falls back to PCIe for EP-4 on a 2-card bridge', () => {
+    const single = calculateInferenceVRAM({
+      model: dsr1,
+      quantization: 'fp8',
+      sequenceLength: 8192,
+      batchSize: 1,
+    })
+    const ep4 = calculateMultiGPUVRAM(
+      single,
+      dsr1,
+      h100pcie.vram_gb,
+      4,
+      'expert-parallel',
+      h100pcie,
+      'fp8',
+    )
+    expect(ep4.interconnectBandwidthGBps).toBe(128)
+  })
+
+  it('warns (W2) at TP-8 on PCIe 5 and TP-4 on PCIe 4, not at TP-2 over the bridge', () => {
+    expect(validateInterconnect(h100pcie, 2, 'tensor-parallel').warning).toBeNull()
+    expect(validateInterconnect(h100pcie, 8, 'tensor-parallel').warning).not.toBeNull()
+    expect(
+      validateInterconnect(byId('nvidia-a100-80gb-pcie'), 4, 'tensor-parallel').warning,
+    ).not.toBeNull()
   })
 })
 
@@ -774,7 +860,7 @@ describe('Infinity Fabric interconnect', () => {
   }
 
   it('resolves to its own type, not pcie-5', () => {
-    expect(resolveInterconnect(mi300x)).toBe('infinity-fabric')
+    expect(resolveInterconnect(mi300x, 8)).toBe('infinity-fabric')
   })
 
   it('carries AMD bidirectional bandwidth and 8-way TP support', () => {
