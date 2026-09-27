@@ -56,4 +56,18 @@ describe('countAdvancedChanges', () => {
       }),
     ).toBe(0)
   })
+
+  it('counts a customFabric change as the fabric group, gated by numNodes > 1', () => {
+    const customFabric = { name: 'Lab switch', port_gbps: 25 }
+    expect(countAdvancedChanges({ ...DEFAULT_UI_CONFIG, customFabric })).toBe(0)
+    expect(countAdvancedChanges({ ...DEFAULT_UI_CONFIG, numNodes: 2, customFabric })).toBe(1)
+    expect(
+      countAdvancedChanges({
+        ...DEFAULT_UI_CONFIG,
+        numNodes: 2,
+        customFabric,
+        interNodeFabric: 'ethernet-100g',
+      }),
+    ).toBe(1)
+  })
 })

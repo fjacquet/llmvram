@@ -16,7 +16,7 @@ import { ShardingStrategySelector } from '@components/inputs/ShardingStrategySel
 import { TrainingPanel } from '@components/inputs/TrainingPanel'
 import { FRAMEWORK_PRESETS } from '@engines/frameworks'
 import { useUIStore } from '@store/uiStore'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { countAdvancedChanges } from './advancedChanges'
 
 /**
@@ -25,17 +25,25 @@ import { countAdvancedChanges } from './advancedChanges'
  * Inputs that are inert in training are hidden, never reset (spec Section 1).
  */
 export function InputPanel() {
-  const state = useUIStore()
-  const { selectedGPU, mode, frameworkPreset } = state
+  const selectedGPU = useUIStore((s) => s.selectedGPU)
+  const mode = useUIStore((s) => s.mode)
+  const frameworkPreset = useUIStore((s) => s.frameworkPreset)
+  const resetAdvancedSettings = useUIStore((s) => s.resetAdvancedSettings)
   const isInference = mode === 'inference'
   // In training, more than one GPU only matters with a DeepSpeed ZeRO preset
   const showGPUCount =
     selectedGPU !== null && (isInference || FRAMEWORK_PRESETS[frameworkPreset].zeroStage !== null)
 
-  const changed = countAdvancedChanges(state)
+  // Derived selector: re-renders only when the count itself changes, not on every
+  // store write (UIState extends UIConfig, so countAdvancedChanges' shape typechecks).
+  const changed = useUIStore(countAdvancedChanges)
   const [advancedOpen, setAdvancedOpen] = useState(changed > 0)
+  // Auto-open only on the 0 -> >0 transition, so a user who closed it while settings
+  // stayed non-default (e.g. 1 -> 2) is not overridden.
+  const prevChanged = useRef(changed)
   useEffect(() => {
-    if (changed > 0) setAdvancedOpen(true)
+    if (prevChanged.current === 0 && changed > 0) setAdvancedOpen(true)
+    prevChanged.current = changed
   }, [changed])
 
   return (
@@ -86,7 +94,7 @@ export function InputPanel() {
                 useConfigNotices pipeline, not a button-local one. */}
             <button
               type="button"
-              onClick={() => state.resetAdvancedSettings()}
+              onClick={() => resetAdvancedSettings()}
               className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
             >
               Reset advanced settings
