@@ -8,7 +8,8 @@ import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownCha
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
 import { maxConcurrentSessions } from '@engines/concurrency'
-import { kvTierSummary } from '@engines/kv-tier'
+import { DECIMAL_GB_PER_GIB, kvTierSummary } from '@engines/kv-tier'
+import { defaultHostCapacityGB, roundOffloadSlowdown } from '@engines/offloading'
 import { weightSource } from '@engines/quantization'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
@@ -48,6 +49,7 @@ export function ResultsPanel() {
     offloadPercentage,
     offloadLayers,
     kvCacheOffload,
+    offloadHostCapacityGB,
     concurrentUsers,
     kvTier,
   } = useUIStore()
@@ -218,6 +220,19 @@ export function ResultsPanel() {
     // Single GPU, no offloading: check if total exceeds GPU capacity
     doesNotFit = result.vram.total.greaterThan(selectedGPU.vram_gb)
   }
+
+  // Host capacity: the offloaded memory (converted GiB -> decimal GB) must fit
+  // the host(s) it's offloaded to, or the configuration doesn't actually work
+  // even though the on-device share "fits" the GPU.
+  const hostCapacityPerServerGB = result.offloading
+    ? (offloadHostCapacityGB ?? defaultHostCapacityGB(offloadTarget, selectedGPU))
+    : null
+  const offloadedHostGB = result.offloading
+    ? result.offloading.offloaded.total.toNumber() * DECIMAL_GB_PER_GIB
+    : 0
+  const hostExceeded =
+    hostCapacityPerServerGB !== null && offloadedHostGB > hostCapacityPerServerGB * numNodes
+  if (hostExceeded) doesNotFit = true
 
   // Sessions that fit at this context, from the same per-GPU breakdown as the fit check
   const perGPU = result.multiGPU ? result.multiGPU.perGPU : displayBreakdown
@@ -460,6 +475,20 @@ export function ResultsPanel() {
                     maxSessions,
                     tierSessionsHeld: tierSummary?.sessionsHeld ?? null,
                     weightSource: weightSourceRepo,
+                    concurrentUsers,
+                    offload: result.offloading
+                      ? {
+                          target: offloadTarget,
+                          mode: offloadMode,
+                          percentage: offloadPercentage,
+                          layers: offloadLayers,
+                          kvOffloaded: kvCacheOffload,
+                          offloadedGiB: result.offloading.offloaded.total.toNumber(),
+                          slowdown: result.performance.offloadSlowdown,
+                          hostCapacityGB: (hostCapacityPerServerGB ?? 0) * numNodes,
+                          exceedsHost: hostExceeded,
+                        }
+                      : null,
                   })
                 }
                 className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
@@ -514,8 +543,28 @@ export function ResultsPanel() {
                     <span className="font-medium">On-device:</span>{' '}
                     {result.offloading.onDevice.total.toFixed(2)} GB
                   </p>
-                  <p className="text-xs italic">{result.offloading.performanceImpact}</p>
+                  <p className="text-xs italic">
+                    {(() => {
+                      const rounded = roundOffloadSlowdown(result.performance.offloadSlowdown)
+                      return rounded === null
+                        ? 'no measurable slowdown'
+                        : `≈ ${rounded}× slower decode than all-in-GPU`
+                    })()}
+                  </p>
                 </div>
+              </div>
+            )}
+
+            {/* Host capacity exceeded */}
+            {hostExceeded && hostCapacityPerServerGB !== null && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <p className="text-sm text-red-800 dark:text-red-200">
+                  Does not fit: offloaded{' '}
+                  {offloadedHostGB.toLocaleString('en-US', { maximumFractionDigits: 0 })} GB exceeds
+                  host capacity{' '}
+                  {hostCapacityPerServerGB.toLocaleString('en-US', { maximumFractionDigits: 0 })} GB
+                  ({numNodes} server{numNodes === 1 ? '' : 's'})
+                </p>
               </div>
             )}
 
