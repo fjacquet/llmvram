@@ -1,16 +1,5 @@
-import { DEFAULT_KV_TIER } from '@engines/kv-tier'
-import type {
-  FineTuningMethod,
-  KVCachePrecision,
-  OffloadMode,
-  OffloadTarget,
-  OptimizerType,
-  QuantizationFormat,
-  ShardingStrategy,
-  TrainingPrecision,
-} from '@engines/types'
-import { findGPUById, findModelById, useUIStore } from '@store/uiStore'
-import { deserializeFromURL, serializeToURL } from '@store/urlSerializer'
+import { findGPUById, findModelById, isAtDefaults, useUIStore } from '@store/uiStore'
+import { deserializeFromURL, serializeToURL, urlStateToConfig } from '@store/urlSerializer'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
@@ -18,9 +7,10 @@ import { toast } from 'sonner'
  * Hook that provides bidirectional sync between Zustand store and URL hash
  *
  * On mount:
- * - Reads URL hash and deserializes to restore configuration
- * - Hydrates store with model/GPU from database or creates custom objects
- * - Shows toast if referenced model/GPU not found
+ * - Reads URL hash and deserializes it
+ * - Builds the whole configuration (urlStateToConfig) and applies it in ONE store
+ *   action, normalized once; corrections surface as "Shared link adjusted"
+ * - Warns when a referenced model/GPU is not in the database
  *
  * On store changes:
  * - Debounces changes by 300ms
@@ -29,10 +19,7 @@ import { toast } from 'sonner'
  * - Warns if URL exceeds recommended length
  */
 export function useURLSync() {
-  const store = useUIStore()
-
   // Hydrate store from URL hash on mount
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Zustand store setters are stable and don't need to be in deps
   useEffect(() => {
     const hash = window.location.hash.slice(1)
     if (!hash) {
@@ -46,114 +33,12 @@ export function useURLSync() {
       return
     }
 
-    // Restore model
-    if (urlState.modelId) {
-      const model = findModelById(urlState.modelId)
-      if (model) {
-        store.setSelectedModel(model)
-      } else if (urlState.customModel) {
-        // Model ID not found but custom params available - restore custom
-        store.setSelectedModel({
-          id: 'custom-restored',
-          architecture: 'dense',
-          ...urlState.customModel,
-        })
-      } else {
-        // Model ID not found and no custom params
-        toast.warning('Model from shared link not found in database')
-      }
-    } else if (urlState.customModel) {
-      // Custom model without ID
-      store.setSelectedModel({
-        id: 'custom-restored',
-        architecture: 'dense',
-        ...urlState.customModel,
-      })
-    }
-
-    // Restore GPU
-    if (urlState.gpuId) {
-      const gpu = findGPUById(urlState.gpuId)
-      if (gpu) {
-        store.setSelectedGPU(gpu)
-      } else if (urlState.customGPU) {
-        // GPU ID not found but custom params available - restore custom
-        store.setSelectedGPU({
-          id: 'custom-restored',
-          manufacturer: 'nvidia',
-          memory_type: 'Custom',
-          bus_width: 0,
-          tier: 'consumer',
-          interconnect: 'none',
-          max_gpus_per_node: 8,
-          ...urlState.customGPU,
-        })
-      } else {
-        // GPU ID not found and no custom params
-        toast.warning('GPU from shared link not found in database')
-      }
-    } else if (urlState.customGPU) {
-      // Custom GPU without ID
-      store.setSelectedGPU({
-        id: 'custom-restored',
-        manufacturer: 'nvidia',
-        memory_type: 'Custom',
-        bus_width: 0,
-        tier: 'consumer',
-        interconnect: 'none',
-        max_gpus_per_node: 8,
-        ...urlState.customGPU,
-      })
-    }
-
-    // Restore calculation parameters
-    store.setQuantization(urlState.q as QuantizationFormat)
-    store.setSequenceLength(urlState.sl)
-    store.setBatchSize(urlState.bs)
-    store.setKVQuantization(urlState.kvq as KVCachePrecision)
-    store.setNumGPUs(urlState.ng)
-    store.setShardingStrategy(urlState.ss as ShardingStrategy)
-
-    // Absent in links made before these keys existed: 1 user, no tier
-    store.setConcurrentUsers(urlState.cu ?? 1)
-    store.setKVTier(
-      urlState.kt
-        ? {
-            tier: urlState.kt.t,
-            customGBps: urlState.kt.g ?? null,
-            activeShare: urlState.kt.a,
-            burstSeconds: urlState.kt.b,
-            capacityTB: urlState.kt.c ?? null,
-          }
-        : DEFAULT_KV_TIER,
-    )
-
-    // Multi-node (absent = single node, for links created before the feature)
-    store.setNumNodes(urlState.nn ?? 1)
-    if (urlState.fab) store.setInterNodeFabric(urlState.fab)
-    if (urlState.fabc) store.setCustomFabric(urlState.fabc)
-
-    // Restore offloading parameters (only if enabled)
-    if (urlState.oe) {
-      store.setOffloadingEnabled(true)
-      if (urlState.ot) store.setOffloadTarget(urlState.ot as OffloadTarget)
-      if (urlState.om) store.setOffloadMode(urlState.om as OffloadMode)
-      if (urlState.op !== undefined) store.setOffloadPercentage(urlState.op)
-      if (urlState.ol !== undefined) store.setOffloadLayers(urlState.ol)
-      if (urlState.ko !== undefined) store.setKVCacheOffload(urlState.ko)
-      if (urlState.hc !== undefined) store.setOffloadHostCapacityGB(urlState.hc)
-    }
-
-    // Restore training mode and parameters
-    if (urlState.m === 'training') {
-      store.setMode('training')
-      if (urlState.tm) store.setTrainingMethod(urlState.tm as FineTuningMethod)
-      if (urlState.to) store.setOptimizer(urlState.to as OptimizerType)
-      if (urlState.tp) store.setTrainingPrecision(urlState.tp as TrainingPrecision)
-      if (urlState.lr !== undefined) store.setLoraRank(urlState.lr)
-      if (urlState.la !== undefined) store.setLoraAlpha(urlState.la)
-      if (urlState.tmp !== undefined) store.setTargetModulesPercent(urlState.tmp)
-    }
+    const { patch, missing } = urlStateToConfig(urlState, {
+      findModel: findModelById,
+      findGPU: findGPUById,
+    })
+    for (const message of missing) toast.warning(message)
+    useUIStore.getState().restoreConfig(patch)
   }, []) // Empty deps - only run on mount
 
   // Sync store changes to URL hash (debounced)
@@ -169,6 +54,18 @@ export function useURLSync() {
       // Debounce by 300ms
       timeoutId = setTimeout(() => {
         const compressed = serializeToURL(state)
+
+        // resetAll() (spec Section 4) clears the hash itself, but this debounced
+        // effect still fires from that same state change: without this, it would
+        // write `#<encoded defaults>` ~300ms later, and the hash would visibly
+        // reappear even though it decodes to the same configuration. Keep it cleared
+        // for as long as the state stays at the defaults.
+        if (isAtDefaults(state)) {
+          if (window.location.hash) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          }
+          return
+        }
 
         // Skip if URL hasn't changed (avoid infinite loop)
         const currentHash = window.location.hash.slice(1)

@@ -3,6 +3,7 @@ import modelsData from '@data/models.json'
 import { DEFAULT_KV_TIER } from '@engines/kv-tier'
 import type { GPU, Model } from '@utils/schemas'
 import { validateGPU, validateGPUs, validateModels } from '@utils/schemas'
+import { compressToEncodedURIComponent } from 'lz-string'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -396,5 +397,147 @@ describe('uiStore: every action normalizes, one notice per action', () => {
     const store = await freshStore()
     store.getState().resetAll()
     expect(store.getState().pendingNotice).toBeNull()
+  })
+})
+
+describe('uiStore: shared-link restore is one normalized action', () => {
+  async function restore(json: Record<string, unknown>) {
+    const store = await freshStore()
+    const { deserializeFromURL, urlStateToConfig } = await import('@store/urlSerializer')
+    const { findGPUById, findModelById } = await import('@store/uiStore')
+    const decoded = deserializeFromURL(compressToEncodedURIComponent(JSON.stringify(json)))
+    if (!decoded) throw new Error('expected the link to parse')
+    const { patch } = urlStateToConfig(decoded, { findModel: findModelById, findGPU: findGPUById })
+    store.getState().restoreConfig(patch)
+    return store.getState()
+  }
+  const base = { q: 'fp16', sl: 4096, bs: 1, kvq: 'fp16', ng: 1, ss: 'tensor-parallel' }
+
+  it('opens a hostile link corrected, with one "Shared link adjusted" notice', async () => {
+    const state = await restore({
+      ...base,
+      modelId: L70.id,
+      gpuId: H100.id,
+      ss: 'expert-parallel',
+      ng: 6,
+      sl: 100,
+      bs: 0,
+    })
+    expect(state.shardingStrategy).toBe('tensor-parallel')
+    expect(state.numGPUs).toBe(4)
+    expect(state.sequenceLength).toBe(512)
+    expect(state.batchSize).toBe(1)
+    expect(state.pendingNotice?.title).toBe('Shared link adjusted')
+    expect(state.pendingNotice?.lines).toHaveLength(4)
+  })
+
+  it('clamps non-integer and negative counts', async () => {
+    expect((await restore({ ...base, modelId: L70.id, gpuId: H100.id, ng: 2.5 })).numGPUs).toBe(2)
+    expect((await restore({ ...base, modelId: L70.id, gpuId: H100.id, ng: -3 })).numGPUs).toBe(1)
+    expect(
+      (await restore({ ...base, modelId: L70.id, gpuId: H100.id, nn: 12, cu: 0 })).numNodes,
+    ).toBe(8)
+  })
+
+  it('keeps EP and 6 GPUs when the link model is unknown; the first model pick then corrects both', async () => {
+    const state = await restore({
+      ...base,
+      modelId: 'no-such-model',
+      gpuId: H100.id,
+      ss: 'expert-parallel',
+      ng: 6,
+    })
+    expect(state.selectedModel).toBeNull()
+    expect(state.shardingStrategy).toBe('expert-parallel')
+    expect(state.numGPUs).toBe(6)
+    const { useUIStore } = await import('@store/uiStore')
+    useUIStore.getState().setSelectedModel(L70)
+    expect(useUIStore.getState().shardingStrategy).toBe('tensor-parallel')
+    expect(useUIStore.getState().numGPUs).toBe(4)
+    expect(useUIStore.getState().pendingNotice?.lines).toHaveLength(2)
+  })
+
+  it('restores training settings that links carried but never restored (ga, gc, fa, co)', async () => {
+    const state = await restore({
+      ...base,
+      modelId: L70.id,
+      gpuId: H100.id,
+      m: 'training',
+      ga: 8,
+      gc: true,
+      fa: true,
+      fp: 'deepspeed-zero3',
+      co: true,
+    })
+    expect(state).toMatchObject({
+      mode: 'training',
+      gradientAccumulationSteps: 8,
+      gradientCheckpointing: true,
+      flashAttention: true,
+      frameworkPreset: 'deepspeed-zero3',
+      cpuOffloadOptimizer: true,
+    })
+    expect(state.pendingNotice).toBeNull()
+  })
+
+  it('a link with offloading on, target cpu-ram, on a unified-memory GPU restores with offloading OFF (R6), not NVMe', async () => {
+    const store = await freshStore()
+    const { deserializeFromURL, urlStateToConfig } = await import('@store/urlSerializer')
+    const decoded = deserializeFromURL(
+      compressToEncodedURIComponent(
+        JSON.stringify({ ...base, modelId: L70.id, gpuId: UNIFIED_M3.id, oe: true, ot: 'cpu-ram' }),
+      ),
+    )
+    if (!decoded) throw new Error('expected the link to parse')
+    // UNIFIED_M3 isn't in the real database yet (Task 3a lands unified_memory data), so
+    // resolve its id through a lookup that hands back the synthetic fixture directly —
+    // the restore path (source 'link') is what's under test, not the database contents.
+    const { patch } = urlStateToConfig(decoded, {
+      findModel: (id) => (id === L70.id ? L70 : null),
+      findGPU: (id) => (id === UNIFIED_M3.id ? UNIFIED_M3 : null),
+    })
+    store.getState().restoreConfig(patch)
+    const state = store.getState()
+    // Unlike setOffloadingEnabled's action intent (unit test above), a link restore
+    // applies the plain rule: R6 turns offloading off, it does not pick NVMe.
+    expect(state.offloadingEnabled).toBe(false)
+    expect(state.offloadTarget).toBe('cpu-ram')
+    expect(state.pendingNotice?.title).toBe('Shared link adjusted')
+    expect(state.pendingNotice?.lines).toEqual([
+      `Offloading turned off: ${UNIFIED_M3.name} has unified memory, RAM is the same pool.`,
+    ])
+  })
+
+  it('gives the same result whatever order the link keys come in', async () => {
+    const link = {
+      ...base,
+      modelId: L70.id,
+      gpuId: H100.id,
+      ss: 'expert-parallel',
+      ng: 6,
+      bs: 0,
+      sl: 100,
+      nn: 12,
+    }
+    const entries = Object.entries(link)
+    const orders = [
+      entries,
+      [...entries].reverse(),
+      [...entries].sort(([a], [b]) => a.localeCompare(b)),
+    ]
+    const results = []
+    for (const order of orders) {
+      const state = await restore(Object.fromEntries(order))
+      results.push({
+        numGPUs: state.numGPUs,
+        shardingStrategy: state.shardingStrategy,
+        batchSize: state.batchSize,
+        sequenceLength: state.sequenceLength,
+        numNodes: state.numNodes,
+        lines: state.pendingNotice?.lines,
+      })
+    }
+    expect(results[1]).toEqual(results[0])
+    expect(results[2]).toEqual(results[0])
   })
 })

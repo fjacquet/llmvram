@@ -1,6 +1,10 @@
+import gpusData from '@data/gpus.json'
+import modelsData from '@data/models.json'
+import { DEFAULT_KV_TIER } from '@engines/kv-tier'
+import { type GPU, type Model, validateGPUs, validateModels } from '@utils/schemas'
 import { compressToEncodedURIComponent } from 'lz-string'
 import { describe, expect, it } from 'vitest'
-import { deserializeFromURL, isCustomId, serializeToURL } from './urlSerializer'
+import { deserializeFromURL, isCustomId, serializeToURL, urlStateToConfig } from './urlSerializer'
 
 const baseState = {
   selectedModel: {
@@ -64,6 +68,7 @@ const baseState = {
   },
   frameworkPreset: 'none' as const,
   cpuOffloadOptimizer: false,
+  interconnectOverride: null,
 }
 
 describe('URL Serializer', () => {
@@ -291,10 +296,10 @@ describe('URL Serializer', () => {
     })
 
     it('tolerates an invalid hand-edited hc (0) instead of discarding the whole hash', () => {
-      // A hand-edited hash with hc=0 (or any non-positive value) must not fail the
-      // whole schema — the rest of the configuration (model, GPU, everything else)
-      // should still restore; only the host capacity override is dropped, exactly
-      // like a store-level clamp would (see uiStore.setOffloadHostCapacityGB).
+      // A hand-edited hash with hc=0 (or any non-positive value) must not fail the whole
+      // schema. hc now passes through raw; config-rules R4 resets it to the default
+      // (null) after restore, with a "Shared link adjusted" notice, instead of the
+      // schema silently dropping it.
       const hash = compressToEncodedURIComponent(
         JSON.stringify({
           modelId: 'meta-llama-llama-3-70b',
@@ -320,7 +325,7 @@ describe('URL Serializer', () => {
       expect(decoded).not.toBeNull()
       expect(decoded?.modelId).toBe('meta-llama-llama-3-70b')
       expect(decoded?.oe).toBe(true)
-      expect(decoded?.hc).toBeUndefined()
+      expect(decoded?.hc).toBe(0)
     })
 
     it('should NOT serialize training fields when mode is inference', () => {
@@ -669,5 +674,184 @@ describe('URL Serializer', () => {
       expect(decoded?.fab).toBe('custom')
       expect(decoded?.fabc).toEqual({ name: 'Lab', port_gbps: 25 })
     })
+  })
+})
+
+const realModels = validateModels(modelsData)
+const realGPUs = validateGPUs(gpusData)
+const lookups = {
+  findModel: (id: string): Model | null => realModels.find((m) => m.id === id) ?? null,
+  findGPU: (id: string): GPU | null => realGPUs.find((g) => g.id === id) ?? null,
+}
+function realModel(id: string): Model {
+  const m = lookups.findModel(id)
+  if (!m) throw new Error(`fixture model not found in models.json: ${id}`)
+  return m
+}
+function realGPU(id: string): GPU {
+  const g = lookups.findGPU(id)
+  if (!g) throw new Error(`fixture GPU not found in gpus.json: ${id}`)
+  return g
+}
+
+describe('urlStateToConfig', () => {
+  const everyKey = {
+    ...baseState,
+    selectedModel: realModel('meta-llama-llama-3.1-70b'),
+    selectedGPU: realGPU('nvidia-h100-80gb-sxm'),
+    quantization: 'fp8' as const,
+    sequenceLength: 32768,
+    batchSize: 8,
+    kvQuantization: 'fp8' as const,
+    numGPUs: 4,
+    shardingStrategy: 'pipeline-parallel' as const,
+    concurrentUsers: 64,
+    kvTier: {
+      tier: 'network' as const,
+      customGBps: 20,
+      activeShare: 0.5,
+      burstSeconds: 12,
+      capacityTB: 3,
+    },
+    numNodes: 2,
+    interNodeFabric: 'custom' as const,
+    customFabric: { name: 'Lab', port_gbps: 25 },
+    offloadingEnabled: true,
+    offloadTarget: 'nvme' as const,
+    offloadMode: 'layers' as const,
+    offloadPercentage: 10,
+    offloadLayers: 12,
+    kvCacheOffload: true,
+    offloadHostCapacityGB: 4096,
+    mode: 'training' as const,
+    trainingMethod: 'qlora' as const,
+    optimizer: 'adafactor' as const,
+    trainingPrecision: 'fp16' as const,
+    loraRank: 64,
+    loraAlpha: 128,
+    targetModulesPercent: 50,
+    gradientAccumulationSteps: 8,
+    gradientCheckpointing: true,
+    flashAttention: true,
+    frameworkPreset: 'deepspeed-zero3' as const,
+    cpuOffloadOptimizer: true,
+    interconnectOverride: 'pcie-5',
+  }
+
+  it('round-trips every serialized key, including ga, gc, fa, fp, co and the new io', () => {
+    const decoded = deserializeFromURL(serializeToURL(everyKey))
+    if (!decoded) throw new Error('expected the link to parse')
+    const { patch, missing } = urlStateToConfig(decoded, lookups)
+    expect(missing).toEqual([])
+    const { selectedModel, selectedGPU, ...rest } = everyKey
+    expect(patch.selectedModel?.id).toBe(selectedModel.id)
+    expect(patch.selectedGPU?.id).toBe(selectedGPU.id)
+    expect(patch).toMatchObject(rest)
+  })
+
+  it('restores fp raw: no auto-optimizations overwrite the link optimizer and flags', () => {
+    const state = {
+      ...everyKey,
+      frameworkPreset: 'unsloth' as const,
+      optimizer: 'adamw' as const,
+      gradientCheckpointing: false,
+    }
+    const decoded = deserializeFromURL(serializeToURL(state))
+    if (!decoded) throw new Error('expected the link to parse')
+    const { patch } = urlStateToConfig(decoded, lookups)
+    expect(patch.frameworkPreset).toBe('unsloth')
+    expect(patch.optimizer).toBe('adamw')
+    expect(patch.gradientCheckpointing).toBe(false)
+  })
+
+  it('defaults absent keys like links made before they existed', () => {
+    const decoded = deserializeFromURL(
+      compressToEncodedURIComponent(
+        JSON.stringify({ q: 'fp16', sl: 4096, bs: 1, kvq: 'fp16', ng: 1, ss: 'tensor-parallel' }),
+      ),
+    )
+    if (!decoded) throw new Error('expected the link to parse')
+    const { patch } = urlStateToConfig(decoded, lookups)
+    expect(patch).toMatchObject({
+      mode: 'inference',
+      concurrentUsers: 1,
+      numNodes: 1,
+      kvTier: DEFAULT_KV_TIER,
+      interconnectOverride: null,
+    })
+  })
+
+  it('reports an unknown model or GPU id without custom params', () => {
+    const decoded = deserializeFromURL(
+      compressToEncodedURIComponent(
+        JSON.stringify({
+          modelId: 'gone',
+          gpuId: 'gone',
+          q: 'fp16',
+          sl: 4096,
+          bs: 1,
+          kvq: 'fp16',
+          ng: 1,
+          ss: 'tensor-parallel',
+        }),
+      ),
+    )
+    if (!decoded) throw new Error('expected the link to parse')
+    expect(urlStateToConfig(decoded, lookups).missing).toEqual([
+      'Model from shared link not found in database',
+      'GPU from shared link not found in database',
+    ])
+  })
+
+  it('parses out-of-range numbers instead of rejecting the whole link (R10 corrects them)', () => {
+    const decoded = deserializeFromURL(
+      compressToEncodedURIComponent(
+        JSON.stringify({
+          q: 'fp16',
+          sl: 100,
+          bs: 0,
+          kvq: 'fp16',
+          ng: -3,
+          ss: 'tensor-parallel',
+          nn: 12,
+          cu: 0,
+        }),
+      ),
+    )
+    expect(decoded).toMatchObject({ sl: 100, bs: 0, ng: -3, nn: 12, cu: 0 })
+  })
+
+  it('rejects a hand-edited custom model or GPU with a non-positive numeric field (no rule reads these)', () => {
+    const badModel = compressToEncodedURIComponent(
+      JSON.stringify({
+        q: 'fp16',
+        sl: 4096,
+        bs: 1,
+        kvq: 'fp16',
+        ng: 1,
+        ss: 'tensor-parallel',
+        customModel: {
+          name: 'x',
+          num_parameters_billion: 0,
+          hidden_size: 4096,
+          num_hidden_layers: 32,
+          num_attention_heads: 32,
+          intermediate_size: 11008,
+        },
+      }),
+    )
+    expect(deserializeFromURL(badModel)).toBeNull()
+    const badGPU = compressToEncodedURIComponent(
+      JSON.stringify({
+        q: 'fp16',
+        sl: 4096,
+        bs: 1,
+        kvq: 'fp16',
+        ng: 1,
+        ss: 'tensor-parallel',
+        customGPU: { name: 'x', vram_gb: 0, memory_bandwidth_gbps: 1000 },
+      }),
+    )
+    expect(deserializeFromURL(badGPU)).toBeNull()
   })
 })

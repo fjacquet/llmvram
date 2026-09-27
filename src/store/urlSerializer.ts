@@ -1,6 +1,5 @@
-import { MAX_CONCURRENT_USERS } from '@engines/constants'
 import type { FrameworkPreset } from '@engines/frameworks'
-import { KV_TIER_TYPES, type KVTierSettings } from '@engines/kv-tier'
+import { DEFAULT_KV_TIER, KV_TIER_TYPES, type KVTierSettings } from '@engines/kv-tier'
 import type {
   FabricType,
   FineTuningMethod,
@@ -12,8 +11,8 @@ import type {
   ShardingStrategy,
   TrainingPrecision,
 } from '@engines/types'
+import type { UIConfig } from '@store/uiStore'
 import type { CustomFabricInput, GPU, Model } from '@utils/schemas'
-import { MAX_SEQUENCE_LENGTH } from '@utils/schemas'
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { z } from 'zod'
 
@@ -27,12 +26,15 @@ export const URLStateSchema = z.object({
   customModel: z
     .object({
       name: z.string(),
-      num_parameters_billion: z.number(),
-      hidden_size: z.number(),
-      num_hidden_layers: z.number(),
-      num_attention_heads: z.number(),
-      num_kv_heads: z.number().optional(),
-      intermediate_size: z.number(),
+      // No correcting rule reads these fields: unlike sl/bs/ng/cu/nn below, a
+      // non-positive value here has nowhere else to be caught before it reaches the
+      // engines, so the schema rejects the whole link instead of opening it corrected.
+      num_parameters_billion: z.number().positive(),
+      hidden_size: z.number().int().positive(),
+      num_hidden_layers: z.number().int().positive(),
+      num_attention_heads: z.number().int().positive(),
+      num_kv_heads: z.number().int().positive().optional(),
+      intermediate_size: z.number().int().positive(),
     })
     .optional(),
   // GPU: ID for curated, full params for custom
@@ -40,31 +42,40 @@ export const URLStateSchema = z.object({
   customGPU: z
     .object({
       name: z.string(),
-      vram_gb: z.number(),
-      memory_bandwidth_gbps: z.number(),
-      fp16_tflops: z.number().optional(),
+      vram_gb: z.number().positive(),
+      // nonnegative, not positive: GPUSelector's custom-GPU form defaults an unfilled
+      // bandwidth to 0 (createCustomGPU's `input.memory_bandwidth_gbps || 0`), so 0 is a
+      // legitimate serialized value, not just a hostile edit.
+      memory_bandwidth_gbps: z.number().nonnegative(),
+      fp16_tflops: z.number().positive().optional(),
     })
     .optional(),
   // Calculation parameters (short keys)
   q: z.string(), // quantization
-  sl: z.number().int().min(512).max(MAX_SEQUENCE_LENGTH), // sequenceLength
+  // Numbers are NOT range-checked here: a hand-edited or old link with an
+  // out-of-range value must still open. config-rules R1/R10 correct it after
+  // restore, with a "Shared link adjusted" notice.
+  sl: z.number(), // sequenceLength
   bs: z.number(), // batchSize
   kvq: z.string(), // kvQuantization
-  ng: z.number(), // numGPUs — PER NODE; see CHANGELOG.md "Multi-node inference" entry
+  ng: z.number(), // numGPUs — parallel degree of one replica, per server; see CHANGELOG.md "Multi-node inference" entry
   ss: z.string(), // shardingStrategy
-  cu: z.number().int().min(1).max(MAX_CONCURRENT_USERS).optional(), // concurrentUsers (absent = 1)
+  cu: z.number().optional(), // concurrentUsers (absent = 1)
   kt: z
     .object({
       t: z.enum(KV_TIER_TYPES), // tier
-      g: z.number().positive().optional(), // customGBps
-      a: z.number().min(0.01).max(1), // activeShare
-      b: z.number().min(1), // burstSeconds
-      c: z.number().positive().optional(), // capacityTB
+      // Not range-checked (same reasoning as sl/bs/cu above): config-rules R4's
+      // clampKVTier corrects a, b, g and c after restore, with a "Shared link
+      // adjusted" notice, instead of the schema silently rejecting the whole link.
+      g: z.number().optional(), // customGBps
+      a: z.number(), // activeShare (R4 clamps to 1-100%)
+      b: z.number(), // burstSeconds (R4 clamps to >= 1 s)
+      c: z.number().optional(), // capacityTB
     })
     .optional(), // KV storage tier (absent = none)
   // Multi-node (absent = single node, for backward compatibility with links
   // created before this feature, where ng meant the total GPU count)
-  nn: z.number().int().min(1).max(8).optional(), // numNodes — matches NodeCountSelector's 1-8 bound
+  nn: z.number().optional(), // numNodes (R10 bounds it to 1-8)
   fab: z
     .enum([
       'ethernet-1600g',
@@ -79,7 +90,7 @@ export const URLStateSchema = z.object({
   fabc: z
     .object({
       name: z.string(),
-      port_gbps: z.number(),
+      port_gbps: z.number().positive(),
     })
     .optional(), // customFabric
   // Offloading (only if enabled)
@@ -89,14 +100,12 @@ export const URLStateSchema = z.object({
   op: z.number().optional(), // offloadPercentage
   ol: z.number().optional(), // offloadLayers
   ko: z.boolean().optional(), // kvCacheOffload
-  // offloadHostCapacityGB. Preprocessed rather than a plain `.positive().optional()`:
-  // a hand-edited hash with hc <= 0 (or non-finite) must not fail the whole schema —
-  // it's dropped to "no override" instead, matching uiStore.setOffloadHostCapacityGB's
-  // own clamp, so the rest of the configuration still restores.
-  hc: z.preprocess(
-    (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined),
-    z.number().positive().optional(),
-  ),
+  // offloadHostCapacityGB. Not range-checked (same reasoning as kt above): a
+  // hand-edited hc <= 0 (or non-finite) must still open the link. It used to be
+  // preprocessed to `undefined` here, which restored silently with no notice;
+  // now it passes through and config-rules R4 resets it to the default (null)
+  // with a "Shared link adjusted" notice, like every other rule-corrected field.
+  hc: z.number().optional(),
   // Mode (only present if training; absence = inference for backward compat)
   m: z.enum(['inference', 'training']).optional(),
   // Training parameters (only present when mode=training)
@@ -104,8 +113,8 @@ export const URLStateSchema = z.object({
   to: z.enum(['adamw', 'sgd-momentum', 'adamw-8bit', 'adafactor']).optional(), // optimizer
   tp: z.enum(['fp32', 'fp16', 'bf16']).optional(), // trainingPrecision
   lr: z.number().optional(), // loraRank
-  la: z.number().optional(), // loraAlpha
-  tmp: z.number().optional(), // targetModulesPercent
+  la: z.number().positive().optional(), // loraAlpha
+  tmp: z.number().positive().optional(), // targetModulesPercent
   ga: z.number().optional(), // gradientAccumulationSteps
   gc: z.boolean().optional(), // gradientCheckpointing
   fa: z.boolean().optional(), // flashAttention
@@ -122,6 +131,7 @@ export const URLStateSchema = z.object({
     ])
     .optional(), // frameworkPreset
   co: z.boolean().optional(), // cpuOffloadOptimizer
+  io: z.string().optional(), // interconnectOverride (absent = the GPU's default)
 })
 
 export type URLState = z.infer<typeof URLStateSchema>
@@ -169,6 +179,7 @@ export function serializeToURL(state: {
   flashAttention: boolean
   frameworkPreset: FrameworkPreset
   cpuOffloadOptimizer: boolean
+  interconnectOverride: string | null
 }): string {
   const urlState: URLState = {
     // Model serialization
@@ -269,6 +280,9 @@ export function serializeToURL(state: {
     ...(state.frameworkPreset !== 'none' && state.mode === 'inference'
       ? { fp: state.frameworkPreset }
       : {}),
+
+    // Interconnect variant (only when overridden)
+    ...(state.interconnectOverride ? { io: state.interconnectOverride } : {}),
   }
 
   const json = JSON.stringify(urlState)
@@ -302,4 +316,105 @@ export function deserializeFromURL(hash: string): URLState | null {
     // Any error (decompress, parse, etc.) → return null
     return null
   }
+}
+
+/** How restore resolves ids against the curated databases */
+export interface URLLookups {
+  findModel: (id: string) => Model | null
+  findGPU: (id: string) => GPU | null
+}
+
+export interface RestoredConfig {
+  /** The whole configuration the link describes; the store normalizes it once */
+  patch: Partial<UIConfig>
+  /** User-facing warnings for ids that resolved to nothing */
+  missing: string[]
+}
+
+/**
+ * Map a parsed link onto the store's configuration, without applying any rule:
+ * the store normalizes the whole patch in one step (spec Section 2). fp is taken
+ * raw: running setFrameworkPreset would re-apply its auto-optimizations and
+ * overwrite the link's optimizer, gc and fa.
+ */
+export function urlStateToConfig(state: URLState, lookups: URLLookups): RestoredConfig {
+  const patch: Partial<UIConfig> = {}
+  const missing: string[] = []
+
+  if (state.modelId) {
+    const model = lookups.findModel(state.modelId)
+    if (model) patch.selectedModel = model
+    else if (!state.customModel) missing.push('Model from shared link not found in database')
+  }
+  if (!patch.selectedModel && state.customModel) {
+    patch.selectedModel = { id: 'custom-restored', architecture: 'dense', ...state.customModel }
+  }
+
+  if (state.gpuId) {
+    const gpu = lookups.findGPU(state.gpuId)
+    if (gpu) patch.selectedGPU = gpu
+    else if (!state.customGPU) missing.push('GPU from shared link not found in database')
+  }
+  if (!patch.selectedGPU && state.customGPU) {
+    patch.selectedGPU = {
+      id: 'custom-restored',
+      manufacturer: 'nvidia',
+      memory_type: 'Custom',
+      bus_width: 0,
+      tier: 'consumer',
+      interconnect: 'none',
+      max_gpus_per_node: 8,
+      ...state.customGPU,
+    }
+  }
+
+  patch.quantization = state.q as QuantizationFormat
+  patch.sequenceLength = state.sl
+  patch.batchSize = state.bs
+  patch.kvQuantization = state.kvq as KVCachePrecision
+  patch.numGPUs = state.ng
+  patch.shardingStrategy = state.ss as ShardingStrategy
+  // Absent in links made before these keys existed: 1 user, no tier, one node
+  patch.concurrentUsers = state.cu ?? 1
+  patch.kvTier = state.kt
+    ? {
+        tier: state.kt.t,
+        customGBps: state.kt.g ?? null,
+        activeShare: state.kt.a,
+        burstSeconds: state.kt.b,
+        capacityTB: state.kt.c ?? null,
+      }
+    : DEFAULT_KV_TIER
+  patch.numNodes = state.nn ?? 1
+  if (state.fab) patch.interNodeFabric = state.fab
+  if (state.fabc) patch.customFabric = state.fabc
+
+  // Offloading keys are only written while offloading is enabled
+  if (state.oe) {
+    patch.offloadingEnabled = true
+    if (state.ot) patch.offloadTarget = state.ot as OffloadTarget
+    if (state.om) patch.offloadMode = state.om as OffloadMode
+    if (state.op !== undefined) patch.offloadPercentage = state.op
+    if (state.ol !== undefined) patch.offloadLayers = state.ol
+    if (state.ko !== undefined) patch.kvCacheOffload = state.ko
+    if (state.hc !== undefined) patch.offloadHostCapacityGB = state.hc
+  }
+
+  patch.mode = state.m ?? 'inference'
+  if (state.m === 'training') {
+    if (state.tm) patch.trainingMethod = state.tm
+    if (state.to) patch.optimizer = state.to
+    if (state.tp) patch.trainingPrecision = state.tp
+    if (state.lr !== undefined) patch.loraRank = state.lr
+    if (state.la !== undefined) patch.loraAlpha = state.la
+    if (state.tmp !== undefined) patch.targetModulesPercent = state.tmp
+    if (state.ga !== undefined) patch.gradientAccumulationSteps = state.ga
+    if (state.gc !== undefined) patch.gradientCheckpointing = state.gc
+    if (state.fa !== undefined) patch.flashAttention = state.fa
+    patch.cpuOffloadOptimizer = state.co ?? false
+  }
+  if (state.fp) patch.frameworkPreset = state.fp as FrameworkPreset
+  patch.interconnectOverride = state.io ?? null
+
+  return { patch, missing }
 }
