@@ -358,6 +358,7 @@ export function GuidePage() {
 
         {/* Results Panel */}
         <SectionHeading id="results">Results Panel</SectionHeading>
+        <P>GB here means GiB (1024³ bytes), as nvidia-smi reports.</P>
 
         <SubHeading>Fit Indicator</SubHeading>
         <P>A color-coded status bar showing GPU utilization:</P>

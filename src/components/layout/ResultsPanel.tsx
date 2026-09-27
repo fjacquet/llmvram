@@ -568,6 +568,10 @@ export function ResultsPanel() {
             batchSize={batchSize}
           />
         </div>
+
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          GB here means GiB (1024³ bytes), as nvidia-smi reports.
+        </p>
       </div>
     </div>
   )

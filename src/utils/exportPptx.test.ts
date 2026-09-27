@@ -227,6 +227,32 @@ describe('exportPptx', () => {
     expect(configRows.some(([label]) => label === 'Servers')).toBe(false)
   })
 
+  it('notes that GB means GiB on the summary slide', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+    })
+
+    expect(
+      texts.some((t) => t.text === 'GB here means GiB (1024³ bytes), as nvidia-smi reports.'),
+    ).toBe(true)
+  })
+
   it('keeps every slide heading clear of the content below it', async () => {
     const singleGPU = calculateInferenceVRAM({
       model,

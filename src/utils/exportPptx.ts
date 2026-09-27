@@ -155,6 +155,16 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     },
   )
 
+  slide1.addText('GB here means GiB (1024³ bytes), as nvidia-smi reports.', {
+    x: 0.4,
+    y: 7.05,
+    w: 12.5,
+    h: 0.3,
+    fontSize: 9,
+    color: C.bodyText,
+    italic: true,
+  })
+
   // ─── Slide 2: VRAM Breakdown ─────────────────────────────────────────────────
   const slide2 = pptx.addSlide({ masterName: 'LLMVRAM' })
 
