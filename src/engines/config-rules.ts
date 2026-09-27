@@ -3,7 +3,14 @@ import { type GPU, MAX_SEQUENCE_LENGTH, type Model } from '@utils/schemas'
 import { INTERCONNECT_LABELS, MAX_CONCURRENT_USERS } from './constants'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from './frameworks'
 import { splitMoEParams } from './inference'
-import { clampKVTier, DEFAULT_KV_TIER, graceLinkGBps, type KVTierSettings } from './kv-tier'
+import {
+  clampKVTier,
+  DEFAULT_KV_TIER,
+  graceLinkGBps,
+  KV_TIER_TYPES,
+  type KVTierSettings,
+  type KVTierType,
+} from './kv-tier'
 import type { OffloadTarget, ShardingStrategy } from './types'
 
 /**
@@ -551,4 +558,161 @@ export function normalizeConfig<C extends RuleConfig>(
     if (!changed) return { config: current, corrections, passes: pass }
   }
   throw new Error(`normalizeConfig did not reach a fixpoint in ${MAX_NORMALIZE_PASSES} passes`)
+}
+
+export type AllowedOptionsInput = Pick<
+  RuleConfig,
+  'mode' | 'shardingStrategy' | 'offloadingEnabled' | 'kvCacheOffload' | 'frameworkPreset'
+>
+
+/** What the UI may offer, so an impossible value is never selectable (ADR 0004) */
+export interface AllowedOptions {
+  /** R1 + R14: ascending, always starts with 1 */
+  gpuCounts: number[]
+  /** R2 */
+  strategies: ShardingStrategy[]
+  /** R3, R6, R12 */
+  kvTiers: KVTierType[]
+  /** R6 */
+  offloadTargets: OffloadTarget[]
+  /** R5, R13: empty unless the part forms multi-GPU servers and has two or more variants */
+  interconnectOptions: string[]
+  /** R6 + R8 */
+  cpuOffloadOptimizer: boolean
+}
+
+export function allowedOptions(
+  input: AllowedOptionsInput,
+  model: Model | null,
+  gpu: GPU | null,
+): AllowedOptions {
+  const max = maxGPUsFor(gpu)
+  const gpuCounts =
+    input.mode === 'inference' && input.shardingStrategy === 'tensor-parallel' && model
+      ? validTPDegrees(model, max)
+      : Array.from({ length: max }, (_, i) => i + 1)
+
+  const strategies: ShardingStrategy[] = ['tensor-parallel', 'pipeline-parallel']
+  if (model && splitMoEParams(model)) strategies.push('expert-parallel')
+
+  const unified = gpu?.unified_memory === true
+  const kvTiers: KVTierType[] =
+    input.offloadingEnabled && input.kvCacheOffload
+      ? ['none']
+      : KV_TIER_TYPES.filter((tier) => {
+          if (tier === 'host-grace') return !unified && graceLinkGBps(gpu?.id ?? '') !== null
+          if (tier === 'host-pcie') return !unified
+          return true
+        })
+
+  const variants = gpu && gpu.max_gpus_per_node > 1 ? (gpu.interconnect_options ?? []) : []
+
+  return {
+    gpuCounts,
+    strategies,
+    kvTiers,
+    offloadTargets: unified ? ['nvme'] : ['cpu-ram', 'nvme'],
+    interconnectOptions: variants.length >= 2 ? [...variants] : [],
+    cpuOffloadOptimizer: !unified && supportsCpuOffload(input.frameworkPreset),
+  }
+}
+
+export type SoftWarningId = 'W3' | 'W6' | 'W8'
+
+/** A soft rule: shown inline, the value is kept (spec Section 1). W1/W2/W4/W5 live where they already render. */
+export interface SoftWarning {
+  id: SoftWarningId
+  message: string
+}
+
+export function softWarnings(
+  config: Pick<RuleConfig, 'mode' | 'numGPUs' | 'numNodes' | 'shardingStrategy'>,
+  model: Model | null,
+  gpu: GPU | null,
+): SoftWarning[] {
+  if (config.mode !== 'inference') return []
+  const out: SoftWarning[] = []
+  if (config.numNodes > 1 && gpu && (gpu.unified_memory === true || gpu.max_gpus_per_node === 1)) {
+    out.push({
+      id: 'W3',
+      message:
+        'Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2; use the 200GbE fabric preset.',
+    })
+  }
+  const stages =
+    config.numNodes * (config.shardingStrategy === 'pipeline-parallel' ? config.numGPUs : 1)
+  if (model && stages > model.num_hidden_layers) {
+    out.push({
+      id: 'W6',
+      message: `${stages} pipeline stages exceed ${model.name}'s ${model.num_hidden_layers} layers; some stages would be empty.`,
+    })
+  }
+  const experts = model?.num_experts
+  if (
+    config.shardingStrategy === 'expert-parallel' &&
+    experts &&
+    config.numGPUs > 1 &&
+    experts % config.numGPUs !== 0
+  ) {
+    out.push({
+      id: 'W8',
+      message: `${experts} experts don't split evenly across ${config.numGPUs} GPUs.`,
+    })
+  }
+  return out
+}
+
+export interface Notice {
+  title: string
+  lines: string[]
+}
+
+/** Which action produced the corrections: picks the notice title */
+export type NoticeSource = 'gpu' | 'model' | 'mode' | 'link' | 'setting' | 'reset'
+
+export interface NoticeContext {
+  model: Model | null
+  gpu: GPU | null
+  /** The normalized config */
+  config: RuleConfig
+}
+
+function subjectTitle(subject: CorrectionSubject, ctx: NoticeContext): string {
+  switch (subject) {
+    case 'gpu':
+      return `Adjusted for ${ctx.gpu?.name ?? 'the selected GPU'}`
+    case 'model':
+      return `Adjusted for ${ctx.model?.name ?? 'the selected model'}`
+    case 'mode':
+      return `Adjusted for ${ctx.config.mode === 'training' ? 'fine-tuning' : 'inference'} mode`
+    case 'preset':
+      return `Adjusted for ${FRAMEWORK_PRESETS[ctx.config.frameworkPreset].name}`
+    case 'offload':
+      return 'Adjusted for KV cache offload'
+    case 'range':
+      return 'Adjusted to the allowed range'
+  }
+}
+
+/**
+ * One notice per user action (spec Section 1 "Notices"): "Adjusted for {GPU/model/mode}",
+ * "Shared link adjusted" on restore, or "Reset to defaults" (Section 4). One line per
+ * rule and field, in order of first appearance, carrying that pair's last message (the
+ * final value).
+ */
+export function buildNotice(
+  corrections: Correction[],
+  source: NoticeSource,
+  ctx: NoticeContext,
+): Notice | null {
+  const first = corrections[0]
+  if (!first) return null
+  const lines = new Map<string, string>()
+  for (const c of corrections) lines.set(`${c.rule}:${c.field}`, c.message)
+  let title: string
+  if (source === 'link') title = 'Shared link adjusted'
+  else if (source === 'reset') title = 'Reset to defaults'
+  else if (source === 'setting') title = subjectTitle(first.subject, ctx)
+  else title = subjectTitle(source, ctx)
+  return { title, lines: [...lines.values()] }
 }

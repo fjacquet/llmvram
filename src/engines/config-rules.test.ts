@@ -4,6 +4,8 @@ import { DEFAULT_KV_TIER } from '@engines/kv-tier'
 import { type GPU, type Model, validateGPU, validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 import {
+  allowedOptions,
+  buildNotice,
   type Correction,
   DEFAULT_RULE_CONFIG,
   isValidTPDegree,
@@ -12,6 +14,7 @@ import {
   RULES,
   type RuleConfig,
   type RuleId,
+  softWarnings,
   validTPDegrees,
 } from './config-rules'
 
@@ -663,5 +666,217 @@ describe('R14: valid tensor-parallel degrees from models.json', () => {
     expect(isValidTPDegree(L70, 2.5)).toBe(false)
     expect(isValidTPDegree(L70, 0)).toBe(false)
     expect(isValidTPDegree(L70, -2)).toBe(false)
+  })
+})
+
+describe('allowedOptions', () => {
+  const input = {
+    mode: 'inference' as const,
+    shardingStrategy: 'tensor-parallel' as const,
+    offloadingEnabled: false,
+    kvCacheOffload: false,
+    frameworkPreset: 'none' as const,
+  }
+
+  it('offers only valid TP degrees in inference tensor parallel (R1 + R14)', () => {
+    expect(allowedOptions(input, L70, H100).gpuCounts).toEqual([1, 2, 4, 8])
+    expect(allowedOptions(input, L70, NVL72).gpuCounts).toEqual([1, 2, 4, 8, 16, 32, 64])
+    expect(allowedOptions(input, L70, M3).gpuCounts).toEqual([1])
+  })
+
+  it('offers every count up to the bound for pipeline parallel, training, or no model', () => {
+    const all8 = [1, 2, 3, 4, 5, 6, 7, 8]
+    expect(
+      allowedOptions({ ...input, shardingStrategy: 'pipeline-parallel' }, L70, H100).gpuCounts,
+    ).toEqual(all8)
+    expect(allowedOptions({ ...input, mode: 'training' }, L70, H100).gpuCounts).toEqual(all8)
+    expect(allowedOptions(input, null, H100).gpuCounts).toEqual(all8)
+  })
+
+  it('offers expert parallel only for a splittable MoE (R2)', () => {
+    expect(allowedOptions(input, L70, H100).strategies).toEqual([
+      'tensor-parallel',
+      'pipeline-parallel',
+    ])
+    expect(allowedOptions(input, DSR1, H100).strategies).toContain('expert-parallel')
+    expect(allowedOptions(input, null, H100).strategies).not.toContain('expert-parallel')
+  })
+
+  it('filters KV tiers by Grace host, unified memory and KV offload (R3, R6, R12)', () => {
+    expect(allowedOptions(input, L70, H100).kvTiers).toEqual([
+      'none',
+      'host-pcie',
+      'local-nvme',
+      'network',
+    ])
+    expect(allowedOptions(input, L70, NVL72).kvTiers).toContain('host-grace')
+    expect(allowedOptions(input, L8, UNIFIED_M3).kvTiers).toEqual(['none', 'local-nvme', 'network'])
+    expect(
+      allowedOptions({ ...input, offloadingEnabled: true, kvCacheOffload: true }, L70, H100)
+        .kvTiers,
+    ).toEqual(['none'])
+  })
+
+  it('offers NVMe only on unified memory (R6)', () => {
+    expect(allowedOptions(input, L8, UNIFIED_M3).offloadTargets).toEqual(['nvme'])
+    expect(allowedOptions(input, L70, H100).offloadTargets).toEqual(['cpu-ram', 'nvme'])
+  })
+
+  it('offers interconnect variants only with two or more options on a multi-GPU part (R5, R13)', () => {
+    expect(allowedOptions(input, L70, WITH_OPTIONS).interconnectOptions).toEqual([
+      'nvlink-4',
+      'pcie-5',
+    ])
+    expect(allowedOptions(input, L70, H100).interconnectOptions).toEqual([])
+    const singleWithOptions = validateGPU({ ...M3, interconnect_options: ['pcie-5', 'nvlink-5'] })
+    expect(allowedOptions(input, L70, singleWithOptions).interconnectOptions).toEqual([])
+  })
+
+  it('offers CPU optimizer offload only with a ZeRO preset and separate host memory (R6, R8)', () => {
+    expect(
+      allowedOptions({ ...input, frameworkPreset: 'deepspeed-zero3' }, L70, H100)
+        .cpuOffloadOptimizer,
+    ).toBe(true)
+    expect(
+      allowedOptions({ ...input, frameworkPreset: 'unsloth' }, L70, H100).cpuOffloadOptimizer,
+    ).toBe(false)
+    expect(
+      allowedOptions({ ...input, frameworkPreset: 'deepspeed-zero3' }, L8, UNIFIED_M3)
+        .cpuOffloadOptimizer,
+    ).toBe(false)
+  })
+
+  it('never offers a value the store would correct', () => {
+    const pairs: [Model, GPU][] = [
+      [L70, H100],
+      [KIMI_K3, H100],
+      [GEMMA_1B, NVL72],
+      [DSR1, NVL72],
+      [L8, UNIFIED_M3],
+    ]
+    for (const [model, gpu] of pairs) {
+      const options = allowedOptions(input, model, gpu)
+      for (const n of options.gpuCounts) {
+        expect(
+          normalizeConfig(cfg({ numGPUs: n }), model, gpu).corrections,
+          `${model.id} ${n}`,
+        ).toEqual([])
+      }
+      for (const tier of options.kvTiers) {
+        const tiered = cfg({ kvTier: { ...DEFAULT_KV_TIER, tier } })
+        expect(normalizeConfig(tiered, model, gpu).corrections, `${gpu.id} ${tier}`).toEqual([])
+      }
+    }
+  })
+})
+
+describe('softWarnings', () => {
+  const base = {
+    mode: 'inference' as const,
+    numGPUs: 1,
+    numNodes: 1,
+    shardingStrategy: 'tensor-parallel' as const,
+  }
+
+  it('W3: multi-node clusters of single-GPU or unified-memory parts', () => {
+    expect(softWarnings({ ...base, numNodes: 2 }, L70, M3).map((w) => w.id)).toEqual(['W3'])
+    expect(softWarnings({ ...base, numNodes: 2 }, L70, H100)).toEqual([])
+  })
+
+  it('W6: more pipeline stages than layers', () => {
+    const w = softWarnings(
+      { ...base, numGPUs: 8, numNodes: 8, shardingStrategy: 'pipeline-parallel' },
+      L8,
+      H100,
+    )
+    expect(w).toEqual([
+      {
+        id: 'W6',
+        message: `64 pipeline stages exceed ${L8.name}'s ${L8.num_hidden_layers} layers; some stages would be empty.`,
+      },
+    ])
+  })
+
+  it('W8: experts that do not divide by the EP degree', () => {
+    const uneven = softWarnings(
+      { ...base, numGPUs: 6, shardingStrategy: 'expert-parallel' },
+      DSR1,
+      H100,
+    )
+    expect(uneven).toEqual([
+      { id: 'W8', message: `${DSR1.num_experts} experts don't split evenly across 6 GPUs.` },
+    ])
+    expect(
+      softWarnings({ ...base, numGPUs: 8, shardingStrategy: 'expert-parallel' }, DSR1, H100),
+    ).toEqual([])
+  })
+
+  it('is silent in training, where these inputs are inert', () => {
+    expect(softWarnings({ ...base, mode: 'training', numNodes: 2 }, L70, M3)).toEqual([])
+  })
+})
+
+describe('buildNotice', () => {
+  it('returns null when nothing was corrected', () => {
+    expect(buildNotice([], 'gpu', { model: L70, gpu: H100, config: cfg() })).toBeNull()
+  })
+
+  it('titles a GPU change after the GPU and lists one line per correction', () => {
+    const r = normalizeConfig(
+      cfg({ numGPUs: 64, kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace' } }),
+      L70,
+      H100,
+    )
+    const notice = buildNotice(r.corrections, 'gpu', { model: L70, gpu: H100, config: r.config })
+    expect(notice?.title).toBe(`Adjusted for ${H100.name}`)
+    expect(notice?.lines).toEqual([
+      `GPU count set to 8: ${H100.name} supports at most 8 per server.`,
+      `KV tier turned off: ${H100.name} has no Grace host memory.`,
+    ])
+  })
+
+  it('titles a restored link "Shared link adjusted"', () => {
+    const r = normalizeConfig(cfg({ batchSize: 0 }), L70, H100)
+    expect(
+      buildNotice(r.corrections, 'link', { model: L70, gpu: H100, config: r.config })?.title,
+    ).toBe('Shared link adjusted')
+  })
+
+  it('titles a mode switch after the mode', () => {
+    const r = normalizeConfig(cfg({ mode: 'training', frameworkPreset: 'vllm' }), L70, H100)
+    expect(
+      buildNotice(r.corrections, 'mode', { model: L70, gpu: H100, config: r.config })?.title,
+    ).toBe('Adjusted for fine-tuning mode')
+  })
+
+  it('titles a plain setting change after the first correction subject', () => {
+    const r = normalizeConfig(cfg({ numGPUs: 6 }), L70, H100)
+    expect(
+      buildNotice(r.corrections, 'setting', { model: L70, gpu: H100, config: r.config })?.title,
+    ).toBe(`Adjusted for ${L70.name}`)
+  })
+
+  it('titles a reset "Reset to defaults" (Task 2a\'s resetAdvancedSettings/resetAll)', () => {
+    const r = normalizeConfig(cfg({ numGPUs: 6 }), L70, H100)
+    expect(
+      buildNotice(r.corrections, 'reset', { model: L70, gpu: H100, config: r.config })?.title,
+    ).toBe('Reset to defaults')
+  })
+
+  it('keeps one line per rule and field, stating the final value, in first-appearance order', () => {
+    const fix = (rule: RuleId, message: string): Correction => ({
+      rule,
+      field: 'numGPUs',
+      from: 0,
+      to: 0,
+      subject: 'model',
+      message,
+    })
+    const notice = buildNotice(
+      [fix('R14', 'first snap'), fix('R1', 'clamp'), fix('R14', 'second snap')],
+      'link',
+      { model: L70, gpu: H100, config: cfg() },
+    )
+    expect(notice?.lines).toEqual(['second snap', 'clamp'])
   })
 })
