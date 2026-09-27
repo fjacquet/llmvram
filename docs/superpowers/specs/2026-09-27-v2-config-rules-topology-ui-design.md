@@ -37,9 +37,13 @@ vendor sources per card) found:
 ## Non-Goals
 
 - Counting replicas (the rename in Section 5 is a label, not a model).
-- The fabric prefill efficiency floor (`EFFICIENCY_FLOOR`, `FABRIC_REFERENCE_GBPS`
-  in `src/engines/fabric.ts`): no sourced model yet; changing it would move
-  existing 100/400 GbE results. Deferred; small clusters get a W3 warning.
+- **Deviation from the approved design, pending the user's choice:** the
+  fabric prefill efficiency floor (`EFFICIENCY_FLOOR`, `FABRIC_REFERENCE_GBPS`
+  in `src/engines/fabric.ts`). The user approved fixing it; it has no sourced
+  model yet and changing it would move existing 100/400 GbE results. Proposed:
+  defer, ship the 200GbE preset and a W3 warning. Consequence: after the GB10
+  fix, two DGX Sparks modelled correctly as two nodes show a first-token time
+  of ~194 s on 100G, about 15x too high.
 - AMD MI300X/MI325X per-degree mesh bandwidth (896 GB/s, priced at 1075).
   Deferred follow-up.
 - Linear-attention head divisibility for hybrid models (data lacks linear
@@ -50,8 +54,16 @@ vendor sources per card) found:
 
 A pure module: `normalizeConfig(config, model, gpu) -> { config, corrections }`
 and `allowedOptions(config, model, gpu)`, both driven by one rule table. Each
-rule: id, applies-when, allowed values, correction, notice text. Engine
-throws remain as a backstop only.
+rule: id, the modes in which its fields are live, applies-when, allowed
+values, correction, notice text. `normalizeConfig` applies only the rules
+live in the current mode, so a field hidden as inert is never corrected and
+never produces a notice. A mode switch is itself a trigger: rules that become
+live run then, with one notice. Engine throws remain as a backstop only.
+
+Live modes: R1, R4, R9 (offload fields), R10 in both modes; R2, R3, R5, R12,
+R14 in inference only (strategy, KV tier and interconnect are inert in
+training); R6 offload/tier parts in inference, optimizer part in training;
+R7, R8 in training.
 
 ### Hard rules (corrected, with notice)
 
@@ -62,7 +74,7 @@ throws remain as a backstop only.
 | R3 | kvTier host-grace only if `graceLinkGBps(gpu.id) !== null` | -> none | "KV tier turned off: {gpu} has no Grace host memory." |
 | R4 | clampKVTier bounds; offloadHostCapacityGB > 0 or null | clamp / null | "KV tier setting adjusted to its allowed range." |
 | R5 | interconnectOverride in gpu.interconnect_options, else null | -> null | "Interconnect reset to {default}: not available on {gpu}." |
-| R6 | unified_memory GPU: no cpu-ram offload; kvTier not host-pcie/host-grace; no cpuOffloadOptimizer | offloadingEnabled=false (if target cpu-ram); tier none; optimizer offload false | "Offloading turned off: {gpu} has unified memory, RAM is the same pool." / "KV tier turned off: {gpu} has no separate host memory." / "CPU optimizer offload turned off: unified memory." |
+| R6 | `gpu.unified_memory === true` (the only source; never `interconnect === 'unified'` or the tier): no cpu-ram offload; kvTier not host-pcie/host-grace; no cpuOffloadOptimizer | offloadingEnabled=false (if target cpu-ram); tier none; optimizer offload false | "Offloading turned off: {gpu} has unified memory, RAM is the same pool." / "KV tier turned off: {gpu} has no separate host memory." / "CPU optimizer offload turned off: unified memory." |
 | R7 | training mode + preset in {vllm, tgi} | preset -> none | "Framework preset cleared: {preset} is inference-only." |
 | R8 | cpuOffloadOptimizer only if preset.supportsCpuOffload (zero1/2/3) | -> false | "CPU optimizer offload turned off: needs a DeepSpeed ZeRO preset." |
 | R9 | offloadLayers in [0, model.num_hidden_layers]; offloadPercentage in [0,100] | clamp | "Offloaded layers set to {n}: {model} has {n} layers." |
@@ -82,7 +94,7 @@ this from `FRAMEWORK_PRESETS.none.mode`.
 |---|---|---|
 | W1 | sequenceLength > model context | existing RoPE/YaRN warning |
 | W2 | TP degree > interconnect recommendedMaxTPDegree | existing |
-| W3 | multi-node unified-memory or single-GPU-per-node clusters | "Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2; prefill over slow fabrics is approximate." |
+| W3 | multi-node unified-memory or single-GPU-per-node clusters | "Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2. First-token time is overstated on fabrics below 200 Gb/s per node (known limit, see Non-Goals)." |
 | W4 | custom GPU without FLOPS | memory-bound fallback note |
 | W5 | quantization format vs GPU generation | support note |
 | W6 | pipeline stages > num_hidden_layers | "{n} pipeline stages exceed {model}'s {L} layers; some stages would be empty." |
@@ -99,7 +111,9 @@ numGPUs = 1: sharding. numNodes = 1: fabric.
 ### Dependency graph and ordering (from pass 3, extended for R14)
 
 Edges: R7 -> R8; R1 -> R14 (R14 runs after R1); R2 -> R14 (model change can
-switch the strategy to TP, then R14 snaps numGPUs). R3/R6/R12 all write
+switch the strategy to TP, then R14 snaps numGPUs). R14 triggers: model,
+numGPUs, strategy (pipeline -> tensor-parallel at 6 GPUs must snap) and a
+mode switch to inference. R3/R6/R12 all write
 tier = none; R6/R8 both write optimizer offload = false (same values, no
 conflict). No cycle: the mode/preset coupling is action intent, not a rule.
 Every correction is a constant or a clamp toward model/GPU data, which no
@@ -143,8 +157,18 @@ Schema (`GPUSchema`, custom-GPU factory, URL custom-GPU schema):
 - `unified_memory?: boolean` (true for all apple-silicon entries and nvidia-gb10).
 - `nvlink_bridge?: { type: InterconnectType; size: number }`.
 - New `INTERCONNECT_SPECS['nvlink-3']` (600 GB/s).
-- Engine: `resolveInterconnect(gpu, tpDegree)` uses `nvlink_bridge.type` when
-  tpDegree <= bridge size, else `gpu.interconnect`.
+- Engine: the existing `resolveInterconnect(gpu)` in `multi-gpu.ts` becomes
+  `resolveInterconnect(gpu, groupSize)`: `nvlink_bridge.type` when groupSize <=
+  bridge size, else `gpu.interconnect`. Every consumer passes its group size
+  and uses the resolved value: TP all-reduce (performance.ts), EP all-to-all
+  (group = numGPUs, so a 2-card bridge falls back to PCIe at EP-4+), W2 and
+  `validateInterconnect` (multi-gpu.ts), the interconnect badge
+  (ShardingStrategySelector), MultiGPUBreakdownChart, the PPTX export, the
+  worker and the sync hook. The badge must never show NVLink while the maths
+  uses PCIe.
+- Bridge display label by bandwidth: "NVLink bridge — 600 GB/s" (H100/A100
+  PCIe; the H100 bridge is NVLink 4 at 600 GB/s), "NVLink bridge — 900 GB/s"
+  (H200 NVL).
 
 Per-card changes (sources in the table below):
 
@@ -154,7 +178,7 @@ Per-card changes (sources in the table below):
 | nvidia-a100-80gb-pcie | interconnect pcie-4; nvlink_bridge {nvlink-3, 2} |
 | nvidia-a100-80gb-sxm | interconnect nvlink-3 (600 GB/s, was priced at 900) |
 | nvidia-h200-141gb | SXM only (HGX 4/8 NVSwitch); drop interconnect_options |
-| nvidia-h200-nvl-141gb (new) | H200 NVL: pcie-5; nvlink_bridge {nvlink-4, 4}; fp16_tflops 835; max 8 |
+| nvidia-h200-nvl-141gb (new) | H200 NVL, NVIDIA group in `fetch-gpus.ts`: every required GPUSchema field copied from the PNY H200 NVL datasheet (vram 141, bandwidth, fp32), fp16_tflops 835 dense (datasheet 1,671 with sparsity), pcie-5, nvlink_bridge {nvlink-4, 4}, max 8, tier datacenter. Update the GPU count in README/CLAUDE.md memory (27 -> 28). |
 | nvidia-gb10 | max_gpus_per_node 1; interconnect none; drop interconnect_options; unified_memory |
 | nvidia-gb300-desktop-252gb | interconnect none (single GPU) |
 | nvidia-l40s, nvidia-rtx-6000-ada | explicit pcie-4 |
@@ -240,7 +264,7 @@ config/model.py, model_executor/layers/linear.py (TP divisibility).
   "Shared link adjusted" notice.
 - Data: per-card assertions for the changed fields; `resolveInterconnect`
   bridge behaviour (TP-2 on H100 PCIe uses nvlink-3, TP-4 uses pcie-5);
-  impact anchors from Section 3 (H100 PCIe TP-8 fp8 bs1 ~-25.7%).
+  impact anchors pinned to absolute tok/s computed in the test from the corrected data (H100 PCIe TP-8 fp8 bs1 is the -25.7% case); training ZeRO-3 on 6 GPUs with Llama 3.1 70B keeps 6 GPUs and emits no notice (R14 inference-only).
 - UI: composition tests for InputPanel and ResultsPanel written before the
   layout change (visible-by-default set, auto-open on non-default, warnings
   visible, strategy reachable at max > 1); PDF export expands details.
@@ -258,3 +282,34 @@ label rename, corrected links, per-card number changes, H200 id now SXM);
 CLAUDE.md (rules module key pattern; clamping no longer silent; numGPUs =
 parallel degree of one replica; nvlink_bridge / unified_memory);
 ARCHITECTURE.md; ADR 0006 moved to Accepted with the decisions taken.
+
+## Appendix: per-card audit (pass 3, one source per card)
+
+"Today" = interconnect / interconnect_options / max_gpus_per_node before v2.
+
+| id | Product / form factor | Scale-up link | Sold as (GPUs) | NVLink group | Today | Verdict | Source |
+|---|---|---|---|---|---|---|---|
+| nvidia-h100-80gb-pcie | H100 PCIe card | 2-way bridge, 600 GB/s | 1-8 | 2 | nvlink-4 / - / 8 | WRONG: pcie-5 + bridge; fp16 756 | NVIDIA H100 datasheet; Lenovo LP1732 |
+| nvidia-h100-80gb-sxm | HGX H100 | NVSwitch 900 GB/s | 4, 8 | 4, 8 | nvlink-4 / - / 8 | OK | H100 datasheet; NVIDIA HGX AI Factory RA |
+| nvidia-h200-141gb | mixed SXM + NVL | SXM NVSwitch; NVL 2/4-way bridge 900 GB/s | SXM 4, 8; NVL up to 8 | SXM 8; NVL 2, 4 | nvlink-4 / [nvlink-4, pcie-5] / 8 | WRONG: split (id = SXM; new NVL id) | PNY H200 NVL datasheet; HPE PSN1014857028PLEN / PSN1014856854VNEN |
+| nvidia-b200-192gb | HGX/DGX B200 | NVSwitch 1.8 TB/s | 8 (4: UNVERIFIED) | 8 | nvlink-5 / - / 8 | OK | NVIDIA DGX B200; HGX AI Factory RA |
+| nvidia-gb300-288gb | HGX B300 | NVSwitch 1.8 TB/s | 8 | 8 | nvlink-5 / - / 8 | OK (secondary source only) | pantheon.run HGX B300 specs |
+| nvidia-gb300-nvl72 | NVL72 rack | rack NVLink domain | 72 | up to 72 | nvlink-5 / - / 72 | OK | NVIDIA GB300 NVL72 |
+| nvidia-a100-80gb-pcie | A100 PCIe card | 2-way bridge, 600 GB/s | 1-8 | 2 | nvlink / - / 8 | WRONG: pcie-4 + bridge | NVIDIA A100 page |
+| nvidia-a100-80gb-sxm | HGX A100 | NVSwitch 600 GB/s | 4, 8, 16 | 8 | nvlink (priced 900) / - / 8 | WRONG bandwidth: nvlink-3 | NVIDIA A100 page |
+| nvidia-l40s | PCIe card | none | 1-8 (UNVERIFIED) | 1 | none / - / 8 | WRONG: pcie-4 | Lenovo LP1812 |
+| nvidia-rtx-pro-6000-server | PCIe card | none | up to 8 | 1 | none / - / 8 | OK (explicit pcie-5 preferred) | NVIDIA RTX PRO 6000 Server; RTX PRO Server |
+| nvidia-rtx-6000-ada | workstation PCIe | none | UNVERIFIED | 1 | none / - / 8 | WRONG: pcie-4 | NVIDIA RTX 6000 Ada datasheet |
+| nvidia-rtx-5090 | GeForce PCIe 5 | none | UNVERIFIED | 1 | none / - / 8 | OK | NVIDIA GeForce compare |
+| nvidia-rtx-4090 | GeForce PCIe 4 | none | UNVERIFIED | 1 | none / - / 8 | OK | NVIDIA GeForce compare |
+| nvidia-rtx-3090 | GeForce PCIe 4 | 2-way bridge | UNVERIFIED | 2 | none / - / 8 | OK, conservative | NVIDIA GeForce compare |
+| nvidia-gb300-desktop-252gb | DGX Station, 1 GPU | NVLink-C2C to CPU only | 1 | 1 | nvlink-5 / - / 1 | set none | NVIDIA DGX Station |
+| nvidia-gb10 | DGX Spark | none; ConnectX-7 200 Gb/s, up to 4 units | 1 | 1 | nvlink-5 / [nvlink-5, pcie-5] / 2 | WRONG: max 1, none | NVIDIA DGX Spark |
+| amd-mi355x | OAM on UBB | IF full mesh, 1075 GB/s | 8 | 8 | infinity-fabric / - / 8 | OK | ROCm MI350; AMD MI355X brochure |
+| amd-mi350x | OAM on UBB | IF mesh, 1075 GB/s | 8 | 8 | infinity-fabric / - / 8 | OK | AMD MI350X brochure |
+| amd-mi325x | OAM on UBB | IF mesh, 896 GB/s | 8 | 8 | infinity-fabric (priced 1075) / - / 8 | bandwidth 20% high (deferred) | AMD MI325X platform datasheet |
+| amd-mi300x | OAM on UBB | IF mesh, 896 GB/s | 8 | 8 | infinity-fabric (priced 1075) / - / 8 | bandwidth 20% high (deferred) | AMD MI300X platform datasheet |
+| apple-* (8 rows) | unified-memory chip | none; Thunderbolt clusters (TB5 RDMA, macOS 26.2) | 1 | 1 | unified / - / 1 | OK | Apple newsroom spec_url per row |
+
+Exact ids are taken from `gpus.json` during implementation; rows above use
+the audit's names.
