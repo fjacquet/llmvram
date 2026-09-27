@@ -1,6 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -81,5 +81,91 @@ describe('InputPanel composition', () => {
     const { container } = render(<InputPanel />)
     expect(field(container, 'node-count')).toBeNull()
     expect(screen.getByText('Training Configuration')).toBeVisible()
+  })
+})
+
+describe('InputPanel layout (ADR 0005)', () => {
+  beforeEach(() => {
+    useUIStore.setState({
+      ...DEFAULT_UI_CONFIG,
+      selectedModel: model('meta-llama-llama-3.1-70b'),
+      selectedGPU: gpu('nvidia-h100-80gb-sxm'),
+      pendingNotice: null,
+    })
+  })
+
+  it('collapses Advanced at the defaults', () => {
+    const { container } = render(<InputPanel />)
+    const advanced = screen.getByTestId('advanced-settings')
+    expect(advanced).not.toHaveAttribute('open')
+    expect(within(advanced).getByText('Advanced')).toBeVisible()
+    expect(field(container, 'batch-size')).not.toBeVisible()
+  })
+
+  it('opens Advanced with "N settings changed" when a value differs from its default', () => {
+    useUIStore.setState({ batchSize: 8, kvQuantization: 'fp8' })
+    render(<InputPanel />)
+    const advanced = screen.getByTestId('advanced-settings')
+    expect(advanced).toHaveAttribute('open')
+    expect(within(advanced).getByText(/2 settings changed/)).toBeVisible()
+  })
+
+  it('opens Advanced when a setting changes after render', () => {
+    render(<InputPanel />)
+    act(() => useUIStore.getState().setBatchSize(8))
+    expect(screen.getByTestId('advanced-settings')).toHaveAttribute('open')
+    expect(screen.getByText(/1 setting changed/)).toBeVisible()
+  })
+
+  it('keeps the strategy reachable at 1 GPU on a multi-GPU part, so pipeline parallel is choosable before R14 snaps', () => {
+    render(<InputPanel />)
+    expect(screen.getByText('Intra-server sharding strategy')).toBeInTheDocument()
+  })
+
+  it('offers no strategy on a single-GPU part', () => {
+    useUIStore.setState({ selectedGPU: gpu('apple-m3-ultra') })
+    render(<InputPanel />)
+    expect(screen.queryByText('Intra-server sharding strategy')).not.toBeInTheDocument()
+  })
+
+  it('labels the GPU count as GPUs per replica', () => {
+    render(<InputPanel />)
+    expect(screen.getByText('GPUs per replica (in one server)')).toBeVisible()
+  })
+
+  it('hides inputs that are inert in training', () => {
+    useUIStore.setState({ mode: 'training' })
+    const { container } = render(<InputPanel />)
+    for (const id of [
+      'quantization-picker',
+      'kv-quantization-picker',
+      'concurrent-users',
+      'node-count',
+      'kv-tier',
+      'gpu-count',
+    ]) {
+      expect(field(container, id), id).toBeNull()
+    }
+    expect(screen.queryByText('Offloading Configuration')).not.toBeInTheDocument()
+    expect(screen.queryByText('Intra-server sharding strategy')).not.toBeInTheDocument()
+  })
+
+  it('shows the GPU count in training once a ZeRO preset makes it matter', () => {
+    useUIStore.setState({ mode: 'training', frameworkPreset: 'deepspeed-zero3' })
+    const { container } = render(<InputPanel />)
+    expect(field(container, 'gpu-count')).toBeVisible()
+  })
+
+  it('the Advanced reset button is visible inside the section, restores the defaults, and collapses "N settings changed" to 0', () => {
+    useUIStore.setState({ batchSize: 8, kvQuantization: 'fp8' })
+    render(<InputPanel />)
+    const advanced = screen.getByTestId('advanced-settings')
+    const resetButton = within(advanced).getByRole('button', { name: 'Reset advanced settings' })
+    expect(resetButton).toBeVisible()
+    expect(within(advanced).getByText(/2 settings changed/)).toBeVisible()
+    act(() => resetButton.click())
+    expect(within(advanced).queryByText(/settings? changed/)).not.toBeInTheDocument()
+    expect(useUIStore.getState().batchSize).toBe(DEFAULT_UI_CONFIG.batchSize)
+    expect(useUIStore.getState().kvQuantization).toBe(DEFAULT_UI_CONFIG.kvQuantization)
   })
 })

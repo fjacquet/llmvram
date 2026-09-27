@@ -180,7 +180,12 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     ['Context Length', `${contextK} tokens`],
     ['GPU', gpu.name],
     ['GPU VRAM', `${gpu.vram_gb} GB`],
-    ['Number of GPUs', String(numGPUs)],
+    [
+      'GPUs per replica',
+      numNodes > 1
+        ? `${numGPUs / numNodes} per server × ${numNodes} servers (${numGPUs} total)`
+        : `${numGPUs} (in one server)`,
+    ],
     ...(numNodes > 1 ? ([['Servers', String(numNodes)]] as [string, string][]) : []),
     ['Quantization', quantization.toUpperCase()],
     ['Sequence Length', `${sequenceLength.toLocaleString('en-US')} tokens`],

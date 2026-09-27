@@ -1,6 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -78,5 +78,47 @@ describe('ResultsPanel composition', () => {
     })
     render(<ResultsPanel />)
     expect(await screen.findByTestId('soft-warning-W8')).toBeVisible()
+  })
+})
+
+describe('ResultsPanel layout (ADR 0005)', () => {
+  beforeEach(() => {
+    useUIStore.setState({
+      ...DEFAULT_UI_CONFIG,
+      selectedModel: model('meta-llama-llama-3.1-70b'),
+      selectedGPU: gpu('nvidia-h100-80gb-sxm'),
+      quantization: 'fp8',
+      numGPUs: 2,
+      pendingNotice: null,
+    })
+  })
+
+  it('leads with a visible verdict: fit, decode, first token, sessions', async () => {
+    render(<ResultsPanel />)
+    const verdict = await screen.findByTestId('verdict')
+    expect(verdict).toBeVisible()
+    expect(within(verdict).getByText(/Fits Comfortably|Tight Fit|Does Not Fit/)).toBeVisible()
+    expect(within(verdict).getByText(/tokens\/sec/)).toBeVisible()
+    expect(within(verdict).getByText('Time to first token')).toBeVisible()
+    expect(within(verdict).getByText('Max sessions at 4,096 tokens')).toBeVisible()
+  })
+
+  it('collapses the details by default', async () => {
+    render(<ResultsPanel />)
+    const details = await screen.findByTestId('result-details')
+    expect(details).not.toHaveAttribute('open')
+    expect(within(details).getByText(/Weights (measured from|estimated)/)).not.toBeVisible()
+  })
+
+  it('keeps Details open across a recalculation', async () => {
+    render(<ResultsPanel />)
+    const details = (await screen.findByTestId('result-details')) as HTMLDetailsElement
+    act(() => {
+      details.open = true
+      details.dispatchEvent(new Event('toggle'))
+    })
+    act(() => useUIStore.getState().setBatchSize(2))
+    await screen.findAllByText(/tokens\/sec/)
+    expect(await screen.findByTestId('result-details')).toHaveAttribute('open')
   })
 })

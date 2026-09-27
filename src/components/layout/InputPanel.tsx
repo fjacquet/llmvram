@@ -2,6 +2,7 @@ import { BatchSizeInput } from '@components/inputs/BatchSizeInput'
 import { ConcurrentUsersInput } from '@components/inputs/ConcurrentUsersInput'
 import { GPUCountSelector } from '@components/inputs/GPUCountSelector'
 import { GPUSelector } from '@components/inputs/GPUSelector'
+import { InterconnectSelector } from '@components/inputs/InterconnectSelector'
 import { InterNodeFabricSelector } from '@components/inputs/InterNodeFabricSelector'
 import { KVQuantizationPicker } from '@components/inputs/KVQuantizationPicker'
 import { KVTierPanel } from '@components/inputs/KVTierPanel'
@@ -13,77 +14,49 @@ import { QuantizationPicker } from '@components/inputs/QuantizationPicker'
 import { SequenceLengthInput } from '@components/inputs/SequenceLengthInput'
 import { ShardingStrategySelector } from '@components/inputs/ShardingStrategySelector'
 import { TrainingPanel } from '@components/inputs/TrainingPanel'
+import { FRAMEWORK_PRESETS } from '@engines/frameworks'
 import { useUIStore } from '@store/uiStore'
+import { useEffect, useState } from 'react'
+import { countAdvancedChanges } from './advancedChanges'
 
 /**
- * Input panel assembling all input components in a structured form layout
- *
- * Includes multi-GPU configuration and offloading sections (conditionally visible)
- * All components read/write Zustand store independently - no local state here
+ * Input panel: essential inputs always visible, advanced ones in a native <details>
+ * that opens itself whenever one of them differs from its default (ADR 0005).
+ * Inputs that are inert in training are hidden, never reset (spec Section 1).
  */
 export function InputPanel() {
-  const selectedGPU = useUIStore((s) => s.selectedGPU)
-  const mode = useUIStore((s) => s.mode)
+  const state = useUIStore()
+  const { selectedGPU, mode, frameworkPreset } = state
+  const isInference = mode === 'inference'
+  // In training, more than one GPU only matters with a DeepSpeed ZeRO preset
+  const showGPUCount =
+    selectedGPU !== null && (isInference || FRAMEWORK_PRESETS[frameworkPreset].zeroStage !== null)
+
+  const changed = countAdvancedChanges(state)
+  const [advancedOpen, setAdvancedOpen] = useState(changed > 0)
+  useEffect(() => {
+    if (changed > 0) setAdvancedOpen(true)
+  }, [changed])
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <div className="space-y-6">
-        {/* Mode Toggle Section */}
         <ModeToggle />
 
         <hr className="border-gray-200 dark:border-gray-700" />
 
-        {/* Model Configuration Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Model Configuration
-          </h3>
+        <section aria-label="Essential settings" className="space-y-4">
           <ModelSelector />
-          <QuantizationPicker />
-        </div>
-
-        <hr className="border-gray-200 dark:border-gray-700" />
-
-        {/* GPU Selection Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">GPU Selection</h3>
+          {isInference && <QuantizationPicker />}
           <GPUSelector />
-        </div>
+          {showGPUCount && <GPUCountSelector />}
+          {/* Multi-node is inference-only (multi-node training is a spec Non-Goal) */}
+          {selectedGPU && isInference && <NodeCountSelector />}
+          <SequenceLengthInput />
+          {isInference && <ConcurrentUsersInput />}
+        </section>
 
-        {/* Multi-GPU and Offloading Configuration (only visible when GPU selected) */}
-        {selectedGPU && (
-          <>
-            <hr className="border-gray-200 dark:border-gray-700" />
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Hardware Configuration
-              </h3>
-              <GPUCountSelector />
-              {/* Multi-node controls are inference-only: training ignores numNodes
-                  entirely (multi-node training is an explicit spec Non-Goal), so
-                  offering them here would promise scaling that never happens. */}
-              {mode === 'inference' && (
-                <>
-                  <NodeCountSelector />
-                  <InterNodeFabricSelector />
-                </>
-              )}
-              <ShardingStrategySelector />
-            </div>
-
-            <hr className="border-gray-200 dark:border-gray-700" />
-            <OffloadingPanel />
-            {mode === 'inference' && (
-              <>
-                <hr className="border-gray-200 dark:border-gray-700" />
-                <KVTierPanel />
-              </>
-            )}
-          </>
-        )}
-
-        {/* Training Configuration (only visible when mode is training) */}
-        {mode === 'training' && (
+        {!isInference && (
           <>
             <hr className="border-gray-200 dark:border-gray-700" />
             <TrainingPanel />
@@ -92,14 +65,45 @@ export function InputPanel() {
 
         <hr className="border-gray-200 dark:border-gray-700" />
 
-        {/* Parameters Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Parameters</h3>
-          <SequenceLengthInput />
-          <BatchSizeInput />
-          <ConcurrentUsersInput />
-          <KVQuantizationPicker />
-        </div>
+        <details
+          data-testid="advanced-settings"
+          open={advancedOpen}
+          onToggle={(e) => setAdvancedOpen(e.currentTarget.open)}
+        >
+          <summary className="cursor-pointer text-lg font-semibold text-gray-900 dark:text-white">
+            Advanced
+            {changed > 0 && (
+              <span className="ml-2 text-sm font-normal text-blue-600 dark:text-blue-400">
+                {changed} setting{changed === 1 ? '' : 's'} changed
+              </span>
+            )}
+          </summary>
+          <div className="mt-4 space-y-4">
+            {/* Spec Section 4: resets batch, KV precision, strategy, fabric, interconnect
+                variant, offloading and KV tier — keeps model, GPU, GPU count, servers,
+                format, context and concurrent users. Goes through commit()/normalizeConfig
+                (resetAdvancedSettings), so the "Reset to defaults" toast is the existing
+                useConfigNotices pipeline, not a button-local one. */}
+            <button
+              type="button"
+              onClick={() => state.resetAdvancedSettings()}
+              className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Reset advanced settings
+            </button>
+            <BatchSizeInput />
+            {isInference && (
+              <>
+                <KVQuantizationPicker />
+                {selectedGPU && <ShardingStrategySelector />}
+                <InterNodeFabricSelector />
+                <InterconnectSelector />
+                {selectedGPU && <OffloadingPanel />}
+                {selectedGPU && <KVTierPanel />}
+              </>
+            )}
+          </div>
+        </details>
       </div>
     </div>
   )

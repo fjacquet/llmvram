@@ -3,6 +3,7 @@ import { INTERCONNECT_LABELS, INTERCONNECT_SPECS } from '@engines/constants'
 import { interconnectLabel as linkLabel, resolveInterconnect } from '@engines/multi-gpu'
 import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
+import { maxGPUsFor } from '@utils/gpuLimits'
 
 /**
  * Sharding strategy selector (Tensor Parallel vs Pipeline Parallel)
@@ -21,8 +22,9 @@ export function ShardingStrategySelector() {
   const selectedGPU = useUIStore((s) => s.selectedGPU)
   const { strategies } = useAllowedOptions()
 
-  // Only render when multi-GPU is active
-  if (numGPUs <= 1) {
+  // Visible whenever the part forms multi-GPU servers (not only at numGPUs > 1), so
+  // pipeline parallel is reachable before R14 snaps a tensor-parallel degree.
+  if (maxGPUsFor(selectedGPU) <= 1) {
     return null
   }
 
@@ -149,36 +151,40 @@ export function ShardingStrategySelector() {
         )}
       </div>
 
-      {/* Interconnect information badge */}
-      <div
-        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${badgeColorClass}`}
-      >
-        {interconnectType === 'none' ? (
-          'No interconnect detected. Multi-GPU may not be supported for this GPU.'
-        ) : interconnectType.startsWith('nvlink') || interconnectType === 'infinity-fabric' ? (
-          <>
-            {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
-            {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — Excellent for
-            TP up to {bridgeSize ?? interconnectSpec.recommendedMaxTPDegree} GPUs
-          </>
-        ) : (
-          <>
-            {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
-            {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — TP recommended
-            up to {interconnectSpec.recommendedMaxTPDegree} GPUs
-          </>
-        )}
-      </div>
+      {numGPUs > 1 && (
+        <>
+          {/* Interconnect information badge */}
+          <div
+            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${badgeColorClass}`}
+          >
+            {interconnectType === 'none' ? (
+              'No interconnect detected. Multi-GPU may not be supported for this GPU.'
+            ) : interconnectType.startsWith('nvlink') || interconnectType === 'infinity-fabric' ? (
+              <>
+                {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
+                {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — Excellent
+                for TP up to {bridgeSize ?? interconnectSpec.recommendedMaxTPDegree} GPUs
+              </>
+            ) : (
+              <>
+                {interconnectLabel}: {interconnectSpec.bandwidthGBps} GB/s ·{' '}
+                {Math.round(interconnectSpec.tpScalingEfficiency * 100)}% TP efficiency — TP
+                recommended up to {interconnectSpec.recommendedMaxTPDegree} GPUs
+              </>
+            )}
+          </div>
 
-      {/* Warning for TP degree exceeding recommended max */}
-      {tpExceedsMax && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-          <p className="text-xs text-amber-800 dark:text-amber-200">
-            ⚠ Tensor Parallel with {numGPUs} GPUs per server may experience performance degradation
-            on {interconnectLabel}. Recommended maximum: {interconnectSpec.recommendedMaxTPDegree}{' '}
-            GPUs.
-          </p>
-        </div>
+          {/* Warning for TP degree exceeding recommended max */}
+          {tpExceedsMax && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                ⚠ Tensor Parallel with {numGPUs} GPUs per server may experience performance
+                degradation on {interconnectLabel}. Recommended maximum:{' '}
+                {interconnectSpec.recommendedMaxTPDegree} GPUs.
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

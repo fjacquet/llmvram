@@ -57,4 +57,11 @@ describe('ShardingStrategySelector', () => {
     expect(screen.getByText(/PCIe 5: 128 GB\/s/)).toBeInTheDocument()
     expect(screen.queryByText(/NVLink bridge/)).not.toBeInTheDocument()
   })
+
+  it('stays visible at 1 GPU on a multi-GPU part, without an interconnect badge', () => {
+    useUIStore.setState({ selectedGPU: gpu('nvidia-h100-80gb-sxm'), numGPUs: 1 })
+    render(<ShardingStrategySelector />)
+    expect(screen.getByText('Intra-server sharding strategy')).toBeInTheDocument()
+    expect(screen.queryByText(/GB\/s ·/)).not.toBeInTheDocument()
+  })
 })

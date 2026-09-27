@@ -60,6 +60,12 @@ export function useResultExports({
       const wasDark = root.classList.contains('dark')
       if (wasDark) root.classList.remove('dark')
 
+      // Collapsed sections (Advanced, Details) would be missing from the PDF: open every
+      // <details> for the capture, then put each back exactly as the user left it.
+      const sections = Array.from(captureEl.querySelectorAll('details'))
+      const wasOpen = sections.map((d) => d.open)
+      for (const d of sections) d.open = true
+
       let canvas: HTMLCanvasElement
       try {
         canvas = await html2canvasPro(captureEl, {
@@ -74,6 +80,9 @@ export function useResultExports({
         })
       } finally {
         if (wasDark) root.classList.add('dark')
+        sections.forEach((d, i) => {
+          d.open = wasOpen[i] ?? false
+        })
       }
 
       const imgData = canvas.toDataURL('image/jpeg', 0.97)

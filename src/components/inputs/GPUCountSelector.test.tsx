@@ -39,6 +39,7 @@ describe('GPUCountSelector', () => {
   beforeEach(() => {
     useUIStore.setState({
       numGPUs: 1,
+      numNodes: 1,
       selectedGPU: gpu('nvidia-h100-80gb-sxm'),
       selectedModel: null,
       mode: 'inference',
@@ -88,5 +89,26 @@ describe('GPUCountSelector', () => {
     // InfoTip only renders its `text` prop into the DOM once its trigger is opened.
     fireEvent.click(screen.getByRole('button', { name: /more info/i }))
     expect(screen.getByText(/Capped at 8/)).toBeInTheDocument()
+  })
+
+  it('summarizes one replica across servers', () => {
+    useUIStore.setState({ numGPUs: 8, numNodes: 2 })
+    render(<GPUCountSelector />)
+    expect(
+      screen.getByText('8 GPUs per server × 2 servers per replica, tensor parallel'),
+    ).toBeInTheDocument()
+  })
+
+  it('names expert parallel correctly (was "pipeline parallel")', () => {
+    useUIStore.setState({
+      selectedModel: model('deepseek-r1'),
+      shardingStrategy: 'expert-parallel',
+      numGPUs: 8,
+      numNodes: 1,
+    })
+    render(<GPUCountSelector />)
+    expect(
+      screen.getByText('8 GPUs per replica (in one server), expert parallel'),
+    ).toBeInTheDocument()
   })
 })

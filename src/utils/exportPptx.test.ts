@@ -177,8 +177,8 @@ describe('exportPptx', () => {
 
     // Slide 1 (config summary) is the first addTable call.
     const configRows = tableRows(0)
-    expect(configRows).toContainEqual(['Number of GPUs', '32'])
-    expect(configRows).not.toContainEqual(['Number of GPUs', '8'])
+    expect(configRows).toContainEqual(['GPUs per replica', '8 per server × 4 servers (32 total)'])
+    expect(configRows.some(([label]) => label === 'Number of GPUs')).toBe(false)
     expect(configRows).toContainEqual(['Servers', '4'])
 
     // Slide 3's bar chart is a single stacked bar (one category, five series) —
@@ -235,7 +235,7 @@ describe('exportPptx', () => {
     })
 
     const configRows = tableRows(0)
-    expect(configRows).toContainEqual(['Number of GPUs', '1'])
+    expect(configRows).toContainEqual(['GPUs per replica', '1 (in one server)'])
     expect(configRows.some(([label]) => label === 'Servers')).toBe(false)
   })
 

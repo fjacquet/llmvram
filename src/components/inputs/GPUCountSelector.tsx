@@ -1,7 +1,14 @@
 import { InfoTip } from '@components/common/InfoTip'
+import type { ShardingStrategy } from '@engines/types'
 import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
 import { maxGPUsFor } from '@utils/gpuLimits'
+
+const STRATEGY_LABELS: Record<ShardingStrategy, string> = {
+  'tensor-parallel': 'tensor parallel',
+  'pipeline-parallel': 'pipeline parallel',
+  'expert-parallel': 'expert parallel',
+}
 
 /**
  * GPU count selector, bounded by the selected GPU's scale-up domain
@@ -24,15 +31,16 @@ export function GPUCountSelector() {
   const selectedGPU = useUIStore((s) => s.selectedGPU)
   const mode = useUIStore((s) => s.mode)
   const shardingStrategy = useUIStore((s) => s.shardingStrategy)
+  const numNodes = useUIStore((s) => s.numNodes)
   const { gpuCounts } = useAllowedOptions()
 
   const isTraining = mode === 'training'
   const maxGPUs = maxGPUsFor(selectedGPU)
-  const label = isTraining ? 'Number of GPUs' : 'GPUs per server'
+  const label = isTraining ? 'Number of GPUs' : 'GPUs per replica (in one server)'
 
   const tooltip = isTraining
     ? 'GPUs used for data-parallel training, e.g. DeepSpeed ZeRO sharding. Multi-node training is not modelled, so this is the total GPU count.'
-    : `GPUs inside one server. Tensor or pipeline parallelism runs at this level, over NVLink, Infinity Fabric or PCIe. Capped at ${maxGPUs} — the largest GPU count this hardware forms in one node.`
+    : `The parallel degree of one model replica inside one server. Tensor, pipeline or expert parallelism runs at this level, over NVLink, Infinity Fabric or PCIe. Capped at ${maxGPUs} — the largest GPU count this hardware forms in one node.`
 
   if (maxGPUs === 1) {
     return (
@@ -80,13 +88,13 @@ export function GPUCountSelector() {
           {numGPUs}
         </span>
       </div>
-      {numGPUs > 1 && (
+      {(numGPUs > 1 || (!isTraining && numNodes > 1)) && (
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {isTraining
             ? `${numGPUs} GPUs`
-            : `${numGPUs} GPUs per server, ${
-                shardingStrategy === 'tensor-parallel' ? 'tensor parallel' : 'pipeline parallel'
-              }`}
+            : numNodes > 1
+              ? `${numGPUs} GPUs per server × ${numNodes} servers per replica, ${STRATEGY_LABELS[shardingStrategy]}`
+              : `${numGPUs} GPUs per replica (in one server), ${STRATEGY_LABELS[shardingStrategy]}`}
         </p>
       )}
     </div>

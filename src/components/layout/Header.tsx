@@ -1,11 +1,14 @@
 import { DarkModeToggle } from '@components/common/DarkModeToggle'
-import { LinkIcon } from '@heroicons/react/24/outline'
+import { ArrowPathIcon, LinkIcon } from '@heroicons/react/24/outline'
+import { useUIStore } from '@store/uiStore'
 import { toast } from 'sonner'
 
 /**
  * App header with branding, share button, and dark mode toggle
  */
 export function Header() {
+  const resetAll = useUIStore((s) => s.resetAll)
+
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
@@ -29,6 +32,15 @@ export function Header() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={resetAll}
+              aria-label="Reset all settings to defaults"
+              title="Reset all"
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <ArrowPathIcon className="w-5 h-5" />
+            </button>
             <button
               type="button"
               onClick={handleShare}
