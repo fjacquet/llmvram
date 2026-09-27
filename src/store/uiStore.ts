@@ -1,7 +1,7 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
-import { DEFAULT_KV_TIER, type KVTierSettings } from '@engines/kv-tier'
+import { clampKVTier, DEFAULT_KV_TIER, type KVTierSettings } from '@engines/kv-tier'
 import type {
   FabricType,
   FineTuningMethod,
@@ -244,7 +244,8 @@ export const useUIStore = create<UIState>()(
         }),
       setCpuOffloadOptimizer: (enabled) => set({ cpuOffloadOptimizer: enabled }),
       setConcurrentUsers: (n) => set({ concurrentUsers: n }),
-      setKVTier: (patch) => set((state) => ({ kvTier: { ...state.kvTier, ...patch } })),
+      setKVTier: (patch) =>
+        set((state) => ({ kvTier: clampKVTier({ ...state.kvTier, ...patch }) })),
       setIsDarkMode: (dark) => set({ isDarkMode: dark }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
     }),

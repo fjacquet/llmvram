@@ -10,7 +10,7 @@ import {
   perUserTimeToFirstToken,
   perUserTokensPerSecond,
 } from '@engines/concurrency'
-import { kvTierSummary, sessionKVLayout } from '@engines/kv-tier'
+import { kvTierSummary } from '@engines/kv-tier'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
@@ -308,13 +308,10 @@ export function ResultsPanel() {
       : kvTierSummary({
           settings: kvTier,
           maxHotSessions: maxSessions,
-          ...sessionKVLayout({
-            perGPUKVGB: perGPU.kvCache.toNumber(),
-            concurrentUsers,
-            multi: result.multiGPU,
-          }),
-          kvPerSessionGB: result.vram.kvCache.toNumber() / Math.max(1, concurrentUsers),
-          totalGPUs: result.multiGPU?.numGPUs ?? 1,
+          perGPUKVGB: perGPU.kvCache.toNumber(),
+          totalKVGB: result.vram.kvCache.toNumber(),
+          concurrentUsers,
+          multi: result.multiGPU,
           recomputeSeconds: result.performance.prefillSeconds?.toNumber() ?? null,
         })
 
@@ -713,14 +710,14 @@ export function ResultsPanel() {
                 </p>
                 <p className="text-xs text-gray-600 dark:text-gray-400">
                   Resume {formatDuration(new Decimal(tierSummary.resumeSeconds))}
-                  {tierSummary.recomputeSeconds !== null &&
-                    ` vs recompute ${formatDuration(new Decimal(tierSummary.recomputeSeconds))} (${
+                  {result.performance.prefillSeconds &&
+                    ` vs recompute ${formatDuration(result.performance.prefillSeconds)} (${
                       tierSummary.resumeFaster ? 'resume is faster' : 'recompute is faster'
                     })`}
                 </p>
                 <p
                   className={`text-xs ${
-                    tierSummary.trafficGBps > tierSummary.tierGBps
+                    tierSummary.overloaded
                       ? 'text-red-600 dark:text-red-400'
                       : 'text-gray-600 dark:text-gray-400'
                   }`}

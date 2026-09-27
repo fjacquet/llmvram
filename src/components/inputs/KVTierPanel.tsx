@@ -6,10 +6,10 @@ import { useEffect, useState } from 'react'
 const inputClass =
   'w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
 
-/** Parses a number field; empty, non-finite or non-positive becomes null. */
-const positiveOrNull = (raw: string): number | null => {
+/** Parses a number field; empty or non-finite becomes null. The store clamps the rest. */
+const parseNumber = (raw: string): number | null => {
   const n = Number(raw)
-  return raw.trim() === '' || !Number.isFinite(n) || n <= 0 ? null : n
+  return raw.trim() === '' || !Number.isFinite(n) ? null : n
 }
 
 /**
@@ -92,7 +92,7 @@ export function KVTierPanel() {
             min={0}
             placeholder={String(preset.gbpsPerGPU)}
             value={kvTier.customGBps}
-            commit={(raw) => setKVTier({ customGBps: positiveOrNull(raw) })}
+            commit={(raw) => setKVTier({ customGBps: parseNumber(raw) })}
           />
           <NumberField
             label="Active share (%)"
@@ -100,9 +100,8 @@ export function KVTierPanel() {
             max={100}
             value={Math.round(kvTier.activeShare * 100)}
             commit={(raw) => {
-              const n = positiveOrNull(raw)
-              if (n !== null) setKVTier({ activeShare: Math.min(100, Math.max(1, n)) / 100 })
-              else if (raw.trim() !== '') setKVTier({ activeShare: 0.01 })
+              const n = parseNumber(raw)
+              if (n !== null) setKVTier({ activeShare: n / 100 })
             }}
           />
           <NumberField
@@ -110,8 +109,8 @@ export function KVTierPanel() {
             min={1}
             value={kvTier.burstSeconds}
             commit={(raw) => {
-              const n = positiveOrNull(raw)
-              if (n !== null) setKVTier({ burstSeconds: Math.max(1, n) })
+              const n = parseNumber(raw)
+              if (n !== null) setKVTier({ burstSeconds: n })
             }}
           />
           <NumberField
@@ -119,7 +118,7 @@ export function KVTierPanel() {
             min={0}
             placeholder="unlimited"
             value={kvTier.capacityTB}
-            commit={(raw) => setKVTier({ capacityTB: positiveOrNull(raw) })}
+            commit={(raw) => setKVTier({ capacityTB: parseNumber(raw) })}
           />
         </div>
       )}

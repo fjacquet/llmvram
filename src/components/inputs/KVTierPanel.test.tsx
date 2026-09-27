@@ -3,27 +3,21 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Plain store instead of the persisted uiStore, which throws in jsdom
-// (see NodeCountSelector.test.tsx).
-const { useUIStore } = vi.hoisted(() => {
-  const { create } = require('zustand') as typeof import('zustand')
+// (see NodeCountSelector.test.tsx). setKVTier mirrors the real store: it clamps.
+vi.mock('@store/uiStore', async () => {
+  const { create } = await import('zustand')
+  const { clampKVTier, DEFAULT_KV_TIER } = await import('@engines/kv-tier')
   const useUIStore = create<{
     kvTier: KVTierSettings
     setKVTier: (p: Partial<KVTierSettings>) => void
   }>((set) => ({
-    kvTier: {
-      tier: 'none',
-      customGBps: null,
-      activeShare: 0.25,
-      burstSeconds: 30,
-      capacityTB: null,
-    },
-    setKVTier: (p) => set((s) => ({ kvTier: { ...s.kvTier, ...p } })),
+    kvTier: DEFAULT_KV_TIER,
+    setKVTier: (p) => set((s) => ({ kvTier: clampKVTier({ ...s.kvTier, ...p }) })),
   }))
   return { useUIStore }
 })
 
-vi.mock('@store/uiStore', () => ({ useUIStore }))
-
+import { useUIStore } from '@store/uiStore'
 import { KVTierPanel } from './KVTierPanel'
 
 describe('KVTierPanel', () => {

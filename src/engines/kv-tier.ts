@@ -9,15 +9,9 @@ import type { ShardingStrategy } from './types'
  * Spec: docs/superpowers/specs/2026-09-26-kv-storage-tier-design.md
  */
 
-export type KVTierType = 'none' | 'host-grace' | 'host-pcie' | 'local-nvme' | 'network'
+export const KV_TIER_TYPES = ['none', 'host-grace', 'host-pcie', 'local-nvme', 'network'] as const
 
-export const KV_TIER_TYPES = [
-  'none',
-  'host-grace',
-  'host-pcie',
-  'local-nvme',
-  'network',
-] as const satisfies readonly KVTierType[]
+export type KVTierType = (typeof KV_TIER_TYPES)[number]
 
 export interface KVTierSettings {
   tier: KVTierType
@@ -61,29 +55,57 @@ export const KV_TIER_PRESETS: Record<
  * Fixed cost of a resume beyond the transfer: Dell measured offload at 113-129 ms
  * against 91 ms recompute at 4K tokens, where the transfer itself is ~15 ms.
  */
-export const KV_TIER_RESUME_OVERHEAD_S = 0.03
+const KV_TIER_RESUME_OVERHEAD_S = 0.03
+
+/**
+ * Bounds for tier settings, applied once at the store boundary (uiStore.setKVTier),
+ * so the engine below can trust its input: active share 1-100%, burst >= 1 s, and a
+ * custom bandwidth or capacity that is positive and finite, else null.
+ */
+export function clampKVTier(s: KVTierSettings): KVTierSettings {
+  const positive = (n: number | null) => (n !== null && Number.isFinite(n) && n > 0 ? n : null)
+  return {
+    ...s,
+    customGBps: positive(s.customGBps),
+    activeShare: Number.isFinite(s.activeShare)
+      ? Math.min(1, Math.max(0.01, s.activeShare))
+      : DEFAULT_KV_TIER.activeShare,
+    burstSeconds: Number.isFinite(s.burstSeconds)
+      ? Math.max(1, s.burstSeconds)
+      : DEFAULT_KV_TIER.burstSeconds,
+    capacityTB: positive(s.capacityTB),
+  }
+}
 
 export function tierBandwidthGBps(settings: KVTierSettings): number | null {
   if (settings.tier === 'none') return null
-  if (settings.customGBps && settings.customGBps > 0) return settings.customGBps
-  return KV_TIER_PRESETS[settings.tier].gbpsPerGPU
+  return settings.customGBps ?? KV_TIER_PRESETS[settings.tier].gbpsPerGPU
 }
 
 export function resumeSeconds(kvPerSessionPerGPUGB: number, gbpsPerGPU: number): number {
   return KV_TIER_RESUME_OVERHEAD_S + kvPerSessionPerGPUGB / gbpsPerGPU
 }
 
-export interface KVTierSummary {
+interface KVTierSummary {
   sessionsHeld: number
   resumeSeconds: number
-  recomputeSeconds: number | null
   /** null when the prefill time is unknown (GPU without FLOPS data) */
   resumeFaster: boolean | null
   /** Tier read traffic needed to resume sessions at the configured churn */
   trafficGBps: number
   /** What the tier delivers across all GPUs */
   tierGBps: number
+  /** The churn needs more than the tier delivers */
+  overloaded: boolean
 }
+
+/** The slice of a multi-GPU breakdown that decides where a session's KV sits */
+type SessionMulti = {
+  strategy: ShardingStrategy
+  gpusPerNode: number
+  numNodes: number
+  numGPUs: number
+} | null
 
 /**
  * Where one session's KV sits, for resume and tier traffic.
@@ -97,12 +119,7 @@ export interface KVTierSummary {
 export function sessionKVLayout(p: {
   perGPUKVGB: number
   concurrentUsers: number
-  multi: {
-    strategy: ShardingStrategy
-    gpusPerNode: number
-    numNodes: number
-    numGPUs: number
-  } | null
+  multi: SessionMulti
 }): { kvPerSessionPerGPUGB: number; gpusPerSession: number } {
   const average = p.perGPUKVGB / Math.max(1, p.concurrentUsers)
   if (!p.multi || p.multi.numGPUs <= 1) return { kvPerSessionPerGPUGB: average, gpusPerSession: 1 }
@@ -115,41 +132,52 @@ export function sessionKVLayout(p: {
   return { kvPerSessionPerGPUGB: average, gpusPerSession: p.multi.numGPUs }
 }
 
+/**
+ * Sessions held, resume vs recompute, and tier traffic, from the per-GPU and total KV
+ * of the displayed breakdown (both sized for `concurrentUsers` sessions).
+ * Settings are assumed clamped (clampKVTier).
+ */
 export function kvTierSummary(p: {
   settings: KVTierSettings
   maxHotSessions: number
-  /** One session's KV on each GPU that holds part of it (see sessionKVLayout) */
-  kvPerSessionPerGPUGB: number
-  /** GPUs that each reload their part of a session in parallel */
-  gpusPerSession: number
-  /** One stored copy of a session's KV, for tier capacity */
-  kvPerSessionGB: number
-  totalGPUs: number
+  /** KV on one GPU of the displayed breakdown, all sessions */
+  perGPUKVGB: number
+  /** KV of all sessions, one stored copy each (tier capacity) */
+  totalKVGB: number
+  concurrentUsers: number
+  multi: SessionMulti
   recomputeSeconds: number | null
 }): KVTierSummary | null {
   const bandwidth = tierBandwidthGBps(p.settings)
   if (bandwidth === null) return null
 
-  const share = Math.min(1, Math.max(0.01, p.settings.activeShare))
-  const burst = Math.max(1, p.settings.burstSeconds)
+  const { activeShare, burstSeconds, capacityTB } = p.settings
+  const { kvPerSessionPerGPUGB, gpusPerSession } = sessionKVLayout(p)
+  const kvPerSessionGB = p.totalKVGB / Math.max(1, p.concurrentUsers)
+
   // Active sessions occupy the HBM slots; the tier holds only the parked ones, so its
   // capacity bounds parked sessions, never the ones that already fit in HBM.
-  const byShare = Math.floor(p.maxHotSessions / share)
   const parkedCapacity =
-    p.settings.capacityTB && p.kvPerSessionGB > 0
-      ? Math.floor((p.settings.capacityTB * 1000) / p.kvPerSessionGB)
+    capacityTB && kvPerSessionGB > 0
+      ? Math.floor((capacityTB * 1000) / kvPerSessionGB)
       : Number.POSITIVE_INFINITY
-  const sessionsHeld = Math.max(0, Math.min(byShare, p.maxHotSessions + parkedCapacity))
+  const sessionsHeld = Math.min(
+    Math.floor(p.maxHotSessions / activeShare),
+    p.maxHotSessions + parkedCapacity,
+  )
 
-  const resume = resumeSeconds(p.kvPerSessionPerGPUGB, bandwidth)
+  const resume = resumeSeconds(kvPerSessionPerGPUGB, bandwidth)
+  // Every GPU of a session fetches its own part; duplicated MLA KV is fetched once
+  // per tensor-parallel rank (conservative: assumes no cross-rank de-duplication).
+  const trafficGBps =
+    ((sessionsHeld * activeShare) / burstSeconds) * kvPerSessionPerGPUGB * gpusPerSession
+  const tierGBps = bandwidth * (p.multi?.numGPUs ?? 1)
   return {
     sessionsHeld,
     resumeSeconds: resume,
-    recomputeSeconds: p.recomputeSeconds,
     resumeFaster: p.recomputeSeconds === null ? null : resume < p.recomputeSeconds,
-    // Every GPU of a session fetches its own part; duplicated MLA KV is fetched once
-    // per tensor-parallel rank (conservative: assumes no cross-rank de-duplication).
-    trafficGBps: ((sessionsHeld * share) / burst) * p.kvPerSessionPerGPUGB * p.gpusPerSession,
-    tierGBps: bandwidth * p.totalGPUs,
+    trafficGBps,
+    tierGBps,
+    overloaded: trafficGBps > tierGBps,
   }
 }

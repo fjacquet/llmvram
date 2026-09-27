@@ -137,8 +137,8 @@ export function serializeToURL(state: {
   kvQuantization: KVCachePrecision
   numGPUs: number
   shardingStrategy: ShardingStrategy
-  concurrentUsers?: number
-  kvTier?: KVTierSettings
+  concurrentUsers: number
+  kvTier: KVTierSettings
   numNodes: number
   interNodeFabric: FabricType
   customFabric: CustomFabricInput | null
@@ -200,15 +200,16 @@ export function serializeToURL(state: {
     kvq: state.kvQuantization,
     ng: state.numGPUs,
     ss: state.shardingStrategy,
-    ...(state.concurrentUsers && state.concurrentUsers > 1 ? { cu: state.concurrentUsers } : {}),
-    ...(state.kvTier && state.kvTier.tier !== 'none'
+    ...(state.concurrentUsers > 1 ? { cu: state.concurrentUsers } : {}),
+    // JSON.stringify drops the undefined g / c
+    ...(state.kvTier.tier !== 'none'
       ? {
           kt: {
             t: state.kvTier.tier,
-            ...(state.kvTier.customGBps ? { g: state.kvTier.customGBps } : {}),
+            g: state.kvTier.customGBps ?? undefined,
             a: state.kvTier.activeShare,
             b: state.kvTier.burstSeconds,
-            ...(state.kvTier.capacityTB ? { c: state.kvTier.capacityTB } : {}),
+            c: state.kvTier.capacityTB ?? undefined,
           },
         }
       : {}),

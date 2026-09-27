@@ -2,6 +2,7 @@ import type { GPU, Model } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 import { calculateInferenceVRAM } from './inference'
 import {
+  clampKVTier,
   DEFAULT_KV_TIER,
   type KVTierSettings,
   kvTierSummary,
@@ -14,13 +15,14 @@ import { estimatePerformance } from './performance'
 
 const network: KVTierSettings = { ...DEFAULT_KV_TIER, tier: 'network' }
 
+// 4-GPU tensor parallel, one session: 2 GB on each GPU, 8 GB stored
 const base = {
   settings: network,
   maxHotSessions: 100,
-  kvPerSessionPerGPUGB: 2,
-  gpusPerSession: 4,
-  kvPerSessionGB: 8,
-  totalGPUs: 4,
+  perGPUKVGB: 2,
+  totalKVGB: 8,
+  concurrentUsers: 1,
+  multi: { strategy: 'tensor-parallel' as const, gpusPerNode: 4, numNodes: 1, numGPUs: 4 },
   recomputeSeconds: 5,
 }
 
@@ -35,7 +37,7 @@ describe('tierBandwidthGBps', () => {
   })
 
   it('falls back to the preset when the custom value is 0 or empty', () => {
-    expect(tierBandwidthGBps({ ...network, customGBps: 0 })).toBe(12.5)
+    expect(tierBandwidthGBps(clampKVTier({ ...network, customGBps: 0 }))).toBe(12.5)
     expect(tierBandwidthGBps({ ...network, customGBps: null })).toBe(12.5)
   })
 })
@@ -47,6 +49,27 @@ describe('resumeSeconds', () => {
     const s = resumeSeconds(43 / 4, 12.8)
     expect(s).toBeGreaterThan(0.837 * 0.9)
     expect(s).toBeLessThan(0.837 * 1.1)
+  })
+})
+
+describe('clampKVTier', () => {
+  it('bounds active share to 1-100% and burst to at least 1 s', () => {
+    expect(clampKVTier({ ...network, activeShare: 0 }).activeShare).toBe(0.01)
+    expect(clampKVTier({ ...network, activeShare: 5 }).activeShare).toBe(1)
+    expect(clampKVTier({ ...network, burstSeconds: 0 }).burstSeconds).toBe(1)
+  })
+
+  it('turns non-finite share or burst back into the defaults', () => {
+    const c = clampKVTier({ ...network, activeShare: Number.NaN, burstSeconds: Infinity })
+    expect(c.activeShare).toBe(DEFAULT_KV_TIER.activeShare)
+    expect(c.burstSeconds).toBe(DEFAULT_KV_TIER.burstSeconds)
+  })
+
+  it('keeps bandwidth and capacity only when positive and finite', () => {
+    const c = clampKVTier({ ...network, customGBps: 0, capacityTB: -1 })
+    expect(c.customGBps).toBeNull()
+    expect(c.capacityTB).toBeNull()
+    expect(clampKVTier({ ...network, capacityTB: 0.5 }).capacityTB).toBe(0.5)
   })
 })
 
@@ -74,9 +97,10 @@ describe('kvTierSummary', () => {
     expect(kvTierSummary({ ...base, maxHotSessions: 0 })?.sessionsHeld).toBe(0)
   })
 
-  it('clamps an active share of 0 to 1%', () => {
-    const s = kvTierSummary({ ...base, settings: { ...network, activeShare: 0 } })
-    expect(s?.sessionsHeld).toBe(10000)
+  it('flags churn the tier cannot sustain', () => {
+    expect(kvTierSummary(base)?.overloaded).toBe(false)
+    const busy = kvTierSummary({ ...base, settings: { ...network, burstSeconds: 1 } })
+    expect(busy?.overloaded).toBe(true)
   })
 
   it('prices tier traffic as resumes per second times one session of KV', () => {
@@ -142,10 +166,10 @@ describe('resume vs recompute, Dell crossover (8-16K tokens)', () => {
     return kvTierSummary({
       settings: network,
       maxHotSessions: 10,
-      kvPerSessionPerGPUGB: multi.perGPU.kvCache.toNumber(),
-      gpusPerSession: 4,
-      kvPerSessionGB: single.kvCache.toNumber(),
-      totalGPUs: 4,
+      perGPUKVGB: multi.perGPU.kvCache.toNumber(),
+      totalKVGB: single.kvCache.toNumber(),
+      concurrentUsers: 1,
+      multi,
       recomputeSeconds: perf.prefillSeconds?.toNumber() ?? null,
     })
   }

@@ -53,6 +53,14 @@ const baseState = {
   numNodes: 1,
   interNodeFabric: 'ethernet-800g' as const,
   customFabric: null,
+  concurrentUsers: 1,
+  kvTier: {
+    tier: 'none' as const,
+    customGBps: null,
+    activeShare: 0.25,
+    burstSeconds: 30,
+    capacityTB: null,
+  },
   frameworkPreset: 'none' as const,
   cpuOffloadOptimizer: false,
 }
