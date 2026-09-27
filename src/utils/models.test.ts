@@ -365,7 +365,11 @@ describe('Model Database Validation', () => {
         return [c * 0.6, c * 1.4]
       }
       const bands: Record<string, [number, number]> = {
-        nvfp4: [0.5, 1.0],
+        // Upper bound above 1.0: some vendor NVFP4 recipes keep a real fraction of
+        // tensors 16-bit rather than quantizing them (Gemma 4 31B nvidia/Gemma-4-31B-IT-NVFP4
+        // keeps 10.5B of 31.27B params BF16 per the design spec's recipe table), which
+        // pushes the checkpoint's average bytes/param past 1.0. Verified 2026-09-27.
+        nvfp4: [0.5, 1.1],
         mxfp4: [0.5, 1.0],
         int4: [0.5, 1.0],
         awq: [0.5, 1.0],
@@ -389,6 +393,34 @@ describe('Model Database Validation', () => {
       }
     }
     expect(refs).toBeGreaterThan(100)
+  })
+
+  it('agrees with num_parameters_billion within 2% for every bf16 weight ref', () => {
+    // A bf16 checkpoint is pure 16-bit, so its file size implies the real parameter
+    // count directly: gib * 1024^3 / 2 bytes. Exempted models keep non-BF16 tensors
+    // that inflate the file beyond what num_parameters_billion (a deduplicated count)
+    // predicts, for a documented reason — never a silent tolerance loosening.
+    const EXEMPT: Record<string, string> = {
+      // safetensors API: {"parameters":{"F32":3072,"BF16":32913263168},"total":31577937344}.
+      // num_parameters_billion (31.6) matches the deduplicated `total` (31.578B) within
+      // 0.1%, but the checkpoint stores the tied embedding table twice on disk (32.913B
+      // BF16 elements, not deduplicated) plus 3072 F32 elements, so the measured gib
+      // implies ~2.083 bytes/param against the dedup count. Verified 2026-09-27.
+      'nvidia-nemotron-3.5-lightning-30b-a3b': '3072 F32 elements + duplicated BF16 embedding',
+    }
+    for (const m of modelsData) {
+      const ref = (m as { weight_refs?: Record<string, { repo: string; gib: number }> }).weight_refs
+        ?.bf16
+      if (!ref) continue
+      const impliedParamsBillion = (ref.gib * 1024 ** 3) / 2 / 1e9
+      if (m.id in EXEMPT) continue
+      const diff =
+        Math.abs(impliedParamsBillion - m.num_parameters_billion) / m.num_parameters_billion
+      expect(
+        diff,
+        `${m.id}: implied ${impliedParamsBillion.toFixed(3)}B vs curated ${m.num_parameters_billion}B`,
+      ).toBeLessThanOrEqual(0.02)
+    }
   })
 
   it('matches the independent 2026-09-26 checkpoint measurements through the engine', () => {
