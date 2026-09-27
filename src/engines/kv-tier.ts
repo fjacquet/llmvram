@@ -72,9 +72,9 @@ const KV_TIER_RESUME_OVERHEAD_S = 0.03
 export const DECIMAL_GB_PER_GIB = BYTES_PER_GB.toNumber() / 1e9
 
 /**
- * Bounds for tier settings, applied once at the store boundary (uiStore.setKVTier),
- * so the engine below can trust its input: active share 1-100%, burst >= 1 s, and a
- * custom bandwidth or capacity that is positive and finite, else null.
+ * Bounds for tier settings: active share 1-100%, burst >= 1 s, and a custom
+ * bandwidth or capacity that is positive and finite, else null. Applied by
+ * config-rules R4 (with a notice), so the engine below can trust its input.
  */
 export function clampKVTier(s: KVTierSettings): KVTierSettings {
   const positive = (n: number | null) => (n !== null && Number.isFinite(n) && n > 0 ? n : null)
@@ -116,26 +116,10 @@ export function graceLinkGBps(gpuId: string): number | null {
 }
 
 /**
- * Falls the KV tier back to `none` when it no longer matches a Grace-host GPU.
- *
- * Called from both uiStore.setSelectedGPU (the GPU changes while `host-grace`
- * is already active) AND uiStore.setKVTier (a patch sets `host-grace` while a
- * non-Grace GPU is already current). Both guards are required: useURLSync
- * restores the GPU first and the tier second from the same hash, so a shared
- * link with a `host-grace` tier for a non-Grace GPU only surfaces as the
- * latter — the setSelectedGPU guard alone would miss it, since at the moment
- * the GPU is set the tier is still whatever it was before the restore.
- */
-export function resetTierForGPU(tier: KVTierSettings, gpuId: string | null): KVTierSettings {
-  if (tier.tier !== 'host-grace' || graceLinkGBps(gpuId ?? '') !== null) return tier
-  return { ...tier, tier: 'none' }
-}
-
-/**
  * @param gpuId Resolves the exact host-grace figure (graceLinkGBps) when the
  *   tier is `host-grace` and no custom bandwidth is set; falls back to the
  *   generic KV_TIER_PRESETS figure if the id doesn't match a Grace GPU
- *   (shouldn't happen in practice — resetTierForGPU keeps the two in sync).
+ *   (shouldn't happen in practice — config-rules R3 keeps the two in sync).
  */
 export function tierBandwidthGBps(
   settings: KVTierSettings,
