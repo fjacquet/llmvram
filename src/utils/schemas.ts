@@ -103,6 +103,13 @@ export const GPUSchema = z.object({
     )
     .optional(),
 
+  /**
+   * CPU and GPU share one memory pool (Apple Silicon, GB10 DGX Spark). The only
+   * source for "no separate host memory" (config-rules R6): never infer it from
+   * `interconnect === 'unified'` or from the tier.
+   */
+  unified_memory: z.boolean().optional(),
+
   // Classification
   tier: z.enum(['datacenter', 'consumer', 'apple-silicon']),
 
