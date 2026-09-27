@@ -11,4 +11,4 @@ Proposed, Accepted or Superseded. Detailed designs live in
 | [0003](0003-offload-over-host-link.md) | Offloaded memory is read over the host link and bounded by host capacity | Accepted (v1.13.0) |
 | [0004](0004-single-configuration-rule-set.md) | One configuration rule set, enforced in the store, every correction shown | Accepted |
 | [0005](0005-presales-audience-and-ui-scope.md) | Presales/datacenter audience: essential vs advanced inputs, feature freeze | Accepted |
-| [0006](0006-gpu-topology-data.md) | GPU topology: sold server sizes and NVLink groups verified per card | Proposed |
+| [0006](0006-gpu-topology-data.md) | GPU topology: NVLink bridges, parallel degree per replica, per-card data | Accepted |
