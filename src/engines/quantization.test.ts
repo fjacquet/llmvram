@@ -1,11 +1,14 @@
+import modelsData from '@data/models.json'
 import {
   calculateModelWeightVRAM,
   effectiveBytesPerParameter,
   getBytesPerParameter,
+  weightRef,
   weightSource,
 } from '@engines/quantization'
 import type { QuantizationFormat } from '@engines/types'
 import type { Model } from '@utils/schemas'
+import { validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 
 describe('getBytesPerParameter', () => {
@@ -337,5 +340,14 @@ describe('source-derived fallback constants', () => {
 
   it('NVFP4 is E2M1 plus an FP8 scale per 16 values', () => {
     expect(effectiveBytesPerParameter('nvfp4').toNumber()).toBe((4 + 8 / 16) / 8)
+  })
+})
+
+describe('weightRef', () => {
+  it('resolves the fp16/bf16 twin and exposes high_precision', () => {
+    const m = validateModels(modelsData).find((x) => x.id === 'moonshotai-kimi-k3')
+    if (!m) throw new Error('fixture')
+    expect(weightRef('mxfp4', m)?.repo).toBe('moonshotai/Kimi-K3')
+    expect(weightRef('int8', m)).toBeUndefined()
   })
 })

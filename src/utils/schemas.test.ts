@@ -1,3 +1,4 @@
+import modelsData from '@data/models.json'
 import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod'
 import {
@@ -313,5 +314,19 @@ describe('weight_refs', () => {
     expect(new Set(QUANTIZATION_FORMATS).size).toBe(QUANTIZATION_FORMATS.length)
     expect(QUANTIZATION_FORMATS).toContain('gguf-q2_k')
     expect(QUANTIZATION_FORMATS).toContain('mxfp4')
+  })
+
+  it('accepts an optional high_precision on a weight ref and rejects non-positive values', () => {
+    const base = validateModels(modelsData)[0]
+    const ok = {
+      ...base,
+      weight_refs: { fp8: { repo: 'a/b', gib: 10, high_precision: { params_b: 1, gib: 2 } } },
+    }
+    expect(() => validateModels([ok])).not.toThrow()
+    const bad = {
+      ...base,
+      weight_refs: { fp8: { repo: 'a/b', gib: 10, high_precision: { params_b: 0, gib: 2 } } },
+    }
+    expect(() => validateModels([bad])).toThrow()
   })
 })
