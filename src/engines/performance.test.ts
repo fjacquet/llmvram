@@ -1380,6 +1380,7 @@ describe('MoE decode reads the base and touched experts at measured rates', () =
     const measured = run(kimi, 1).tokensPerSecond.toNumber()
     const avg = run(averaged, 1).tokensPerSecond.toNumber()
     expect(measured).toBeLessThan(avg * 0.5)
+    expect(measured).toBeGreaterThan(avg * 0.35)
   })
 
   it('expert parallelism reads the full base on every GPU and 1/N of the touched experts', () => {

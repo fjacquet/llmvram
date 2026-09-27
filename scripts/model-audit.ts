@@ -268,7 +268,7 @@ export function highPrecisionDrift(
   curated: { params_b: number; gib: number },
   measured: { params_b: number; gib: number } | null,
 ): string | null {
-  if (!measured) return `${format}.high_precision: no dtype summary`
+  if (!measured) return `${format}.high_precision: skipped (no dtype summary)`
   if (Math.abs(measured.gib - curated.gib) <= curated.gib * 0.01) return null
   return `${format}.high_precision: curated ${curated.gib} GiB, measured ${measured.gib} GiB`
 }

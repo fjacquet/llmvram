@@ -605,7 +605,7 @@ describe('moeWeightSplit', () => {
     expect(moeWeightSplit(get('meta-llama-llama-3.1-70b'), 'fp16')).toBeNull()
   })
 
-  it('never divides by zero when wide params reach the total', () => {
+  it('stays finite when wide params equal the total', () => {
     const m = get('moonshotai-kimi-k3')
     const ref = m.weight_refs?.mxfp4
     if (!ref) throw new Error('fixture')

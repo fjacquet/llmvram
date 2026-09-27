@@ -458,6 +458,9 @@ describe('Model Database Validation', () => {
         expect(hp.params_b, `${m.id} ${format}`).toBeLessThanOrEqual(
           m.num_parameters_billion * 1.02,
         )
+        const bytesPerParam = (hp.gib * 1024 ** 3) / (hp.params_b * 1e9)
+        expect(bytesPerParam, `${m.id} ${format}`).toBeGreaterThanOrEqual(1.9)
+        expect(bytesPerParam, `${m.id} ${format}`).toBeLessThanOrEqual(4.2)
       }
     }
   })

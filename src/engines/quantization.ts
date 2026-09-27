@@ -77,8 +77,10 @@ export function effectiveBytesPerParameter(format: QuantizationFormat, model?: M
  * When `numParametersBillion` is a subset of the model's total (MoE active/batched decode
  * params, or an expert-parallel base+routed share), scaling that subset by the checkpoint's
  * whole-model average bytes/param is an approximation: it assumes the subset has the same
- * 16-bit/quantized mix as the full checkpoint, which understates mixed-precision MoE
- * checkpoints whose base stays disproportionately 16-bit (see CLAUDE.md Domain Pitfalls).
+ * 16-bit/quantized mix as the full checkpoint. This only applies to the fallback path, when
+ * the model has no measured `high_precision` for `format` — with one, `moeWeightSplit`
+ * (src/engines/inference.ts) prices the base and routed experts separately at their measured
+ * rates instead of going through this average.
  *
  * @example
  * ```ts

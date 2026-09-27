@@ -328,7 +328,7 @@ describe('highPrecisionDrift', () => {
       'mxfp4.high_precision: curated 106.55 GiB, measured 110 GiB',
     )
     expect(highPrecisionDrift('mxfp4', curated, null)).toBe(
-      'mxfp4.high_precision: no dtype summary',
+      'mxfp4.high_precision: skipped (no dtype summary)',
     )
   })
 })
