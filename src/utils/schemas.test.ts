@@ -3,6 +3,7 @@ import { ZodError } from 'zod'
 import {
   GPUSchema,
   ModelSchema,
+  QUANTIZATION_FORMATS,
   validateGPU,
   validateGPUs,
   validateModel,
@@ -273,5 +274,44 @@ describe('ModelSchema sliding-window KV fields', () => {
   it('rejects a window without a sliding per-token size', () => {
     const model = { ...validDenseModel, kv_sliding_window: 1024 }
     expect(ModelSchema.safeParse(model).success).toBe(false)
+  })
+})
+
+describe('weight_refs', () => {
+  const base = {
+    id: 'm',
+    name: 'M',
+    architecture: 'dense' as const,
+    num_parameters_billion: 32.7,
+    hidden_size: 5376,
+    num_hidden_layers: 60,
+    num_attention_heads: 32,
+    intermediate_size: 21504,
+  }
+
+  it('accepts refs for a subset of formats', () => {
+    const r = ModelSchema.safeParse({
+      ...base,
+      weight_refs: { nvfp4: { repo: 'nvidia/Gemma-4-31B-IT-NVFP4', gib: 30.4 } },
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it('rejects an unknown format key, an empty repo and a non-positive size', () => {
+    expect(
+      ModelSchema.safeParse({ ...base, weight_refs: { fp5: { repo: 'x/y', gib: 1 } } }).success,
+    ).toBe(false)
+    expect(
+      ModelSchema.safeParse({ ...base, weight_refs: { fp8: { repo: '', gib: 1 } } }).success,
+    ).toBe(false)
+    expect(
+      ModelSchema.safeParse({ ...base, weight_refs: { fp8: { repo: 'x/y', gib: 0 } } }).success,
+    ).toBe(false)
+  })
+
+  it('lists every quantization format once', () => {
+    expect(new Set(QUANTIZATION_FORMATS).size).toBe(QUANTIZATION_FORMATS.length)
+    expect(QUANTIZATION_FORMATS).toContain('gguf-q2_k')
+    expect(QUANTIZATION_FORMATS).toContain('mxfp4')
   })
 })

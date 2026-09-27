@@ -11,6 +11,37 @@ import { z } from 'zod'
  */
 export const MAX_SEQUENCE_LENGTH = 10_485_760
 
+/**
+ * Every weight quantization format, the single source for the QuantizationFormat
+ * type (src/engines/types.ts) and every Zod enum over formats.
+ */
+export const QUANTIZATION_FORMATS = [
+  'fp32',
+  'fp16',
+  'bf16',
+  'fp8',
+  'mxfp4',
+  'nvfp6',
+  'nvfp4',
+  'int8',
+  'int4',
+  'nf4',
+  'gptq',
+  'awq',
+  'gguf-q8_0',
+  'gguf-q6_k',
+  'gguf-q5_k_s',
+  'gguf-q5_k_m',
+  'gguf-q5_0',
+  'gguf-q4_k_s',
+  'gguf-q4_k_m',
+  'gguf-q4_0',
+  'gguf-q3_k_l',
+  'gguf-q3_k_m',
+  'gguf-q3_k_s',
+  'gguf-q2_k',
+] as const
+
 // GPU Schema based on research (dbgpu fields)
 export const GPUSchema = z.object({
   id: z.string().min(1),
@@ -125,6 +156,16 @@ const ModelFields = z.object({
   // recurrent state one session holds at TP=1, as vLLM allocates it. Constant in context
   // length; its dtype comes from the model config (fp32 SSM state for Qwen3.5 and NemotronH).
   linear_state_bytes_per_session: z.number().int().positive().optional(),
+
+  // Measured weight-file size per format from a published checkpoint (GiB = bytes / 1024^3).
+  // Recipes differ (what stays 16-bit depends on who quantized it), so each format carries
+  // its own reference repo. Absent formats use BYTES_PER_PARAMETER.
+  weight_refs: z
+    .partialRecord(
+      z.enum(QUANTIZATION_FORMATS),
+      z.object({ repo: z.string().min(1), gib: z.number().positive() }),
+    )
+    .optional(),
 
   intermediate_size: z.number().int().positive(),
 
