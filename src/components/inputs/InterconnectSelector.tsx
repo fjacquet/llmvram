@@ -1,19 +1,19 @@
 import { INTERCONNECT_LABELS } from '@engines/constants'
+import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
 
 export function InterconnectSelector() {
   const selectedGPU = useUIStore((s) => s.selectedGPU)
   const interconnectOverride = useUIStore((s) => s.interconnectOverride)
   const setInterconnectOverride = useUIStore((s) => s.setInterconnectOverride)
+  const { interconnectOptions: options } = useAllowedOptions()
 
-  // Only show when GPU has multiple interconnect options
-  if (!selectedGPU?.interconnect_options || selectedGPU.interconnect_options.length < 2) {
+  // R5 + R13: variants only for multi-GPU parts with two or more options
+  if (!selectedGPU || options.length < 2) {
     return null
   }
 
-  const options = selectedGPU.interconnect_options
-  const firstOption = options[0] ?? 'none'
-  const current = interconnectOverride ?? selectedGPU.interconnect ?? firstOption
+  const current = interconnectOverride ?? selectedGPU.interconnect ?? options[0]
 
   return (
     <div className="mt-3">

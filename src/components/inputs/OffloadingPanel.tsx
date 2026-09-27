@@ -1,5 +1,6 @@
 import { InfoTip } from '@components/common/InfoTip'
 import { defaultHostCapacityGB } from '@engines/offloading'
+import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
 import { useEffect, useState } from 'react'
 
@@ -77,6 +78,7 @@ export function OffloadingPanel() {
   const setOffloadHostCapacityGB = useUIStore((s) => s.setOffloadHostCapacityGB)
   const selectedModel = useUIStore((s) => s.selectedModel)
   const selectedGPU = useUIStore((s) => s.selectedGPU)
+  const { offloadTargets } = useAllowedOptions()
 
   const totalLayers = selectedModel?.num_hidden_layers ?? 80
   const defaultCapacity = defaultHostCapacityGB(offloadTarget, selectedGPU ?? { tier: 'consumer' })
@@ -110,29 +112,31 @@ export function OffloadingPanel() {
             </div>
             <div className="grid grid-cols-1 gap-3">
               {/* CPU/RAM */}
-              <button
-                type="button"
-                onClick={() => setOffloadTarget('cpu-ram')}
-                className={`text-left p-3 border-2 rounded-lg transition-colors ${
-                  offloadTarget === 'cpu-ram'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <input
-                    type="radio"
-                    checked={offloadTarget === 'cpu-ram'}
-                    onChange={() => setOffloadTarget('cpu-ram')}
-                    className="text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="font-medium text-gray-900 dark:text-white">CPU/RAM</span>
-                </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400 ml-6">
-                  Offload to system memory via PCIe. Reduces VRAM usage but results in slower
-                  inference speeds.
-                </p>
-              </button>
+              {offloadTargets.includes('cpu-ram') && (
+                <button
+                  type="button"
+                  onClick={() => setOffloadTarget('cpu-ram')}
+                  className={`text-left p-3 border-2 rounded-lg transition-colors ${
+                    offloadTarget === 'cpu-ram'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <input
+                      type="radio"
+                      checked={offloadTarget === 'cpu-ram'}
+                      onChange={() => setOffloadTarget('cpu-ram')}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="font-medium text-gray-900 dark:text-white">CPU/RAM</span>
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 ml-6">
+                    Offload to system memory via PCIe. Reduces VRAM usage but results in slower
+                    inference speeds.
+                  </p>
+                </button>
+              )}
 
               {/* NVMe SSD */}
               <button

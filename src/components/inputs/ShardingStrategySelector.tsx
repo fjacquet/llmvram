@@ -1,6 +1,7 @@
 import { InfoTip } from '@components/common/InfoTip'
 import { INTERCONNECT_LABELS, INTERCONNECT_SPECS } from '@engines/constants'
 import { interconnectLabel as linkLabel, resolveInterconnect } from '@engines/multi-gpu'
+import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
 
 /**
@@ -18,7 +19,7 @@ export function ShardingStrategySelector() {
   const shardingStrategy = useUIStore((s) => s.shardingStrategy)
   const setShardingStrategy = useUIStore((s) => s.setShardingStrategy)
   const selectedGPU = useUIStore((s) => s.selectedGPU)
-  const isMoE = useUIStore((s) => s.selectedModel?.architecture === 'moe')
+  const { strategies } = useAllowedOptions()
 
   // Only render when multi-GPU is active
   if (numGPUs <= 1) {
@@ -119,7 +120,7 @@ export function ShardingStrategySelector() {
         </button>
 
         {/* Expert Parallel + DP attention (MoE only) */}
-        {isMoE && (
+        {strategies.includes('expert-parallel') && (
           <button
             type="button"
             onClick={() => setShardingStrategy('expert-parallel')}

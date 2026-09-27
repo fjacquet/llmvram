@@ -1,4 +1,5 @@
 import { InfoTip } from '@components/common/InfoTip'
+import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
 import { maxGPUsFor } from '@utils/gpuLimits'
 
@@ -23,6 +24,7 @@ export function GPUCountSelector() {
   const selectedGPU = useUIStore((s) => s.selectedGPU)
   const mode = useUIStore((s) => s.mode)
   const shardingStrategy = useUIStore((s) => s.shardingStrategy)
+  const { gpuCounts } = useAllowedOptions()
 
   const isTraining = mode === 'training'
   const maxGPUs = maxGPUsFor(selectedGPU)
@@ -61,14 +63,17 @@ export function GPUCountSelector() {
         <InfoTip text={tooltip} />
       </div>
       <div className="flex items-center gap-4">
+        {/* The slider moves over the allowed counts only (R1 + R14): a tensor-parallel
+            degree vLLM refuses is not selectable. */}
         <input
           id="gpu-count"
           type="range"
-          min={1}
-          max={maxGPUs}
+          min={0}
+          max={gpuCounts.length - 1}
           step={1}
-          value={numGPUs}
-          onChange={(e) => setNumGPUs(Number(e.target.value))}
+          value={Math.max(0, gpuCounts.indexOf(numGPUs))}
+          aria-valuetext={`${numGPUs} GPUs`}
+          onChange={(e) => setNumGPUs(gpuCounts[Number(e.target.value)] ?? 1)}
           className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
         />
         <span className="text-lg font-semibold text-gray-900 dark:text-white w-10 text-center tabular-nums">

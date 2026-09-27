@@ -4,10 +4,12 @@ import { MemoryBreakdownTable } from '@components/outputs/MemoryBreakdownTable'
 import { MultiGPUBreakdownChart } from '@components/outputs/MultiGPUBreakdownChart'
 import { PerformanceSection } from '@components/outputs/PerformanceSection'
 import { Recommendations } from '@components/outputs/Recommendations'
+import { SoftWarnings } from '@components/outputs/SoftWarnings'
 import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownChart'
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
 import { maxConcurrentSessions } from '@engines/concurrency'
+import { softWarnings } from '@engines/config-rules'
 import { DECIMAL_GB_PER_GIB, kvTierSummary } from '@engines/kv-tier'
 import { defaultHostCapacityGB, roundOffloadSlowdown } from '@engines/offloading'
 import { weightSource } from '@engines/quantization'
@@ -609,6 +611,14 @@ export function ResultsPanel() {
                 </p>
               </div>
             )}
+
+            <SoftWarnings
+              warnings={softWarnings(
+                { mode, numGPUs, numNodes, shardingStrategy },
+                selectedModel,
+                selectedGPU,
+              )}
+            />
 
             {/* Recommendations: GPU/quantization advice, not applicable to a
                 host-capacity-only problem (the red message above covers that). */}

@@ -12,10 +12,22 @@ vi.mock('@store/uiStore', async () => {
   const useUIStore = create<{
     kvTier: KVTierSettings
     selectedGPU: GPU | null
+    selectedModel: unknown
+    mode: 'inference' | 'training'
+    shardingStrategy: 'tensor-parallel' | 'pipeline-parallel' | 'expert-parallel'
+    offloadingEnabled: boolean
+    kvCacheOffload: boolean
+    frameworkPreset: string
     setKVTier: (p: Partial<KVTierSettings>) => void
   }>((set) => ({
     kvTier: DEFAULT_KV_TIER,
     selectedGPU: null,
+    selectedModel: null,
+    mode: 'inference',
+    shardingStrategy: 'tensor-parallel',
+    offloadingEnabled: false,
+    kvCacheOffload: false,
+    frameworkPreset: 'none',
     setKVTier: (p) => set((s) => ({ kvTier: clampKVTier({ ...s.kvTier, ...p }) })),
   }))
   return { useUIStore }
@@ -34,7 +46,18 @@ function findGPU(id: string): GPU {
 }
 
 describe('KVTierPanel', () => {
-  beforeEach(() => useUIStore.setState({ kvTier: DEFAULT_KV_TIER, selectedGPU: null }))
+  beforeEach(() =>
+    useUIStore.setState({
+      kvTier: DEFAULT_KV_TIER,
+      selectedGPU: null,
+      selectedModel: null,
+      mode: 'inference',
+      shardingStrategy: 'tensor-parallel',
+      offloadingEnabled: false,
+      kvCacheOffload: false,
+      frameworkPreset: 'none',
+    }),
+  )
 
   it('hides the tier settings when no tier is selected', () => {
     render(<KVTierPanel />)
@@ -121,5 +144,21 @@ describe('KVTierPanel', () => {
     expect(capacity.value).toBe('0.5')
     fireEvent.blur(capacity)
     expect(useUIStore.getState().kvTier.capacityTB).toBe(0.5)
+  })
+
+  it('offers only None when the KV cache is already offloaded (R12)', () => {
+    useUIStore.setState({
+      selectedGPU: findGPU('nvidia-h100-80gb-sxm'),
+      offloadingEnabled: true,
+      kvCacheOffload: true,
+    })
+    render(<KVTierPanel />)
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None'])
+  })
+
+  it('hides host-memory tiers on unified memory (R6)', () => {
+    useUIStore.setState({ selectedGPU: findGPU('apple-m3-ultra') })
+    render(<KVTierPanel />)
+    expect(screen.queryByRole('option', { name: /Host memory/ })).not.toBeInTheDocument()
   })
 })

@@ -1,5 +1,6 @@
 import { InfoTip } from '@components/common/InfoTip'
 import { Description, Field, Label, Switch } from '@headlessui/react'
+import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
 
 /**
@@ -9,10 +10,10 @@ import { useUIStore } from '@store/uiStore'
  * optimizer states from GPU VRAM to CPU RAM at the cost of throughput.
  */
 export function CPUOffloadToggle() {
-  const { frameworkPreset, cpuOffloadOptimizer, setCpuOffloadOptimizer } = useUIStore()
+  const { cpuOffloadOptimizer, setCpuOffloadOptimizer } = useUIStore()
 
-  // Only show for DeepSpeed presets
-  if (!frameworkPreset.startsWith('deepspeed-')) {
+  // R6 + R8: only a ZeRO preset on a GPU with separate host memory can offload optimizer state
+  if (!useAllowedOptions().cpuOffloadOptimizer) {
     return null
   }
 
