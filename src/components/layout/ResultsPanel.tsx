@@ -457,7 +457,7 @@ export function ResultsPanel() {
                 type="button"
                 onClick={() =>
                   handleExportPptx({
-                    maxSessions: maxSessions ?? undefined,
+                    maxSessions,
                     tierSessionsHeld: tierSummary?.sessionsHeld ?? null,
                     weightSource: weightSourceRepo,
                   })

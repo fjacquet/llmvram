@@ -1,7 +1,6 @@
-import type { weightSource } from '@engines/quantization'
 import type { QuantizationFormat } from '@engines/types'
 import type { UseInferenceCalculationResult } from '@hooks/useInferenceCalculation'
-import { exportPptx } from '@utils/exportPptx'
+import { type ExportPptxParams, exportPptx } from '@utils/exportPptx'
 import type { GPU, Model } from '@utils/schemas'
 import { toast } from 'sonner'
 
@@ -11,11 +10,10 @@ import { toast } from 'sonner'
  * available yet when useResultExports itself is called, so they are passed
  * in at export time instead of at hook-construction time.
  */
-interface ExportPptxCapacity {
-  maxSessions?: number
-  tierSessionsHeld?: number | null
-  weightSource?: ReturnType<typeof weightSource>
-}
+type ExportPptxCapacity = Pick<
+  ExportPptxParams,
+  'maxSessions' | 'tierSessionsHeld' | 'weightSource'
+>
 
 interface UseResultExportsParams {
   selectedModel: Model | null
@@ -103,7 +101,7 @@ export function useResultExports({
     }
   }
 
-  const handleExportPptx = async (capacity?: ExportPptxCapacity) => {
+  const handleExportPptx = async (capacity: ExportPptxCapacity) => {
     if (!result || !selectedModel || !selectedGPU) return
     try {
       await exportPptx({
@@ -119,9 +117,7 @@ export function useResultExports({
         vram: result.vram,
         performance: result.performance,
         multiGPU: result.multiGPU,
-        maxSessions: capacity?.maxSessions,
-        tierSessionsHeld: capacity?.tierSessionsHeld,
-        weightSource: capacity?.weightSource,
+        ...capacity,
       })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'PPTX export failed')

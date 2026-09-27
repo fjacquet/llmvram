@@ -8,7 +8,7 @@ import { formatDuration } from '@utils/formatDuration'
 import type { GPU, Model } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 
-interface ExportPptxParams {
+export interface ExportPptxParams {
   model: Model
   gpu: GPU
   quantization: string
@@ -21,12 +21,12 @@ interface ExportPptxParams {
   vram: InferenceVRAMBreakdown
   performance: PerformanceEstimate
   multiGPU: MultiGPUVRAMBreakdown | null
-  /** Sessions that fit at this context (vLLM's "Maximum concurrency"); absent when unknown */
-  maxSessions?: number
-  /** Sessions held with the KV storage tier active; null/absent when no tier is set */
-  tierSessionsHeld?: number | null
+  /** Sessions that fit at this context (vLLM's "Maximum concurrency"); null when unknown */
+  maxSessions: number | null
+  /** Sessions held with the KV storage tier active; null when no tier is set */
+  tierSessionsHeld: number | null
   /** The repo weights were measured from, or null when estimated — same shape as weightSource() */
-  weightSource?: ReturnType<typeof weightSource>
+  weightSource: ReturnType<typeof weightSource>
 }
 
 function gbStr(val: Decimal): string {
@@ -456,15 +456,18 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
   // configuration has a KV tier, and a GPU without FLOPS data can still lack
   // a max-sessions figure).
   const capacityRows: [string, string][] = []
-  if (maxSessions !== undefined) {
+  if (maxSessions != null) {
     capacityRows.push([
       `Max concurrent sessions (at ${sequenceLength.toLocaleString('en-US')} tokens)`,
       maxSessions.toLocaleString('en-US'),
     ])
   }
-  if (typeof tierSessionsHeld === 'number') {
+  if (tierSessionsHeld != null) {
     capacityRows.push(['Sessions held with KV tier', tierSessionsHeld.toLocaleString('en-US')])
   }
+  // Unlike the two checks above, `null` is a meaningful value here (estimated,
+  // no reference checkpoint) distinct from the field being absent (test call
+  // sites that predate this field) — so this checks undefined specifically.
   if (weightSource !== undefined) {
     capacityRows.push([
       'Weights',
