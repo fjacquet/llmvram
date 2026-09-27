@@ -909,8 +909,7 @@ describe('node dimension defaults', () => {
 
   it('leaves every inter-node term neutral', () => {
     const result = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 4, 'tensor-parallel', h100)
-    expect(result.interNodeDecodeEfficiency).toBe(1)
-    expect(result.interNodePrefillEfficiency).toBe(1)
+    expect(result.interNodeGBps).toBe(0)
     expect(result.bubbleEfficiency).toBe(1)
   })
 

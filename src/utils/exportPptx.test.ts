@@ -151,6 +151,7 @@ describe('exportPptx', () => {
       gpu,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 1,
+      sequenceLength: 4096,
       quantization: 'fp16',
     })
 
@@ -541,6 +542,7 @@ describe('exportPptx', () => {
       gpu,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 1,
+      sequenceLength: 4096,
       quantization: 'fp16',
     })
 

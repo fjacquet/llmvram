@@ -114,8 +114,7 @@ interface CalculationSuccessResponse {
       numNodes: number
       gpusPerNode: number
       intraNodeEfficiency: number
-      interNodeDecodeEfficiency: number
-      interNodePrefillEfficiency: number
+      interNodeGBps: number
       bubbleEfficiency: number
       scalingEfficiency: number
       prefillScalingEfficiency: number
@@ -227,6 +226,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
           gpu,
           fabric: resolveFabricSpec(interNodeFabric ?? 'ethernet-800g', customFabric ?? null),
           batchSize,
+          sequenceLength,
           quantization,
         })
 
@@ -305,8 +305,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
                 numNodes: multiGPUResult.numNodes,
                 gpusPerNode: multiGPUResult.gpusPerNode,
                 intraNodeEfficiency: multiGPUResult.intraNodeEfficiency,
-                interNodeDecodeEfficiency: multiGPUResult.interNodeDecodeEfficiency,
-                interNodePrefillEfficiency: multiGPUResult.interNodePrefillEfficiency,
+                interNodeGBps: multiGPUResult.interNodeGBps,
                 bubbleEfficiency: multiGPUResult.bubbleEfficiency,
                 scalingEfficiency: multiGPUResult.scalingEfficiency,
                 prefillScalingEfficiency: multiGPUResult.prefillScalingEfficiency,
