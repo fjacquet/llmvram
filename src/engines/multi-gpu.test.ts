@@ -3,7 +3,7 @@ import modelsData from '@data/models.json'
 import { type GPU, type Model, validateGPUs, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
-import { INTERCONNECT_SPECS } from './constants'
+import { INTERCONNECT_LABELS, INTERCONNECT_SPECS } from './constants'
 import { calculateInferenceVRAM } from './inference'
 import {
   applyInterconnectOverride,
@@ -699,6 +699,16 @@ describe('resolveInterconnect with NVLink bridges (spec Section 3)', () => {
     expect(interconnectLabel(h100pcie, 2)).toBe('NVLink bridge — 600 GB/s')
     expect(interconnectLabel(h200nvl, 4)).toBe('NVLink bridge — 900 GB/s')
     expect(interconnectLabel(h100pcie, 4)).toBe('PCIe 5 — 128 GB/s')
+  })
+
+  it('INTERCONNECT_LABELS bakes in the same bandwidth INTERCONNECT_SPECS computes with (exportPptx relies on this)', () => {
+    for (const [type, label] of Object.entries(INTERCONNECT_LABELS)) {
+      const bakedIn = label?.match(/— ([\d,]+) GB\/s$/)?.[1]?.replace(/,/g, '')
+      if (bakedIn === undefined) continue // labels with no bandwidth suffix (none, unified)
+      expect(Number(bakedIn), type).toBe(
+        INTERCONNECT_SPECS[type as keyof typeof INTERCONNECT_SPECS].bandwidthGBps,
+      )
+    }
   })
 
   it('applyInterconnectOverride drops the bridge too, so an override on a bridged GPU never resolves to it', () => {
