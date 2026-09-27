@@ -151,6 +151,7 @@ describe('exportPptx', () => {
       gpu,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 1,
+      quantization: 'fp16',
     })
 
     expect(multiGPU.numGPUs).toBe(32)
@@ -540,6 +541,7 @@ describe('exportPptx', () => {
       gpu,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 1,
+      quantization: 'fp16',
     })
 
     await exportPptx({

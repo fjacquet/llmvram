@@ -394,6 +394,7 @@ export function useInferenceCalculation(
               gpu: effectiveGPU,
               fabric: fabricModule.resolveFabricSpec(interNodeFabric, customFabric),
               batchSize,
+              quantization,
             })
             // Validation is per-node: the interconnect bounds apply inside a
             // server, not across the cluster.

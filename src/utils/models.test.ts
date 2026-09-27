@@ -2,7 +2,9 @@ import modelsData from '@data/models.json'
 import { BYTES_PER_PARAMETER } from '@engines/constants'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { describe, expect, it } from 'vitest'
-import { ModelSchema, validateModels } from './schemas'
+import { type Model, ModelSchema, validateModels } from './schemas'
+
+const models: Model[] = validateModels(modelsData)
 
 describe('Model Database Validation', () => {
   it('should have at least 30 models', () => {
@@ -443,5 +445,32 @@ describe('Model Database Validation', () => {
       }).modelWeights.toNumber()
       expect(Math.abs(weights - fileGiB) / fileGiB, `${id} ${format}`).toBeLessThan(0.01)
     }
+  })
+
+  it('high_precision is consistent with its ref and model', () => {
+    for (const m of models) {
+      for (const [format, ref] of Object.entries(m.weight_refs ?? {})) {
+        const hp = ref?.high_precision
+        if (!hp || !ref) continue
+        expect(m.architecture, `${m.id} ${format}`).toBe('moe')
+        expect(['fp32', 'fp16', 'bf16'].includes(format) || format.startsWith('gguf-')).toBe(false)
+        expect(hp.gib, `${m.id} ${format}`).toBeLessThanOrEqual(ref.gib)
+        expect(hp.params_b, `${m.id} ${format}`).toBeLessThanOrEqual(
+          m.num_parameters_billion * 1.02,
+        )
+        const bytesPerParam = (hp.gib * 1024 ** 3) / (hp.params_b * 1e9)
+        expect(bytesPerParam, `${m.id} ${format}`).toBeGreaterThanOrEqual(1.9)
+        expect(bytesPerParam, `${m.id} ${format}`).toBeLessThanOrEqual(4.2)
+      }
+    }
+  })
+
+  it('pins measured high_precision anchors (HF dtype summaries, 2026-09-27)', () => {
+    const hp = (id: string, f: string) =>
+      models.find((m) => m.id === id)?.weight_refs?.[f as keyof NonNullable<Model['weight_refs']>]
+        ?.high_precision
+    expect(hp('moonshotai-kimi-k3', 'mxfp4')).toEqual({ params_b: 57.191, gib: 106.55 })
+    expect(hp('deepseek-r1', 'fp8')).toEqual({ params_b: 3.919, gib: 7.3 })
+    expect(hp('qwen-qwen3-235b-a22b', 'bf16')).toBeUndefined()
   })
 })

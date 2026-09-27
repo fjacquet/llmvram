@@ -35,7 +35,7 @@ const FORMAT_TWIN: Partial<Record<QuantizationFormat, QuantizationFormat>> = {
  * itself has none. The data only ever measures bf16 checkpoints (spec 2026-09-27), so
  * without this fp16 — the store's default quantization — would always read "estimated".
  */
-function resolveRef(format: QuantizationFormat, model?: Model) {
+export function weightRef(format: QuantizationFormat, model?: Model) {
   const twin = FORMAT_TWIN[format]
   return model?.weight_refs?.[format] ?? (twin ? model?.weight_refs?.[twin] : undefined)
 }
@@ -48,7 +48,7 @@ function resolveRef(format: QuantizationFormat, model?: Model) {
  * a measured size (spec 2026-09-27) beats any single constant.
  */
 export function effectiveBytesPerParameter(format: QuantizationFormat, model?: Model): Decimal {
-  const ref = resolveRef(format, model)
+  const ref = weightRef(format, model)
   if (ref && model) {
     return new Decimal(ref.gib)
       .mul(BYTES_PER_GB)
@@ -77,8 +77,10 @@ export function effectiveBytesPerParameter(format: QuantizationFormat, model?: M
  * When `numParametersBillion` is a subset of the model's total (MoE active/batched decode
  * params, or an expert-parallel base+routed share), scaling that subset by the checkpoint's
  * whole-model average bytes/param is an approximation: it assumes the subset has the same
- * 16-bit/quantized mix as the full checkpoint, which understates mixed-precision MoE
- * checkpoints whose base stays disproportionately 16-bit (see CLAUDE.md Domain Pitfalls).
+ * 16-bit/quantized mix as the full checkpoint. This only applies to the fallback path, when
+ * the model has no measured `high_precision` for `format` — with one, `moeWeightSplit`
+ * (src/engines/inference.ts) prices the base and routed experts separately at their measured
+ * rates instead of going through this average.
  *
  * @example
  * ```ts
@@ -105,5 +107,5 @@ export function calculateModelWeightVRAM(
 
 /** The repo a weight figure was measured from, or null when it is an estimate. */
 export function weightSource(model: Model, format: QuantizationFormat): string | null {
-  return resolveRef(format, model)?.repo ?? null
+  return weightRef(format, model)?.repo ?? null
 }

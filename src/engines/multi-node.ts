@@ -12,6 +12,7 @@ import type {
   FabricSpec,
   InferenceVRAMBreakdown,
   MultiGPUVRAMBreakdown,
+  QuantizationFormat,
   ShardingStrategy,
 } from './types'
 
@@ -38,7 +39,7 @@ import type {
  *   singleGPU, model: llama405b, gpuVramGB: 288,
  *   gpusPerNode: 8, numNodes: 4,
  *   intraNodeStrategy: 'tensor-parallel', gpu: mi355x,
- *   fabric: FABRIC_SPECS['ethernet-800g'], batchSize: 1,
+ *   fabric: FABRIC_SPECS['ethernet-800g'], batchSize: 1, quantization: 'fp16',
  * })
  * ```
  */
@@ -52,6 +53,7 @@ export function calculateMultiNodeVRAM(params: {
   gpu: GPU
   fabric: FabricSpec
   batchSize: number
+  quantization: QuantizationFormat
 }): MultiGPUVRAMBreakdown {
   const {
     singleGPU,
@@ -63,6 +65,7 @@ export function calculateMultiNodeVRAM(params: {
     gpu,
     fabric,
     batchSize,
+    quantization,
   } = params
 
   if (!Number.isInteger(numNodes) || numNodes < 1) {
@@ -72,7 +75,15 @@ export function calculateMultiNodeVRAM(params: {
   // Single node: delegate unchanged. This is the regression guard for the whole
   // feature — one node must produce byte-identical results to before it existed.
   if (numNodes === 1) {
-    return calculateMultiGPUVRAM(singleGPU, model, gpuVramGB, gpusPerNode, intraNodeStrategy, gpu)
+    return calculateMultiGPUVRAM(
+      singleGPU,
+      model,
+      gpuVramGB,
+      gpusPerNode,
+      intraNodeStrategy,
+      gpu,
+      quantization,
+    )
   }
 
   // Pipeline parallelism across nodes: each node owns a contiguous slice of
@@ -124,6 +135,7 @@ export function calculateMultiNodeVRAM(params: {
     gpusPerNode,
     intraNodeStrategy,
     gpu,
+    quantization,
   )
 
   const perNodeGBps = perNodeFabricGBps(fabric.portGBps, gpusPerNode)

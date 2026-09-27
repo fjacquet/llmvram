@@ -1,4 +1,5 @@
-import type { Model } from '@utils/schemas'
+import modelsData from '@data/models.json'
+import { type Model, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { PREFILL_CHUNK_TOKENS } from './constants'
@@ -7,8 +8,11 @@ import {
   calculateInferenceVRAM,
   calculateMoEActiveParams,
   calculateMoEBatchedParams,
+  moeWeightSplit,
+  routedTouchedFraction,
   splitMoEParams,
 } from './inference'
+import { calculateModelWeightVRAM } from './quantization'
 
 // Test fixtures - inline model definitions for test isolation
 const llama7b: Model = {
@@ -547,5 +551,86 @@ describe('splitMoEParams', () => {
 
   it('does not split a dense model', () => {
     expect(splitMoEParams(llama7b)).toBeNull()
+  })
+})
+
+describe('moeWeightSplit', () => {
+  const models = validateModels(modelsData)
+  const get = (id: string) => {
+    const m = models.find((x) => x.id === id)
+    if (!m) throw new Error(id)
+    return m
+  }
+
+  it('Kimi K3 mxfp4: wide tensors cover the base, charged at the BF16 rate', () => {
+    const s = moeWeightSplit(get('moonshotai-kimi-k3'), 'mxfp4')
+    expect(s?.measured).toBe(true)
+    expect(s?.baseGiB.toNumber()).toBeCloseTo(103.11, 1) // 106.55 x 55.347 / 57.191
+    expect(s?.routedGiB.toNumber()).toBeCloseTo(1350.63, 1)
+  })
+
+  it('DeepSeek R1 fp8: wide tensors fall short, the rest of the base at the FP8 rate', () => {
+    const s = moeWeightSplit(get('deepseek-r1'), 'fp8')
+    // 7.30 + (16.548 - 3.919) x (641.3 - 7.30) / (671 - 3.919)
+    expect(s?.baseGiB.toNumber()).toBeCloseTo(19.3, 1)
+  })
+
+  it('parts always sum to the weight total', () => {
+    for (const m of models.filter((x) => x.architecture === 'moe')) {
+      for (const f of ['mxfp4', 'nvfp4', 'fp8', 'int4', 'awq', 'fp16'] as const) {
+        const s = moeWeightSplit(m, f)
+        if (!s) continue
+        const total = calculateModelWeightVRAM(m.num_parameters_billion, f, m)
+        expect(s.baseGiB.add(s.routedGiB).toNumber()).toBeCloseTo(total.toNumber(), 6)
+      }
+    }
+  })
+
+  it('falls back to the parameter-fraction split without high_precision (fp16 twin of bf16)', () => {
+    const m = get('qwen-qwen3-235b-a22b')
+    const s = moeWeightSplit(m, 'fp16')
+    const split = splitMoEParams(m)
+    const total = calculateModelWeightVRAM(m.num_parameters_billion, 'fp16', m)
+    expect(s?.measured).toBe(false)
+    expect(s?.baseGiB.toNumber()).toBeCloseTo(
+      total
+        .mul(split?.baseB ?? 0)
+        .div(m.num_parameters_billion)
+        .toNumber(),
+      6,
+    )
+  })
+
+  it('returns null for dense models', () => {
+    expect(moeWeightSplit(get('meta-llama-llama-3.1-70b'), 'fp16')).toBeNull()
+  })
+
+  it('stays finite when wide params equal the total', () => {
+    const m = get('moonshotai-kimi-k3')
+    const ref = m.weight_refs?.mxfp4
+    if (!ref) throw new Error('fixture')
+    const odd = {
+      ...m,
+      weight_refs: {
+        mxfp4: { ...ref, high_precision: { params_b: m.num_parameters_billion, gib: ref.gib } },
+      },
+    }
+    const s = moeWeightSplit(odd, 'mxfp4')
+    expect(Number.isFinite(s?.baseGiB.toNumber())).toBe(true)
+  })
+})
+
+describe('routedTouchedFraction', () => {
+  it('is k/E at batch 1 and grows toward 1', () => {
+    const m = validateModels(modelsData).find((x) => x.id === 'moonshotai-kimi-k3')
+    if (!m) throw new Error('fixture')
+    expect(routedTouchedFraction(m, 1)).toBeCloseTo(16 / 896, 10)
+    expect(routedTouchedFraction(m, 64)).toBeCloseTo(1 - (1 - 16 / 896) ** 64, 10)
+    // calculateMoEBatchedParams is base + routed x fraction
+    const split = splitMoEParams(m)
+    expect(calculateMoEBatchedParams(m, 64)).toBeCloseTo(
+      (split?.baseB ?? 0) + (split?.routedB ?? 0) * (1 - (1 - 16 / 896) ** 64),
+      6,
+    )
   })
 })

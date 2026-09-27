@@ -406,6 +406,7 @@ describe('multi-node end to end', () => {
       gpu: mi355x,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 32,
+      quantization: 'fp16',
     })
     const twoNodes = calculateMultiNodeVRAM({
       singleGPU,
@@ -417,6 +418,7 @@ describe('multi-node end to end', () => {
       gpu: mi355x,
       fabric: FABRIC_SPECS['ethernet-800g'],
       batchSize: 32,
+      quantization: 'fp16',
     })
 
     // The real boundary: one node cannot hold it, two nodes can.

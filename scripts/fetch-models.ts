@@ -3,6 +3,7 @@
  * npm run refresh:models -- --strict  same, exit 1 on any drift
  * npm run refresh:models -- --measure <model-id>   print weight_refs JSON to paste
  * npm run refresh:models -- --draft   draft roster ids missing from models.json
+ * npm run refresh:models -- --split   print measured base/expert high_precision splits for MoE models
  * Never writes models.json. Spec: docs/superpowers/specs/2026-09-27-weight-refs-and-model-audit-design.md
  */
 import { writeFile } from 'node:fs/promises'
@@ -13,6 +14,8 @@ import { fetchConfig, fetchSafetensors, fetchTree, searchRepos } from './hf'
 import {
   compareModel,
   configFields,
+  highPrecision,
+  highPrecisionDrift,
   knownGoodGaps,
   MEASURED_FORMATS,
   nativeFormat,
@@ -95,6 +98,15 @@ async function audit(strict: boolean) {
       if (!ref) continue
       const msg = refDrift(format as QuantizationFormat, ref.gib, await fetchTree(ref.repo))
       if (msg) lines.push(`weight_refs.${msg}`)
+      if (ref.high_precision) {
+        const st2 = await fetchSafetensors(ref.repo)
+        const msg2 = highPrecisionDrift(
+          format as QuantizationFormat,
+          ref.high_precision,
+          st2 ? highPrecision(st2.parameters, format as QuantizationFormat) : null,
+        )
+        if (msg2) lines.push(`weight_refs.${msg2}`)
+      }
     }
     if (lines.length) {
       problems += lines.filter((l) => !l.includes('skipped')).length
@@ -105,16 +117,25 @@ async function audit(strict: boolean) {
   if (strict && problems) process.exit(1)
 }
 
-async function measureRefs(repo: string) {
+type WeightRef = { repo: string; gib: number; high_precision?: { params_b: number; gib: number } }
+
+async function measureRefs(repo: string, moe: boolean) {
   const [cfg, st, tree] = await Promise.all([
     fetchConfig(repo),
     fetchSafetensors(repo),
     fetchTree(repo),
   ])
-  const refs: Partial<Record<QuantizationFormat, { repo: string; gib: number }>> = {}
+  const refs: Partial<Record<QuantizationFormat, WeightRef>> = {}
   const native = nativeFormat(cfg ?? {}, st?.parameters)
   const own = tree ? weightFiles(tree, native) : null
-  if (own && own !== 'ambiguous' && own.length) refs[native] = { repo, gib: totalGiB(own) }
+  if (own && own !== 'ambiguous' && own.length) {
+    const ref: WeightRef = { repo, gib: totalGiB(own) }
+    if (moe && st) {
+      const hp = highPrecision(st.parameters, native)
+      if (hp) ref.high_precision = hp
+    }
+    refs[native] = ref
+  }
   const candidates = (await searchRepos(repo.split('/')[1] ?? repo)).filter(
     (c) => c !== repo && sameModel(c, repo),
   )
@@ -131,7 +152,15 @@ async function measureRefs(repo: string) {
       console.warn(`WARN ${ref} ${format}: ambiguous file sets, skipped`)
       continue
     }
-    if (picked.length) refs[format] = { repo: ref, gib: totalGiB(picked) }
+    if (picked.length) {
+      const pickedRef: WeightRef = { repo: ref, gib: totalGiB(picked) }
+      if (moe) {
+        const st2 = await fetchSafetensors(ref)
+        const hp = st2 ? highPrecision(st2.parameters, format) : null
+        if (hp) pickedRef.high_precision = hp
+      }
+      refs[format] = pickedRef
+    }
   }
   return refs
 }
@@ -139,7 +168,28 @@ async function measureRefs(repo: string) {
 async function measure(id: string) {
   const m = models.find((x) => x.id === id)
   if (!m) throw new Error(`unknown model id ${id}`)
-  console.log(JSON.stringify({ [id]: await measureRefs(repoOf(m)) }, null, 2))
+  console.log(
+    JSON.stringify({ [id]: await measureRefs(repoOf(m), m.architecture === 'moe') }, null, 2),
+  )
+}
+
+async function split() {
+  const result: Record<
+    string,
+    Partial<Record<QuantizationFormat, { params_b: number; gib: number }>>
+  > = {}
+  for (const m of models) {
+    if (m.architecture !== 'moe') continue
+    const entries: Partial<Record<QuantizationFormat, { params_b: number; gib: number }>> = {}
+    for (const [format, ref] of Object.entries(m.weight_refs ?? {})) {
+      if (!ref || format.startsWith('gguf-')) continue
+      const st = await fetchSafetensors(ref.repo)
+      const hp = st ? highPrecision(st.parameters, format as QuantizationFormat) : null
+      if (hp) entries[format as QuantizationFormat] = hp
+    }
+    if (Object.keys(entries).length) result[m.id] = entries
+  }
+  console.log(JSON.stringify(result, null, 2))
 }
 
 async function draft() {
@@ -160,7 +210,7 @@ async function draft() {
       num_parameters_billion: st ? Math.round((st.total / 1e9) * 10) / 10 : undefined,
       ...f,
       hf_url: `https://huggingface.co/${repo}`,
-      weight_refs: await measureRefs(repo),
+      weight_refs: await measureRefs(repo, !!f.num_experts),
     })
   }
   await writeFile('src/data/models-fetched.json', `${JSON.stringify(drafts, null, 2)}\n`)
@@ -173,4 +223,5 @@ const args = process.argv.slice(2)
 const at = args.indexOf('--measure')
 if (at >= 0) await measure(args[at + 1] ?? '')
 else if (args.includes('--draft')) await draft()
+else if (args.includes('--split')) await split()
 else await audit(args.includes('--strict'))

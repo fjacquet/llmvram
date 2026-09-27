@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   compareModel,
   configFields,
+  highPrecision,
+  highPrecisionDrift,
   knownGoodGaps,
   nativeFormat,
   pickReference,
@@ -287,5 +289,46 @@ describe('knownGoodGaps', () => {
         layer_types: ['sliding_attention', 'linear_attention'],
       }),
     ).toEqual([])
+  })
+})
+
+describe('highPrecision', () => {
+  it('sums >=16-bit float tensors of a native MXFP4 checkpoint (moonshotai/Kimi-K3)', () => {
+    const p = { F32: 11122432, BF16: 57179884544, U8: 2722740830208 }
+    expect(highPrecision(p, 'mxfp4')).toEqual({ params_b: 57.191, gib: 106.55 })
+  })
+  it('counts FP8 as quantized storage (deepseek-ai/DeepSeek-R1)', () => {
+    const p = { BF16: 3918786560, F8_E4M3: 680571043840, F32: 15104 }
+    expect(highPrecision(p, 'fp8')).toEqual({ params_b: 3.919, gib: 7.3 })
+  })
+  it('treats I32-packed int4 as quantized storage (Qwen GPTQ)', () => {
+    const p = { I32: 233800000000, F16: 1290000000 }
+    expect(highPrecision(p, 'gptq')).toEqual({ params_b: 1.29, gib: 2.4 })
+  })
+  it('treats NVFP4 F8 block scales as quantized storage', () => {
+    const p = { U8: 116900000000, F8_E4M3: 14610000000, BF16: 1290000000 }
+    expect(highPrecision(p, 'nvfp4')).toEqual({ params_b: 1.29, gib: 2.4 })
+  })
+  it('returns null for 16-bit formats, GGUF, and single-kind summaries', () => {
+    expect(highPrecision({ BF16: 235e9 }, 'bf16')).toBeNull()
+    expect(highPrecision({ BF16: 1e9, U8: 9e9 }, 'fp16')).toBeNull()
+    expect(highPrecision({ BF16: 1e9, U8: 9e9 }, 'gguf-q4_k_m')).toBeNull()
+    expect(highPrecision({ F8_E4M3: 9e9 }, 'fp8')).toBeNull()
+    expect(highPrecision({ BF16: 9e9 }, 'fp8')).toBeNull()
+  })
+})
+
+describe('highPrecisionDrift', () => {
+  const curated = { params_b: 57.191, gib: 106.55 }
+  it('passes within 1%', () => {
+    expect(highPrecisionDrift('mxfp4', curated, { params_b: 57.2, gib: 106.9 })).toBeNull()
+  })
+  it('reports drift beyond 1% and a missing summary', () => {
+    expect(highPrecisionDrift('mxfp4', curated, { params_b: 57.2, gib: 110 })).toBe(
+      'mxfp4.high_precision: curated 106.55 GiB, measured 110 GiB',
+    )
+    expect(highPrecisionDrift('mxfp4', curated, null)).toBe(
+      'mxfp4.high_precision: skipped (no dtype summary)',
+    )
   })
 })

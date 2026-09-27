@@ -238,3 +238,37 @@ export function refDrift(
   if (Math.abs(measured - curatedGiB) <= curatedGiB * 0.01) return null
   return `${format}: curated ${curatedGiB} GiB, measured ${measured} GiB`
 }
+
+/** Floating-point dtypes of 16 bits or more. Everything else (F8_*, U8, I8, I32) is
+ * quantized storage: packed int4 is stored as I32 and NVFP4 block scales as F8_E4M3,
+ * so width alone cannot identify the base (spec 2026-09-27-moe-weight-split). */
+export const WIDE_DTYPE_BYTES: Record<string, number> = { BF16: 2, F16: 2, F32: 4, F64: 8 }
+
+const UNIFORM_FORMATS = new Set<QuantizationFormat>(['fp32', 'fp16', 'bf16'])
+
+/** Tensors a quantized checkpoint keeps as >=16-bit floats, from the HF dtype summary. */
+export function highPrecision(
+  parameters: Record<string, number>,
+  format: QuantizationFormat,
+): { params_b: number; gib: number } | null {
+  if (UNIFORM_FORMATS.has(format) || format.startsWith('gguf-')) return null
+  const entries = Object.entries(parameters)
+  const wide = entries.filter(([dtype]) => dtype in WIDE_DTYPE_BYTES)
+  if (wide.length === 0 || wide.length === entries.length) return null
+  const count = wide.reduce((s, [, n]) => s + n, 0)
+  const bytes = wide.reduce((s, [dtype, n]) => s + n * (WIDE_DTYPE_BYTES[dtype] ?? 0), 0)
+  return {
+    params_b: Math.round((count / 1e9) * 1000) / 1000,
+    gib: Math.round((bytes / 1024 ** 3) * 100) / 100,
+  }
+}
+
+export function highPrecisionDrift(
+  format: QuantizationFormat,
+  curated: { params_b: number; gib: number },
+  measured: { params_b: number; gib: number } | null,
+): string | null {
+  if (!measured) return `${format}.high_precision: skipped (no dtype summary)`
+  if (Math.abs(measured.gib - curated.gib) <= curated.gib * 0.01) return null
+  return `${format}.high_precision: curated ${curated.gib} GiB, measured ${measured.gib} GiB`
+}

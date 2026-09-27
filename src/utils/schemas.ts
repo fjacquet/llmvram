@@ -163,7 +163,13 @@ const ModelFields = z.object({
   weight_refs: z
     .partialRecord(
       z.enum(QUANTIZATION_FORMATS),
-      z.object({ repo: z.string().min(1), gib: z.number().positive() }),
+      z.object({
+        repo: z.string().min(1),
+        gib: z.number().positive(),
+        high_precision: z
+          .object({ params_b: z.number().positive(), gib: z.number().positive() })
+          .optional(),
+      }),
     )
     .optional(),
 

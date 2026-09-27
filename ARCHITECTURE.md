@@ -240,6 +240,7 @@ Distributes memory the way vLLM allocates it. Requires a `GPU` object to resolve
 - `splitMoEParams` separates routed experts from the base; routed weights divide by N, the base is replicated (vLLM: attention replicated across DP ranks when TP = 1).
 - KV divides by N: each GPU holds only its own sessions, with no MLA duplication.
 - Decode reads the base in full plus 1/N of the touched experts; each MoE layer pays `expertAllToAllSeconds` (FP8 dispatch + BF16 combine over one link direction, plus two latencies).
+- `moeWeightSplit` prices the base and experts separately when a ref's `high_precision` field (measured >=16-bit float tensors) is available, instead of one blended average rate.
 
 **Pipeline Parallelism:**
 
