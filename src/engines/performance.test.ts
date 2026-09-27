@@ -9,8 +9,6 @@ import {
   calculateInferenceVRAM,
   calculateMoEActiveParams,
   calculateMoEBatchedParams,
-  moeWeightSplit,
-  routedTouchedFraction,
   splitMoEParams,
 } from './inference'
 import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
@@ -856,6 +854,34 @@ describe('expert-parallel decode', () => {
   })
 })
 
+/**
+ * Hand-priced GiB for a MoE checkpoint's replicated base, computed directly from the
+ * ref literals. This mirrors moeWeightSplit's math but must NOT call moeWeightSplit:
+ * calling the function under test to build the "expected" value is a tautology (a
+ * pricing bug would cancel out against itself). H >= B prices the whole base at the
+ * high-precision rate; otherwise the high-precision tensors fill part of the base and
+ * the remainder is priced at the blended rate of what's left.
+ */
+function handPricedBaseGiB(
+  totalGiB: number,
+  totalParamsB: number,
+  baseB: number,
+  hp?: { gib: number; params_b: number },
+): number {
+  if (!hp) return (totalGiB * baseB) / totalParamsB
+  const base =
+    baseB <= hp.params_b
+      ? (hp.gib * baseB) / hp.params_b
+      : hp.gib + ((baseB - hp.params_b) * (totalGiB - hp.gib)) / (totalParamsB - hp.params_b)
+  return Math.min(base, totalGiB)
+}
+
+/** Hand-computed routed-touched fraction — must NOT call routedTouchedFraction. */
+function handTouchedFraction(expertsPerToken: number, experts: number, batchSize: number): number {
+  const k = expertsPerToken / experts
+  return batchSize <= 1 ? k : 1 - (1 - k) ** batchSize
+}
+
 // Fixtures pulled from the real database (not hand-written) so their weight_refs stay
 // anchored to a measured checkpoint. I-2 (spec §3): the decode path must read the same
 // effective bytes-per-parameter as the memory sizing, not the format constant.
@@ -909,16 +935,24 @@ describe('estimatePerformance - decode honors measured weight_refs', () => {
     const withoutRef = run({ ...gemmaMoe, weight_refs: undefined })
     expect(withRef.equals(withoutRef)).toBe(false)
 
-    // moeWeightSplit prices gemmaMoe's replicated base and routed experts separately
-    // at their measured rates (its nvfp4 ref carries a high_precision split), so the
-    // expected bytes no longer match a flat rate applied to calculateMoEBatchedParams's
-    // blended figure — recomputed here the same way estimatePerformance now does.
-    const weightSplit = moeWeightSplit(gemmaMoe, 'nvfp4')
-    const touched = routedTouchedFraction(gemmaMoe, batchSize)
-    if (!weightSplit || touched === null) throw new Error('expected gemmaMoe to split')
-    const weightBytes = weightSplit.baseGiB
-      .add(weightSplit.routedGiB.mul(touched))
-      .mul(BYTES_PER_GB)
+    // Hand-priced independently of moeWeightSplit/routedTouchedFraction (see the helper
+    // doc comment above): read the nvfp4 ref literals plus gemmaMoe's base/routed split
+    // (splitMoEParams — a Task 4 helper, not the pricing logic under test here) directly,
+    // so a pricing bug in estimatePerformance can't cancel out against the same formula
+    // used to build "expected".
+    const ref = gemmaMoe.weight_refs?.nvfp4
+    if (!ref?.high_precision) throw new Error('expected gemmaMoe nvfp4 ref with high_precision')
+    const split = splitMoEParams(gemmaMoe)
+    if (!split) throw new Error('expected gemmaMoe to split into base + routed experts')
+    const baseGiB = handPricedBaseGiB(
+      ref.gib,
+      gemmaMoe.num_parameters_billion,
+      split.baseB,
+      ref.high_precision,
+    )
+    const routedGiB = ref.gib - baseGiB
+    const touched = handTouchedFraction(split.expertsPerToken, split.experts, batchSize)
+    const weightBytes = new Decimal(baseGiB + routedGiB * touched).mul(BYTES_PER_GB)
     const kvBytes = calculateKVCacheVRAM({
       model: gemmaMoe,
       sequenceLength,
@@ -929,7 +963,7 @@ describe('estimatePerformance - decode honors measured weight_refs', () => {
       .mul(gpu.memory_bandwidth_gbps)
       .mul(1e9)
       .div(weightBytes.add(kvBytes))
-    expect(withRef.toString()).toBe(expected.toString())
+    expect(withRef.div(expected).toNumber()).toBeCloseTo(1, 9)
   })
 
   it('expert-parallel branch: per-GPU weight bytes use the ref for the base + routed share', () => {
@@ -970,16 +1004,21 @@ describe('estimatePerformance - decode honors measured weight_refs', () => {
     const split = splitMoEParams(gemmaMoe)
     if (!split) throw new Error('expected gemmaMoe to split into base + routed experts')
     const gpusPerStage = numGPUs // single node, non-pipeline strategy: stages = 1
-    // moeWeightSplit prices the replicated base and the 1/N routed share separately at
-    // their measured rates (gemmaMoe's nvfp4 ref carries a high_precision split), so this
-    // no longer matches a flat rate applied to calculateMoEBatchedParams's blended figure
-    // — recomputed here the same way estimatePerformance now does.
-    const weightSplit = moeWeightSplit(gemmaMoe, 'nvfp4')
-    const touched = routedTouchedFraction(gemmaMoe, batchSize)
-    if (!weightSplit || touched === null) throw new Error('expected gemmaMoe to split')
-    const perGPUWeightBytes = weightSplit.baseGiB
-      .add(weightSplit.routedGiB.mul(touched).div(gpusPerStage))
-      .mul(BYTES_PER_GB)
+    // Hand-priced independently of moeWeightSplit/routedTouchedFraction (see the batch
+    // path test above for why): read the nvfp4 ref literals directly.
+    const ref = gemmaMoe.weight_refs?.nvfp4
+    if (!ref?.high_precision) throw new Error('expected gemmaMoe nvfp4 ref with high_precision')
+    const baseGiB = handPricedBaseGiB(
+      ref.gib,
+      gemmaMoe.num_parameters_billion,
+      split.baseB,
+      ref.high_precision,
+    )
+    const routedGiB = ref.gib - baseGiB
+    const touched = handTouchedFraction(split.expertsPerToken, split.experts, batchSize)
+    const perGPUWeightBytes = new Decimal(baseGiB + (routedGiB * touched) / gpusPerStage).mul(
+      BYTES_PER_GB,
+    )
     const kvBytes = calculateKVCacheVRAM({
       model: gemmaMoe,
       sequenceLength,
@@ -1005,7 +1044,7 @@ describe('estimatePerformance - decode honors measured weight_refs', () => {
     const stageSeconds = memorySeconds.add(commSecondsPerLayer * gemmaMoe.num_hidden_layers)
     const expected = new Decimal(batchSize).div(stageSeconds)
 
-    expect(withRef.tokensPerSecond.toString()).toBe(expected.toString())
+    expect(withRef.tokensPerSecond.div(expected).toNumber()).toBeCloseTo(1, 9)
   })
 })
 
@@ -1239,16 +1278,11 @@ describe('estimatePerformance - offload bytes match the per-GPU share (fix round
     const split = splitMoEParams(moe)
     if (!split) throw new Error('expected moe to split into base + routed experts')
     const weightBytes = calculateModelWeightVRAM(decodeParams, quantization, moe).mul(BYTES_PER_GB)
-    // moeWeightSplit computes the base/routed rate via total.div(n) rather than pricing
-    // decodeParams directly; `moe` has no weight_refs so the two are mathematically
-    // equivalent, but Decimal's finite precision differs in the trailing digits —
-    // recomputed here the same way estimatePerformance now does, to match exactly.
-    const weightSplit = moeWeightSplit(moe, quantization)
-    const touched = routedTouchedFraction(moe, batchSize)
-    if (!weightSplit || touched === null) throw new Error('expected moe to split')
-    const perGPUWeightBytes = weightSplit.baseGiB
-      .add(weightSplit.routedGiB.mul(touched).div(gpusPerStage))
-      .mul(BYTES_PER_GB)
+    const perGPUWeightBytes = calculateModelWeightVRAM(
+      split.baseB + Math.max(0, decodeParams - split.baseB) / gpusPerStage,
+      quantization,
+      moe,
+    ).mul(BYTES_PER_GB)
     // Sanity: the base really is disproportionately large — EP's per-GPU weight bytes
     // (replicated base + 1/N routed) exceed a naive equal split of the total.
     const naivePerGPUWeightBytes = weightBytes.div(gpusPerStage)
@@ -1310,7 +1344,11 @@ describe('estimatePerformance - offload bytes match the per-GPU share (fix round
       offload,
     })
 
-    expect(result.tokensPerSecond.toString()).toBe(expectedTokensPerSecond.toString())
+    // moeWeightSplit computes the base/routed rate via total.div(n) rather than pricing
+    // decodeParams directly; `moe` has no weight_refs so the two are mathematically
+    // equivalent, but Decimal's finite precision differs in the trailing digits, so this
+    // compares by ratio instead of exact string equality.
+    expect(result.tokensPerSecond.div(expectedTokensPerSecond).toNumber()).toBeCloseTo(1, 9)
     expect(result.offloadSlowdown).toBeCloseTo(expectedOffloadSlowdown, 6)
   })
 })
@@ -1345,23 +1383,74 @@ describe('MoE decode reads the base and touched experts at measured rates', () =
   })
 
   it('expert parallelism reads the full base on every GPU and 1/N of the touched experts', () => {
+    const numGPUs = 8
+    const sequenceLength = 1024
+    const batchSize = 64
     const single = calculateInferenceVRAM({
       model: kimi,
       quantization: 'mxfp4',
-      sequenceLength: 1024,
-      batchSize: 64,
+      sequenceLength,
+      batchSize,
     })
     const ep = calculateMultiGPUVRAM(
       single,
       kimi,
       b300.vram_gb,
-      8,
+      numGPUs,
       'expert-parallel',
       b300,
       'mxfp4',
     )
-    const measured = run(kimi, 64, ep).tokensPerSecond.toNumber()
-    const avg = run(averaged, 64, ep).tokensPerSecond.toNumber()
-    expect(measured).toBeLessThan(avg)
+    const result = run(kimi, batchSize, ep)
+    // `measured < avg` alone doesn't prove the base is replicated: a mutant that shards
+    // the base too (weightBytes / N, same as TP) still reads less than the averaged
+    // checkpoint and would pass. Require decode to be memory-bound here (so a pricing
+    // regression actually changes tokensPerSecond) and pin the exact per-GPU figure.
+    expect(result.isMemoryBound).toBe(true)
+
+    // Hand-priced independently of moeWeightSplit/routedTouchedFraction (see the helper
+    // doc comment above): read the mxfp4 ref literals plus kimi's base/routed split
+    // (splitMoEParams) directly.
+    if (!ref.high_precision) throw new Error('expected kimi mxfp4 ref with high_precision')
+    const split = splitMoEParams(kimi)
+    if (!split) throw new Error('expected kimi to split into base + routed experts')
+    const baseGiB = handPricedBaseGiB(
+      ref.gib,
+      kimi.num_parameters_billion,
+      split.baseB,
+      ref.high_precision,
+    )
+    const routedGiB = ref.gib - baseGiB
+    const touched = handTouchedFraction(split.expertsPerToken, split.experts, batchSize)
+    const perGPUWeightBytes = new Decimal(baseGiB + (routedGiB * touched) / numGPUs).mul(
+      BYTES_PER_GB,
+    )
+    const kvBytes = calculateKVCacheVRAM({
+      model: kimi,
+      sequenceLength,
+      batchSize,
+      kvPrecision: 'fp16',
+    }).mul(BYTES_PER_GB)
+    const stateBytes = calculateLinearStateVRAM(kimi, batchSize).mul(BYTES_PER_GB)
+    const perGPUKVBytes = kvBytes.sub(stateBytes).div(numGPUs).add(stateBytes.div(numGPUs))
+    const memorySeconds = perGPUWeightBytes
+      .add(perGPUKVBytes)
+      .div(new Decimal(b300.memory_bandwidth_gbps).mul(1e9))
+
+    const link = INTERCONNECT_SPECS[resolveInterconnect(b300)]
+    const commSecondsPerLayer = expertAllToAllSeconds(
+      batchSize / numGPUs,
+      split.expertsPerToken,
+      kimi.hidden_size,
+      link.bandwidthGBps / 2,
+      link.allreduceLatencyUs,
+    )
+    const stageSeconds = memorySeconds.add(commSecondsPerLayer * kimi.num_hidden_layers)
+    const expected = new Decimal(batchSize).div(stageSeconds)
+
+    expect(result.tokensPerSecond.div(expected).toNumber()).toBeCloseTo(1, 9)
+
+    const avg = run(averaged, batchSize, ep).tokensPerSecond.toNumber()
+    expect(result.tokensPerSecond.toNumber()).toBeLessThan(avg)
   })
 })
