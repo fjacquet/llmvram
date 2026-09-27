@@ -1,8 +1,8 @@
 # v2.0: Configuration Rules, GPU Topology, Simplified UI
 
 **Date:** 2026-09-27
-**Status:** Design approved in conversation 2026-09-27; spec pending review
-**ADRs:** 0004 (rule set), 0005 (audience and UI scope), 0006 (GPU topology)
+**Status:** Design approved in conversation 2026-09-27 (incl. multi-node model replacement and TTFT relabel); spec pending review
+**ADRs:** 0004 (rule set), 0005 (audience and UI scope), 0006 (GPU topology), 0007 (multi-node prefill/decode model)
 **Delivery:** one PR, released as v2.0.0 (plain merge and tag on the user's word)
 
 ## Context
@@ -37,13 +37,6 @@ vendor sources per card) found:
 ## Non-Goals
 
 - Counting replicas (the rename in Section 5 is a label, not a model).
-- **Deviation from the approved design, pending the user's choice:** the
-  fabric prefill efficiency floor (`EFFICIENCY_FLOOR`, `FABRIC_REFERENCE_GBPS`
-  in `src/engines/fabric.ts`). The user approved fixing it; it has no sourced
-  model yet and changing it would move existing 100/400 GbE results. Proposed:
-  defer, ship the 200GbE preset and a W3 warning. Consequence: after the GB10
-  fix, two DGX Sparks modelled correctly as two nodes show a first-token time
-  of ~194 s on 100G, about 15x too high.
 - AMD MI300X/MI325X per-degree mesh bandwidth (896 GB/s, priced at 1075).
   Deferred follow-up.
 - Linear-attention head divisibility for hybrid models (data lacks linear
@@ -94,7 +87,7 @@ this from `FRAMEWORK_PRESETS.none.mode`.
 |---|---|---|
 | W1 | sequenceLength > model context | existing RoPE/YaRN warning |
 | W2 | TP degree > interconnect recommendedMaxTPDegree | existing |
-| W3 | multi-node unified-memory or single-GPU-per-node clusters | "Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2. First-token time is overstated on fabrics below 200 Gb/s per node (known limit, see Non-Goals)." |
+| W3 | multi-node unified-memory or single-GPU-per-node clusters | "Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2; use the 200GbE fabric preset." |
 | W4 | custom GPU without FLOPS | memory-bound fallback note |
 | W5 | quantization format vs GPU generation | support note |
 | W6 | pipeline stages > num_hidden_layers | "{n} pipeline stages exceed {model}'s {L} layers; some stages would be empty." |
@@ -207,11 +200,65 @@ config/model.py, model_executor/layers/linear.py (TP divisibility).
   TP-4/8 on pcie-4.
 - 2x GB10 (was TP-2 over a fictitious NVLink-5), Llama 3.1 70B fp8 bs1:
   7.2 tok/s -> 3.6 (clamped to 1). Correct 2-node setup: ~3.4 tok/s; TTFT at
-  100G fabric 194 s (fabric floor, deferred; W3 shown).
+  100G fabric 13.3 s after Section 3b (was 195 s).
 - L40S / RTX 6000 Ada: decode unchanged, TTFT about +20%.
 - Unified-memory offload to cpu-ram (M3 Ultra, Llama 3.1 70B Q4_K_M, 30%):
   3.4 tok/s (fictitious slowdown) -> 17.7 tok/s (offloading off).
 - No change: R2, R3, R4, R8, R9, R10 for already-valid configs.
+
+## Section 3b: Multi-node prefill and decode model (ADR 0007)
+
+Replaces the unsourced efficiency heuristic in `src/engines/fabric.ts`
+(`fabricPrefillEfficiency`, `fabricDecodeEfficiency`, `FABRIC_REFERENCE_GBPS`,
+`EFFICIENCY_FLOOR`, `PP_BASE_EFFICIENCY`, added in 9f33ac3, never measured).
+
+- Stage-boundary transfer ("hop"):
+  `hop(tokens) = tokens x hidden x 2 tensors x 2 B / (eta x port x gpusPerNode) + latency`
+  (vLLM sends `hidden_states` and `residual`; each TP rank sends a 1/tp slice
+  and the receiver all-gathers, so per-node aggregate bandwidth applies).
+- Prefill: compute over the pipeline with the GPipe bubble, microbatches
+  `M = ceil(B x T / C)`, C = vLLM `max_num_batched_tokens` default (16384 for
+  >= 160 GB GPUs, 8192 for >= 70 GB non-A100, else 2048); speedup
+  `N x M / (M + N - 1)`; plus `(N - 1) x hop(T)`. At B = 1 and T <= C one
+  request walks the stages serially (no cross-node speedup).
+- Decode: existing `B / (B + stages - 1)` kept; the inter-node efficiency
+  multiplier is dropped; `(N - 1) / stages x hop(B)` added per step
+  (conservative: vLLM sends asynchronously).
+- Constants, labelled honestly in code and docs:
+  - eta GB10 (no GPUDirect RDMA) = 0.37 - SECONDARY source (one measurement:
+    NCCL send/recv ~9 GB/s vs 24.6 GB/s RDMA on a Spark 200G link).
+  - eta HGX = 0.8 - ASSUMPTION (hint only: GH200 all_reduce 45.4/50 GB/s).
+  - latency = 10 us RDMA floor (arXiv 2511.15076); vLLM metadata likely
+    50-200 us, still < 1% of a decode step.
+  - Justification for shipping them: results are insensitive to eta and
+    latency (doubling port speed changes decode by < 1%, matching vllm#6610:
+    21.0 tok/s at 400G vs 21.1 at 800G on 2x GH200 PP=2).
+- `classFactor` becomes `effectiveFraction` (eta); `MultiGPUVRAMBreakdown`
+  carries `interNodeGBps` instead of the two efficiencies. Consumers:
+  multi-node.ts, multi-gpu.ts, performance.ts, types.ts,
+  MultiGPUBreakdownChart, the worker and the sync hook.
+- TTFT meaning: for B > 1 the figure is the prefill of a burst of B prompts
+  divided by B. Label "Time to first token" -> "Prefill per request
+  (amortized over batch B)" in the UI and PPTX; the guide explains that in a
+  real burst the last request waits about B times longer.
+- New fabric preset `ethernet-200g` (portGBps 25).
+
+Impact (research pass, 8k context; TTFT s before -> after):
+- 2x GB10 70B B1 100G 195 -> 13.3; 4x GB10 70B B32 100G 71 -> 3.7;
+  4x GB10 405B B32 100G 395 -> 20.
+- HGX H100x8 70B B32: 2 nodes 100G 0.47 -> 0.20; 4 nodes 100G 0.25 -> 0.11.
+- HGX B1 (single request): 2 nodes 800G+ +16 to +26% slower; 4 nodes 200G+
+  +40 to +115% slower (the old cross-node speedup did not exist in vLLM).
+- Decode: GB10 100-800G +5 to +9%; HGX 100G +4-5%; else < 5%.
+- KV-tier "resume faster than recompute": no flip in 100 configs; tightest
+  70B B200x8 4-node B32 1.6T (resume 0.037 s vs recompute 0.048 s).
+
+Sources: vLLM `config/vllm.py` (max_concurrent_batches = pp_size),
+`v1/engine/core.py` (batch queue), `v1/core/sched/scheduler.py` (chunked
+prefill rescheduling), `engine/arg_utils.py` (max_num_batched_tokens),
+`distributed/parallel_state.py` (send_tensor_dict), `models/llama.py`;
+GPipe arXiv 1811.06965; Megatron arXiv 2104.04473; vllm#6610; vllm#41685;
+multimodalflow DGX Spark dual-node NCCL RDMA; arXiv 2511.15076.
 
 ## Section 4: UI (ADR 0005)
 
@@ -268,17 +315,23 @@ config/model.py, model_executor/layers/linear.py (TP divisibility).
 - UI: composition tests for InputPanel and ResultsPanel written before the
   layout change (visible-by-default set, auto-open on non-default, warnings
   visible, strategy reachable at max > 1); PDF export expands details.
+- Multi-node (Section 3b): doubling portGBps changes decode tok/s < 1%;
+  2-node B1 TTFT = single-node prefill + (N-1) x hop exactly; `fabricHopSeconds`
+  268,435,456 B at 25 x 0.37 GB/s + 10 us = 29.03 ms; 2x GB10 70B 8k TTFT
+  within 1% of one GB10; B32 applies M = ceil(B x T / C); single-node
+  passthrough unchanged; KV-tier verdict test on the tightest config.
 - No test fixture is a hand-written GPU/model literal (CLAUDE.md).
 
 ## Section 7: Delivery and docs
 
 Task order in the single PR: (1) rules module + tests; (2) store integration
-and URL restore; (3) GPU data, nvlink-3, resolveInterconnect; (4) 200GbE
-preset + W3; (5) allowedOptions in the UI + notices; (6) composition tests,
+and URL restore; (3) GPU data, nvlink-3, resolveInterconnect; (4) multi-node
+model (Section 3b) + 200GbE preset + TTFT relabel; (5) allowedOptions in the UI + notices; (6) composition tests,
 then the UI simplification; (7) guide, CHANGELOG, ADRs, CLAUDE.md.
 
 Docs: CHANGELOG `## [2.0.0]` with a "Breaking changes" subsection (layout,
-label rename, corrected links, per-card number changes, H200 id now SXM);
+label renames, corrected links, per-card number changes, H200 id now SXM,
+multi-node TTFT changes from Section 3b);
 CLAUDE.md (rules module key pattern; clamping no longer silent; numGPUs =
 parallel degree of one replica; nvlink_bridge / unified_memory);
 ARCHITECTURE.md; ADR 0006 moved to Accepted with the decisions taken.
