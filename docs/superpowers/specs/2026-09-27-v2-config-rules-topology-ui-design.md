@@ -65,12 +65,13 @@ R7, R8 in training.
 | R1 | numGPUs in [1, gpu.max_gpus_per_node] | clamp | "GPU count set to {n}: {gpu} supports at most {n} per server." |
 | R2 | expert-parallel only if `splitMoEParams(model) !== null` | -> tensor-parallel | "Strategy set to tensor parallel: {model} is not a MoE model." |
 | R3 | kvTier host-grace only if `graceLinkGBps(gpu.id) !== null` | -> none | "KV tier turned off: {gpu} has no Grace host memory." |
-| R4 | clampKVTier bounds; offloadHostCapacityGB > 0 or null | clamp / null | "KV tier setting adjusted to its allowed range." |
+| R4 | clampKVTier bounds; offloadHostCapacityGB > 0 or null | clamp / null | "KV tier setting adjusted to its allowed range." / "Host capacity reset to the default: it must be a positive number." |
 | R5 | interconnectOverride in gpu.interconnect_options, else null | -> null | "Interconnect reset to {default}: not available on {gpu}." |
 | R6 | `gpu.unified_memory === true` (the only source; never `interconnect === 'unified'` or the tier): no cpu-ram offload; kvTier not host-pcie/host-grace; no cpuOffloadOptimizer | offloadingEnabled=false (if target cpu-ram); tier none; optimizer offload false | "Offloading turned off: {gpu} has unified memory, RAM is the same pool." / "KV tier turned off: {gpu} has no separate host memory." / "CPU optimizer offload turned off: unified memory." |
+| R6 (action intent) | Enabling offloading on a unified-memory GPU while `offloadTarget === 'cpu-ram'` | -> `offloadTarget: 'nvme'` (not `offloadingEnabled=false`; the toggle stays on) | "Offload target set to NVMe: {gpu} has unified memory, RAM is the same pool." A shared link encoding the same combination is not an action intent and takes the plain R6 path above (offloading off, not NVMe). Product owner approved 2026-09-27. |
 | R7 | training mode + preset in {vllm, tgi} | preset -> none | "Framework preset cleared: {preset} is inference-only." |
 | R8 | cpuOffloadOptimizer only if preset.supportsCpuOffload (zero1/2/3) | -> false | "CPU optimizer offload turned off: needs a DeepSpeed ZeRO preset." |
-| R9 | offloadLayers in [0, model.num_hidden_layers]; offloadPercentage in [0,100] | clamp | "Offloaded layers set to {n}: {model} has {n} layers." |
+| R9 | offloadLayers in [0, model.num_hidden_layers]; offloadPercentage in [0,100] | clamp | "Offloaded layers set to {n}: {model} has {n} layers." / "Offload percentage set to {p}%: outside the allowed range." |
 | R10 | numNodes 1-8; batchSize >= 1; concurrentUsers >= 1; sequenceLength 512-10,485,760; loraRank >= 1; gradientAccumulationSteps >= 1 | clamp | "{field} set to {value}: outside the allowed range." |
 | R12 | kvCacheOffload and kvTier != none | tier -> none | "KV tier turned off: KV cache offload already keeps all KV off the GPU." |
 | R13 | interconnect_options only offered when max_gpus_per_node > 1 | (data + UI) | none |
@@ -161,7 +162,10 @@ Schema (`GPUSchema`, custom-GPU factory, URL custom-GPU schema):
   uses PCIe.
 - Bridge display label by bandwidth: "NVLink bridge — 600 GB/s" (H100/A100
   PCIe; the H100 bridge is NVLink 4 at 600 GB/s), "NVLink bridge — 900 GB/s"
-  (H200 NVL).
+  (H200 NVL). The data types the H100/A100 PCIe bridge as the 600 GB/s
+  `nvlink-3` bucket (the schema has no separate "NVLink 4 bridge at 600 GB/s"
+  tier), which is what drives the "NVLink bridge — 600 GB/s" label; the
+  bandwidth shown is correct either way.
 
 Per-card changes (sources in the table below):
 

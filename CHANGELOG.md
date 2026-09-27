@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+### Breaking changes
+
+- Layout: essential inputs stay visible; batch, KV precision, strategy, fabric, interconnect variant, offloading and KV tier move under "Advanced" (opens itself when any differs from its default). Results lead with a verdict; charts and tables are under "Details". The PDF export expands everything before capture.
+- Labels: "GPUs per server" is now "GPUs per replica (in one server)" in inference (UI and the PPTX "GPUs per replica" row, which replaces "Number of GPUs"; training keeps "Number of GPUs"); "Time to first token" reads "Prefill per request (amortized over batch B)" when the batch is above 1.
+- Shared links open corrected, with a "Shared link adjusted" notice, when they encode a combination that is no longer allowed (expert parallel on a dense model, tensor-parallel degrees vLLM refuses, Grace or host tiers on GPUs without them, CPU-RAM offload on unified memory, inference presets in fine-tuning, out-of-range numbers). Links now also restore gradient accumulation, gradient checkpointing, Flash Attention, the framework preset, CPU optimizer offload and the interconnect variant.
+- GPU data corrected per card (numbers change): H100 PCIe (PCIe 5 plus a 2-card NVLink bridge at 600 GB/s; FP16 756 dense, was the 1,513 sparse figure; TP-8 decode up to -26%), A100 PCIe (PCIe 4 plus a 2-card bridge; up to -25%), A100 SXM (NVLink 3 at 600 GB/s, was priced at 900), GB10 DGX Spark (1 GPU per node, no scale-up link: 2 Sparks are 2 servers), DGX Station (single GPU), L40S and RTX 6000 Ada (PCIe 4; TTFT about +20%).
+- `nvidia-h200-141gb` is now H200 SXM only. H200 NVL is a new entry, `nvidia-h200-nvl-141gb`. A link that meant the NVL card opens as SXM; this cannot be detected.
+- Multi-node TTFT and decode are computed from bytes over the fabric (ADR 0007): 2x GB10 Llama 3.1 70B 8k 195 s -> 13.3 s; HGX H100x8 70B batch 32 over two 100G servers 0.47 s -> 0.20 s; a single request over 2+ HGX servers is 16-115% slower (the old cross-node prefill speedup does not exist in vLLM). Decode moves under 10%.
+
+### Added
+
+- One configuration rule table (`src/engines/config-rules.ts`): impossible combinations are not offered, and every correction is shown in one notice per action.
+- H200 NVL (PCIe, 4-way NVLink bridge at 900 GB/s). GPU data fields `nvlink_bridge`, `unified_memory` and `gpudirect_rdma`; NVLink 3 (600 GB/s) interconnect.
+- 200GbE fabric preset (ConnectX-7) for DGX Spark / DGX Station clusters.
+- Soft warnings for small single-GPU clusters, uneven expert splits and more pipeline stages than layers.
+- "Reset advanced settings" (in the Advanced section) and "Reset all" (in the header) buttons, each showing one "Reset to defaults" notice; Reset all also clears the shared-link URL.
+
+### Changed
+
+- TGI is labelled "TGI (archived)"; existing links keep it.
+
 ## [1.13.0] - 2026-09-27
 
 ### Added

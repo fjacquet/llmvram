@@ -22,11 +22,11 @@ Browser-based tool for estimating VRAM requirements and performance when running
 - **Long Context**: Sequence lengths up to 1,048,576 tokens (and beyond for models with a larger
   native context, up to 10,485,760), with a native-context marker and a warning — never a clamp —
   when the requested length exceeds it
-- **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink-5/4, Infinity Fabric, PCIe-5/4)
+- **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink 5/4/3 and NVLink bridges, Infinity Fabric, PCIe 5/4)
 - **Multi-Node Scaling**: Configure GPUs per server and server count, with a selectable scale-out
   fabric (1.6TbE / 800GbE SONiC RoCEv2, InfiniBand XDR/NDR, 400GbE, 100GbE, or a custom port speed).
   Tensor parallelism runs inside each server; pipeline parallelism runs across servers
-- **Interconnect Selector**: Pick the active interconnect variant for GPUs with multiple options
+- **Configuration rules**: impossible combinations are not offered; any correction (including on a shared link) is explained in one notice
 - **Offloading**: CPU/RAM and NVMe offloading simulation; decode reads offloaded bytes over the host link every step (PCIe, NVMe, or Grace NVLink-C2C), and a host-capacity check flags offloaded memory that doesn't fit the host(s)
 - **Performance Estimation**: Tokens/sec from the bytes each decode step reads (active weights plus
   every session's KV cache) and, on multiple GPUs, all-reduce latency and pipeline fill;
@@ -42,7 +42,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
 
 | Vendor | GPUs |
 |--------|------|
-| **NVIDIA Datacenter** | H100 PCIe/SXM, H200, B200, HGX B300 (8-GPU) / GB300 NVL72 (72-GPU rack), A100 PCIe/SXM, L40S, RTX PRO 6000, RTX 6000 Ada |
+| **NVIDIA Datacenter** | H100 PCIe/SXM, H200 SXM/NVL, B200, HGX B300 (8-GPU) / GB300 NVL72 (72-GPU rack), A100 PCIe/SXM, L40S, RTX PRO 6000, RTX 6000 Ada |
 | **NVIDIA Consumer** | RTX 5090, RTX 4090, RTX 3090, DGX Station (GB300 Desktop Superchip), DGX Spark (GB10) |
 | **AMD** | MI355X, MI350X, MI325X, MI300X |
 | **Apple Silicon** | M1/M2/M3 Ultra, M1/M2/M3/M4/M5 Max |
