@@ -405,6 +405,7 @@ export function resolveInterconnect(gpu: GPU): InterconnectType {
   const interconnect = gpu.interconnect
 
   // Direct mapping for specific types
+  if (interconnect === 'nvlink-3') return 'nvlink-3'
   if (interconnect === 'nvlink-4') return 'nvlink-4'
   if (interconnect === 'nvlink-5') return 'nvlink-5'
   if (interconnect === 'pcie-4') return 'pcie-4'

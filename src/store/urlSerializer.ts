@@ -48,6 +48,13 @@ export const URLStateSchema = z.object({
       // legitimate serialized value, not just a hostile edit.
       memory_bandwidth_gbps: z.number().nonnegative(),
       fp16_tflops: z.number().positive().optional(),
+      unified_memory: z.boolean().optional(),
+      nvlink_bridge: z
+        .object({
+          type: z.enum(['nvlink-3', 'nvlink-4', 'nvlink-5']),
+          size: z.number().int().min(2),
+        })
+        .optional(),
     })
     .optional(),
   // Calculation parameters (short keys)
@@ -207,6 +214,8 @@ export function serializeToURL(state: {
             vram_gb: state.selectedGPU.vram_gb,
             memory_bandwidth_gbps: state.selectedGPU.memory_bandwidth_gbps,
             fp16_tflops: state.selectedGPU.fp16_tflops,
+            unified_memory: state.selectedGPU.unified_memory,
+            nvlink_bridge: state.selectedGPU.nvlink_bridge,
           },
         }
       : state.selectedGPU

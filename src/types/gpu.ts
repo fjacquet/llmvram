@@ -10,6 +10,7 @@ export interface CustomGPUInput {
   memory_bandwidth_gbps?: number
   fp16_tflops?: number
   fp32_tflops?: number
+  unified_memory?: boolean
 }
 
 // Helper to convert custom input to GPU
@@ -27,5 +28,6 @@ export function createCustomGPU(input: CustomGPUInput): GPU {
     tier: 'consumer',
     interconnect: 'none',
     max_gpus_per_node: 8,
+    ...(input.unified_memory ? { unified_memory: true } : {}),
   }
 }

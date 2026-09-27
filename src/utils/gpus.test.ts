@@ -70,8 +70,11 @@ describe('GPU Database Validation', () => {
     const validInterconnects = [
       'none',
       'nvlink',
+      'nvlink-3',
       'nvlink-4',
       'nvlink-5',
+      'pcie-4',
+      'pcie-5',
       'infinity-fabric',
       'unified',
       undefined,
@@ -226,5 +229,88 @@ describe('NVIDIA B200', () => {
   it('lists B200 at dense FP16 (HGX B200: 36 PF sparse / 8 / 2)', () => {
     const b200 = gpusData.find((g) => g.id === 'nvidia-b200-192gb')
     expect(b200?.fp16_tflops).toBe(2250)
+  })
+})
+
+describe('GPU topology (v2 per-card audit, spec Section 3)', () => {
+  const gpus = validateGPUs(gpusData)
+  const byId = (id: string) => {
+    const gpu = gpus.find((g) => g.id === id)
+    if (!gpu) throw new Error(`GPU not found: ${id}`)
+    return gpu
+  }
+
+  // HEAD already carried 28 rows (including nvidia-gb300-nvl72, added after the
+  // "27 GPUs" count in the spec/brief was written); this task adds one more.
+  it('lists 29 GPUs (28 at HEAD incl. GB300 NVL72, plus H200 NVL split from H200 SXM)', () => {
+    expect(gpus).toHaveLength(29)
+  })
+
+  it('H100 PCIe: PCIe 5 with a 2-card NVLink bridge at 600 GB/s, dense FP16 756', () => {
+    const g = byId('nvidia-h100-80gb-pcie')
+    expect(g.interconnect).toBe('pcie-5')
+    expect(g.nvlink_bridge).toEqual({ type: 'nvlink-3', size: 2 })
+    expect(g.fp16_tflops).toBe(756)
+  })
+
+  it('A100 PCIe: PCIe 4 with a 2-card NVLink bridge; A100 SXM: NVLink 3', () => {
+    expect(byId('nvidia-a100-80gb-pcie').interconnect).toBe('pcie-4')
+    expect(byId('nvidia-a100-80gb-pcie').nvlink_bridge).toEqual({ type: 'nvlink-3', size: 2 })
+    expect(byId('nvidia-a100-80gb-sxm').interconnect).toBe('nvlink-3')
+  })
+
+  it('H200 id is the SXM product with no interconnect variants', () => {
+    const g = byId('nvidia-h200-141gb')
+    expect(g.interconnect).toBe('nvlink-4')
+    expect(g.interconnect_options).toBeUndefined()
+    expect(g.nvlink_bridge).toBeUndefined()
+  })
+
+  it('H200 NVL: PCIe 5 card with a 4-way NVLink 4 bridge, dense FP16 835', () => {
+    const g = byId('nvidia-h200-nvl-141gb')
+    expect(g).toMatchObject({
+      vram_gb: 141,
+      memory_bandwidth_gbps: 4800,
+      fp16_tflops: 835,
+      fp32_tflops: 60,
+      interconnect: 'pcie-5',
+      nvlink_bridge: { type: 'nvlink-4', size: 4 },
+      max_gpus_per_node: 8,
+      tier: 'datacenter',
+    })
+  })
+
+  it('GB10 (DGX Spark) is one GPU per node, no scale-up link, unified memory, no GPUDirect RDMA', () => {
+    const g = byId('nvidia-gb10')
+    expect(g.max_gpus_per_node).toBe(1)
+    expect(g.interconnect).toBe('none')
+    expect(g.interconnect_options).toBeUndefined()
+    expect(g.unified_memory).toBe(true)
+    expect(g.gpudirect_rdma).toBe(false)
+  })
+
+  it('no other database GPU sets gpudirect_rdma (undefined reads as RDMA-capable)', () => {
+    expect(gpus.filter((g) => g.gpudirect_rdma !== undefined).map((g) => g.id)).toEqual([
+      'nvidia-gb10',
+    ])
+  })
+
+  it('GB300 Desktop Superchip has no GPU-to-GPU link (single GPU)', () => {
+    expect(byId('nvidia-gb300-desktop-252gb').interconnect).toBe('none')
+  })
+
+  it('L40S and RTX 6000 Ada are explicit PCIe 4', () => {
+    expect(byId('nvidia-l40s').interconnect).toBe('pcie-4')
+    expect(byId('nvidia-rtx-6000-ada').interconnect).toBe('pcie-4')
+  })
+
+  it('marks every Apple Silicon row and GB10 as unified memory, and nothing else', () => {
+    const unified = gpus.filter((g) => g.unified_memory === true).map((g) => g.id)
+    const expected = gpus.filter((g) => g.manufacturer === 'apple').map((g) => g.id)
+    expect(unified.sort()).toEqual([...expected, 'nvidia-gb10'].sort())
+  })
+
+  it('no database GPU offers interconnect variants any more', () => {
+    expect(gpus.filter((g) => g.interconnect_options !== undefined)).toEqual([])
   })
 })

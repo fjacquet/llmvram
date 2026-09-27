@@ -2,7 +2,7 @@ import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import { DEFAULT_KV_TIER } from '@engines/kv-tier'
 import type { GPU, Model } from '@utils/schemas'
-import { validateGPU, validateGPUs, validateModels } from '@utils/schemas'
+import { validateGPUs, validateModels } from '@utils/schemas'
 import { compressToEncodedURIComponent } from 'lz-string'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,8 +61,7 @@ const L70 = findModel('meta-llama-llama-3.1-70b')
 const DSR1 = findModel('deepseek-r1')
 const H100 = findGPU('nvidia-h100-80gb-sxm')
 const NVL72 = findGPU('nvidia-gb300-nvl72')
-// Task 3a sets unified_memory in the data and replaces this with findGPU('apple-m3-ultra').
-const UNIFIED_M3 = validateGPU({ ...findGPU('apple-m3-ultra'), unified_memory: true })
+const UNIFIED_M3 = findGPU('apple-m3-ultra')
 
 async function freshStore() {
   const { useUIStore, DEFAULT_UI_CONFIG } = await import('@store/uiStore')
@@ -481,23 +480,13 @@ describe('uiStore: shared-link restore is one normalized action', () => {
   })
 
   it('a link with offloading on, target cpu-ram, on a unified-memory GPU restores with offloading OFF (R6), not NVMe', async () => {
-    const store = await freshStore()
-    const { deserializeFromURL, urlStateToConfig } = await import('@store/urlSerializer')
-    const decoded = deserializeFromURL(
-      compressToEncodedURIComponent(
-        JSON.stringify({ ...base, modelId: L70.id, gpuId: UNIFIED_M3.id, oe: true, ot: 'cpu-ram' }),
-      ),
-    )
-    if (!decoded) throw new Error('expected the link to parse')
-    // UNIFIED_M3 isn't in the real database yet (Task 3a lands unified_memory data), so
-    // resolve its id through a lookup that hands back the synthetic fixture directly —
-    // the restore path (source 'link') is what's under test, not the database contents.
-    const { patch } = urlStateToConfig(decoded, {
-      findModel: (id) => (id === L70.id ? L70 : null),
-      findGPU: (id) => (id === UNIFIED_M3.id ? UNIFIED_M3 : null),
+    const state = await restore({
+      ...base,
+      modelId: L70.id,
+      gpuId: UNIFIED_M3.id,
+      oe: true,
+      ot: 'cpu-ram',
     })
-    store.getState().restoreConfig(patch)
-    const state = store.getState()
     // Unlike setOffloadingEnabled's action intent (unit test above), a link restore
     // applies the plain rule: R6 turns offloading off, it does not pick NVMe.
     expect(state.offloadingEnabled).toBe(false)

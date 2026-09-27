@@ -749,6 +749,15 @@ describe('urlStateToConfig', () => {
     expect(patch).toMatchObject(rest)
   })
 
+  it('round-trips a custom GPU unified-memory flag', () => {
+    const custom = { ...realGPU('apple-m3-ultra'), id: 'custom-1' }
+    const decoded = deserializeFromURL(
+      serializeToURL({ ...everyKey, mode: 'inference' as const, selectedGPU: custom }),
+    )
+    if (!decoded) throw new Error('expected the link to parse')
+    expect(urlStateToConfig(decoded, lookups).patch.selectedGPU?.unified_memory).toBe(true)
+  })
+
   it('restores fp raw: no auto-optimizations overwrite the link optimizer and flags', () => {
     const state = {
       ...everyKey,

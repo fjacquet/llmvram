@@ -146,10 +146,11 @@ export const FRAMEWORK_PRESETS: Record<FrameworkPreset, FrameworkPresetConfig> =
     description: 'vLLM inference engine with PagedAttention',
   },
   tgi: {
-    name: 'Text Generation Inference',
+    name: 'TGI (archived)',
     mode: 'inference',
     zeroStage: null,
     autoOptimizations: {},
-    description: 'HuggingFace Text Generation Inference optimized serving',
+    description:
+      'HuggingFace Text Generation Inference (archived upstream; kept so existing links still open)',
   },
 }

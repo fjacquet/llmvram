@@ -117,6 +117,7 @@ export type ShardingStrategy = 'tensor-parallel' | 'pipeline-parallel' | 'expert
  * All bandwidths are BIDIRECTIONAL per-GPU figures, matching how NVIDIA and AMD
  * publish them. Do not mix in unidirectional numbers.
  *
+ * - nvlink-3: 3rd gen NVLink (600 GB/s): A100 SXM, and the H100/A100 PCIe bridges
  * - nvlink-4: 4th gen NVLink (900 GB/s)
  * - nvlink-5: 5th gen NVLink (1800 GB/s)
  * - infinity-fabric: AMD xGMI, 8-way fully connected (1075 GB/s)
@@ -125,6 +126,7 @@ export type ShardingStrategy = 'tensor-parallel' | 'pipeline-parallel' | 'expert
  * - none: No multi-GPU support (single GPU only)
  */
 export type InterconnectType =
+  | 'nvlink-3'
   | 'nvlink-4'
   | 'nvlink-5'
   | 'infinity-fabric'

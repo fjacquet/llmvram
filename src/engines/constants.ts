@@ -230,6 +230,15 @@ const NVLINK_ALLREDUCE_LATENCY_US = 11
 const PCIE_ALLREDUCE_LATENCY_US = 25
 
 export const INTERCONNECT_SPECS: Record<InterconnectType, InterconnectSpec> = {
+  'nvlink-3': {
+    type: 'nvlink-3',
+    bandwidthGBps: 600,
+    recommendedMaxTPDegree: 8,
+    // Same +0.05-per-doubling slope as the other rows: 0.92 - 0.05 * log2(900/600) = 0.891.
+    // Derived, not measured.
+    tpScalingEfficiency: 0.89,
+    allreduceLatencyUs: NVLINK_ALLREDUCE_LATENCY_US,
+  },
   'nvlink-4': {
     type: 'nvlink-4',
     bandwidthGBps: 900,
@@ -456,6 +465,7 @@ export const PREFILL_CHUNK_TOKENS = 16384
  * each interconnect option. Keyed by the interconnect enum value.
  */
 export const INTERCONNECT_LABELS: Partial<Record<string, string>> = {
+  'nvlink-3': 'NVLink 3 — 600 GB/s',
   'nvlink-4': 'NVLink 4 — 900 GB/s',
   'nvlink-5': 'NVLink 5 — 1800 GB/s',
   'infinity-fabric': 'Infinity Fabric — 1075 GB/s',

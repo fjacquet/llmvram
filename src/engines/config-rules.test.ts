@@ -40,11 +40,9 @@ const GEMMA_1B = findModel('google-gemma-3-1b') // 4 heads, 1 KV head
 const H100 = findGPU('nvidia-h100-80gb-sxm') // max 8
 const NVL72 = findGPU('nvidia-gb300-nvl72') // max 72, Grace host
 const M3 = findGPU('apple-m3-ultra') // max 1
-// Derived rows, validated by the real schema. UNIFIED_M3: Task 3a sets
-// unified_memory in the data and replaces this with M3. WITH_OPTIONS: after
-// Task 3a no database GPU carries interconnect_options, so R5 is only reachable
-// through a row like this one.
-const UNIFIED_M3 = validateGPU({ ...M3, unified_memory: true })
+const UNIFIED_M3 = M3 // unified_memory comes from gpus.json since Task 3a
+// Derived row, validated by the real schema. After Task 3a no database GPU
+// carries interconnect_options, so R5 is only reachable through a row like this one.
 const WITH_OPTIONS = validateGPU({ ...H100, interconnect_options: ['nvlink-4', 'pcie-5'] })
 
 const cfg = (patch: Partial<RuleConfig> = {}): RuleConfig => ({ ...DEFAULT_RULE_CONFIG, ...patch })
@@ -242,6 +240,16 @@ const CASES: RuleCase[] = [
     model: L8,
     gpu: UNIFIED_M3,
     expected: { cpuOffloadOptimizer: false },
+  },
+  {
+    rule: 'R6',
+    path: 'dependency',
+    name: 'PCIe tier then DGX Spark',
+    config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'host-pcie' } },
+    model: L8,
+    gpu: findGPU('nvidia-gb10'),
+    validUnder: { model: L8, gpu: H100 },
+    expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } },
   },
   // R7: inference-only presets cleared in training
   {
