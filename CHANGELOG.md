@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - PPTX export moved from `pptxgenjs` 4.0.1 (unmaintained since June 2025; depends on the placeholder `https` npm package, ships `@types/node` at runtime, bundles `jszip` 3) to its maintained fork `pptxgenjs-plus` (^4.3.4, `@node-projects/jszip` 4, same API). Chart labels are passed in the nested `string[][]` form the fork's types require; output is identical.
+- All dependencies to latest: TypeScript 7 (`baseUrl` removed from tsconfigs; `paths` now relative), Vitest 5, `@vitejs/plugin-react` 6, jsdom 30, `@testing-library/jest-dom` 7, plus patch releases. Lockfile regenerated. `@types/node` stays on 24 to match the Node 24 runtime in CI.
 
 ## [1.11.0] - 2026-09-27
 
