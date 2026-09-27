@@ -90,6 +90,7 @@ export const URLStateSchema = z.object({
       'infiniband-xdr',
       'infiniband-ndr',
       'ethernet-400g',
+      'ethernet-200g',
       'ethernet-100g',
       'custom',
     ])

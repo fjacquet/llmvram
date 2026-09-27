@@ -864,3 +864,23 @@ describe('urlStateToConfig', () => {
     expect(deserializeFromURL(badGPU)).toBeNull()
   })
 })
+
+describe('200GbE fabric links', () => {
+  it('parses fab: ethernet-200g', () => {
+    const decoded = deserializeFromURL(
+      compressToEncodedURIComponent(
+        JSON.stringify({
+          q: 'fp16',
+          sl: 4096,
+          bs: 1,
+          kvq: 'fp16',
+          ng: 1,
+          ss: 'tensor-parallel',
+          nn: 2,
+          fab: 'ethernet-200g',
+        }),
+      ),
+    )
+    expect(decoded?.fab).toBe('ethernet-200g')
+  })
+})
