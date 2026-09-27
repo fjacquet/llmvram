@@ -53,6 +53,14 @@ const baseState = {
   numNodes: 1,
   interNodeFabric: 'ethernet-800g' as const,
   customFabric: null,
+  concurrentUsers: 1,
+  kvTier: {
+    tier: 'none' as const,
+    customGBps: null,
+    activeShare: 0.25,
+    burstSeconds: 30,
+    capacityTB: null,
+  },
   frameworkPreset: 'none' as const,
   cpuOffloadOptimizer: false,
 }
@@ -69,6 +77,48 @@ describe('URL Serializer', () => {
   })
 
   describe('serializeToURL and deserializeFromURL', () => {
+    it('round-trips concurrent users and the KV tier', () => {
+      const serialized = serializeToURL({
+        ...baseState,
+        concurrentUsers: 2500,
+        kvTier: {
+          tier: 'network',
+          customGBps: 20,
+          activeShare: 0.1,
+          burstSeconds: 45,
+          capacityTB: 500,
+        },
+      })
+      const d = deserializeFromURL(serialized)
+      expect(d?.cu).toBe(2500)
+      expect(d?.kt).toEqual({ t: 'network', g: 20, a: 0.1, b: 45, c: 500 })
+    })
+
+    it('omits the tier when it is none and users when there is one', () => {
+      const d = deserializeFromURL(
+        serializeToURL({
+          ...baseState,
+          concurrentUsers: 1,
+          kvTier: {
+            tier: 'none',
+            customGBps: null,
+            activeShare: 0.25,
+            burstSeconds: 30,
+            capacityTB: null,
+          },
+        }),
+      )
+      expect(d?.cu).toBeUndefined()
+      expect(d?.kt).toBeUndefined()
+    })
+
+    it('still parses links made before these keys existed', () => {
+      const d = deserializeFromURL(serializeToURL(baseState))
+      expect(d).not.toBeNull()
+      expect(d?.cu).toBeUndefined()
+      expect(d?.kt).toBeUndefined()
+    })
+
     it('should round-trip curated model and GPU', () => {
       const serialized = serializeToURL(baseState)
       expect(serialized).toBeTypeOf('string')

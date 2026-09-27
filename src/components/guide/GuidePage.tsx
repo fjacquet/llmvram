@@ -406,6 +406,14 @@ export function GuidePage() {
             users exceed it.
           </li>
           <li>
+            <strong>KV storage tier</strong> — Idle sessions park their KV cache off the GPU (host
+            memory, NVMe or network storage) and reload it when they resume. Sessions held =
+            sessions that fit ÷ active share. Resume vs recompute shows which is faster: short
+            prompts recompute faster. Tier traffic turns red when it exceeds the tier bandwidth.
+            Cluster-scale storage such as Dell Lightning FS (16K+ GPUs) is sized in the storage
+            calculator, not here.
+          </li>
+          <li>
             <strong>Time to First Token (TTFT)</strong> — Latency for the first output token.
             Dominated by prompt processing (prefill), so it grows with prompt length: past a
             crossover the quadratic attention term overtakes the linear weight term and TTFT rises

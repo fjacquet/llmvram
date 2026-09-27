@@ -4,6 +4,7 @@ import { GPUCountSelector } from '@components/inputs/GPUCountSelector'
 import { GPUSelector } from '@components/inputs/GPUSelector'
 import { InterNodeFabricSelector } from '@components/inputs/InterNodeFabricSelector'
 import { KVQuantizationPicker } from '@components/inputs/KVQuantizationPicker'
+import { KVTierPanel } from '@components/inputs/KVTierPanel'
 import { ModelSelector } from '@components/inputs/ModelSelector'
 import { ModeToggle } from '@components/inputs/ModeToggle'
 import { NodeCountSelector } from '@components/inputs/NodeCountSelector'
@@ -72,6 +73,12 @@ export function InputPanel() {
 
             <hr className="border-gray-200 dark:border-gray-700" />
             <OffloadingPanel />
+            {mode === 'inference' && (
+              <>
+                <hr className="border-gray-200 dark:border-gray-700" />
+                <KVTierPanel />
+              </>
+            )}
           </>
         )}
 

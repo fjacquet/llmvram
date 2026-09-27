@@ -1,4 +1,6 @@
+import { MAX_CONCURRENT_USERS } from '@engines/constants'
 import type { FrameworkPreset } from '@engines/frameworks'
+import { KV_TIER_TYPES, type KVTierSettings } from '@engines/kv-tier'
 import type {
   FabricType,
   FineTuningMethod,
@@ -50,6 +52,16 @@ export const URLStateSchema = z.object({
   kvq: z.string(), // kvQuantization
   ng: z.number(), // numGPUs — PER NODE; see CHANGELOG.md "Multi-node inference" entry
   ss: z.string(), // shardingStrategy
+  cu: z.number().int().min(1).max(MAX_CONCURRENT_USERS).optional(), // concurrentUsers (absent = 1)
+  kt: z
+    .object({
+      t: z.enum(KV_TIER_TYPES), // tier
+      g: z.number().positive().optional(), // customGBps
+      a: z.number().min(0.01).max(1), // activeShare
+      b: z.number().min(1), // burstSeconds
+      c: z.number().positive().optional(), // capacityTB
+    })
+    .optional(), // KV storage tier (absent = none)
   // Multi-node (absent = single node, for backward compatibility with links
   // created before this feature, where ng meant the total GPU count)
   nn: z.number().int().min(1).max(8).optional(), // numNodes — matches NodeCountSelector's 1-8 bound
@@ -125,6 +137,8 @@ export function serializeToURL(state: {
   kvQuantization: KVCachePrecision
   numGPUs: number
   shardingStrategy: ShardingStrategy
+  concurrentUsers: number
+  kvTier: KVTierSettings
   numNodes: number
   interNodeFabric: FabricType
   customFabric: CustomFabricInput | null
@@ -186,6 +200,19 @@ export function serializeToURL(state: {
     kvq: state.kvQuantization,
     ng: state.numGPUs,
     ss: state.shardingStrategy,
+    ...(state.concurrentUsers > 1 ? { cu: state.concurrentUsers } : {}),
+    // JSON.stringify drops the undefined g / c
+    ...(state.kvTier.tier !== 'none'
+      ? {
+          kt: {
+            t: state.kvTier.tier,
+            g: state.kvTier.customGBps ?? undefined,
+            a: state.kvTier.activeShare,
+            b: state.kvTier.burstSeconds,
+            c: state.kvTier.capacityTB ?? undefined,
+          },
+        }
+      : {}),
 
     // Multi-node (only when actually multi-node, to keep single-node links short)
     ...(state.numNodes > 1

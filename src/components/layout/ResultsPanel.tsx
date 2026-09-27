@@ -10,6 +10,7 @@ import {
   perUserTimeToFirstToken,
   perUserTokensPerSecond,
 } from '@engines/concurrency'
+import { kvTierSummary } from '@engines/kv-tier'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
@@ -19,6 +20,7 @@ import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
 import { exportPptx } from '@utils/exportPptx'
 import { formatDuration } from '@utils/formatDuration'
+import Decimal from 'decimal.js'
 import { useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 
@@ -50,6 +52,7 @@ export function ResultsPanel() {
     offloadLayers,
     kvCacheOffload,
     concurrentUsers,
+    kvTier,
   } = useUIStore()
 
   // Read comparison store for save functionality
@@ -297,6 +300,20 @@ export function ResultsPanel() {
     concurrentUsers,
     gpuVramGB: selectedGPU.vram_gb,
   })
+
+  // KV storage tier: sessions held with idle KV parked off-GPU (null = no tier)
+  const tierSummary =
+    maxSessions === null
+      ? null
+      : kvTierSummary({
+          settings: kvTier,
+          maxHotSessions: maxSessions,
+          perGPUKVGB: perGPU.kvCache.toNumber(),
+          totalKVGB: result.vram.kvCache.toNumber(),
+          concurrentUsers,
+          multi: result.multiGPU,
+          recomputeSeconds: result.performance.prefillSeconds?.toNumber() ?? null,
+        })
 
   /**
    * Generate descriptive label for snapshot
@@ -679,6 +696,34 @@ export function ResultsPanel() {
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   At 90% of each GPU&apos;s memory (vLLM default), after weights and overhead
+                </p>
+              </div>
+            )}
+
+            {tierSummary && (
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 space-y-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  With the KV storage tier ({Math.round(kvTier.activeShare * 100)}% active)
+                </p>
+                <p className="text-base font-semibold text-gray-900 dark:text-white">
+                  {tierSummary.sessionsHeld.toLocaleString('en-US')} sessions held
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Resume {formatDuration(new Decimal(tierSummary.resumeSeconds))}
+                  {result.performance.prefillSeconds &&
+                    ` vs recompute ${formatDuration(result.performance.prefillSeconds)} (${
+                      tierSummary.resumeFaster ? 'resume is faster' : 'recompute is faster'
+                    })`}
+                </p>
+                <p
+                  className={`text-xs ${
+                    tierSummary.overloaded
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  Tier reads {tierSummary.trafficGBps.toFixed(1)} GB/s of{' '}
+                  {tierSummary.tierGBps.toFixed(0)} GB/s available
                 </p>
               </div>
             )}

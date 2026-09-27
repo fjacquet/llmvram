@@ -16,7 +16,8 @@ const { useUIStore } = vi.hoisted(() => {
 
 vi.mock('@store/uiStore', () => ({ useUIStore }))
 
-import { ConcurrentUsersInput, MAX_CONCURRENT_USERS } from './ConcurrentUsersInput'
+import { MAX_CONCURRENT_USERS } from '@engines/constants'
+import { ConcurrentUsersInput } from './ConcurrentUsersInput'
 
 describe('ConcurrentUsersInput', () => {
   beforeEach(() => useUIStore.setState({ concurrentUsers: 1 }))

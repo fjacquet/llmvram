@@ -28,6 +28,12 @@ export const FRAMEWORK_OVERHEAD_GB = new Decimal(1.0)
 export const GPU_MEMORY_UTILIZATION = 0.9
 
 /**
+ * Upper bound on concurrent users: rack-scale sizing reaches thousands of sessions
+ * (e.g. ~2,200 for Kimi K3 on one GB300 NVL72 at 262k context).
+ */
+export const MAX_CONCURRENT_USERS = 65536
+
+/**
  * Bytes per parameter for each quantization format
  *
  * Float formats: Standard precision
