@@ -370,6 +370,31 @@ describe('uiStore: every action normalizes, one notice per action', () => {
     expect(store.getState().pendingNotice).toBeNull()
   })
 
+  it('resetAdvancedSettings with numNodes 1 resets a non-default fabric silently, no fabric line (item D)', async () => {
+    const store = await freshStore()
+    const { DEFAULT_UI_CONFIG } = await import('@store/uiStore')
+    store.setState({
+      selectedModel: L70,
+      selectedGPU: H100,
+      numNodes: 1,
+      interNodeFabric: 'infiniband-xdr',
+    })
+    store.getState().resetAdvancedSettings()
+    const state = store.getState()
+    // Reset silently: the fabric field itself still goes back to default...
+    expect(state.interNodeFabric).toBe(DEFAULT_UI_CONFIG.interNodeFabric)
+    // ...but since it's inert at numNodes 1 (countAdvancedChanges' own gate), it must
+    // not produce a notice line, and nothing else changed, so there's no notice at all.
+    expect(state.pendingNotice).toBeNull()
+  })
+
+  it('resetAll clears a stale pendingNotice even when already at defaults', async () => {
+    const store = await freshStore()
+    store.setState({ pendingNotice: { title: 'Adjusted for something', lines: ['x'], id: 1 } })
+    store.getState().resetAll()
+    expect(store.getState().pendingNotice).toBeNull()
+  })
+
   it('resetAll returns to the initial empty state, clears the hash, with one line', async () => {
     const store = await freshStore()
     const { DEFAULT_UI_CONFIG } = await import('@store/uiStore')
@@ -433,9 +458,9 @@ describe('uiStore: shared-link restore is one normalized action', () => {
   it('clamps non-integer and negative counts', async () => {
     expect((await restore({ ...base, modelId: L70.id, gpuId: H100.id, ng: 2.5 })).numGPUs).toBe(2)
     expect((await restore({ ...base, modelId: L70.id, gpuId: H100.id, ng: -3 })).numGPUs).toBe(1)
-    expect(
-      (await restore({ ...base, modelId: L70.id, gpuId: H100.id, nn: 12, cu: 0 })).numNodes,
-    ).toBe(8)
+    const clamped = await restore({ ...base, modelId: L70.id, gpuId: H100.id, nn: 12, cu: 0 })
+    expect(clamped.numNodes).toBe(8)
+    expect(clamped.concurrentUsers).toBe(1)
   })
 
   it('keeps EP and 6 GPUs when the link model is unknown; the first model pick then corrects both', async () => {

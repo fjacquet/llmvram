@@ -215,11 +215,16 @@ function describeAdvancedReset(before: UIConfig): string[] {
   if (before.shardingStrategy !== d.shardingStrategy) {
     lines.push(`Sharding strategy reset to ${d.shardingStrategy.replace('-', ' ')}.`)
   }
-  if (before.interNodeFabric !== d.interNodeFabric || before.customFabric !== d.customFabric) {
-    lines.push(`Fabric reset to ${resolveFabricSpec(d.interNodeFabric, d.customFabric).label}.`)
-  }
   if (before.interconnectOverride !== d.interconnectOverride) {
     lines.push('Interconnect variant reset to the default.')
+  }
+  // Fabric only matters across servers (countAdvancedChanges gates it the same way):
+  // at numNodes 1 it's inert, so a silent reset shouldn't get a notice line either.
+  if (
+    before.numNodes > 1 &&
+    (before.interNodeFabric !== d.interNodeFabric || before.customFabric !== d.customFabric)
+  ) {
+    lines.push(`Fabric reset to ${resolveFabricSpec(d.interNodeFabric, d.customFabric).label}.`)
   }
   const offloadChanged =
     before.offloadingEnabled !== d.offloadingEnabled ||
@@ -385,6 +390,10 @@ export const useUIStore = create<UIState>()(
           title: 'Reset to defaults',
           lines: wasAtDefaults ? [] : ['Configuration reset to defaults.'],
         })
+        // Already at defaults: commit() above has no lines to publish, so it leaves
+        // pendingNotice untouched — clear a stale one explicitly instead of letting
+        // an unrelated earlier notice linger after "Reset".
+        if (wasAtDefaults) set({ pendingNotice: null })
         // Drop the shared-link hash immediately: reset means starting over, not
         // re-sharing the config it just cleared. useURLSync's debounced sync effect
         // (Task 2b) also fires from this same state change; its own `isAtDefaults`
