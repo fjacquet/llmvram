@@ -83,6 +83,7 @@ When implementing VRAM calculations, be aware of these critical estimation error
 6. **`fp16_tflops` is DENSE**: H100 989, B200 2250, GB300 2500, MI300X 1307. NVIDIA's Blackwell pages ("with sparsity unless otherwise noted") and AMD ("4.6/5.0 PFLOPS") both publish FP16 *with sparsity* — double the dense figure. Dense FP16 = dense FP8 / 2. A test guards every GPU below 2600.
 7. **Two interconnect tables, two unit conventions**: `INTERCONNECT_SPECS` (scale-up, GPU-to-GPU in one chassis) is **bidirectional** per-GPU; `FABRIC_SPECS` (scale-out, server-to-server) `portGBps` is **unidirectional** per port. Mixing them halves or doubles the answer.
 8. **B200 is 180GB, not 192GB**: 192 is the physical HBM3e stack size before reserved capacity. HGX B200 ships 1.44TB across 8 GPUs. Use the allocatable figure.
+9. **`weight_refs` give one averaged bytes/param for the whole checkpoint**: a mixed-precision MoE checkpoint (base often BF16, routed experts quantized) is split by parameter fraction and priced at that single average rate — both in `multi-gpu.ts` expert-parallel per-GPU memory and in `performance.ts` MoE/EP decode bytes. Real checkpoints keep the base disproportionately 16-bit, so this understates both (Kimi K3 mxfp4 EP8: ~207 GiB estimated vs ~272 GiB real). Follow-up: record 16-bit vs quantized parameter counts per ref instead of one blended figure.
 
 See `docs/vram-calculation-pitfalls.md` for the complete reference (`.planning/research/` is the frozen v1 research).
 
