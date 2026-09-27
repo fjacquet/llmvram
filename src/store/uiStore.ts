@@ -1,7 +1,12 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
-import { clampKVTier, DEFAULT_KV_TIER, type KVTierSettings } from '@engines/kv-tier'
+import {
+  clampKVTier,
+  DEFAULT_KV_TIER,
+  type KVTierSettings,
+  resetTierForGPU,
+} from '@engines/kv-tier'
 import type {
   FabricType,
   FineTuningMethod,
@@ -186,6 +191,12 @@ export const useUIStore = create<UIState>()(
           selectedGPU: gpu,
           interconnectOverride: null,
           numGPUs: clampGPUCount(state.numGPUs, gpu),
+          // host-grace only exists on a Grace host; falls back when switching
+          // directly away from a Grace GPU while it's active. URL restore sets
+          // the GPU before the tier (useURLSync), so a restored host-grace tier
+          // for a non-Grace GPU is instead caught in setKVTier below, which
+          // checks the incoming tier against the GPU that's current by then.
+          kvTier: resetTierForGPU(state.kvTier, gpu?.id ?? null),
         })),
       setInterconnectOverride: (v) => set({ interconnectOverride: v }),
       setQuantization: (quantization) => set({ quantization }),
@@ -245,7 +256,15 @@ export const useUIStore = create<UIState>()(
       setCpuOffloadOptimizer: (enabled) => set({ cpuOffloadOptimizer: enabled }),
       setConcurrentUsers: (n) => set({ concurrentUsers: n }),
       setKVTier: (patch) =>
-        set((state) => ({ kvTier: clampKVTier({ ...state.kvTier, ...patch }) })),
+        set((state) => {
+          const next = clampKVTier({ ...state.kvTier, ...patch })
+          // Guard against the currently selected GPU here too (not just in
+          // setSelectedGPU): URL restore (useURLSync) sets the GPU first and
+          // the tier second from the same hash, so a link with a host-grace
+          // tier for a non-Grace GPU only shows up as an incoming patch here,
+          // after the GPU is already current.
+          return { kvTier: resetTierForGPU(next, state.selectedGPU?.id ?? null) }
+        }),
       setIsDarkMode: (dark) => set({ isDarkMode: dark }),
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
     }),

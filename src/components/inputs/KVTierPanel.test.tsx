@@ -1,5 +1,7 @@
+import gpusData from '@data/gpus.json'
 import { DEFAULT_KV_TIER, type KVTierSettings } from '@engines/kv-tier'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { type GPU, validateGPUs } from '@utils/schemas'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Plain store instead of the persisted uiStore, which throws in jsdom
@@ -9,9 +11,11 @@ vi.mock('@store/uiStore', async () => {
   const { clampKVTier, DEFAULT_KV_TIER } = await import('@engines/kv-tier')
   const useUIStore = create<{
     kvTier: KVTierSettings
+    selectedGPU: GPU | null
     setKVTier: (p: Partial<KVTierSettings>) => void
   }>((set) => ({
     kvTier: DEFAULT_KV_TIER,
+    selectedGPU: null,
     setKVTier: (p) => set((s) => ({ kvTier: clampKVTier({ ...s.kvTier, ...p }) })),
   }))
   return { useUIStore }
@@ -20,8 +24,17 @@ vi.mock('@store/uiStore', async () => {
 import { useUIStore } from '@store/uiStore'
 import { KVTierPanel } from './KVTierPanel'
 
+const gpus = validateGPUs(gpusData)
+
+/** A real GPU row from the database, looked up by id (never hand-written). */
+function findGPU(id: string): GPU {
+  const gpu = gpus.find((g) => g.id === id)
+  if (!gpu) throw new Error(`fixture GPU not found in gpus.json: ${id}`)
+  return gpu
+}
+
 describe('KVTierPanel', () => {
-  beforeEach(() => useUIStore.setState({ kvTier: DEFAULT_KV_TIER }))
+  beforeEach(() => useUIStore.setState({ kvTier: DEFAULT_KV_TIER, selectedGPU: null }))
 
   it('hides the tier settings when no tier is selected', () => {
     render(<KVTierPanel />)
@@ -38,6 +51,31 @@ describe('KVTierPanel', () => {
   it('does not offer a Dell Lightning preset (cluster-scale storage, sized in raidy)', () => {
     render(<KVTierPanel />)
     expect(screen.queryByRole('option', { name: /Lightning/ })).not.toBeInTheDocument()
+  })
+
+  it('hides the Grace host-memory option when no GPU or a non-Grace GPU is selected', () => {
+    render(<KVTierPanel />)
+    expect(screen.queryByRole('option', { name: /Grace/ })).not.toBeInTheDocument()
+
+    useUIStore.setState({ selectedGPU: findGPU('nvidia-h100-80gb-sxm') })
+    render(<KVTierPanel />)
+    expect(screen.queryByRole('option', { name: /Grace/ })).not.toBeInTheDocument()
+  })
+
+  it('shows the Grace host-memory option for a GB300 NVL72', () => {
+    useUIStore.setState({ selectedGPU: findGPU('nvidia-gb300-nvl72') })
+    render(<KVTierPanel />)
+    expect(screen.getByRole('option', { name: /Grace/ })).toBeInTheDocument()
+  })
+
+  it('shows the per-GPU bandwidth for the selected Grace GPU: 225 for NVL72, 396 for Desktop', () => {
+    useUIStore.setState({ selectedGPU: findGPU('nvidia-gb300-nvl72') })
+    const { rerender } = render(<KVTierPanel />)
+    expect(screen.getByRole('option', { name: /225 GB\/s per GPU/ })).toBeInTheDocument()
+
+    useUIStore.setState({ selectedGPU: findGPU('nvidia-gb300-desktop-252gb') })
+    rerender(<KVTierPanel />)
+    expect(screen.getByRole('option', { name: /396 GB\/s per GPU/ })).toBeInTheDocument()
   })
 
   it('stores the active share as a fraction, clamped to 1-100%', () => {

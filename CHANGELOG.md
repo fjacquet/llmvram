@@ -11,15 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Measured weight sizes: each model carries weight_refs per format ({repo, gib}) measured from published checkpoints (native release, NVIDIA NVFP4, RedHatAI FP8/INT4, unsloth/bartowski GGUF, AWQ/GPTQ). The engine uses them for memory and decode; the results say whether weights are measured or estimated. Corrects under-counts of up to 44% (Gemma 4 31B NVFP4) where checkpoints keep tensors in 16-bit. Formats without a reliable reference checkpoint stay estimated.
 - npm run refresh:models audits models.json against Hugging Face (config via text_config, exact safetensors counts, weight_refs drift, missing MLA / sliding / linear-state fields), measures weight_refs (--measure <id>) and drafts new roster entries (--draft). It never writes models.json.
+- Warning in the multi-user metrics block when the configured batch size is below concurrent users: only `batchSize` requests decode per step, so the rest queue — which is why per-user TTFT is long.
+- PPTX export now carries capacity data on the Performance slide: max concurrent sessions at the configured context, sessions held with the KV storage tier (when set), and whether the weight sizes are measured or estimated.
+- A note that "GB" in this app means GiB (1024³ bytes), as nvidia-smi reports — added to the results footer, the guide's Results Panel section, and the PPTX summary slide.
 
 ### Changed
 
 - Fallback bytes per parameter from the format definitions: INT4 0.5625 (16-bit scale per group of 32), AWQ/GPTQ 0.52 (scale and zero per group of 128, was 0.6), GGUF Q2_K 0.366 (median published file, was 0.328).
+- The Grace host-memory (NVLink-C2C) KV storage tier preset is only offered for GPUs with a Grace host: GB300 NVL72 (225 GB/s per GPU, sharing one Grace's link across 2 GPUs) and the GB300 Desktop Superchip (396 GB/s, capped by its Grace LPDDR5X rather than the link). Falls back to "none" if the tier or the selected GPU changes to a mismatched pair — checked wherever either one changes, including a shared link's URL restore.
+- Internal: ResultsPanel split into `useResultExports`, `PerformanceSection`, and `CapacitySection` for readability; rendered output unchanged.
 
 ### Fixed
 
 - fp16 and bf16 now share a measured weight_refs entry: both are 2 bytes/param, but every measured checkpoint is bf16, so fp16 — the default quantization — always showed "estimated". It now shows "Measured from" the bf16 repo (and vice versa).
 - Gemma 4 31B and Gemma 4 26B A4B parameter counts corrected to the exact Hugging Face safetensors totals (31.27B and 25.81B, were 32.7B and 26.5B).
+
+### Security
+
+- PPTX export moved from `pptxgenjs` 4.0.1 (unmaintained since June 2025; depends on the placeholder `https` npm package, ships `@types/node` at runtime, bundles `jszip` 3) to its maintained fork `pptxgenjs-plus` (^4.3.4, `@node-projects/jszip` 4, same API). Chart labels are passed in the nested `string[][]` form the fork's types require; output is identical.
+- All dependencies to latest: TypeScript 7 (`baseUrl` removed from tsconfigs; `paths` now relative), Vitest 5, `@vitejs/plugin-react` 6, jsdom 30, `@testing-library/jest-dom` 7, plus patch releases. Lockfile regenerated. `@types/node` stays on 24 to match the Node 24 runtime in CI.
 
 ## [1.11.0] - 2026-09-27
 

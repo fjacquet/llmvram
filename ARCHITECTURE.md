@@ -77,7 +77,7 @@ src/
 │   └── useURLSync.ts               # URL hash persistence with debounce
 ├── utils/                      # Shared utilities
 │   ├── schemas.ts              # Zod schemas (GPU, Model) — type source of truth
-│   ├── exportPptx.ts           # PPTX export (pptxgenjs) — VRAM/perf/config slides
+│   ├── exportPptx.ts           # PPTX export (pptxgenjs-plus) — VRAM/perf/config slides
 │   ├── gpus.ts                 # GPU data loading and lookup helpers
 │   └── models.ts               # Model data loading and lookup helpers
 ├── types/                      # TypeScript type re-exports

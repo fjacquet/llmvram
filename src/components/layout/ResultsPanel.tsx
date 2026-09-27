@@ -1,27 +1,23 @@
+import { CapacitySection } from '@components/outputs/CapacitySection'
 import { FitIndicator } from '@components/outputs/FitIndicator'
 import { MemoryBreakdownTable } from '@components/outputs/MemoryBreakdownTable'
 import { MultiGPUBreakdownChart } from '@components/outputs/MultiGPUBreakdownChart'
+import { PerformanceSection } from '@components/outputs/PerformanceSection'
 import { Recommendations } from '@components/outputs/Recommendations'
 import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownChart'
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
-import {
-  maxConcurrentSessions,
-  perUserTimeToFirstToken,
-  perUserTokensPerSecond,
-} from '@engines/concurrency'
+import { maxConcurrentSessions } from '@engines/concurrency'
 import { kvTierSummary } from '@engines/kv-tier'
 import { weightSource } from '@engines/quantization'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
+import { useResultExports } from '@hooks/useResultExports'
 import { useTrainingCalculation } from '@hooks/useTrainingCalculation'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
-import { exportPptx } from '@utils/exportPptx'
-import { formatDuration } from '@utils/formatDuration'
-import Decimal from 'decimal.js'
 import { useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 
@@ -61,87 +57,6 @@ export function ResultsPanel() {
 
   const resultsDivRef = useRef<HTMLDivElement>(null)
 
-  const handleExportPDF = async () => {
-    // Capture the full calculator section (InputPanel + ResultsPanel) so the PDF
-    // includes both the assumptions and the results without duplicating content in the UI.
-    const captureEl = document.getElementById('calculator-section')
-    if (!captureEl) return
-    try {
-      // html2canvas-pro supports oklch colors (Tailwind v4)
-      const [{ default: html2canvasPro }, { jsPDF }] = await Promise.all([
-        import('html2canvas-pro'),
-        import('jspdf'),
-      ])
-
-      // Force light mode so the capture uses correct contrast
-      const root = document.documentElement
-      const wasDark = root.classList.contains('dark')
-      if (wasDark) root.classList.remove('dark')
-
-      let canvas: HTMLCanvasElement
-      try {
-        canvas = await html2canvasPro(captureEl, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#f9fafb', // gray-50 — matches page background
-          logging: false,
-          // windowWidth: 800 tells the renderer to use the mobile breakpoint:
-          // lg:grid-cols-12 collapses to grid-cols-1, panels stack vertically.
-          // This is a render-time option — the live app and mobile users are unaffected.
-          windowWidth: 800,
-        })
-      } finally {
-        if (wasDark) root.classList.add('dark')
-      }
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.97)
-      const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' })
-
-      const margin = 28.8 // 0.4 in × 72 pt/in
-      const pageW = pdf.internal.pageSize.getWidth()
-      const pageH = pdf.internal.pageSize.getHeight()
-      const imgW = pageW - margin * 2
-      const imgH = (canvas.height / canvas.width) * imgW
-
-      // Slice the full-height image across multiple pages
-      let heightLeft = imgH - (pageH - margin * 2)
-      pdf.addImage(imgData, 'JPEG', margin, margin, imgW, imgH)
-
-      while (heightLeft > 0) {
-        pdf.addPage()
-        pdf.addImage(imgData, 'JPEG', margin, margin - (imgH - heightLeft), imgW, imgH)
-        heightLeft -= pageH - margin * 2
-      }
-
-      pdf.save(`llmvram-${selectedModel?.name ?? 'estimate'}.pdf`)
-      toast.success('PDF exported')
-    } catch (err) {
-      toast.error(`PDF export failed: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
-
-  const handleExportPptx = async () => {
-    if (!result || !selectedModel || !selectedGPU) return
-    try {
-      await exportPptx({
-        model: selectedModel,
-        gpu: selectedGPU,
-        quantization,
-        // numGPUs from the store is per-node; the deck must report the true
-        // cluster total (see IMPORTANT-1 in the multi-node fix wave).
-        numGPUs: result.multiGPU?.numGPUs ?? numGPUs,
-        numNodes: result.multiGPU?.numNodes ?? numNodes,
-        sequenceLength,
-        batchSize,
-        vram: result.vram,
-        performance: result.performance,
-        multiGPU: result.multiGPU,
-      })
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'PPTX export failed')
-    }
-  }
-
   // Build offloading config if enabled (memoized to prevent render loops)
   const offloadingConfig = useMemo<OffloadingConfig | undefined>(
     () =>
@@ -178,6 +93,17 @@ export function ResultsPanel() {
     offloadingConfig,
     concurrentUsers,
   )
+
+  const { handleExportPDF, handleExportPptx } = useResultExports({
+    selectedModel,
+    selectedGPU,
+    quantization,
+    sequenceLength,
+    batchSize,
+    numGPUs,
+    numNodes,
+    result,
+  })
 
   // Call training calculation hook (unconditional - React hooks cannot be conditional)
   const {
@@ -314,7 +240,11 @@ export function ResultsPanel() {
           concurrentUsers,
           multi: result.multiGPU,
           recomputeSeconds: result.performance.prefillSeconds?.toNumber() ?? null,
+          gpuId: selectedGPU.id,
         })
+
+  // Repo the weights were measured from, or null when the format is estimated
+  const weightSourceRepo = weightSource(selectedModel, quantization)
 
   /**
    * Generate descriptive label for snapshot
@@ -489,6 +419,10 @@ export function ResultsPanel() {
             </div>
           </div>
         </div>
+
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          GB here means GiB (1024³ bytes), as nvidia-smi reports.
+        </p>
       </div>
     )
   }
@@ -521,7 +455,13 @@ export function ResultsPanel() {
               </button>
               <button
                 type="button"
-                onClick={handleExportPptx}
+                onClick={() =>
+                  handleExportPptx({
+                    maxSessions,
+                    tierSessionsHeld: tierSummary?.sessionsHeld ?? null,
+                    weightSource: weightSourceRepo,
+                  })
+                }
                 className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors"
               >
                 Export PPTX
@@ -582,28 +522,23 @@ export function ResultsPanel() {
             {/* Single-GPU Breakdown Chart and Table */}
             <VRAMBreakdownChart breakdown={displayBreakdown} />
             <MemoryBreakdownTable breakdown={displayBreakdown} />
-            {(() => {
-              const source = weightSource(selectedModel, quantization)
-              return (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {source ? (
-                    <>
-                      Weights measured from{' '}
-                      <a
-                        href={`https://huggingface.co/${source}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline"
-                      >
-                        {source}
-                      </a>
-                    </>
-                  ) : (
-                    `Weights estimated: no reference checkpoint for ${quantization}`
-                  )}
-                </p>
-              )
-            })()}
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {weightSourceRepo ? (
+                <>
+                  Weights measured from{' '}
+                  <a
+                    href={`https://huggingface.co/${weightSourceRepo}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    {weightSourceRepo}
+                  </a>
+                </>
+              ) : (
+                `Weights estimated: no reference checkpoint for ${quantization}`
+              )}
+            </p>
 
             {/* Multi-GPU Breakdown Chart */}
             {result.multiGPU && (
@@ -633,7 +568,7 @@ export function ResultsPanel() {
                 // numGPUs from the store is per-node; Recommendations renders
                 // "Current {numGPUs}x" and must report the true cluster total
                 // (see IMPORTANT-1 in the multi-node fix wave, and the
-                // matching fallback in handleExportPptx above).
+                // matching fallback in useResultExports above).
                 numGPUs={result.multiGPU?.numGPUs ?? numGPUs}
                 multiGPUBreakdown={result.multiGPU}
               />
@@ -646,147 +581,25 @@ export function ResultsPanel() {
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
             Performance Estimate
           </h2>
-          <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Decode Speed</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {result.performance.tokensPerSecond.toFixed(1)} tokens/sec
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Time to First Token</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {formatDuration(result.performance.timeToFirstToken)}
-                </p>
-                {result.performance.prefillEstimateDegraded && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    rough estimate — no FLOPS data for this GPU
-                  </p>
-                )}
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Bottleneck</p>
-                <p
-                  className={`text-lg font-semibold ${
-                    result.performance.bottleneck === 'balanced'
-                      ? 'text-green-600 dark:text-green-400'
-                      : result.performance.bottleneck === 'memory'
-                        ? 'text-yellow-600 dark:text-yellow-400'
-                        : 'text-blue-600 dark:text-blue-400'
-                  }`}
-                >
-                  {result.performance.bottleneck === 'balanced'
-                    ? 'Balanced'
-                    : result.performance.bottleneck === 'memory'
-                      ? 'Memory bandwidth'
-                      : 'Compute'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Prompt Processing</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {result.performance.prefillSeconds
-                    ? formatDuration(result.performance.prefillSeconds)
-                    : 'n/a'}
-                </p>
-                {result.performance.prefillSeconds && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {result.performance.prefillBottleneck === 'attention'
-                      ? 'attention-dominated (quadratic)'
-                      : 'weight-dominated (linear)'}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Max concurrent sessions at this context (vLLM's "Maximum concurrency") */}
-            {maxSessions !== null && (
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                  Max concurrent sessions at {sequenceLength.toLocaleString('en-US')} tokens
-                </p>
-                <p
-                  className={`text-base font-semibold ${
-                    concurrentUsers > maxSessions
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-900 dark:text-white'
-                  }`}
-                >
-                  {maxSessions.toLocaleString('en-US')}
-                  {concurrentUsers > maxSessions &&
-                    ` (below the ${concurrentUsers.toLocaleString('en-US')} configured)`}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  At 90% of each GPU&apos;s memory (vLLM default), after weights and overhead
-                </p>
-              </div>
-            )}
-
-            {tierSummary && (
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 space-y-1">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  With the KV storage tier ({Math.round(kvTier.activeShare * 100)}% active)
-                </p>
-                <p className="text-base font-semibold text-gray-900 dark:text-white">
-                  {tierSummary.sessionsHeld.toLocaleString('en-US')} sessions held
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  Resume {formatDuration(new Decimal(tierSummary.resumeSeconds))}
-                  {result.performance.prefillSeconds &&
-                    ` vs recompute ${formatDuration(result.performance.prefillSeconds)} (${
-                      tierSummary.resumeFaster ? 'resume is faster' : 'recompute is faster'
-                    })`}
-                </p>
-                <p
-                  className={`text-xs ${
-                    tierSummary.overloaded
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-600 dark:text-gray-400'
-                  }`}
-                >
-                  Tier reads {tierSummary.trafficGBps.toFixed(1)} GB/s of{' '}
-                  {tierSummary.tierGBps.toFixed(0)} GB/s available
-                </p>
-              </div>
-            )}
-
-            {/* Per-user metrics (only visible when concurrentUsers > 1) */}
-            {concurrentUsers > 1 && (
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-                  Multi-user metrics ({concurrentUsers} concurrent users)
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Per-user speed</p>
-                    <p className="text-base font-semibold text-gray-900 dark:text-white">
-                      {perUserTokensPerSecond(
-                        result.performance.tokensPerSecond,
-                        concurrentUsers,
-                      ).toFixed(1)}{' '}
-                      tok/s
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                      Per-user TTFT (est.)
-                    </p>
-                    <p className="text-base font-semibold text-gray-900 dark:text-white">
-                      {formatDuration(
-                        perUserTimeToFirstToken(
-                          result.performance.timeToFirstToken,
-                          concurrentUsers,
-                          batchSize,
-                        ),
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <PerformanceSection
+            performance={result.performance}
+            concurrentUsers={concurrentUsers}
+            batchSize={batchSize}
+          >
+            <CapacitySection
+              maxSessions={maxSessions}
+              sequenceLength={sequenceLength}
+              concurrentUsers={concurrentUsers}
+              tierSummary={tierSummary}
+              kvTier={kvTier}
+              prefillSeconds={result.performance.prefillSeconds}
+            />
+          </PerformanceSection>
         </div>
+
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          GB here means GiB (1024³ bytes), as nvidia-smi reports.
+        </p>
       </div>
     </div>
   )

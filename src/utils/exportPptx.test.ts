@@ -21,7 +21,7 @@ interface Box {
 }
 interface RecordedChart {
   type: string
-  data: Array<{ name: string; labels: string[]; values: number[] }>
+  data: Array<{ name: string; labels: string[][]; values: number[] }>
   // Chart options were originally discarded. They carry the geometry and the
   // axis bound, neither of which is visible in (type, data).
   opts: Box & { valAxisMaxVal?: number; showTitle?: boolean; title?: string }
@@ -53,7 +53,7 @@ class MockSlide {
   addChart = vi.fn(
     (
       type: string,
-      data: Array<{ name: string; labels: string[]; values: number[] }>,
+      data: Array<{ name: string; labels: string[][]; values: number[] }>,
       opts?: RecordedChart['opts'],
     ) => {
       charts.push({ type, data, opts: opts ?? {} })
@@ -70,7 +70,7 @@ class MockPptxGenJS {
   writeFile = vi.fn(async () => undefined)
 }
 
-vi.mock('pptxgenjs', () => ({ default: MockPptxGenJS }))
+vi.mock('pptxgenjs-plus', () => ({ default: MockPptxGenJS }))
 
 const { exportPptx } = await import('./exportPptx')
 
@@ -166,6 +166,9 @@ describe('exportPptx', () => {
       vram: singleGPU,
       performance,
       multiGPU,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
     })
 
     // Slide 1 (config summary) is the first addTable call.
@@ -181,8 +184,8 @@ describe('exportPptx', () => {
     const barChart = charts.find((c) => c.type === 'bar')
     expect(barChart).toBeDefined()
     expect(barChart?.data[0]?.values).toHaveLength(1)
-    expect(barChart?.data[0]?.labels[0]).toContain('32 GPUs total')
-    expect(barChart?.data[0]?.labels[0]).not.toContain('8 GPUs total')
+    expect(barChart?.data[0]?.labels[0]?.[0]).toContain('32 GPUs total')
+    expect(barChart?.data[0]?.labels[0]?.[0]).not.toContain('8 GPUs total')
 
     // The value axis must be pinned to the GPU's capacity. Without a max,
     // PowerPoint auto-scales to the bar's own total and the exported bar looks
@@ -220,11 +223,105 @@ describe('exportPptx', () => {
       vram: singleGPU,
       performance,
       multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
     })
 
     const configRows = tableRows(0)
     expect(configRows).toContainEqual(['Number of GPUs', '1'])
     expect(configRows.some(([label]) => label === 'Servers')).toBe(false)
+  })
+
+  it('notes that GB means GiB on the summary slide', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+    })
+
+    expect(
+      texts.some((t) => t.text === 'GB here means GiB (1024³ bytes), as nvidia-smi reports.'),
+    ).toBe(true)
+  })
+
+  it('adds capacity rows to the performance table when provided', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: 42,
+      tierSessionsHeld: 100,
+      weightSource: 'meta-llama/Llama-3.1-70B',
+    })
+
+    // Slide 4's table is the third addTable call (slide1 config, slide2
+    // breakdown, slide4 performance — slide3 has no table).
+    const perfRows = tableRows(2)
+    expect(perfRows).toContainEqual(['Max concurrent sessions (at 4,096 tokens)', '42'])
+    expect(perfRows).toContainEqual(['Sessions held with KV tier', '100'])
+    expect(perfRows).toContainEqual(['Weights', 'measured from meta-llama/Llama-3.1-70B'])
+  })
+
+  it('omits capacity rows when not provided, and labels weights estimated when null', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
+    })
+
+    const perfRows = tableRows(2)
+    expect(perfRows.some(([label]) => label.startsWith('Max concurrent sessions'))).toBe(false)
+    expect(perfRows.some(([label]) => label === 'Sessions held with KV tier')).toBe(false)
+    expect(perfRows).toContainEqual(['Weights', 'estimated (no reference checkpoint)'])
   })
 
   it('keeps every slide heading clear of the content below it', async () => {
@@ -246,6 +343,10 @@ describe('exportPptx', () => {
       batchSize: 1,
       vram: singleGPU,
       performance,
+      multiGPU: null,
+      maxSessions: null,
+      tierSessionsHeld: null,
+      weightSource: null,
     })
 
     // Slide 4's metric cards used to start at y 0.9 while the heading occupied

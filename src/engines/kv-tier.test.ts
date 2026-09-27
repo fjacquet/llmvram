@@ -4,8 +4,10 @@ import { calculateInferenceVRAM } from './inference'
 import {
   clampKVTier,
   DEFAULT_KV_TIER,
+  graceLinkGBps,
   type KVTierSettings,
   kvTierSummary,
+  resetTierForGPU,
   resumeSeconds,
   sessionKVLayout,
   tierBandwidthGBps,
@@ -40,6 +42,17 @@ describe('tierBandwidthGBps', () => {
     expect(tierBandwidthGBps(clampKVTier({ ...network, customGBps: 0 }))).toBe(12.5)
     expect(tierBandwidthGBps({ ...network, customGBps: null })).toBe(12.5)
   })
+
+  it('resolves host-grace bandwidth from the GPU id (225 NVL72, 396 Desktop)', () => {
+    const grace: KVTierSettings = { ...DEFAULT_KV_TIER, tier: 'host-grace' }
+    expect(tierBandwidthGBps(grace, 'nvidia-gb300-nvl72')).toBe(225)
+    expect(tierBandwidthGBps(grace, 'nvidia-gb300-desktop-252gb')).toBe(396)
+  })
+
+  it('a custom bandwidth still overrides host-grace regardless of GPU', () => {
+    const grace: KVTierSettings = { ...DEFAULT_KV_TIER, tier: 'host-grace', customGBps: 999 }
+    expect(tierBandwidthGBps(grace, 'nvidia-gb300-nvl72')).toBe(999)
+  })
 })
 
 describe('resumeSeconds', () => {
@@ -54,6 +67,39 @@ describe('resumeSeconds', () => {
     const s = resumeSeconds(43e9 / 1024 ** 3 / 4, 12.8)
     expect(s).toBeGreaterThan(0.837 * 0.9)
     expect(s).toBeLessThan(0.837 * 1.1)
+  })
+})
+
+describe('graceLinkGBps', () => {
+  it('is 225 GB/s for the NVL72 (2 GPUs share one Grace link)', () => {
+    expect(graceLinkGBps('nvidia-gb300-nvl72')).toBe(225)
+  })
+
+  it('is 396 GB/s for the Desktop Superchip (1 GPU, LPDDR5X-bound, not link-bound)', () => {
+    expect(graceLinkGBps('nvidia-gb300-desktop-252gb')).toBe(396)
+  })
+
+  it('is null for the x86 HGX B300, GB10 unified memory, and non-Grace GPUs', () => {
+    expect(graceLinkGBps('nvidia-gb300-288gb')).toBeNull()
+    expect(graceLinkGBps('nvidia-gb10')).toBeNull()
+    expect(graceLinkGBps('nvidia-h100-80gb-sxm')).toBeNull()
+  })
+})
+
+describe('resetTierForGPU', () => {
+  const grace: KVTierSettings = { ...DEFAULT_KV_TIER, tier: 'host-grace' }
+
+  it('falls back to none when the new GPU has no Grace host', () => {
+    expect(resetTierForGPU(grace, 'nvidia-h100-80gb-sxm').tier).toBe('none')
+    expect(resetTierForGPU(grace, null).tier).toBe('none')
+  })
+
+  it('keeps host-grace when the new GPU still has a Grace host', () => {
+    expect(resetTierForGPU(grace, 'nvidia-gb300-nvl72').tier).toBe('host-grace')
+  })
+
+  it('leaves a non-host-grace tier untouched regardless of the GPU', () => {
+    expect(resetTierForGPU(network, 'nvidia-h100-80gb-sxm')).toBe(network)
   })
 })
 
@@ -119,6 +165,14 @@ describe('kvTierSummary', () => {
   it('reports recompute as unknown when prefill time is unknown', () => {
     const s = kvTierSummary({ ...base, recomputeSeconds: null })
     expect(s?.resumeFaster).toBeNull()
+  })
+
+  it('threads the GPU id through to resolve host-grace bandwidth', () => {
+    const grace: KVTierSettings = { ...DEFAULT_KV_TIER, tier: 'host-grace' }
+    const nvl72 = kvTierSummary({ ...base, settings: grace, gpuId: 'nvidia-gb300-nvl72' })
+    const desktop = kvTierSummary({ ...base, settings: grace, gpuId: 'nvidia-gb300-desktop-252gb' })
+    expect(nvl72?.tierGBps).toBe(225 * 4)
+    expect(desktop?.tierGBps).toBe(396 * 4)
   })
 })
 

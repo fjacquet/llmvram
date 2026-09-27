@@ -1,3 +1,4 @@
+import type { weightSource } from '@engines/quantization'
 import type {
   InferenceVRAMBreakdown,
   MultiGPUVRAMBreakdown,
@@ -7,7 +8,7 @@ import { formatDuration } from '@utils/formatDuration'
 import type { GPU, Model } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 
-interface ExportPptxParams {
+export interface ExportPptxParams {
   model: Model
   gpu: GPU
   quantization: string
@@ -20,6 +21,12 @@ interface ExportPptxParams {
   vram: InferenceVRAMBreakdown
   performance: PerformanceEstimate
   multiGPU: MultiGPUVRAMBreakdown | null
+  /** Sessions that fit at this context (vLLM's "Maximum concurrency"); null when unknown */
+  maxSessions: number | null
+  /** Sessions held with the KV storage tier active; null when no tier is set */
+  tierSessionsHeld: number | null
+  /** The repo weights were measured from, or null when estimated — same shape as weightSource() */
+  weightSource: ReturnType<typeof weightSource>
 }
 
 function gbStr(val: Decimal): string {
@@ -59,9 +66,12 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     vram,
     performance,
     multiGPU,
+    maxSessions,
+    tierSessionsHeld,
+    weightSource,
   } = params
 
-  const PptxGenJS = (await import('pptxgenjs')).default
+  const PptxGenJS = (await import('pptxgenjs-plus')).default
   const pptx = new PptxGenJS()
 
   pptx.layout = 'LAYOUT_WIDE'
@@ -155,6 +165,16 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     },
   )
 
+  slide1.addText('GB here means GiB (1024³ bytes), as nvidia-smi reports.', {
+    x: 0.4,
+    y: 7.05,
+    w: 12.5,
+    h: 0.3,
+    fontSize: 9,
+    color: C.bodyText,
+    italic: true,
+  })
+
   // ─── Slide 2: VRAM Breakdown ─────────────────────────────────────────────────
   const slide2 = pptx.addSlide({ masterName: 'LLMVRAM' })
 
@@ -174,7 +194,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     [
       {
         name: 'VRAM',
-        labels: ['Model Weights', 'KV Cache', 'Activations', 'Framework Overhead'],
+        labels: [['Model Weights', 'KV Cache', 'Activations', 'Framework Overhead']],
         values: [
           vram.modelWeights.toNumber(),
           vram.kvCache.toNumber(),
@@ -261,7 +281,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     // the same number N times. The category label carries the cluster total
     // instead, so that information survives even though the mock only
     // records (type, data) and not the chart options/title.
-    const categoryLabel = [`Per GPU (${numGPUs} GPU${numGPUs === 1 ? '' : 's'} total)`]
+    const categoryLabel = [[`Per GPU (${numGPUs} GPU${numGPUs === 1 ? '' : 's'} total)`]]
 
     slide3.addChart(
       pptx.ChartType.bar,
@@ -430,6 +450,31 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     })
   })
 
+  // Capacity rows: sessions that fit, sessions held with the KV tier, and
+  // whether the weight sizes above are measured or estimated. Optional/absent
+  // fields are omitted rather than shown as "N/A" (see ResultsPanel: not every
+  // configuration has a KV tier, and a GPU without FLOPS data can still lack
+  // a max-sessions figure).
+  const capacityRows: [string, string][] = []
+  if (maxSessions != null) {
+    capacityRows.push([
+      `Max concurrent sessions (at ${sequenceLength.toLocaleString('en-US')} tokens)`,
+      maxSessions.toLocaleString('en-US'),
+    ])
+  }
+  if (tierSessionsHeld != null) {
+    capacityRows.push(['Sessions held with KV tier', tierSessionsHeld.toLocaleString('en-US')])
+  }
+  // Unlike the two checks above, `null` is a meaningful value here (estimated,
+  // no reference checkpoint) distinct from the field being absent (test call
+  // sites that predate this field) — so this checks undefined specifically.
+  if (weightSource !== undefined) {
+    capacityRows.push([
+      'Weights',
+      weightSource ? `measured from ${weightSource}` : 'estimated (no reference checkpoint)',
+    ])
+  }
+
   // Performance details table below metric boxes
   slide4.addTable(
     [
@@ -460,6 +505,10 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
         { text: 'GPU Memory Bandwidth', options: { fill: C.whiteFill } },
         { text: `${gpu.memory_bandwidth_gbps} GB/s`, options: { fill: C.whiteFill } },
       ],
+      ...capacityRows.map(([k, v], i) => [
+        { text: k, options: { fill: (5 + i) % 2 === 0 ? C.whiteFill : C.altRowFill } },
+        { text: v, options: { fill: (5 + i) % 2 === 0 ? C.whiteFill : C.altRowFill } },
+      ]),
     ],
     {
       x: 0.4,

@@ -9,9 +9,8 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
-      "@utils/*": ["src/utils/*"]
+      "@utils/*": ["./src/utils/*"]
     }
   },
   "include": [
