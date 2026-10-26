@@ -17,30 +17,33 @@ Critical considerations: Tailwind v4 requires explicit @custom-variant configura
 ## Standard Stack
 
 ### Core
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| React | 19.2.0 | UI framework | Latest stable, locked in Phase 1 |
-| TypeScript | 5.9.3 | Type safety | Strict mode enabled, noUncheckedIndexedAccess |
-| Vite | 7.2.4 | Build tool | Fast dev server, ES modules, worker support |
-| Tailwind CSS | 4.1.18 | Styling | CSS-first config, 3-8x faster builds than v3 |
-| @tailwindcss/vite | 4.1.18 | Tailwind integration | Required for v4 with Vite (no PostCSS needed) |
+
+| Library           | Version | Purpose              | Why Standard                                  |
+| ----------------- | ------- | -------------------- | --------------------------------------------- |
+| React             | 19.2.0  | UI framework         | Latest stable, locked in Phase 1              |
+| TypeScript        | 5.9.3   | Type safety          | Strict mode enabled, noUncheckedIndexedAccess |
+| Vite              | 7.2.4   | Build tool           | Fast dev server, ES modules, worker support   |
+| Tailwind CSS      | 4.1.18  | Styling              | CSS-first config, 3-8x faster builds than v3  |
+| @tailwindcss/vite | 4.1.18  | Tailwind integration | Required for v4 with Vite (no PostCSS needed) |
 
 ### Supporting
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| Zustand | 5.0.9 | State management | UI state (selections, dark mode, form values) |
-| Recharts | 3.6.0 | Data visualization | VRAM breakdown charts (donut/stacked bar) |
-| sonner | 2.0.7 | Toast notifications | Error messages, success feedback |
-| Headless UI | 2.x (to install) | Accessible components | Select/combobox for model/GPU pickers |
-| Decimal.js | 10.4.3 | Precise math | Already used by engines, format for display |
+
+| Library     | Version          | Purpose               | When to Use                                   |
+| ----------- | ---------------- | --------------------- | --------------------------------------------- |
+| Zustand     | 5.0.9            | State management      | UI state (selections, dark mode, form values) |
+| Recharts    | 3.6.0            | Data visualization    | VRAM breakdown charts (donut/stacked bar)     |
+| sonner      | 2.0.7            | Toast notifications   | Error messages, success feedback              |
+| Headless UI | 2.x (to install) | Accessible components | Select/combobox for model/GPU pickers         |
+| Decimal.js  | 10.4.3           | Precise math          | Already used by engines, format for display   |
 
 ### Alternatives Considered
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| Recharts | Victory, Nivo, D3 | Recharts simplest for basic charts, good TypeScript support |
-| Zustand | Redux Toolkit, Jotai | Zustand lightest (3kb), minimal boilerplate |
-| Headless UI | Radix UI, Ariakit | All viable, Headless UI official Tailwind recommendation |
-| sonner | react-hot-toast | sonner has better stacking, keyboard shortcuts |
+
+| Instead of  | Could Use            | Tradeoff                                                    |
+| ----------- | -------------------- | ----------------------------------------------------------- |
+| Recharts    | Victory, Nivo, D3    | Recharts simplest for basic charts, good TypeScript support |
+| Zustand     | Redux Toolkit, Jotai | Zustand lightest (3kb), minimal boilerplate                 |
+| Headless UI | Radix UI, Ariakit    | All viable, Headless UI official Tailwind recommendation    |
+| sonner      | react-hot-toast      | sonner has better stacking, keyboard shortcuts              |
 
 **Installation:**
 ```bash
@@ -52,6 +55,7 @@ All other dependencies already installed from Phase 1/2.
 ## Architecture Patterns
 
 ### Recommended Project Structure
+
 ```
 src/
 ├── components/
@@ -83,6 +87,7 @@ src/
 ```
 
 ### Pattern 1: Zustand UI Store
+
 **What:** Single store for all form inputs, calculated results, and UI preferences.
 **When to use:** For app-wide state that multiple components read/write.
 **Example:**
@@ -150,12 +155,13 @@ export const useUIStore = create<UIState>()(
         batchSize: state.batchSize,
         kvQuantization: state.kvQuantization,
       }),
-    }
-  )
+    },
+  ),
 )
 ```
 
 ### Pattern 2: Dark Mode with Tailwind v4
+
 **What:** Class-based dark mode with localStorage persistence and FOUC prevention.
 **When to use:** Always, for Phase 3 requirement VIZ-07.
 **Example:**
@@ -215,6 +221,7 @@ export function useDarkMode() {
 ```
 
 ### Pattern 3: Real-time Calculation with Hook
+
 **What:** Connect Zustand store to useInferenceCalculation hook for automatic updates.
 **When to use:** In ResultsPanel component to trigger calculations on input change.
 **Example:**
@@ -279,6 +286,7 @@ export function ResultsPanel() {
 ```
 
 ### Pattern 4: Recharts Responsive Charts
+
 **What:** Donut chart wrapped in ResponsiveContainer with explicit aspect ratio.
 **When to use:** For VIZ-01 memory breakdown visualization.
 **Example:**
@@ -334,6 +342,7 @@ export function VRAMBreakdownChart({ breakdown }: Props) {
 ```
 
 ### Pattern 5: Accessible Combobox with Headless UI
+
 **What:** Model/GPU selector with search, custom input, and keyboard navigation.
 **When to use:** For ModelSelector and GPUSelector components.
 **Example:**
@@ -393,6 +402,7 @@ export function ModelSelector({ selected, onChange }: Props) {
 ```
 
 ### Anti-Patterns to Avoid
+
 - **Don't use Context API for UI state** — Zustand is already in the stack, simpler than Context + useReducer
 - **Don't put calculation logic in components** — Engines are pure and tested, keep components dumb
 - **Don't inline chart data transformations** — Extract to utility functions for testing
@@ -401,21 +411,22 @@ export function ModelSelector({ selected, onChange }: Props) {
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Accessible dropdowns | Custom <select> with ARIA | Headless UI Combobox | Keyboard nav, screen readers, search already solved |
-| Dark mode toggle | Manual localStorage + class management | Zustand persist middleware + useEffect | Handles storage, hydration, SSR edge cases |
-| Toast notifications | Custom fixed-position div system | sonner | Stacking, auto-dismiss, keyboard shortcuts, accessibility |
-| Form validation | Manual state + error messages | Zod (already in stack) | Runtime + compile-time validation, single source of truth |
-| Chart tooltips | Custom hover state + positioning | Recharts Tooltip component | Responsive positioning, formatting, dark mode support |
-| Number formatting | Manual toFixed() and locale logic | Intl.NumberFormat or Decimal.js .toFixed() | Handles locales, edge cases (NaN, Infinity) |
-| Responsive breakpoints | Manual window resize listeners | Tailwind responsive prefixes (sm:, md:, lg:) | SSR-safe, no JS needed |
+| Problem                | Don't Build                            | Use Instead                                  | Why                                                       |
+| ---------------------- | -------------------------------------- | -------------------------------------------- | --------------------------------------------------------- |
+| Accessible dropdowns   | Custom <select> with ARIA              | Headless UI Combobox                         | Keyboard nav, screen readers, search already solved       |
+| Dark mode toggle       | Manual localStorage + class management | Zustand persist middleware + useEffect       | Handles storage, hydration, SSR edge cases                |
+| Toast notifications    | Custom fixed-position div system       | sonner                                       | Stacking, auto-dismiss, keyboard shortcuts, accessibility |
+| Form validation        | Manual state + error messages          | Zod (already in stack)                       | Runtime + compile-time validation, single source of truth |
+| Chart tooltips         | Custom hover state + positioning       | Recharts Tooltip component                   | Responsive positioning, formatting, dark mode support     |
+| Number formatting      | Manual toFixed() and locale logic      | Intl.NumberFormat or Decimal.js .toFixed()   | Handles locales, edge cases (NaN, Infinity)               |
+| Responsive breakpoints | Manual window resize listeners         | Tailwind responsive prefixes (sm:, md:, lg:) | SSR-safe, no JS needed                                    |
 
 **Key insight:** UI components are the most bug-prone part of web apps due to accessibility, browser differences, and edge cases. The stack is deliberately chosen to avoid custom implementations. Every "I'll just build a simple X" has 20+ edge cases.
 
 ## Common Pitfalls
 
 ### Pitfall 1: Tailwind v4 Dark Mode Without @custom-variant
+
 **What goes wrong:** Dark mode classes (dark:bg-gray-800) don't apply even when .dark class is on <html>. Styles work in light mode but dark mode silently fails.
 
 **Why it happens:** Tailwind v4 changed from JavaScript config to CSS-first configuration. The default dark mode uses prefers-color-scheme media query. To enable class-based dark mode (required for toggle), you MUST explicitly declare @custom-variant in your CSS.
@@ -442,6 +453,7 @@ Without this line, document.documentElement.classList.add('dark') has no effect 
 ---
 
 ### Pitfall 2: FOUC (Flash of Unstyled Content) on Dark Mode Load
+
 **What goes wrong:** Page loads in light mode for 50-200ms, then flickers to dark mode. Users with dark mode preference see white flash on every page load.
 
 **Why it happens:** React renders, Zustand hydrates from localStorage, useEffect runs, THEN dark class is applied. CSS paint happens before JavaScript runs.
@@ -480,6 +492,7 @@ This synchronous script runs before first paint, applying dark class before CSS 
 ---
 
 ### Pitfall 3: Recharts ResponsiveContainer TypeScript Errors
+
 **What goes wrong:** TypeScript error "Type 'ReactElement' is not assignable to type 'ReactNode'" when putting charts inside ResponsiveContainer. Code works at runtime but fails compilation.
 
 **Why it happens:** Type mismatch between @types/react 18.2.74+ and Recharts 3.x types. ResponsiveContainer expects children to be React.ReactElement but TypeScript infers React.ReactNode.
@@ -519,6 +532,7 @@ Alternatively, set skipLibCheck: true in tsconfig.json (not recommended for stri
 ---
 
 ### Pitfall 4: Recharts Charts Not Responsive on Mobile
+
 **What goes wrong:** Charts overflow container on mobile or have fixed size that doesn't adapt to screen width.
 
 **Why it happens:** Recharts components require explicit width and height. Without ResponsiveContainer, charts default to 0x0 or use hardcoded pixel values.
@@ -553,6 +567,7 @@ The outer div must have explicit height (Tailwind h-80, or height: 320px). Respo
 ---
 
 ### Pitfall 5: Accessibility - Charts Not Keyboard Navigable
+
 **What goes wrong:** Screen reader users can't access chart data. Keyboard users can't focus or interact with chart segments. Fails WCAG 2.1 AA.
 
 **Why it happens:** Recharts renders SVG without ARIA roles or keyboard handlers. Default output is visual-only.
@@ -610,6 +625,7 @@ Also provide a table view as alternative:
 ---
 
 ### Pitfall 6: React 19 useFormStatus Called Outside <form>
+
 **What goes wrong:** Runtime error "useFormStatus must be called from a component inside a <form>". Hook returns null or throws.
 
 **Why it happens:** React 19 useFormStatus only works in child components of <form> element. Can't be called in same component that renders <form>.
@@ -650,6 +666,7 @@ For this project: Unlikely to need useFormStatus since calculations are instant 
 ---
 
 ### Pitfall 7: Zustand Persist Middleware Hydration Race
+
 **What goes wrong:** Component reads Zustand state before localStorage hydrates. Initial render shows wrong values (e.g., dark mode off when it should be on), then flickers to correct state.
 
 **Why it happens:** Zustand persist middleware is asynchronous. First render happens with initial state, then useEffect hydrates from localStorage.
@@ -704,6 +721,7 @@ For dark mode specifically, the inline <script> in index.html (Pitfall 2) avoids
 All examples verified from official sources or current best practices.
 
 ### Dark Mode Toggle Component
+
 ```typescript
 // src/components/common/DarkModeToggle.tsx
 import { useUIStore } from '@store/uiStore'
@@ -732,6 +750,7 @@ export function DarkModeToggle() {
 ```
 
 ### Fit Indicator with Color Coding
+
 ```typescript
 // src/components/outputs/FitIndicator.tsx
 import type Decimal from 'decimal.js'
@@ -792,6 +811,7 @@ export function FitIndicator({ totalVRAM, availableVRAM }: Props) {
 ```
 
 ### Recommendations Generator
+
 ```typescript
 // src/components/outputs/Recommendations.tsx
 import type { Model, GPU } from '@types'
@@ -849,6 +869,7 @@ export function Recommendations({ currentConfig, breakdown }: Props) {
 ```
 
 ### Toast Notifications with sonner
+
 ```typescript
 // src/App.tsx
 import { Toaster, toast } from 'sonner'
@@ -883,15 +904,15 @@ function App() {
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| Redux for simple UI state | Zustand or Jotai | 2022-2023 | 90% less boilerplate for non-complex state |
-| CSS Modules or styled-components | Tailwind utility-first | 2021-present | Faster development, smaller bundles |
-| react-hot-toast | sonner | 2023-present | Better stacking, keyboard shortcuts, simpler API |
-| Manual dark mode with Context | Tailwind dark: + localStorage | 2020-present | No JS for styles, better performance |
-| Class component + lifecycle | Hooks (useState, useEffect) | 2019 (React 16.8) | Simpler code, better reuse |
-| Victory or D3 for React charts | Recharts | 2020-present | Simpler API, good enough for most use cases |
-| Manual form state management | React Hook Form or native React 19 actions | 2024 (React 19) | Less boilerplate, better performance |
+| Old Approach                     | Current Approach                           | When Changed      | Impact                                           |
+| -------------------------------- | ------------------------------------------ | ----------------- | ------------------------------------------------ |
+| Redux for simple UI state        | Zustand or Jotai                           | 2022-2023         | 90% less boilerplate for non-complex state       |
+| CSS Modules or styled-components | Tailwind utility-first                     | 2021-present      | Faster development, smaller bundles              |
+| react-hot-toast                  | sonner                                     | 2023-present      | Better stacking, keyboard shortcuts, simpler API |
+| Manual dark mode with Context    | Tailwind dark: + localStorage              | 2020-present      | No JS for styles, better performance             |
+| Class component + lifecycle      | Hooks (useState, useEffect)                | 2019 (React 16.8) | Simpler code, better reuse                       |
+| Victory or D3 for React charts   | Recharts                                   | 2020-present      | Simpler API, good enough for most use cases      |
+| Manual form state management     | React Hook Form or native React 19 actions | 2024 (React 19)   | Less boilerplate, better performance             |
 
 **Deprecated/outdated:**
 - **React 18 form patterns**: React 19 useActionState/useFormStatus replace manual useState + async handlers (but this project may not need them since calculations are instant)
@@ -919,6 +940,7 @@ function App() {
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - [Tailwind CSS v4 Official Docs](https://tailwindcss.com/docs/dark-mode) - Dark mode, responsive design
 - [Tailwind CSS v4 Release](https://tailwindcss.com/blog/tailwindcss-v4) - What's new, configuration changes
 - [React 19 Official Docs](https://react.dev/blog/2024/12/05/react-19) - Form handling, new hooks
@@ -928,6 +950,7 @@ function App() {
 - [Headless UI Docs](https://headlessui.com/react/combobox) - Accessible components
 
 ### Secondary (MEDIUM confidence)
+
 - [React Hook Form with Zod Guide 2026](https://dev.to/marufrahmanlive/react-hook-form-with-zod-complete-guide-for-2026-1em1) - Form validation patterns
 - [Tailwind v4 Dark Mode Fix](https://medium.com/@balpetekserhat/how-i-fixed-tailwind-css-v4-dark-mode-not-working-in-a-vite-react-project-d7f0b3a31184) - @custom-variant requirement
 - [Creating Accessible Data for Charts](https://216digital.com/creating-accessible-data-for-charts-and-graphs/) - ARIA patterns
@@ -936,6 +959,7 @@ function App() {
 - [Zustand State Management Skill](https://tessl.io/skills/github/jezweb/claude-skills/zustand-state-management) - TypeScript patterns
 
 ### Tertiary (Issues/Discussions - for pitfall awareness)
+
 - [Recharts TypeScript Issue #2385](https://github.com/recharts/recharts/issues/2385) - ResponsiveContainer type errors
 - [Tailwind v4 + React 19 Discussion #16201](https://github.com/tailwindlabs/tailwindcss/discussions/16201) - Integration issues
 - [Recharts ResponsiveContainer Warning #6716](https://github.com/recharts/recharts/issues/6716) - Width/height warnings

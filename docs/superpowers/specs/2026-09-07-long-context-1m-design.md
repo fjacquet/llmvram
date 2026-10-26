@@ -27,11 +27,11 @@ dominant at 1M.
 Configuration replayed through our own engines: Qwen3.6 35B A3B, FP16 weights, INT4 KV
 cache, batch 1, sequence length 1024, single 128 GB device.
 
-| Metric | apxml | ours | delta |
-|---|---|---|---|
-| Total VRAM | 81.7 GB | 68.07 GB | ours −13.6 GB |
+| Metric           | apxml     | ours      | delta            |
+| ---------------- | --------- | --------- | ---------------- |
+| Total VRAM       | 81.7 GB   | 68.07 GB  | ours −13.6 GB    |
 | Generation speed | ~35 tok/s | 3.8 tok/s | ours 9× too slow |
-| TTFT | ~88 ms | 527 ms | ours 6× too slow |
+| TTFT             | ~88 ms    | 527 ms    | ours 6× too slow |
 
 Our breakdown at seq=1024: `W=67.06 · KV=0.01 · ACT=0.00 · FW=1.00`.
 
@@ -56,10 +56,10 @@ as a 10-token prompt. For a long-context calculator this is the most visible wro
 Real engines chunk prefill; decode activations are one token wide. Measured on Qwen3.6
 27B (dense, `intermediate_size = 17408`), batch 1:
 
-| seq | current ACT |
-|---|---|
-| 4,096 | 0.27 GB |
-| 131,072 | 8.50 GB |
+| seq       | current ACT  |
+| --------- | ------------ |
+| 4,096     | 0.27 GB      |
+| 131,072   | 8.50 GB      |
 | 1,048,576 | **68.00 GB** |
 
 The 1M figure is fiction. Note this error is invisible on MoE models, whose stored
@@ -99,11 +99,11 @@ changes**, which confines test churn to the long-context cases.
 
 Effect on Qwen3.6 27B, batch 1:
 
-| seq | ACT before | ACT after |
-|---|---|---|
-| 4,096 | 0.27 GB | 0.27 GB (unchanged) |
-| 131,072 | 8.50 GB | 0.53 GB |
-| 1,048,576 | 68.00 GB | 0.53 GB |
+| seq       | ACT before | ACT after           |
+| --------- | ---------- | ------------------- |
+| 4,096     | 0.27 GB    | 0.27 GB (unchanged) |
+| 131,072   | 8.50 GB    | 0.53 GB             |
+| 1,048,576 | 68.00 GB   | 0.53 GB             |
 
 ### A2. TTFT becomes a prefill model
 
@@ -147,10 +147,10 @@ TTFT           = prefillSeconds + 1 / tokensPerSecond
 **These two consume `activeParams` differently, and conflating them would silently break
 every quantized MoE model:**
 
-- Decode reads *bytes*, so it must keep routing through the quantization helper:
+- Decode reads _bytes_, so it must keep routing through the quantization helper:
   `calculateModelWeightVRAM(activeParams, quantization).mul(BYTES_PER_GB)`. Do **not**
   hardcode `activeParams × 2`.
-- Prefill's linear term counts *FLOPs*, which are precision-independent:
+- Prefill's linear term counts _FLOPs_, which are precision-independent:
   `2 × activeParams × T`, with no quantization factor.
 
 Weight VRAM continues to use **total** parameters. The CLAUDE.md MoE rule ("all expert
@@ -182,10 +182,12 @@ heads only), so nothing is needed on the custom path.
 
 1. `active_parameters_billion` when present — used as-is.
 2. Otherwise derive from stored fields:
+
    ```
    expertParams = layers × num_experts × 3 × hidden_size × intermediate_size / 1e9
    active       = (total − expertParams) + expertParams × (num_experts_per_token / num_experts)
    ```
+
    This works because our MoE entries already store the **per-expert**
    `intermediate_size`. On Qwen3.6 35B A3B it yields **4.8B**, against **8.1B** for the
    current 20/80 heuristic and **3B** actual — better, still not exact, which is why
@@ -308,15 +310,15 @@ Fixed in this change. All three files are already being touched, and leaving a l
 
 ## Blast radius on existing numbers
 
-| Value | Changes? |
-|---|---|
-| VRAM at seq ≤ 8,192 | No |
-| VRAM at seq > 8,192 (dense) | Yes — activations drop |
-| VRAM at seq > 8,192 (MoE) | Negligible — per-expert `intermediate_size` |
-| tok/s, dense models | No |
-| tok/s, MoE models | Yes — up to ~9× faster |
-| TTFT, all models | Yes — new formula |
-| Comparison-view TTFT | Yes — 1000× correction |
+| Value                       | Changes?                                    |
+| --------------------------- | ------------------------------------------- |
+| VRAM at seq ≤ 8,192         | No                                          |
+| VRAM at seq > 8,192 (dense) | Yes — activations drop                      |
+| VRAM at seq > 8,192 (MoE)   | Negligible — per-expert `intermediate_size` |
+| tok/s, dense models         | No                                          |
+| tok/s, MoE models           | Yes — up to ~9× faster                      |
+| TTFT, all models            | Yes — new formula                           |
+| Comparison-view TTFT        | Yes — 1000× correction                      |
 
 ## Open item to report, not to change
 

@@ -15,20 +15,22 @@ Multi-GPU support for LLM inference requires understanding two parallelism strat
 ## Standard Stack
 
 ### Core (Already in Project)
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| Decimal.js | current | Precise VRAM calculations | Already used throughout engines |
-| Recharts | current | Data visualization | Already used for pie chart, has BarChart component |
-| Zustand | current | State management | Already managing UI state |
-| Zod | current | Schema validation | Already validates GPU/Model data |
+
+| Library    | Version | Purpose                   | Why Standard                                       |
+| ---------- | ------- | ------------------------- | -------------------------------------------------- |
+| Decimal.js | current | Precise VRAM calculations | Already used throughout engines                    |
+| Recharts   | current | Data visualization        | Already used for pie chart, has BarChart component |
+| Zustand    | current | State management          | Already managing UI state                          |
+| Zod        | current | Schema validation         | Already validates GPU/Model data                   |
 
 ### New Components Needed
-| Component | Purpose | Implementation Pattern |
-|-----------|---------|------------------------|
-| Multi-GPU calculation engine | Calculate per-GPU VRAM distribution | Pure function in `src/engines/multi-gpu.ts` |
-| Stacked bar chart | Visualize per-GPU memory breakdown | `src/components/outputs/MultiGPUBreakdownChart.tsx` |
-| GPU count selector | Input for number of GPUs (1-8) | `src/components/inputs/GPUCountSelector.tsx` |
-| Sharding strategy selector | TP/PP selection with explanations | `src/components/inputs/ShardingStrategySelector.tsx` |
+
+| Component                    | Purpose                             | Implementation Pattern                               |
+| ---------------------------- | ----------------------------------- | ---------------------------------------------------- |
+| Multi-GPU calculation engine | Calculate per-GPU VRAM distribution | Pure function in `src/engines/multi-gpu.ts`          |
+| Stacked bar chart            | Visualize per-GPU memory breakdown  | `src/components/outputs/MultiGPUBreakdownChart.tsx`  |
+| GPU count selector           | Input for number of GPUs (1-8)      | `src/components/inputs/GPUCountSelector.tsx`         |
+| Sharding strategy selector   | TP/PP selection with explanations   | `src/components/inputs/ShardingStrategySelector.tsx` |
 
 **No new dependencies required** - all functionality can be implemented with existing stack.
 
@@ -75,7 +77,7 @@ export interface MultiGPUVRAMBreakdown {
 function calculateTensorParallelVRAM(
   singleGPUBreakdown: InferenceVRAMBreakdown,
   model: Model,
-  numGPUs: number
+  numGPUs: number,
 ): MultiGPUVRAMBreakdown {
   // 1. Model weights are MOSTLY sharded (85-90% effective split)
   //    Embeddings and layer norms are replicated across all GPUs
@@ -139,7 +141,7 @@ function calculateTensorParallelVRAM(
 function calculatePipelineParallelVRAM(
   singleGPUBreakdown: InferenceVRAMBreakdown,
   model: Model,
-  numGPUs: number
+  numGPUs: number,
 ): MultiGPUVRAMBreakdown {
   const layersPerStage = Math.ceil(model.num_hidden_layers / numGPUs)
 
@@ -208,13 +210,13 @@ const INTERCONNECT_SPECS: Record<string, InterconnectSpec> = {
   'nvlink-5': { type: 'nvlink-5', bandwidthGBps: 1800, recommendedMaxTPDegree: 8 },
   'pcie-4': { type: 'pcie-4', bandwidthGBps: 64, recommendedMaxTPDegree: 2 },
   'pcie-5': { type: 'pcie-5', bandwidthGBps: 128, recommendedMaxTPDegree: 4 },
-  'none': { type: 'none', bandwidthGBps: 0, recommendedMaxTPDegree: 1 },
+  none: { type: 'none', bandwidthGBps: 0, recommendedMaxTPDegree: 1 },
 }
 
 function validateInterconnect(
   gpu: GPU,
   numGPUs: number,
-  strategy: ShardingStrategy
+  strategy: ShardingStrategy,
 ): { valid: boolean; warning?: string } {
   if (numGPUs === 1) return { valid: true }
 
@@ -224,14 +226,14 @@ function validateInterconnect(
   if (strategy === 'tensor-parallel' && numGPUs > spec.recommendedMaxTPDegree) {
     return {
       valid: true,
-      warning: `${gpu.name} uses ${spec.type} (${spec.bandwidthGBps} GB/s). Tensor parallelism with ${numGPUs} GPUs may have significant communication overhead. Consider pipeline parallelism or NVLink-equipped GPUs for better performance.`
+      warning: `${gpu.name} uses ${spec.type} (${spec.bandwidthGBps} GB/s). Tensor parallelism with ${numGPUs} GPUs may have significant communication overhead. Consider pipeline parallelism or NVLink-equipped GPUs for better performance.`,
     }
   }
 
   if (spec.type === 'none' && numGPUs > 1) {
     return {
       valid: false,
-      warning: `${gpu.name} does not support multi-GPU operation (no interconnect).`
+      warning: `${gpu.name} does not support multi-GPU operation (no interconnect).`,
     }
   }
 
@@ -253,12 +255,12 @@ function validateInterconnect(
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Communication overhead modeling | Custom all-reduce timing | Use fixed percentages from research (10-15% for TP, 5% for PP) | NCCL performance is hardware/network dependent, impossible to model accurately without profiling |
-| Optimal sharding strategy selection | ML-based optimizer to choose TP vs PP | Simple heuristic: single node → TP, multi-node → PP | Real-world choice depends on batch size, sequence length, latency requirements—calculator can't know user's priorities |
-| Embedding memory calculation | Parse model architecture to identify embedding layers | Use approximation: `vocab_size * hidden_size * bytes_per_param` | Good enough for estimation, real value requires loading model files |
-| Inter-layer dependencies | Analyze which layers can be sharded | Assume standard Transformer architecture (all attention/MLP shardable, embeddings/norms replicated) | Model-specific optimizations (like Megatron's sequence parallelism) are framework-dependent |
+| Problem                             | Don't Build                                           | Use Instead                                                                                         | Why                                                                                                                    |
+| ----------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Communication overhead modeling     | Custom all-reduce timing                              | Use fixed percentages from research (10-15% for TP, 5% for PP)                                      | NCCL performance is hardware/network dependent, impossible to model accurately without profiling                       |
+| Optimal sharding strategy selection | ML-based optimizer to choose TP vs PP                 | Simple heuristic: single node → TP, multi-node → PP                                                 | Real-world choice depends on batch size, sequence length, latency requirements—calculator can't know user's priorities |
+| Embedding memory calculation        | Parse model architecture to identify embedding layers | Use approximation: `vocab_size * hidden_size * bytes_per_param`                                     | Good enough for estimation, real value requires loading model files                                                    |
+| Inter-layer dependencies            | Analyze which layers can be sharded                   | Assume standard Transformer architecture (all attention/MLP shardable, embeddings/norms replicated) | Model-specific optimizations (like Megatron's sequence parallelism) are framework-dependent                            |
 
 **Key insight:** Multi-GPU distribution formulas are well-established in vLLM, DeepSpeed, and Megatron-LM. Use their proven constants rather than trying to derive from first principles.
 
@@ -349,7 +351,7 @@ export function calculateMultiGPUVRAM(
   model: Model,
   gpu: GPU,
   numGPUs: number,
-  strategy: ShardingStrategy
+  strategy: ShardingStrategy,
 ): MultiGPUVRAMBreakdown {
   // Validate GPU count
   if (numGPUs < 1 || numGPUs > 8) {
@@ -481,12 +483,12 @@ export const useUIStore = create<UIState>()(
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| Pure tensor parallelism | Hybrid TP + sequence parallelism | 2023 (Megatron-LM v3) | Further reduces activation memory by sharding LayerNorm along sequence dimension |
-| Pipeline parallelism micro-batching | Interleaved pipeline schedules | 2024 (PipeDream-2BW) | Reduces pipeline bubbles from 25% to 10-15% |
-| PCIe-only multi-GPU | NVLink/NVSwitch required for efficient TP | 2022-2023 | Consumer GPUs (RTX 4090 with PCIe 4.0) limited to TP=2, datacenter GPUs (H100 with NVLink) scale to TP=8 |
-| Static NCCL buffers | Dynamic NCCL buffer sizing | 2024 (NCCL 2.27+) | Reduces small-message latency by 7.6x with symmetric memory |
+| Old Approach                        | Current Approach                          | When Changed          | Impact                                                                                                   |
+| ----------------------------------- | ----------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------- |
+| Pure tensor parallelism             | Hybrid TP + sequence parallelism          | 2023 (Megatron-LM v3) | Further reduces activation memory by sharding LayerNorm along sequence dimension                         |
+| Pipeline parallelism micro-batching | Interleaved pipeline schedules            | 2024 (PipeDream-2BW)  | Reduces pipeline bubbles from 25% to 10-15%                                                              |
+| PCIe-only multi-GPU                 | NVLink/NVSwitch required for efficient TP | 2022-2023             | Consumer GPUs (RTX 4090 with PCIe 4.0) limited to TP=2, datacenter GPUs (H100 with NVLink) scale to TP=8 |
+| Static NCCL buffers                 | Dynamic NCCL buffer sizing                | 2024 (NCCL 2.27+)     | Reduces small-message latency by 7.6x with symmetric memory                                              |
 
 **Deprecated/outdated:**
 - **Model parallelism without pipelining**: Original Megatron-LM (2019) did pure TP without PP, causing high communication overhead for large models. Modern approach uses 3D parallelism (TP × PP × DP).
@@ -521,18 +523,21 @@ export const useUIStore = create<UIState>()(
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - [vLLM Parallelism and Scaling Documentation](https://docs.vllm.ai/en/stable/serving/parallelism_scaling/) - Tensor parallelism memory distribution patterns
 - [DeepSpeed Pipeline Parallelism Tutorial](https://www.deepspeed.ai/tutorials/pipeline/) - Pipeline parallelism activation stashing
 - [NVIDIA Megatron-LM Parallelisms Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/parallelisms.html) - Tensor parallelism implementation details
 - [Megatron-LM Paper (arXiv:1909.08053)](https://arxiv.org/abs/1909.08053) - Original model parallelism formulas
 
 ### Secondary (MEDIUM confidence)
+
 - [NVLink vs PCIe for AI Workloads](https://www.hyperstack.cloud/blog/case-study/nvlink-vs-pcie-whats-the-difference-for-ai-workloads) - Bandwidth comparisons (1800 GB/s vs 128 GB/s)
 - [NVIDIA NVLink Technical Blog](https://developer.nvidia.com/blog/scaling-ai-inference-performance-and-flexibility-with-nvidia-nvlink-and-nvlink-fusion/) - Multi-GPU scaling efficiency (90-95% with NVLink, 60-70% with PCIe)
 - [NCCL 2.27 Technical Blog](https://developer.nvidia.com/blog/enabling-fast-inference-and-resilient-training-with-nccl-2-27/) - Communication buffer sizing (symmetric memory reduces latency 7.6x)
 - [Recharts Stacked Bar Chart Documentation](https://recharts.github.io/en-US/examples/StackedBarChart/) - Visualization pattern implementation
 
 ### Tertiary (LOW confidence - needs validation)
+
 - [LLM VRAM Calculator Comparisons](https://apxml.com/tools/vram-calculator) - Other calculators use simple division (validates need for better approach)
 - [BentoML Multi-GPU Guide](https://bentoml.com/llm/inference-optimization/data-tensor-pipeline-expert-hybrid-parallelism) - General multi-GPU patterns
 - [Medium articles on tensor parallelism](https://medium.com/@kaige.yang0110/vllm-throughput-optimization-1-basic-of-vllm-parameters-c39ace00a519) - Community knowledge (useful but unverified)

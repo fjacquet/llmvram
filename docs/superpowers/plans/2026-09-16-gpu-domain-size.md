@@ -54,15 +54,13 @@ describe('GPUSchema max_gpus_per_node', () => {
   })
 
   it('rejects a non-integer max_gpus_per_node', () => {
-    expect(() =>
-      GPUSchema.parse({ ...validDatacenterGPU, max_gpus_per_node: 4.5 }),
-    ).toThrow(ZodError)
+    expect(() => GPUSchema.parse({ ...validDatacenterGPU, max_gpus_per_node: 4.5 })).toThrow(
+      ZodError,
+    )
   })
 
   it('rejects a zero or negative max_gpus_per_node', () => {
-    expect(() => GPUSchema.parse({ ...validDatacenterGPU, max_gpus_per_node: 0 })).toThrow(
-      ZodError,
-    )
+    expect(() => GPUSchema.parse({ ...validDatacenterGPU, max_gpus_per_node: 0 })).toThrow(ZodError)
   })
 
   it('accepts a positive integer max_gpus_per_node', () => {
@@ -130,35 +128,35 @@ In `src/utils/schemas.ts`, insert immediately after the `bus_width` line (curren
 
 In `scripts/fetch-gpus.ts`, add a `max_gpus_per_node` line to each GPU object, placed immediately before that object's `tier:` line. Use exactly these values:
 
-| id | `max_gpus_per_node` |
-|---|---|
-| `nvidia-h100-80gb-pcie` | 8 |
-| `nvidia-h100-80gb-sxm` | 8 |
-| `nvidia-h200-141gb` | 8 |
-| `nvidia-b200-192gb` | 8 |
-| `nvidia-gb300-288gb` | 8 |
-| `nvidia-a100-80gb-pcie` | 8 |
-| `nvidia-a100-80gb-sxm` | 8 |
-| `nvidia-l40s` | 8 |
-| `nvidia-rtx-pro-6000-server` | 8 |
-| `nvidia-rtx-6000-ada` | 8 |
-| `nvidia-rtx-5090` | 8 |
-| `nvidia-rtx-4090` | 8 |
-| `nvidia-rtx-3090` | 8 |
-| `nvidia-gb300-desktop-252gb` | 1 |
-| `nvidia-gb10` | 2 |
-| `amd-mi355x` | 8 |
-| `amd-mi350x` | 8 |
-| `amd-mi325x` | 8 |
-| `amd-mi300x` | 8 |
-| `apple-m1-ultra` | 1 |
-| `apple-m2-ultra` | 1 |
-| `apple-m3-ultra` | 1 |
-| `apple-m5-max` | 1 |
-| `apple-m4-max` | 1 |
-| `apple-m3-max` | 1 |
-| `apple-m2-max` | 1 |
-| `apple-m1-max` | 1 |
+| id                           | `max_gpus_per_node` |
+| ---------------------------- | ------------------- |
+| `nvidia-h100-80gb-pcie`      | 8                   |
+| `nvidia-h100-80gb-sxm`       | 8                   |
+| `nvidia-h200-141gb`          | 8                   |
+| `nvidia-b200-192gb`          | 8                   |
+| `nvidia-gb300-288gb`         | 8                   |
+| `nvidia-a100-80gb-pcie`      | 8                   |
+| `nvidia-a100-80gb-sxm`       | 8                   |
+| `nvidia-l40s`                | 8                   |
+| `nvidia-rtx-pro-6000-server` | 8                   |
+| `nvidia-rtx-6000-ada`        | 8                   |
+| `nvidia-rtx-5090`            | 8                   |
+| `nvidia-rtx-4090`            | 8                   |
+| `nvidia-rtx-3090`            | 8                   |
+| `nvidia-gb300-desktop-252gb` | 1                   |
+| `nvidia-gb10`                | 2                   |
+| `amd-mi355x`                 | 8                   |
+| `amd-mi350x`                 | 8                   |
+| `amd-mi325x`                 | 8                   |
+| `amd-mi300x`                 | 8                   |
+| `apple-m1-ultra`             | 1                   |
+| `apple-m2-ultra`             | 1                   |
+| `apple-m3-ultra`             | 1                   |
+| `apple-m5-max`               | 1                   |
+| `apple-m4-max`               | 1                   |
+| `apple-m3-max`               | 1                   |
+| `apple-m2-max`               | 1                   |
+| `apple-m1-max`               | 1                   |
 
 Example of the edit shape, for the first row:
 
@@ -220,15 +218,15 @@ export function createCustomGPU(input: CustomGPUInput): GPU {
 In `src/hooks/useURLSync.ts` there are TWO object literals restoring a custom GPU (the `urlState.gpuId` fallback branch and the `urlState.customGPU`-without-id branch). Both currently read:
 
 ```ts
-        store.setSelectedGPU({
-          id: 'custom-restored',
-          manufacturer: 'nvidia',
-          memory_type: 'Custom',
-          bus_width: 0,
-          tier: 'consumer',
-          interconnect: 'none',
-          ...urlState.customGPU,
-        })
+store.setSelectedGPU({
+  id: 'custom-restored',
+  manufacturer: 'nvidia',
+  memory_type: 'Custom',
+  bus_width: 0,
+  tier: 'consumer',
+  interconnect: 'none',
+  ...urlState.customGPU,
+})
 ```
 
 Add `max_gpus_per_node: 8,` after `interconnect: 'none',` in BOTH. Note the spread comes last, so the literal's value is the default and any future serialized field would win — that ordering is existing behaviour, leave it.
@@ -309,12 +307,12 @@ In `scripts/fetch-gpus.ts`, change two lines of the `nvidia-b200-192gb` object. 
 Add this comment directly above the object, so the next person does not "fix" it back:
 
 ```ts
-  // HGX B200 ships 1.44TB across 8 GPUs = 180GB each. 192GB is the physical
-  // HBM3e stack size before reserved capacity; 180GB is the software-visible
-  // figure in NVIDIA's OEM documentation and in Dell XE9680L / XE9685L and
-  // Lenovo ThinkSystem listings. A VRAM calculator wants the allocatable one.
-  // The id keeps its stale "192gb" suffix on purpose: changing it would break
-  // every shared link naming this GPU.
+// HGX B200 ships 1.44TB across 8 GPUs = 180GB each. 192GB is the physical
+// HBM3e stack size before reserved capacity; 180GB is the software-visible
+// figure in NVIDIA's OEM documentation and in Dell XE9680L / XE9685L and
+// Lenovo ThinkSystem listings. A VRAM calculator wants the allocatable one.
+// The id keeps its stale "192gb" suffix on purpose: changing it would break
+// every shared link naming this GPU.
 ```
 
 - [ ] **Step 4: Regenerate and verify the test passes**
@@ -465,32 +463,32 @@ git commit -m "feat: add GB300 NVL72 as a 72-GPU row alongside HGX B300"
 In `src/engines/multi-gpu.test.ts`, the test at line 431 currently asserts a throw above 8. Replace that test and add a passing-case test beside it. Keep the `numGPUs < 1` test at line 418 exactly as it is — the lower bound does not move.
 
 ```ts
-  it('throws error for numGPUs > 72', () => {
-    expect(() =>
-      calculateMultiGPUVRAM({
-        singleGPU: baseBreakdown,
-        model: testModel,
-        gpuVramGB: 80,
-        numGPUs: 73,
-        strategy: 'tensor-parallel',
-        gpu: testGPU,
-      }),
-    ).toThrow(/numGPUs must be between 1 and 72/)
-  })
-
-  it('accepts a 72-GPU node, for NVL72-class racks', () => {
-    const result = calculateMultiGPUVRAM({
+it('throws error for numGPUs > 72', () => {
+  expect(() =>
+    calculateMultiGPUVRAM({
       singleGPU: baseBreakdown,
       model: testModel,
-      gpuVramGB: 288,
-      numGPUs: 72,
+      gpuVramGB: 80,
+      numGPUs: 73,
       strategy: 'tensor-parallel',
       gpu: testGPU,
-    })
-    expect(result.numGPUs).toBe(72)
-    expect(result.totalPerGPU.toNumber()).toBeGreaterThan(0)
-    expect(result.totalPerGPU.isFinite()).toBe(true)
+    }),
+  ).toThrow(/numGPUs must be between 1 and 72/)
+})
+
+it('accepts a 72-GPU node, for NVL72-class racks', () => {
+  const result = calculateMultiGPUVRAM({
+    singleGPU: baseBreakdown,
+    model: testModel,
+    gpuVramGB: 288,
+    numGPUs: 72,
+    strategy: 'tensor-parallel',
+    gpu: testGPU,
   })
+  expect(result.numGPUs).toBe(72)
+  expect(result.totalPerGPU.toNumber()).toBeGreaterThan(0)
+  expect(result.totalPerGPU.isFinite()).toBe(true)
+})
 ```
 
 Match the exact argument shape used by the neighbouring tests in that file — read the test at line 418 and mirror its call, including whatever fixture names it uses for the breakdown, model and GPU. Do not invent fixture names.
@@ -535,9 +533,9 @@ export const MAX_GPUS_PER_NODE = 72
 In `src/engines/multi-gpu.ts`, import the constant alongside the existing imports from `./constants`, then replace lines 253-255:
 
 ```ts
-  if (numGPUs < 1 || numGPUs > MAX_GPUS_PER_NODE) {
-    throw new Error(`numGPUs must be between 1 and ${MAX_GPUS_PER_NODE}, got ${numGPUs}`)
-  }
+if (numGPUs < 1 || numGPUs > MAX_GPUS_PER_NODE) {
+  throw new Error(`numGPUs must be between 1 and ${MAX_GPUS_PER_NODE}, got ${numGPUs}`)
+}
 ```
 
 Update the doc comment at line 228 from `@throws Error if numGPUs < 1 or > 8` to:
@@ -559,26 +557,26 @@ it lands on the ceiling rather than producing a nonsense number. Add to
 `src/engines/multi-node.test.ts`:
 
 ```ts
-  it('puts a 72-GPU NVL72 node at the pipeline efficiency ceiling, not beyond it', () => {
-    const result = calculateMultiNodeVRAM({
-      singleGPU: baseBreakdown,
-      model: testModel,
-      gpuVramGB: 288,
-      gpusPerNode: 72,
-      numNodes: 2,
-      intraNodeStrategy: 'tensor-parallel',
-      gpu: testGPU,
-      fabric: resolveFabricSpec('ethernet-800g', null),
-      batchSize: 1,
-    })
-
-    // perNodeFabricGBps = 100 GB/s x 72 = 7200, well above FABRIC_REFERENCE_GBPS
-    // (1600), so L clamps to 0 and prefill efficiency sits at PP_BASE_EFFICIENCY.
-    expect(result.interNodePrefillEfficiency).toBeLessThanOrEqual(PP_BASE_EFFICIENCY)
-    expect(result.interNodePrefillEfficiency).toBeGreaterThan(0.9)
-    expect(result.interNodeDecodeEfficiency).toBeLessThanOrEqual(1)
-    expect(result.totalPerGPU.isFinite()).toBe(true)
+it('puts a 72-GPU NVL72 node at the pipeline efficiency ceiling, not beyond it', () => {
+  const result = calculateMultiNodeVRAM({
+    singleGPU: baseBreakdown,
+    model: testModel,
+    gpuVramGB: 288,
+    gpusPerNode: 72,
+    numNodes: 2,
+    intraNodeStrategy: 'tensor-parallel',
+    gpu: testGPU,
+    fabric: resolveFabricSpec('ethernet-800g', null),
+    batchSize: 1,
   })
+
+  // perNodeFabricGBps = 100 GB/s x 72 = 7200, well above FABRIC_REFERENCE_GBPS
+  // (1600), so L clamps to 0 and prefill efficiency sits at PP_BASE_EFFICIENCY.
+  expect(result.interNodePrefillEfficiency).toBeLessThanOrEqual(PP_BASE_EFFICIENCY)
+  expect(result.interNodePrefillEfficiency).toBeGreaterThan(0.9)
+  expect(result.interNodeDecodeEfficiency).toBeLessThanOrEqual(1)
+  expect(result.totalPerGPU.isFinite()).toBe(true)
+})
 ```
 
 Import `PP_BASE_EFFICIENCY` and `resolveFabricSpec` from `@engines/fabric`, and
@@ -1050,14 +1048,17 @@ Under `## [Unreleased]`, add an `### Added` / `### Changed` / `### Fixed` groupi
 
 ```markdown
 ### Added
+
 - Per-GPU `max_gpus_per_node` field bounding how many GPUs can share one node, derived as min(coherent interconnect limit, largest shipping chassis slot count)
 - NVIDIA GB300 NVL72 as a 72-GPU row, alongside the existing GB300 which now names the 8-GPU HGX B300 baseboard
 
 ### Changed
+
 - The GPU count slider is bounded by the selected GPU rather than a fixed 8, and shows no slider for single-GPU parts
 - The per-node engine guard widened from 8 to 72
 
 ### Fixed
+
 - NVIDIA B200 listed at its allocatable 180GB rather than the 192GB physical stack size
 - The GPU count tooltip no longer claims 8 is the largest fully connected GPU domain in current hardware
 ```

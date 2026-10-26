@@ -30,12 +30,12 @@ quantized models.
 
 ## Scope, in order
 
-| Piece | What | Depends on |
-|---|---|---|
-| 4a | Expert parallelism + DP-attention strategy (intra-node): experts / N, base replicated, KV per rank; all-to-all cost = latency + bytes / bandwidth | — |
-| 4b | Max-session solver: sessions per GPU and per cluster at a given context, from free VRAM after weights | 4a |
-| 4c | Linear-attention / Mamba state per session (Qwen3.8, Qwen3.6, Kimi K3 KDA, Kimi Linear) | — |
-| 4d | KV storage tier: hot KV in HBM, idle sessions parked on host memory, NVMe or network storage (CMX, PowerScale, ObjectScale); sessions held vs resume time. Dell Lightning FS is out of scope: it targets > 16K GPUs, so it is cluster storage sizing for raidy | 4b, 4c |
+| Piece | What                                                                                                                                                                                                                                                           | Depends on |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 4a    | Expert parallelism + DP-attention strategy (intra-node): experts / N, base replicated, KV per rank; all-to-all cost = latency + bytes / bandwidth                                                                                                              | —          |
+| 4b    | Max-session solver: sessions per GPU and per cluster at a given context, from free VRAM after weights                                                                                                                                                          | 4a         |
+| 4c    | Linear-attention / Mamba state per session (Qwen3.8, Qwen3.6, Kimi K3 KDA, Kimi Linear)                                                                                                                                                                        | —          |
+| 4d    | KV storage tier: hot KV in HBM, idle sessions parked on host memory, NVMe or network storage (CMX, PowerScale, ObjectScale); sessions held vs resume time. Dell Lightning FS is out of scope: it targets > 16K GPUs, so it is cluster storage sizing for raidy | 4b, 4c     |
 
 ## Success criteria
 

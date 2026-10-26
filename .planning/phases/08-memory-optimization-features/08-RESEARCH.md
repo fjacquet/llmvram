@@ -20,28 +20,28 @@ The project's existing architecture is ideal: pure calculation engines in `src/e
 
 ### Core
 
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| Decimal.js | (existing) | Precise arithmetic for memory calculations | Already in use, prevents floating-point errors in reduction percentages |
-| Zod | (existing) | Schema validation for optimization parameters | Already project standard, validates gradient accumulation steps (1-128) |
-| React 19 | (existing) | UI components for optimization toggles | Already in use, controlled components for checkboxes and sliders |
-| Zustand | 5.0.9 | State management for optimization settings | Already in use, slice pattern from Phase 7 extends to optimization state |
+| Library    | Version    | Purpose                                       | Why Standard                                                             |
+| ---------- | ---------- | --------------------------------------------- | ------------------------------------------------------------------------ |
+| Decimal.js | (existing) | Precise arithmetic for memory calculations    | Already in use, prevents floating-point errors in reduction percentages  |
+| Zod        | (existing) | Schema validation for optimization parameters | Already project standard, validates gradient accumulation steps (1-128)  |
+| React 19   | (existing) | UI components for optimization toggles        | Already in use, controlled components for checkboxes and sliders         |
+| Zustand    | 5.0.9      | State management for optimization settings    | Already in use, slice pattern from Phase 7 extends to optimization state |
 
 ### Supporting
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| PyTorch 2.5+ | (reference only) | Activation checkpointing formulas | Source for O(sqrt(n)) reduction formula |
-| Flash Attention 2 | (reference only) | Attention memory reduction formulas | Source for O(n²) → O(n) reduction math |
-| HuggingFace Transformers | v5.0.0+ | Gradient accumulation best practices | Source for per-device batch terminology |
+| Library                  | Version          | Purpose                              | When to Use                             |
+| ------------------------ | ---------------- | ------------------------------------ | --------------------------------------- |
+| PyTorch 2.5+             | (reference only) | Activation checkpointing formulas    | Source for O(sqrt(n)) reduction formula |
+| Flash Attention 2        | (reference only) | Attention memory reduction formulas  | Source for O(n²) → O(n) reduction math  |
+| HuggingFace Transformers | v5.0.0+          | Gradient accumulation best practices | Source for per-device batch terminology |
 
 ### Alternatives Considered
 
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| Mathematical reduction formulas | Fixed percentages (e.g., "60% reduction") | Fixed percentages ignore model-specific behavior (layer count, sequence length) |
-| Separate optimization engines | Single monolithic function | Separate functions allow composing optimizations and clear testing |
-| Boolean toggles | Percentage sliders for reductions | Toggles simpler for users; reductions are algorithm-specific, not user-configurable |
+| Instead of                      | Could Use                                 | Tradeoff                                                                            |
+| ------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------- |
+| Mathematical reduction formulas | Fixed percentages (e.g., "60% reduction") | Fixed percentages ignore model-specific behavior (layer count, sequence length)     |
+| Separate optimization engines   | Single monolithic function                | Separate functions allow composing optimizations and clear testing                  |
+| Boolean toggles                 | Percentage sliders for reductions         | Toggles simpler for users; reductions are algorithm-specific, not user-configurable |
 
 **Installation:**
 
@@ -112,7 +112,7 @@ export function calculateBaseActivationMemory(params: {
     .mul(model.hidden_size)
     .mul(model.num_hidden_layers)
     .mul(10) // Approximate per-layer multiplier
-    .mul(2)  // FP16/BF16 bytes
+    .mul(2) // FP16/BF16 bytes
     .div(BYTES_PER_GB)
 }
 
@@ -134,10 +134,7 @@ export function calculateBaseActivationMemory(params: {
  * Reference: PyTorch activation checkpointing docs (2026)
  * Reference: .planning/research/PITFALLS.md #7
  */
-export function applyGradientCheckpointing(
-  baseActivations: Decimal,
-  enabled: boolean,
-): Decimal {
+export function applyGradientCheckpointing(baseActivations: Decimal, enabled: boolean): Decimal {
   if (!enabled) return baseActivations
 
   // 60% reduction (keep 40% of activations at checkpoint boundaries)
@@ -348,12 +345,12 @@ export function calculateEffectiveBatchSize(
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Activation memory reduction formula | Custom heuristics for "60% reduction" | PyTorch O(sqrt(n)) formula from official docs | Edge cases: MoE models, GQA, mixed precision variations |
-| Flash Attention sequence scaling | Linear interpolation between seq lengths | Official Flash Attention O(n²) → O(n) reduction | Attention matrix size dominates at long sequences, minimal impact at short |
-| Effective batch size validation | Custom "reasonable batch size" checks | HuggingFace Transformers trainer validation | Handles edge cases: accumulation > batch, distributed training semantics |
-| Optimization compatibility matrix | Manual if/else checks for valid combinations | Framework documentation matrices | DeepSpeed ZeRO + checkpointing, Flash Attention + mixed precision compatibility |
+| Problem                             | Don't Build                                  | Use Instead                                     | Why                                                                             |
+| ----------------------------------- | -------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------- |
+| Activation memory reduction formula | Custom heuristics for "60% reduction"        | PyTorch O(sqrt(n)) formula from official docs   | Edge cases: MoE models, GQA, mixed precision variations                         |
+| Flash Attention sequence scaling    | Linear interpolation between seq lengths     | Official Flash Attention O(n²) → O(n) reduction | Attention matrix size dominates at long sequences, minimal impact at short      |
+| Effective batch size validation     | Custom "reasonable batch size" checks        | HuggingFace Transformers trainer validation     | Handles edge cases: accumulation > batch, distributed training semantics        |
+| Optimization compatibility matrix   | Manual if/else checks for valid combinations | Framework documentation matrices                | DeepSpeed ZeRO + checkpointing, Flash Attention + mixed precision compatibility |
 
 **Key insight:** The formulas are well-established (PyTorch docs, Flash Attention paper) with precise mathematical foundations. Custom approximations introduce errors that compound with other optimizations.
 
@@ -496,10 +493,7 @@ function applyFlashAttention(memory: Decimal): Decimal {
 }
 
 // CORRECT: Sequence-length-dependent reduction
-function applyFlashAttention(
-  memory: Decimal,
-  sequenceLength: number,
-): Decimal {
+function applyFlashAttention(memory: Decimal, sequenceLength: number): Decimal {
   // Attention matrix: O(n²) → O(n) reduction
   // Impact depends on what fraction of memory is attention
 
@@ -729,10 +723,7 @@ export function calculateEffectiveBatchSize(
  * Typical reduction: 60% (keep 40% at checkpoints)
  * Compute overhead: +20-25% training time
  */
-export function applyGradientCheckpointing(
-  activationMemoryGB: Decimal,
-  enabled: boolean,
-): Decimal {
+export function applyGradientCheckpointing(activationMemoryGB: Decimal, enabled: boolean): Decimal {
   if (!enabled) return activationMemoryGB
 
   // Keep 40% of activations (60% reduction)
@@ -822,12 +813,12 @@ export function calculateOptimizedActivations(params: {
 
 ## State of the Art
 
-| Optimization | How It Works | Memory Reduction | Compute Overhead | Best Use Case |
-|--------------|--------------|------------------|------------------|---------------|
-| Gradient Accumulation | Process smaller micro-batches | 10-15% (activation only) | None | Simulate large effective batch on limited VRAM |
-| Gradient Checkpointing | Recompute activations in backward pass | 50-80% (activation only) | +20-25% time | Large models, long sequences, limited VRAM |
-| Flash Attention | IO-aware tiling, O(n²) → O(n) | 15-70% (sequence-dependent) | None (actually 2-4x faster) | Long sequences (> 2K tokens) |
-| Combined (Checkpointing + Flash) | Both techniques stack | 60-85% total | +20-25% time | Extreme memory constraints, very long sequences |
+| Optimization                     | How It Works                           | Memory Reduction            | Compute Overhead            | Best Use Case                                   |
+| -------------------------------- | -------------------------------------- | --------------------------- | --------------------------- | ----------------------------------------------- |
+| Gradient Accumulation            | Process smaller micro-batches          | 10-15% (activation only)    | None                        | Simulate large effective batch on limited VRAM  |
+| Gradient Checkpointing           | Recompute activations in backward pass | 50-80% (activation only)    | +20-25% time                | Large models, long sequences, limited VRAM      |
+| Flash Attention                  | IO-aware tiling, O(n²) → O(n)          | 15-70% (sequence-dependent) | None (actually 2-4x faster) | Long sequences (> 2K tokens)                    |
+| Combined (Checkpointing + Flash) | Both techniques stack                  | 60-85% total                | +20-25% time                | Extreme memory constraints, very long sequences |
 
 **Current best practices (2026):**
 

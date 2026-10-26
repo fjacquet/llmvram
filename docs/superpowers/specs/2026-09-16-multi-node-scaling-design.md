@@ -94,20 +94,20 @@ literal in `scripts/fetch-gpus.ts`; rows go there, adjacent to `amd-mi300x`
 grouped by vendor, not sorted alphabetically — the `models.json` sort rule does
 not apply.
 
-| field | MI355X | MI350X | MI325X |
-|---|---|---|---|
-| `id` | `amd-mi355x` | `amd-mi350x` | `amd-mi325x` |
-| `name` | AMD Instinct MI355X | AMD Instinct MI350X | AMD Instinct MI325X |
-| `manufacturer` | `amd` | `amd` | `amd` |
-| `vram_gb` | 288 | 288 | 256 |
-| `memory_bandwidth_gbps` | 8000 | 8000 | 6000 |
-| `memory_type` | HBM3E | HBM3E | HBM3E |
-| `bus_width` | 8192 | 8192 | 8192 |
-| `fp16_tflops` | 2516 | 2300 | 1307 |
-| `fp32_tflops` | 157 | 144 | 163 |
-| `tdp_watts` | 1400 | 1000 | 1000 |
-| `interconnect` | `infinity-fabric` | `infinity-fabric` | `infinity-fabric` |
-| `tier` | `datacenter` | `datacenter` | `datacenter` |
+| field                   | MI355X              | MI350X              | MI325X              |
+| ----------------------- | ------------------- | ------------------- | ------------------- |
+| `id`                    | `amd-mi355x`        | `amd-mi350x`        | `amd-mi325x`        |
+| `name`                  | AMD Instinct MI355X | AMD Instinct MI350X | AMD Instinct MI325X |
+| `manufacturer`          | `amd`               | `amd`               | `amd`               |
+| `vram_gb`               | 288                 | 288                 | 256                 |
+| `memory_bandwidth_gbps` | 8000                | 8000                | 6000                |
+| `memory_type`           | HBM3E               | HBM3E               | HBM3E               |
+| `bus_width`             | 8192                | 8192                | 8192                |
+| `fp16_tflops`           | 2516                | 2300                | 1307                |
+| `fp32_tflops`           | 157                 | 144                 | 163                 |
+| `tdp_watts`             | 1400                | 1000                | 1000                |
+| `interconnect`          | `infinity-fabric`   | `infinity-fabric`   | `infinity-fabric`   |
+| `tier`                  | `datacenter`        | `datacenter`        | `datacenter`        |
 
 `fp16_tflops` is **dense**, matching the database's existing convention (H100
 989, B200 4500, MI300X 1307). AMD's headline "4.6/5.0 PFLOPS FP16" figures are
@@ -230,14 +230,14 @@ design, per Finding B.
 
 Resulting table at `gpusPerNode = 8`:
 
-| fabric | GB/s/port | B (GB/s/node) | L | prefill | decode |
-|---|---|---|---|---|---|
-| 1.6TbE SONiC / RoCEv2 | 200 | 1600 | 0 | 0.95 | 0.99 |
-| InfiniBand XDR 800G | 100 | 800 | 1 | 0.89 | 0.98 |
-| 800GbE SONiC / RoCEv2 | 100 | 800 | 1 | 0.87 | 0.98 |
-| InfiniBand NDR 400G | 50 | 400 | 2 | 0.78 | 0.97 |
-| 400GbE RoCEv2 | 50 | 400 | 2 | 0.76 | 0.97 |
-| 100GbE | 12.5 | 100 | 4 | 0.42 | 0.95 |
+| fabric                | GB/s/port | B (GB/s/node) | L   | prefill | decode |
+| --------------------- | --------- | ------------- | --- | ------- | ------ |
+| 1.6TbE SONiC / RoCEv2 | 200       | 1600          | 0   | 0.95    | 0.99   |
+| InfiniBand XDR 800G   | 100       | 800           | 1   | 0.89    | 0.98   |
+| 800GbE SONiC / RoCEv2 | 100       | 800           | 1   | 0.87    | 0.98   |
+| InfiniBand NDR 400G   | 50        | 400           | 2   | 0.78    | 0.97   |
+| 400GbE RoCEv2         | 50        | 400           | 2   | 0.76    | 0.97   |
+| 100GbE                | 12.5      | 100           | 4   | 0.42    | 0.95   |
 
 The table is **computed from the formulas, not hand-entered**, so the custom
 entry and the presets cannot drift apart.
@@ -290,7 +290,7 @@ Three structures were considered:
 
 **(a) is chosen.** `calculateMultiGPUVRAM` keeps its signature, its tests stay
 green, and — decisively — its existing `numGPUs` 1–8 throw guard remains
-*correct* under composition, because under (a) that bound is exactly the
+_correct_ under composition, because under (a) that bound is exactly the
 per-node bound. Under (b) the guard would have to be relaxed and re-expressed.
 
 ```
