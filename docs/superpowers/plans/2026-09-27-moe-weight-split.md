@@ -166,9 +166,15 @@ In `src/utils/schemas.test.ts` (inside an existing or new `describe('ModelSchema
 ```ts
 it('accepts an optional high_precision on a weight ref and rejects non-positive values', () => {
   const base = validateModels(modelsData)[0]
-  const ok = { ...base, weight_refs: { fp8: { repo: 'a/b', gib: 10, high_precision: { params_b: 1, gib: 2 } } } }
+  const ok = {
+    ...base,
+    weight_refs: { fp8: { repo: 'a/b', gib: 10, high_precision: { params_b: 1, gib: 2 } } },
+  }
   expect(() => validateModels([ok])).not.toThrow()
-  const bad = { ...base, weight_refs: { fp8: { repo: 'a/b', gib: 10, high_precision: { params_b: 0, gib: 2 } } } }
+  const bad = {
+    ...base,
+    weight_refs: { fp8: { repo: 'a/b', gib: 10, high_precision: { params_b: 0, gib: 2 } } },
+  }
   expect(() => validateModels([bad])).toThrow()
 })
 ```
@@ -281,9 +287,10 @@ import { readFileSync, writeFileSync } from 'node:fs'
 const [mp, sp] = process.argv.slice(2)
 const models = JSON.parse(readFileSync(mp, 'utf8'))
 const split = JSON.parse(readFileSync(sp, 'utf8'))
-for (const m of models) for (const [f, hp] of Object.entries(split[m.id] ?? {})) {
-  if (m.weight_refs?.[f]) m.weight_refs[f].high_precision = hp
-}
+for (const m of models)
+  for (const [f, hp] of Object.entries(split[m.id] ?? {})) {
+    if (m.weight_refs?.[f]) m.weight_refs[f].high_precision = hp
+  }
 writeFileSync(mp, `${JSON.stringify(models, null, 2)}\n`)
 ```
 
@@ -358,7 +365,10 @@ describe('moeWeightSplit', () => {
     const total = calculateModelWeightVRAM(m.num_parameters_billion, 'fp16', m)
     expect(s?.measured).toBe(false)
     expect(s?.baseGiB.toNumber()).toBeCloseTo(
-      total.mul(split?.baseB ?? 0).div(m.num_parameters_billion).toNumber(),
+      total
+        .mul(split?.baseB ?? 0)
+        .div(m.num_parameters_billion)
+        .toNumber(),
       6,
     )
   })
@@ -373,7 +383,9 @@ describe('moeWeightSplit', () => {
     if (!ref) throw new Error('fixture')
     const odd = {
       ...m,
-      weight_refs: { mxfp4: { ...ref, high_precision: { params_b: m.num_parameters_billion, gib: ref.gib } } },
+      weight_refs: {
+        mxfp4: { ...ref, high_precision: { params_b: m.num_parameters_billion, gib: ref.gib } },
+      },
     }
     const s = moeWeightSplit(odd, 'mxfp4')
     expect(Number.isFinite(s?.baseGiB.toNumber())).toBe(true)
@@ -495,16 +507,37 @@ describe('expert-parallel memory with a measured split', () => {
   const kimi = models.find((m) => m.id === 'moonshotai-kimi-k3')
   const gb300 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-gb300-nvl72')
   if (!kimi || !gb300) throw new Error('fixture')
-  const single = calculateInferenceVRAM({ model: kimi, quantization: 'mxfp4', sequenceLength: 4096, batchSize: 1 })
+  const single = calculateInferenceVRAM({
+    model: kimi,
+    quantization: 'mxfp4',
+    sequenceLength: 4096,
+    batchSize: 1,
+  })
 
   it('Kimi K3 mxfp4 EP8 replicates the BF16 base: ~272 GiB of weights per GPU (was 207)', () => {
-    const r = calculateMultiGPUVRAM({ /* existing EP call shape */ singleGPU: single, model: kimi, gpuVramGB: gb300.vram_gb, numGPUs: 8, strategy: 'expert-parallel', interconnectType: 'nvlink-5', quantization: 'mxfp4' })
+    const r = calculateMultiGPUVRAM({
+      /* existing EP call shape */ singleGPU: single,
+      model: kimi,
+      gpuVramGB: gb300.vram_gb,
+      numGPUs: 8,
+      strategy: 'expert-parallel',
+      interconnectType: 'nvlink-5',
+      quantization: 'mxfp4',
+    })
     expect(r.perGPU.modelWeights.toNumber()).toBeCloseTo(271.94, 0)
   })
 
   it('scales an offloaded on-device weight figure by the base share', () => {
     const half = { ...single, modelWeights: single.modelWeights.div(2) }
-    const r = calculateMultiGPUVRAM({ singleGPU: half, model: kimi, gpuVramGB: gb300.vram_gb, numGPUs: 8, strategy: 'expert-parallel', interconnectType: 'nvlink-5', quantization: 'mxfp4' })
+    const r = calculateMultiGPUVRAM({
+      singleGPU: half,
+      model: kimi,
+      gpuVramGB: gb300.vram_gb,
+      numGPUs: 8,
+      strategy: 'expert-parallel',
+      interconnectType: 'nvlink-5',
+      quantization: 'mxfp4',
+    })
     expect(r.perGPU.modelWeights.toNumber()).toBeCloseTo(271.94 / 2, 0)
   })
 })
@@ -520,15 +553,15 @@ Expected: FAIL (207.x vs 271.94).
 - [ ] **Step 3: Implement** — replace the "Same bytes per parameter" block:
 
 ```ts
-  // The replicated base and the routed experts at their own rates (moeWeightSplit),
-  // applied as shares of the on-device weights so offloading still scales them.
-  const weightSplit = moeWeightSplit(model, quantization)
-  const baseShare = weightSplit
-    ? weightSplit.baseGiB.div(weightSplit.baseGiB.add(weightSplit.routedGiB))
-    : new Decimal(split.baseB).div(split.baseB + split.routedB)
-  const replicatedMemory = singleGPU.modelWeights.mul(baseShare)
-  const routedWeights = singleGPU.modelWeights.sub(replicatedMemory)
-  const weightsPerGPU = replicatedMemory.add(routedWeights.div(numGPUs))
+// The replicated base and the routed experts at their own rates (moeWeightSplit),
+// applied as shares of the on-device weights so offloading still scales them.
+const weightSplit = moeWeightSplit(model, quantization)
+const baseShare = weightSplit
+  ? weightSplit.baseGiB.div(weightSplit.baseGiB.add(weightSplit.routedGiB))
+  : new Decimal(split.baseB).div(split.baseB + split.routedB)
+const replicatedMemory = singleGPU.modelWeights.mul(baseShare)
+const routedWeights = singleGPU.modelWeights.sub(replicatedMemory)
+const weightsPerGPU = replicatedMemory.add(routedWeights.div(numGPUs))
 ```
 
 - [ ] **Step 4: Run to verify pass, then mutation-check**
@@ -568,8 +601,19 @@ describe('MoE decode reads the base and touched experts at measured rates', () =
   if (!ref) throw new Error('fixture')
   const { high_precision: _hp, ...refNoHp } = ref
   const averaged = { ...kimi, weight_refs: { ...kimi.weight_refs, mxfp4: refNoHp } }
-  const run = (m: typeof kimi, batchSize: number, multiGPUResult: MultiGPUVRAMBreakdown | null = null) =>
-    estimatePerformance({ model: m, gpu: b300, quantization: 'mxfp4', sequenceLength: 1024, batchSize, multiGPUResult })
+  const run = (
+    m: typeof kimi,
+    batchSize: number,
+    multiGPUResult: MultiGPUVRAMBreakdown | null = null,
+  ) =>
+    estimatePerformance({
+      model: m,
+      gpu: b300,
+      quantization: 'mxfp4',
+      sequenceLength: 1024,
+      batchSize,
+      multiGPUResult,
+    })
 
   it('batch 1: ~127 GiB read per step instead of ~54, so decode is ~2.3x slower', () => {
     const measured = run(kimi, 1).tokensPerSecond.toNumber()
@@ -578,8 +622,21 @@ describe('MoE decode reads the base and touched experts at measured rates', () =
   })
 
   it('expert parallelism reads the full base on every GPU and 1/N of the touched experts', () => {
-    const single = calculateInferenceVRAM({ model: kimi, quantization: 'mxfp4', sequenceLength: 1024, batchSize: 64 })
-    const ep = calculateMultiGPUVRAM({ /* same EP call shape as Task 5 */ singleGPU: single, model: kimi, gpuVramGB: b300.vram_gb, numGPUs: 8, strategy: 'expert-parallel', interconnectType: 'nvlink-5', quantization: 'mxfp4' })
+    const single = calculateInferenceVRAM({
+      model: kimi,
+      quantization: 'mxfp4',
+      sequenceLength: 1024,
+      batchSize: 64,
+    })
+    const ep = calculateMultiGPUVRAM({
+      /* same EP call shape as Task 5 */ singleGPU: single,
+      model: kimi,
+      gpuVramGB: b300.vram_gb,
+      numGPUs: 8,
+      strategy: 'expert-parallel',
+      interconnectType: 'nvlink-5',
+      quantization: 'mxfp4',
+    })
     const measured = run(kimi, 64, ep).tokensPerSecond.toNumber()
     const avg = run(averaged, 64, ep).tokensPerSecond.toNumber()
     expect(measured).toBeLessThan(avg)
@@ -595,23 +652,23 @@ Expected: FAIL (measured equals averaged today).
 - [ ] **Step 3: Implement** — in `estimatePerformance`, replace the weight-bytes computation for splittable MoE models:
 
 ```ts
-  const weightSplit = moeWeightSplit(model, quantization)
-  const touched = routedTouchedFraction(model, batchSize)
-  const weightBytes =
-    weightSplit && touched !== null
-      ? weightSplit.baseGiB.add(weightSplit.routedGiB.mul(touched)).mul(BYTES_PER_GB)
-      : calculateModelWeightVRAM(decodeParams, quantization, model).mul(BYTES_PER_GB)
+const weightSplit = moeWeightSplit(model, quantization)
+const touched = routedTouchedFraction(model, batchSize)
+const weightBytes =
+  weightSplit && touched !== null
+    ? weightSplit.baseGiB.add(weightSplit.routedGiB.mul(touched)).mul(BYTES_PER_GB)
+    : calculateModelWeightVRAM(decodeParams, quantization, model).mul(BYTES_PER_GB)
 ```
 
 and the expert-parallel per-GPU branch:
 
 ```ts
-  const perGPUWeightBytes =
-    layout.strategy === 'expert-parallel' && weightSplit && touched !== null
-      ? weightSplit.baseGiB
-          .add(weightSplit.routedGiB.mul(touched).div(layout.gpusPerStage))
-          .mul(BYTES_PER_GB)
-      : weightBytes.div(layout.gpusPerStage)
+const perGPUWeightBytes =
+  layout.strategy === 'expert-parallel' && weightSplit && touched !== null
+    ? weightSplit.baseGiB
+        .add(weightSplit.routedGiB.mul(touched).div(layout.gpusPerStage))
+        .mul(BYTES_PER_GB)
+    : weightBytes.div(layout.gpusPerStage)
 ```
 
 Remove `split` / `calculateModelWeightVRAM(split.baseB + ...)` code that this replaces, and any import left unused. Keep the offload logic from main operating on `weightBytes` as merged.
@@ -645,7 +702,9 @@ describe('weightSplitLabel', () => {
   const get = (id: string) => models.find((m) => m.id === id) as Model
   it('labels MoE splits measured or estimated, dense none', () => {
     expect(weightSplitLabel(get('moonshotai-kimi-k3'), 'mxfp4')).toBe('base/expert split measured')
-    expect(weightSplitLabel(get('qwen-qwen3-235b-a22b'), 'fp16')).toBe('split estimated (average rate)')
+    expect(weightSplitLabel(get('qwen-qwen3-235b-a22b'), 'fp16')).toBe(
+      'split estimated (average rate)',
+    )
     expect(weightSplitLabel(get('meta-llama-llama-3.1-70b'), 'fp16')).toBeNull()
   })
 })

@@ -18,28 +18,28 @@ Framework presets auto-configure optimizations: DeepSpeed for multi-GPU training
 
 ### Core
 
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| DeepSpeed | 0.18.x | Multi-GPU training with ZeRO memory optimization | Industry standard for distributed LLM training, used by Microsoft, HuggingFace, PyTorch Lightning |
-| bitsandbytes | Latest | 8-bit optimizers, quantization for QLoRA | Standard implementation for memory-efficient optimizers (75% reduction), no accuracy loss |
-| PyTorch | 2.x | Training framework baseline | Universal deep learning framework, reference implementation |
+| Library      | Version | Purpose                                          | Why Standard                                                                                      |
+| ------------ | ------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| DeepSpeed    | 0.18.x  | Multi-GPU training with ZeRO memory optimization | Industry standard for distributed LLM training, used by Microsoft, HuggingFace, PyTorch Lightning |
+| bitsandbytes | Latest  | 8-bit optimizers, quantization for QLoRA         | Standard implementation for memory-efficient optimizers (75% reduction), no accuracy loss         |
+| PyTorch      | 2.x     | Training framework baseline                      | Universal deep learning framework, reference implementation                                       |
 
 ### Supporting
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| Unsloth | Latest | Memory-optimized fine-tuning framework | Consumer GPU fine-tuning (70% VRAM reduction), single-GPU LoRA/QLoRA |
-| vLLM | Latest | High-performance inference engine | INFERENCE ONLY - PagedAttention for serving, not training |
-| TGI (Text Generation Inference) | 3.x | Production inference serving | INFERENCE ONLY - HuggingFace deployment, not training |
-| HuggingFace Accelerate | Latest | Multi-GPU abstraction layer | Simplifies DeepSpeed integration, adds ~200-500MB overhead |
+| Library                         | Version | Purpose                                | When to Use                                                          |
+| ------------------------------- | ------- | -------------------------------------- | -------------------------------------------------------------------- |
+| Unsloth                         | Latest  | Memory-optimized fine-tuning framework | Consumer GPU fine-tuning (70% VRAM reduction), single-GPU LoRA/QLoRA |
+| vLLM                            | Latest  | High-performance inference engine      | INFERENCE ONLY - PagedAttention for serving, not training            |
+| TGI (Text Generation Inference) | 3.x     | Production inference serving           | INFERENCE ONLY - HuggingFace deployment, not training                |
+| HuggingFace Accelerate          | Latest  | Multi-GPU abstraction layer            | Simplifies DeepSpeed integration, adds ~200-500MB overhead           |
 
 ### Alternatives Considered
 
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| DeepSpeed ZeRO | FSDP (Fully Sharded Data Parallel) | PyTorch native, less mature for LLMs, similar memory profile |
-| bitsandbytes 8-bit | Standard AdamW | 4x more optimizer memory, no other differences |
-| Unsloth | Standard Transformers | 70% more VRAM, no specialized optimizations |
+| Instead of         | Could Use                          | Tradeoff                                                     |
+| ------------------ | ---------------------------------- | ------------------------------------------------------------ |
+| DeepSpeed ZeRO     | FSDP (Fully Sharded Data Parallel) | PyTorch native, less mature for LLMs, similar memory profile |
+| bitsandbytes 8-bit | Standard AdamW                     | 4x more optimizer memory, no other differences               |
+| Unsloth            | Standard Transformers              | 70% more VRAM, no specialized optimizations                  |
 
 **Installation:**
 ```bash
@@ -83,7 +83,14 @@ src/
 **Example:**
 ```typescript
 // src/types/frameworks.ts
-export type FrameworkPreset = 'none' | 'deepspeed-zero1' | 'deepspeed-zero2' | 'deepspeed-zero3' | 'unsloth' | 'vllm' | 'tgi'
+export type FrameworkPreset =
+  | 'none'
+  | 'deepspeed-zero1'
+  | 'deepspeed-zero2'
+  | 'deepspeed-zero3'
+  | 'unsloth'
+  | 'vllm'
+  | 'tgi'
 
 export interface FrameworkPresetConfig {
   name: string
@@ -97,11 +104,11 @@ export interface FrameworkPresetConfig {
 }
 
 export const FRAMEWORK_PRESETS: Record<FrameworkPreset, FrameworkPresetConfig> = {
-  'none': {
+  none: {
     name: 'None (Manual Configuration)',
     mode: 'training',
     autoOptimizations: {},
-    description: 'Configure all settings manually'
+    description: 'Configure all settings manually',
   },
   'deepspeed-zero1': {
     name: 'DeepSpeed ZeRO-1',
@@ -109,9 +116,9 @@ export const FRAMEWORK_PRESETS: Record<FrameworkPreset, FrameworkPresetConfig> =
     autoOptimizations: {
       gradientCheckpointing: true,
       flashAttention: true,
-      optimizer: 'adamw' // Standard AdamW, optimizer states partitioned
+      optimizer: 'adamw', // Standard AdamW, optimizer states partitioned
     },
-    description: 'Partition optimizer states (2x memory savings, minimal overhead)'
+    description: 'Partition optimizer states (2x memory savings, minimal overhead)',
   },
   'deepspeed-zero2': {
     name: 'DeepSpeed ZeRO-2',
@@ -119,9 +126,9 @@ export const FRAMEWORK_PRESETS: Record<FrameworkPreset, FrameworkPresetConfig> =
     autoOptimizations: {
       gradientCheckpointing: true,
       flashAttention: true,
-      optimizer: 'adamw'
+      optimizer: 'adamw',
     },
-    description: 'Partition optimizer + gradients (4x memory savings)'
+    description: 'Partition optimizer + gradients (4x memory savings)',
   },
   'deepspeed-zero3': {
     name: 'DeepSpeed ZeRO-3',
@@ -129,32 +136,33 @@ export const FRAMEWORK_PRESETS: Record<FrameworkPreset, FrameworkPresetConfig> =
     autoOptimizations: {
       gradientCheckpointing: true,
       flashAttention: true,
-      optimizer: 'adamw'
+      optimizer: 'adamw',
     },
-    description: 'Partition optimizer + gradients + parameters (8-10x memory savings, 15-30% throughput cost)'
+    description:
+      'Partition optimizer + gradients + parameters (8-10x memory savings, 15-30% throughput cost)',
   },
-  'unsloth': {
+  unsloth: {
     name: 'Unsloth',
     mode: 'training',
     autoOptimizations: {
       gradientCheckpointing: true, // Unsloth gradient checkpointing (30% less VRAM)
       flashAttention: true, // Flash Attention 2 integrated
-      optimizer: 'adamw-8bit' // 8-bit optimizer for memory efficiency
+      optimizer: 'adamw-8bit', // 8-bit optimizer for memory efficiency
     },
-    description: '70% less VRAM than standard (single-GPU LoRA/QLoRA optimization)'
+    description: '70% less VRAM than standard (single-GPU LoRA/QLoRA optimization)',
   },
-  'vllm': {
+  vllm: {
     name: 'vLLM',
     mode: 'inference', // INFERENCE ONLY
     autoOptimizations: {},
-    description: 'INFERENCE ONLY - PagedAttention for high-throughput serving'
+    description: 'INFERENCE ONLY - PagedAttention for high-throughput serving',
   },
-  'tgi': {
+  tgi: {
     name: 'Text Generation Inference',
     mode: 'inference', // INFERENCE ONLY
     autoOptimizations: {},
-    description: 'INFERENCE ONLY - HuggingFace production inference serving'
-  }
+    description: 'INFERENCE ONLY - HuggingFace production inference serving',
+  },
 }
 ```
 
@@ -186,7 +194,7 @@ export type ZeROStage = 'zero-1' | 'zero-2' | 'zero-3'
 export function calculateZeROMemoryPerGPU(
   singleGPU: TrainingVRAMBreakdown,
   numGPUs: number,
-  zeroStage: ZeROStage
+  zeroStage: ZeROStage,
 ): Decimal {
   if (numGPUs === 1) {
     return singleGPU.total
@@ -275,7 +283,7 @@ export interface CPUOffloadConfig {
  */
 export function calculateCPUOffloadMemory(
   singleGPU: TrainingVRAMBreakdown,
-  config: CPUOffloadConfig
+  config: CPUOffloadConfig,
 ): { gpuMemory: Decimal; cpuMemory: Decimal } {
   let gpuMemory = singleGPU.total
   let cpuMemory = new Decimal(0)
@@ -306,12 +314,12 @@ export function calculateCPUOffloadMemory(
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| DeepSpeed ZeRO memory formulas | Custom partitioning logic | Official DeepSpeed documentation formulas | Edge cases (communication buffers, parameter gather overhead), empirically validated |
-| 8-bit optimizer implementation | Custom quantization scheme | bitsandbytes library constants | Tested for numerical stability, 75% reduction with no accuracy loss |
-| Framework preset configurations | Hardcoded optimization toggles | Framework documentation recommended settings | Best practices evolve (Unsloth gradient checkpointing improved 30% in 2025) |
-| CPU offload throughput estimation | Linear slowdown assumptions | Empirical benchmarks from DeepSpeed docs | PCIe bandwidth non-linear, depends on model size and batch size |
+| Problem                           | Don't Build                    | Use Instead                                  | Why                                                                                  |
+| --------------------------------- | ------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------ |
+| DeepSpeed ZeRO memory formulas    | Custom partitioning logic      | Official DeepSpeed documentation formulas    | Edge cases (communication buffers, parameter gather overhead), empirically validated |
+| 8-bit optimizer implementation    | Custom quantization scheme     | bitsandbytes library constants               | Tested for numerical stability, 75% reduction with no accuracy loss                  |
+| Framework preset configurations   | Hardcoded optimization toggles | Framework documentation recommended settings | Best practices evolve (Unsloth gradient checkpointing improved 30% in 2025)          |
+| CPU offload throughput estimation | Linear slowdown assumptions    | Empirical benchmarks from DeepSpeed docs     | PCIe bandwidth non-linear, depends on model size and batch size                      |
 
 **Key insight:** DeepSpeed ZeRO memory calculations have been extensively validated and documented by Microsoft Research. The 2x/4x/8x reduction factors are empirically derived from real training runs, not theoretical. Attempting to derive custom formulas will miss communication overhead, buffer allocations, and parameter gathering costs.
 
@@ -374,7 +382,7 @@ function validateFrameworkPreset(preset: FrameworkPreset, mode: 'inference' | 't
   if (mode === 'training' && config.mode === 'inference') {
     throw new Error(
       `${config.name} is an inference-only framework and cannot be used for training. ` +
-      `Use DeepSpeed or Unsloth for training.`
+        `Use DeepSpeed or Unsloth for training.`,
     )
   }
 }
@@ -470,7 +478,7 @@ import type { TrainingVRAMBreakdown } from './types'
 export function calculateMultiGPUTraining(
   singleGPU: TrainingVRAMBreakdown,
   numGPUs: number,
-  zeroStage: 'zero-1' | 'zero-2' | 'zero-3'
+  zeroStage: 'zero-1' | 'zero-2' | 'zero-3',
 ): { perGPU: Decimal; totalSavings: string } {
   const perGPU = calculateZeROMemoryPerGPU(singleGPU, numGPUs, zeroStage)
 
@@ -479,7 +487,7 @@ export function calculateMultiGPUTraining(
 
   return {
     perGPU,
-    totalSavings: `${reductionFactor.toFixed(1)}x memory reduction`
+    totalSavings: `${reductionFactor.toFixed(1)}x memory reduction`,
   }
 }
 ```
@@ -516,7 +524,8 @@ function applyFrameworkPreset(preset: FrameworkPreset, state: UIState): Partial<
   // Auto-apply optimizations
   const updates: Partial<UIState> = {
     frameworkPreset: preset,
-    gradientCheckpointing: config.autoOptimizations.gradientCheckpointing ?? state.gradientCheckpointing,
+    gradientCheckpointing:
+      config.autoOptimizations.gradientCheckpointing ?? state.gradientCheckpointing,
     flashAttention: config.autoOptimizations.flashAttention ?? state.flashAttention,
   }
 
@@ -554,12 +563,12 @@ function OptimizerSelect() {
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| Data parallelism (replicate all) | DeepSpeed ZeRO stages | 2020 | Enables 10x larger model training on same hardware |
-| Full precision optimizers | 8-bit quantized optimizers | 2022 | 75% optimizer memory reduction with no accuracy loss |
-| Manual multi-GPU configuration | Framework presets with auto-optimization | 2024-2025 | Unsloth 70% VRAM reduction, DeepSpeed auto-tuning |
-| Inference and training use same frameworks | Specialized inference (vLLM/TGI) vs training (DeepSpeed/Unsloth) | 2023-2024 | 10x inference throughput, 70% training memory reduction |
+| Old Approach                               | Current Approach                                                 | When Changed | Impact                                                  |
+| ------------------------------------------ | ---------------------------------------------------------------- | ------------ | ------------------------------------------------------- |
+| Data parallelism (replicate all)           | DeepSpeed ZeRO stages                                            | 2020         | Enables 10x larger model training on same hardware      |
+| Full precision optimizers                  | 8-bit quantized optimizers                                       | 2022         | 75% optimizer memory reduction with no accuracy loss    |
+| Manual multi-GPU configuration             | Framework presets with auto-optimization                         | 2024-2025    | Unsloth 70% VRAM reduction, DeepSpeed auto-tuning       |
+| Inference and training use same frameworks | Specialized inference (vLLM/TGI) vs training (DeepSpeed/Unsloth) | 2023-2024    | 10x inference throughput, 70% training memory reduction |
 
 **Deprecated/outdated:**
 - **Simple data parallelism for large models:** ZeRO stages are now standard for >7B models

@@ -17,25 +17,28 @@ The project's existing patterns are ideal: pure calculation engines using Decima
 ## Standard Stack
 
 ### Core
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| Decimal.js | (existing) | Precise arithmetic for memory calculations | Already in use, avoids floating-point errors in critical calculations |
-| Zod | (existing) | Schema validation and type generation | Already project standard, single source of truth for types |
-| HuggingFace Transformers | v5.0.0+ | Fine-tuning patterns and memory formulas | Industry standard, official memory optimization docs |
-| DeepSpeed | 0.15+ | ZeRO memory estimation formulas | Official Microsoft library, provides exact ZeRO-2/3 memory calculators |
+
+| Library                  | Version    | Purpose                                    | Why Standard                                                           |
+| ------------------------ | ---------- | ------------------------------------------ | ---------------------------------------------------------------------- |
+| Decimal.js               | (existing) | Precise arithmetic for memory calculations | Already in use, avoids floating-point errors in critical calculations  |
+| Zod                      | (existing) | Schema validation and type generation      | Already project standard, single source of truth for types             |
+| HuggingFace Transformers | v5.0.0+    | Fine-tuning patterns and memory formulas   | Industry standard, official memory optimization docs                   |
+| DeepSpeed                | 0.15+      | ZeRO memory estimation formulas            | Official Microsoft library, provides exact ZeRO-2/3 memory calculators |
 
 ### Supporting
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| PyTorch 2.5+ | (reference only) | Training memory constants (framework overhead) | Source for overhead values (500MB-1.5GB) |
-| bitsandbytes | (reference only) | QLoRA 4-bit quantization overhead | Source for NF4 format overhead (1.1x multiplier) |
+
+| Library      | Version          | Purpose                                        | When to Use                                      |
+| ------------ | ---------------- | ---------------------------------------------- | ------------------------------------------------ |
+| PyTorch 2.5+ | (reference only) | Training memory constants (framework overhead) | Source for overhead values (500MB-1.5GB)         |
+| bitsandbytes | (reference only) | QLoRA 4-bit quantization overhead              | Source for NF4 format overhead (1.1x multiplier) |
 
 ### Alternatives Considered
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| DeepSpeed formulas | Hand-rolled ZeRO calculations | Hand-rolled prone to 2x errors (see PITFALLS.md #6) |
-| Separate training engine | Reuse inference code | Training doesn't use KV cache, would cause 30-60% underestimation (PITFALLS.md #1) |
-| Decimal.js | Native JavaScript numbers | Would introduce floating-point precision errors in critical memory calculations |
+
+| Instead of               | Could Use                     | Tradeoff                                                                           |
+| ------------------------ | ----------------------------- | ---------------------------------------------------------------------------------- |
+| DeepSpeed formulas       | Hand-rolled ZeRO calculations | Hand-rolled prone to 2x errors (see PITFALLS.md #6)                                |
+| Separate training engine | Reuse inference code          | Training doesn't use KV cache, would cause 30-60% underestimation (PITFALLS.md #1) |
+| Decimal.js               | Native JavaScript numbers     | Would introduce floating-point precision errors in critical memory calculations    |
 
 **Installation:**
 ```bash
@@ -46,6 +49,7 @@ The project's existing patterns are ideal: pure calculation engines using Decima
 ## Architecture Patterns
 
 ### Recommended Project Structure
+
 ```
 src/engines/
 ├── inference.ts        # Existing - inference VRAM calculations
@@ -57,6 +61,7 @@ src/engines/
 ```
 
 ### Pattern 1: Separate Training from Inference
+
 **What:** Create distinct calculation paths for training vs inference workloads
 **When to use:** Always - training and inference have fundamentally different memory profiles
 
@@ -80,6 +85,7 @@ export function calculateTrainingVRAM(params) {
 ```
 
 ### Pattern 2: Trainable Parameter Isolation (LoRA/QLoRA)
+
 **What:** Only count trainable parameters for gradients and optimizer states
 **When to use:** For all parameter-efficient fine-tuning methods (LoRA, QLoRA, prefix tuning, etc.)
 
@@ -151,6 +157,7 @@ export function calculateLoRAMemory(params: {
 ```
 
 ### Pattern 3: Optimizer State Memory (Always FP32)
+
 **What:** Optimizer states are always stored in FP32 regardless of training precision
 **When to use:** For all optimizer memory calculations
 
@@ -159,7 +166,7 @@ export function calculateLoRAMemory(params: {
 // Source: PITFALLS.md #2 + HuggingFace Transformers docs
 export function calculateOptimizerStateMemory(
   trainableParamsBillion: Decimal,
-  optimizerType: OptimizerType
+  optimizerType: OptimizerType,
 ): Decimal {
   // Optimizer states are ALWAYS FP32 for numerical stability
   const trainableParams = trainableParamsBillion.mul(1e9)
@@ -192,6 +199,7 @@ export function calculateOptimizerStateMemory(
 ```
 
 ### Pattern 4: DeepSpeed ZeRO Memory Calculation
+
 **What:** Use official DeepSpeed formulas for ZeRO stage memory savings
 **When to use:** For multi-GPU training with DeepSpeed ZeRO-1/2/3
 
@@ -214,9 +222,9 @@ export function calculateZeROMemory(params: {
           weights: weights, // Replicated
           gradients: gradients, // Replicated
           optimizerStates: optimizerStates.div(params.numGPUs), // Partitioned
-          total: weights.add(gradients).add(optimizerStates.div(params.numGPUs))
+          total: weights.add(gradients).add(optimizerStates.div(params.numGPUs)),
         },
-        savingsMultiplier: 2.0
+        savingsMultiplier: 2.0,
       }
 
     case 2:
@@ -227,9 +235,11 @@ export function calculateZeROMemory(params: {
           weights: weights, // Replicated
           gradients: gradients.div(params.numGPUs), // Partitioned
           optimizerStates: optimizerStates.div(params.numGPUs), // Partitioned
-          total: weights.add(gradients.div(params.numGPUs)).add(optimizerStates.div(params.numGPUs))
+          total: weights
+            .add(gradients.div(params.numGPUs))
+            .add(optimizerStates.div(params.numGPUs)),
         },
-        savingsMultiplier: 4.0
+        savingsMultiplier: 4.0,
       }
 
     case 3:
@@ -240,10 +250,13 @@ export function calculateZeROMemory(params: {
           weights: weights.div(params.numGPUs), // Partitioned
           gradients: gradients.div(params.numGPUs), // Partitioned
           optimizerStates: optimizerStates.div(params.numGPUs), // Partitioned
-          total: weights.div(params.numGPUs).add(gradients.div(params.numGPUs)).add(optimizerStates.div(params.numGPUs)),
-          communicationOverhead: '15-30% throughput reduction' // All-gather params on-the-fly
+          total: weights
+            .div(params.numGPUs)
+            .add(gradients.div(params.numGPUs))
+            .add(optimizerStates.div(params.numGPUs)),
+          communicationOverhead: '15-30% throughput reduction', // All-gather params on-the-fly
         },
-        savingsMultiplier: 8.0
+        savingsMultiplier: 8.0,
       }
   }
 }
@@ -258,19 +271,20 @@ export function calculateZeROMemory(params: {
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| ZeRO memory calculation | Custom divide-by-N logic | DeepSpeed official formulas | DeepSpeed's own estimator can be off by 2.2x; use their exact stage definitions (2x/4x/8x) |
-| LoRA parameter count | Generic "adapter" formula | HuggingFace PEFT patterns | Must account for rank, alpha, target modules, and layer-specific sizing |
-| Activation memory with Flash Attention | Simple batch×seq×hidden | PyTorch official O(N) vs O(N²) | Without Flash Attention: O(N²) materialization; with FA: 10-20x reduction via tiling |
-| Gradient checkpointing savings | Fixed percentage | Selective checkpointing formula | Every 2-4 blocks is optimal; every operation causes CPU memory issues (PITFALLS.md #7) |
-| Mixed precision memory | Multiply by precision bytes | FP32 master weights + states | Even in BF16 training, master weights and optimizer states remain FP32 (PITFALLS.md #9) |
+| Problem                                | Don't Build                 | Use Instead                     | Why                                                                                        |
+| -------------------------------------- | --------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------ |
+| ZeRO memory calculation                | Custom divide-by-N logic    | DeepSpeed official formulas     | DeepSpeed's own estimator can be off by 2.2x; use their exact stage definitions (2x/4x/8x) |
+| LoRA parameter count                   | Generic "adapter" formula   | HuggingFace PEFT patterns       | Must account for rank, alpha, target modules, and layer-specific sizing                    |
+| Activation memory with Flash Attention | Simple batch×seq×hidden     | PyTorch official O(N) vs O(N²)  | Without Flash Attention: O(N²) materialization; with FA: 10-20x reduction via tiling       |
+| Gradient checkpointing savings         | Fixed percentage            | Selective checkpointing formula | Every 2-4 blocks is optimal; every operation causes CPU memory issues (PITFALLS.md #7)     |
+| Mixed precision memory                 | Multiply by precision bytes | FP32 master weights + states    | Even in BF16 training, master weights and optimizer states remain FP32 (PITFALLS.md #9)    |
 
 **Key insight:** Fine-tuning memory estimation has deceptively complex edge cases. The PITFALLS.md document catalogs 16 verified failure modes. DeepSpeed provides official memory estimators (`estimate_zero3_model_states_mem_needs_all_live`) that should be used as reference, not rebuilt from scratch.
 
 ## Common Pitfalls
 
 ### Pitfall 1: Reusing Inference KV Cache Formula for Training
+
 **What goes wrong:** Calculator reuses inference KV cache formula for training mode
 **Why it happens:** Assuming KV cache works the same way in training
 **How to avoid:** Training processes batches in parallel with full attention matrices (O(N²)), not sequential generation. Don't reuse `calculateKVCacheVRAM` from inference.ts
@@ -278,6 +292,7 @@ export function calculateZeROMemory(params: {
 **Source:** PITFALLS.md #1 (HIGH confidence - verified with PyTorch docs)
 
 ### Pitfall 2: Optimizer State Precision Assumption
+
 **What goes wrong:** Calculator assumes optimizer states match training precision (BF16 training = 2 bytes/param states)
 **Why it happens:** Logical assumption that "training in BF16 = everything in BF16"
 **How to avoid:** AdamW and most optimizers maintain states in FP32 (8 bytes/param) for numerical stability, even in mixed precision
@@ -285,6 +300,7 @@ export function calculateZeROMemory(params: {
 **Source:** PITFALLS.md #2 (HIGH confidence - HuggingFace official docs)
 
 ### Pitfall 3: LoRA Adapter-Only Optimizer States Ignored
+
 **What goes wrong:** Calculator multiplies optimizer state memory by total model parameters for LoRA
 **Why it happens:** Not distinguishing trainable vs frozen parameters
 **How to avoid:** Only LoRA adapter parameters (~0.2-2% of model) are trainable and get optimizer states. Frozen base model has no optimizer states.
@@ -292,6 +308,7 @@ export function calculateZeROMemory(params: {
 **Source:** PITFALLS.md #3 (HIGH confidence - HuggingFace PEFT docs)
 
 ### Pitfall 4: QLoRA Precision Mixing Miscalculation
+
 **What goes wrong:** Calculator treats QLoRA as uniform "4-bit LoRA"
 **Why it happens:** Not understanding the three-precision architecture
 **How to avoid:** QLoRA mixes three precisions: 4-bit NF4 base (frozen), FP16/BF16 adapters (trainable), FP32 optimizer states (for adapters only)
@@ -299,6 +316,7 @@ export function calculateZeROMemory(params: {
 **Source:** PITFALLS.md #4 (HIGH confidence - bitsandbytes official docs)
 
 ### Pitfall 5: Gradient Accumulation Peak Memory Misconception
+
 **What goes wrong:** Calculator shows memory reduction when increasing gradient accumulation steps
 **Why it happens:** Blog posts say "gradient accumulation saves memory" without caveats
 **How to avoid:** Gradient accumulation reduces PER-STEP batch size (activation memory), but does NOT reduce gradient or optimizer state memory. Savings: ~10-15%, not 8x.
@@ -306,6 +324,7 @@ export function calculateZeROMemory(params: {
 **Source:** PITFALLS.md #5 (HIGH confidence - PyTorch official docs)
 
 ### Pitfall 6: DeepSpeed ZeRO Stage Memory Profile Confusion
+
 **What goes wrong:** Calculator shows linear memory reduction with ZeRO stages (Stage 1 = 50%, Stage 2 = 33%, Stage 3 = 25% per GPU)
 **Why it happens:** Thinking "4 GPUs = divide by 4" for all stages
 **How to avoid:** Memory savings are 2x / 4x / 8-10x respectively, not divide-by-N. Different partitioning strategies.
@@ -313,6 +332,7 @@ export function calculateZeROMemory(params: {
 **Source:** PITFALLS.md #6 (HIGH confidence - DeepSpeed official docs)
 
 ### Pitfall 7: Activation Checkpointing Memory-Compute Trade-off Misrepresented
+
 **What goes wrong:** Calculator shows "enable gradient checkpointing = 60% memory reduction" without mentioning compute cost
 **Why it happens:** Focusing on memory savings only
 **How to avoid:** Checkpointing trades 25-40% slower training for 50-70% memory reduction. Selective checkpointing (every 2-4 blocks) is optimal.
@@ -326,6 +346,7 @@ export function calculateZeROMemory(params: {
 Verified patterns from official sources:
 
 ### Calculate Full Fine-Tuning Memory
+
 ```typescript
 // Source: HuggingFace Transformers + DeepSpeed memory docs
 export function calculateFullFineTuningVRAM(params: {
@@ -351,9 +372,8 @@ export function calculateFullFineTuningVRAM(params: {
   const modelWeights = paramsBillion.mul(1e9).mul(bytesPerWeight).div(BYTES_PER_GB)
 
   // 2. Master weights (FP32) - only in mixed precision
-  const masterWeights = trainingPrecision !== 'fp32'
-    ? paramsBillion.mul(1e9).mul(4).div(BYTES_PER_GB)
-    : new Decimal(0)
+  const masterWeights =
+    trainingPrecision !== 'fp32' ? paramsBillion.mul(1e9).mul(4).div(BYTES_PER_GB) : new Decimal(0)
 
   // 3. Gradients (same precision as training)
   const gradients = modelWeights
@@ -382,12 +402,13 @@ export function calculateFullFineTuningVRAM(params: {
     activations,
     frameworkOverhead,
     total,
-    bytesPerTrainableParam: total.div(paramsBillion.mul(1e9)).mul(BYTES_PER_GB)
+    bytesPerTrainableParam: total.div(paramsBillion.mul(1e9)).mul(BYTES_PER_GB),
   }
 }
 ```
 
 ### Calculate Training Activation Memory (with Flash Attention)
+
 ```typescript
 // Source: PyTorch official docs + FlashAttention paper
 export function calculateTrainingActivationMemory(
@@ -395,7 +416,7 @@ export function calculateTrainingActivationMemory(
   batchSize: number,
   sequenceLength: number,
   flashAttention: boolean = true,
-  gradientCheckpointing: boolean = false
+  gradientCheckpointing: boolean = false,
 ): Decimal {
   // Per-layer activation breakdown (without Flash Attention):
   // - Attention: Q, K, V projections + attention scores
@@ -432,6 +453,7 @@ export function calculateTrainingActivationMemory(
 ```
 
 ### DeepSpeed ZeRO-3 Memory Estimation (Reference Pattern)
+
 ```typescript
 // Source: DeepSpeed official docs
 // NOTE: This is a reference pattern - use DeepSpeed's official estimator for validation
@@ -453,32 +475,32 @@ export function estimateZeRO3Memory(params: {
   const largestLayerMemory = 4 * largestLayerParams
 
   // Case 1: No offload (all on GPU)
-  const case1_gpu = largestLayerMemory + Math.floor(18 * totalParams / numGPUs)
+  const case1_gpu = largestLayerMemory + Math.floor((18 * totalParams) / numGPUs)
 
   // Case 2: Offload everything (minimal GPU)
   const case2_gpu = largestLayerMemory
 
   // Case 3: Offload optimizer only
-  const case3_gpu = largestLayerMemory + Math.floor(2 * totalParams / numGPUs)
+  const case3_gpu = largestLayerMemory + Math.floor((2 * totalParams) / numGPUs)
 
   return {
     no_offload_gpu_mb: case1_gpu >> 20,
     all_offload_gpu_mb: case2_gpu >> 20,
     optimizer_offload_gpu_mb: case3_gpu >> 20,
-    reference: 'Use DeepSpeed estimate_zero3_model_states_mem_needs_all_live for validation'
+    reference: 'Use DeepSpeed estimate_zero3_model_states_mem_needs_all_live for validation',
   }
 }
 ```
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| Simple "training = inference × 3" | Separate calculation paths with component breakdown | 2023-2024 | Enables accurate LoRA/QLoRA estimation |
-| Fixed 16 bytes/param for all methods | Trainable-param-only calculations for PEFT | 2023 (QLoRA paper) | 7B model: 112GB → 6-8GB with QLoRA |
-| Manual ZeRO stage calculations | DeepSpeed official estimators | 2024 | Reduces errors from 2x to <15% |
-| Generic activation memory | Flash Attention-aware calculations | 2023-2024 | 10-20x memory reduction for long sequences |
-| Full batch size semantics | Per-device micro-batch + accumulation | 2023-2024 | Clarifies distributed training memory |
+| Old Approach                         | Current Approach                                    | When Changed       | Impact                                     |
+| ------------------------------------ | --------------------------------------------------- | ------------------ | ------------------------------------------ |
+| Simple "training = inference × 3"    | Separate calculation paths with component breakdown | 2023-2024          | Enables accurate LoRA/QLoRA estimation     |
+| Fixed 16 bytes/param for all methods | Trainable-param-only calculations for PEFT          | 2023 (QLoRA paper) | 7B model: 112GB → 6-8GB with QLoRA         |
+| Manual ZeRO stage calculations       | DeepSpeed official estimators                       | 2024               | Reduces errors from 2x to <15%             |
+| Generic activation memory            | Flash Attention-aware calculations                  | 2023-2024          | 10-20x memory reduction for long sequences |
+| Full batch size semantics            | Per-device micro-batch + accumulation               | 2023-2024          | Clarifies distributed training memory      |
 
 **Deprecated/outdated:**
 - **Simple "3x multiplier"**: Ignores that LoRA only trains adapters, causing massive overestimation
@@ -505,6 +527,7 @@ export function estimateZeRO3Memory(params: {
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - **HuggingFace Transformers v5.0.0** - `/huggingface/transformers` via Context7
   - LoRA/QLoRA configuration patterns
   - Mixed precision training architecture
@@ -519,6 +542,7 @@ export function estimateZeRO3Memory(params: {
   - Phase-specific warnings
 
 ### Secondary (MEDIUM confidence)
+
 - [How much VRAM do I need for LLM model fine-tuning?](https://modal.com/blog/how-much-vram-need-fine-tuning) - Modal 2026 guide
   - Real-world memory measurements
   - Calculator accuracy: 70-85% typical, 90-95% when properly configured
@@ -530,6 +554,7 @@ export function estimateZeRO3Memory(params: {
   - Gradient checkpointing: 40% memory reduction, 20% speed penalty
 
 ### Tertiary (LOW confidence)
+
 - None - all sources cross-verified with official documentation
 
 ## Metadata

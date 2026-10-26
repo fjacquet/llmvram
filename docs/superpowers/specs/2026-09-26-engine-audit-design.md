@@ -32,13 +32,13 @@ Hand-derived KV sizes were wrong three times (Gemma 4 `global_head_dim`, Ling
 
 ### D2. Multi-GPU memory follows vLLM (PR #55)
 
-| Rule | Source |
-|---|---|
-| Embeddings and LM head shard across TP; only layer norms replicate | `VocabParallelEmbedding`, `ParallelLMHead` |
-| KV splits `min(tp, kv_heads)` ways | `ModelConfig.get_num_kv_heads`: `max(1, kv_heads // tp)` |
-| MLA KV is duplicated on every TP rank | `get_num_kv_heads`: `if use_mla: return 1`; LMCache connector: "Tensor parallel does not change the KV caches for MLA models" |
-| One framework context + NCCL buffers per GPU | per-process CUDA context; NCCL ring/tree fixed connections |
-| Interconnect efficiency is throughput, never memory | — |
+| Rule                                                               | Source                                                                                                                        |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Embeddings and LM head shard across TP; only layer norms replicate | `VocabParallelEmbedding`, `ParallelLMHead`                                                                                    |
+| KV splits `min(tp, kv_heads)` ways                                 | `ModelConfig.get_num_kv_heads`: `max(1, kv_heads // tp)`                                                                      |
+| MLA KV is duplicated on every TP rank                              | `get_num_kv_heads`: `if use_mla: return 1`; LMCache connector: "Tensor parallel does not change the KV caches for MLA models" |
+| One framework context + NCCL buffers per GPU                       | per-process CUDA context; NCCL ring/tree fixed connections                                                                    |
+| Interconnect efficiency is throughput, never memory                | —                                                                                                                             |
 
 New optional `use_mla` model field, set where the HF config carries
 `kv_lora_rank` (14 models).

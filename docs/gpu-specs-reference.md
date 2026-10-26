@@ -8,42 +8,42 @@ Authoritative spec sources for GPUs in `src/data/gpus.json`. This document resol
 
 ### Product Overview
 
-| Detail | Value |
-|--------|-------|
-| Official Name | NVIDIA DGX Spark |
-| Chip | GB10 Grace Blackwell Superchip |
-| Co-designed with | MediaTek |
-| Architecture | Blackwell (compute capability 12.1) |
-| Process Node | TSMC 3nm |
-| Form Factor | 150 × 150 × 50.5 mm desktop mini |
-| MSRP | $4,699 (as of Feb 2026; raised from ~$3,000 due to LPDDR5x supply constraints) |
-| Availability | Shipping since mid-2025 |
+| Detail           | Value                                                                          |
+| ---------------- | ------------------------------------------------------------------------------ |
+| Official Name    | NVIDIA DGX Spark                                                               |
+| Chip             | GB10 Grace Blackwell Superchip                                                 |
+| Co-designed with | MediaTek                                                                       |
+| Architecture     | Blackwell (compute capability 12.1)                                            |
+| Process Node     | TSMC 3nm                                                                       |
+| Form Factor      | 150 × 150 × 50.5 mm desktop mini                                               |
+| MSRP             | $4,699 (as of Feb 2026; raised from ~$3,000 due to LPDDR5x supply constraints) |
+| Availability     | Shipping since mid-2025                                                        |
 
 ### CPU
 
-| Spec | Value |
-|------|-------|
-| Cores | 20 ARM v9.2 (10× Cortex-X925 + 10× Cortex-A725) |
-| L3 Cache | 32 MB |
+| Spec     | Value                                           |
+| -------- | ----------------------------------------------- |
+| Cores    | 20 ARM v9.2 (10× Cortex-X925 + 10× Cortex-A725) |
+| L3 Cache | 32 MB                                           |
 
 ### GPU
 
-| Spec | Value |
-|------|-------|
-| CUDA Cores | 6,144 |
-| Tensor Cores | 5th Generation (FP4 support) |
-| Multiprocessors | 48 |
+| Spec            | Value                        |
+| --------------- | ---------------------------- |
+| CUDA Cores      | 6,144                        |
+| Tensor Cores    | 5th Generation (FP4 support) |
+| Multiprocessors | 48                           |
 
 ### Memory
 
-| Spec | Value |
-|------|-------|
-| Type | Unified LPDDR5X (coherent CPU–GPU) |
-| Capacity | 128 GB |
-| Usable GPU Memory | 119.7 GiB |
-| Bandwidth | 273 GB/s |
-| Interface | 256-bit |
-| GPU L2 Cache | 50 MB |
+| Spec              | Value                              |
+| ----------------- | ---------------------------------- |
+| Type              | Unified LPDDR5X (coherent CPU–GPU) |
+| Capacity          | 128 GB                             |
+| Usable GPU Memory | 119.7 GiB                          |
+| Bandwidth         | 273 GB/s                           |
+| Interface         | 256-bit                            |
+| GPU L2 Cache      | 50 MB                              |
 
 > **Note**: This is unified memory — there is no separate VRAM. Both CPU and GPU share the full 128 GB pool. For VRAM calculator purposes, the effective GPU-accessible memory is 128 GB.
 
@@ -51,46 +51,46 @@ Authoritative spec sources for GPUs in `src/data/gpus.json`. This document resol
 
 Benchmarked by NVIDIA employee (alan.dang) on the [NVIDIA Developer Forums](https://forums.developer.nvidia.com/t/detailed-compute-performance-metrics-for-dgx-spark/351993).
 
-| Precision | TFLOPS |
-|-----------|--------|
-| FP4 (MXF4 / NVF4) | 427.3 |
-| FP4 → FP16 | 213.8 |
-| FP4 → FP32 | 213.7 |
-| FP6 → FP16 | 213.9 |
-| FP6 → FP32 | 213.7 |
-| FP8 → FP16 | 213.8 |
-| FP8 → FP32 | 213.7 |
-| INT8 | 215.1 |
-| **FP16** | **213.0** |
-| **BF16** | **212.9** |
-| TF32 | 53.3 |
+| Precision         | TFLOPS    |
+| ----------------- | --------- |
+| FP4 (MXF4 / NVF4) | 427.3     |
+| FP4 → FP16        | 213.8     |
+| FP4 → FP32        | 213.7     |
+| FP6 → FP16        | 213.9     |
+| FP6 → FP32        | 213.7     |
+| FP8 → FP16        | 213.8     |
+| FP8 → FP32        | 213.7     |
+| INT8              | 215.1     |
+| **FP16**          | **213.0** |
+| **BF16**          | **212.9** |
+| TF32              | 53.3      |
 
 ### Sparse Performance
 
-| Precision | TFLOPS |
-|-----------|--------|
+| Precision    | TFLOPS           |
+| ------------ | ---------------- |
 | FP4 (sparse) | ~1,000 (1 PFLOP) |
 
 ### Non-Tensor Core Performance
 
 | Precision | TFLOPS |
-|-----------|--------|
-| FP32 | ~31 |
+| --------- | ------ |
+| FP32      | ~31    |
 
 ### Power
 
-| Spec | Value |
-|------|-------|
-| Chip TDP | 140W |
-| System PSU | 240W |
+| Spec       | Value |
+| ---------- | ----- |
+| Chip TDP   | 140W  |
+| System PSU | 240W  |
 
 ### Connectivity
 
-| Spec | Value |
-|------|-------|
-| Networking | Dual QSFP Ethernet, 200 Gb/s aggregate |
-| CPU–GPU Interconnect | NVLink C2C (on-chip) |
-| Storage | 4 TB NVMe SSD |
+| Spec                 | Value                                  |
+| -------------------- | -------------------------------------- |
+| Networking           | Dual QSFP Ethernet, 200 Gb/s aggregate |
+| CPU–GPU Interconnect | NVLink C2C (on-chip)                   |
+| Storage              | 4 TB NVMe SSD                          |
 
 ### Discrepancy Resolution
 
@@ -115,61 +115,61 @@ Benchmarked by NVIDIA employee (alan.dang) on the [NVIDIA Developer Forums](http
 
 ### Product Overview
 
-| Detail | Value |
-|--------|-------|
-| Official Name | Apple M5 Max |
-| Announced | March 3, 2026 |
-| Available | March 11, 2026 |
-| Architecture | Fusion (two 3nm dies bonded into single SoC) |
-| Found in | MacBook Pro 14″ and 16″ (2026) |
+| Detail        | Value                                        |
+| ------------- | -------------------------------------------- |
+| Official Name | Apple M5 Max                                 |
+| Announced     | March 3, 2026                                |
+| Available     | March 11, 2026                               |
+| Architecture  | Fusion (two 3nm dies bonded into single SoC) |
+| Found in      | MacBook Pro 14″ and 16″ (2026)               |
 
 ### CPU
 
-| Spec | Value |
-|------|-------|
+| Spec  | Value                                          |
+| ----- | ---------------------------------------------- |
 | Cores | 18-core (6 super cores + 12 performance cores) |
 
 ### GPU
 
-| Spec | 40-core variant | 32-core variant |
-|------|-----------------|-----------------|
-| GPU Cores | 40 | 32 |
-| Neural Accelerator | 1 per GPU core | 1 per GPU core |
+| Spec               | 40-core variant | 32-core variant |
+| ------------------ | --------------- | --------------- |
+| GPU Cores          | 40              | 32              |
+| Neural Accelerator | 1 per GPU core  | 1 per GPU core  |
 
 ### Neural Engine
 
-| Spec | Value |
-|------|-------|
+| Spec  | Value   |
+| ----- | ------- |
 | Cores | 16-core |
 
 ### Memory
 
-| Spec | 40-core variant | 32-core variant |
-|------|-----------------|-----------------|
-| Type | Unified | Unified |
-| Capacity | Up to 128 GB | Up to 128 GB |
-| Bandwidth | **614 GB/s** | **460 GB/s** |
+| Spec      | 40-core variant | 32-core variant |
+| --------- | --------------- | --------------- |
+| Type      | Unified         | Unified         |
+| Capacity  | Up to 128 GB    | Up to 128 GB    |
+| Bandwidth | **614 GB/s**    | **460 GB/s**    |
 
 ### Compute Performance
 
-| Spec | Value |
-|------|-------|
+| Spec        | Value             |
+| ----------- | ----------------- |
 | FP16 TFLOPS | ~35 (40-core GPU) |
 
 ### Media Engine
 
-| Spec | Value |
-|------|-------|
-| Video Encode | 2× engines |
+| Spec                 | Value      |
+| -------------------- | ---------- |
+| Video Encode         | 2× engines |
 | ProRes Encode/Decode | 2× engines |
 
 ### Connectivity
 
-| Spec | Value |
-|------|-------|
+| Spec        | Value                               |
+| ----------- | ----------------------------------- |
 | Thunderbolt | Thunderbolt 5 (on-chip controllers) |
-| Wi-Fi | Wi-Fi 7 |
-| Bluetooth | Bluetooth 6 |
+| Wi-Fi       | Wi-Fi 7                             |
+| Bluetooth   | Bluetooth 6                         |
 
 ### AI / LLM Highlights
 

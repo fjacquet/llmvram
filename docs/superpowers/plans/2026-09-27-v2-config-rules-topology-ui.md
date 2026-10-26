@@ -42,43 +42,43 @@
 
 ## File Structure
 
-| File | Status | Responsibility |
-|---|---|---|
-| `src/engines/config-rules.ts` | Create | Rule table, `normalizeConfig`, TP-degree validity, `allowedOptions`, `softWarnings`, `buildNotice`, `DEFAULT_RULE_CONFIG` |
-| `src/engines/config-rules.test.ts` | Create | Per-rule 3-path table, properties, R14 degree table, mode gating, options, warnings, notices |
-| `src/store/uiStore.ts` | Modify | `UIConfig`, `DEFAULT_UI_CONFIG`, `commit()`, `pendingNotice`, `restoreConfig`, `resetAdvancedSettings`, `resetAll`, action intents |
-| `src/store/uiStore.test.ts` | Modify | Real-store tests for notices, cascades, restore |
-| `src/store/urlSerializer.ts` | Modify | Loosened numeric keys, `io` key, custom-GPU fields, `urlStateToConfig` |
-| `src/store/urlSerializer.test.ts` | Modify | Round-trip of every key, pure restore mapping |
-| `src/hooks/useURLSync.ts` | Modify | Deserialize, map, one `restoreConfig` call |
-| `src/hooks/useConfigNotices.tsx` | Create | Toast the store's `pendingNotice`, then clear it |
-| `src/hooks/useAllowedOptions.ts` | Create | `allowedOptions` bound to the store |
-| `src/engines/kv-tier.ts` | Modify | Remove `resetTierForGPU`; comment points at R4 |
-| `src/utils/gpuLimits.ts` | Modify | Comment: clamping is a rule with a notice now |
-| `src/utils/schemas.ts` | Modify | `unified_memory`, `nvlink_bridge`, `nvlink-3` |
-| `src/types/gpu.ts` | Modify | `CustomGPUInput.unified_memory` passthrough |
-| `scripts/fetch-gpus.ts` | Modify | Per-card topology corrections, H200 NVL row |
-| `src/data/gpus.json` | Regenerate | Output of `npm run refresh:gpus` |
-| `src/engines/types.ts` | Modify | `nvlink-3`, `ethernet-200g`, `FabricSpec` without `classFactor`, `interNodeGBps` |
-| `src/engines/constants.ts` | Modify | `INTERCONNECT_SPECS['nvlink-3']`, label |
-| `src/engines/multi-gpu.ts` | Modify | `resolveInterconnect(gpu, groupSize)`, `interconnectLabel`, `interNodeGBps: 0` |
-| `src/engines/fabric.ts` | Modify | Hop time, eta, vLLM chunk size, microbatch fill, 200GbE preset |
-| `src/engines/multi-node.ts` | Modify | Section 3b composition |
-| `src/engines/performance.ts` | Modify | Bridge-aware link, decode hop, amortized prefill hop |
-| `src/engines/index.ts` | Modify | Barrel follows `fabric.ts` exports |
-| `src/engines/frameworks.ts` | Modify | TGI labelled archived |
-| `src/utils/perfLabels.ts` | Create | `firstTokenLabel(batchSize)` |
-| `src/hooks/useInferenceCalculation.ts`, `src/workers/calculation.worker.ts` | Modify | `sequenceLength` to multi-node, new breakdown field, override drops bridge |
-| `src/components/inputs/*` | Modify | Options from `allowedOptions`; labels |
-| `src/components/layout/InputPanel.tsx` | Modify | Essential / Advanced layout, "Reset advanced settings" button |
-| `src/components/layout/Header.tsx` | Modify | "Reset all" button |
-| `src/components/layout/Header.test.tsx` | Create | Reset-all button test |
-| `src/components/layout/advancedChanges.ts` | Create | Count non-default advanced settings |
-| `src/components/layout/ResultsPanel.tsx` | Modify | Verdict, warnings, collapsed details, soft warnings |
-| `src/components/outputs/VerdictBlock.tsx` | Create | Fit, decode, first token, sessions |
-| `src/hooks/useResultExports.ts` | Modify | PDF expands all `<details>` before capture |
-| `src/utils/exportPptx.ts` | Modify | TTFT label, GPUs-per-replica row |
-| `src/components/guide/GuidePage.tsx`, `CHANGELOG.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `README.md` | Modify | Docs (Task 7) |
+| File                                                                                              | Status     | Responsibility                                                                                                                     |
+| ------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `src/engines/config-rules.ts`                                                                     | Create     | Rule table, `normalizeConfig`, TP-degree validity, `allowedOptions`, `softWarnings`, `buildNotice`, `DEFAULT_RULE_CONFIG`          |
+| `src/engines/config-rules.test.ts`                                                                | Create     | Per-rule 3-path table, properties, R14 degree table, mode gating, options, warnings, notices                                       |
+| `src/store/uiStore.ts`                                                                            | Modify     | `UIConfig`, `DEFAULT_UI_CONFIG`, `commit()`, `pendingNotice`, `restoreConfig`, `resetAdvancedSettings`, `resetAll`, action intents |
+| `src/store/uiStore.test.ts`                                                                       | Modify     | Real-store tests for notices, cascades, restore                                                                                    |
+| `src/store/urlSerializer.ts`                                                                      | Modify     | Loosened numeric keys, `io` key, custom-GPU fields, `urlStateToConfig`                                                             |
+| `src/store/urlSerializer.test.ts`                                                                 | Modify     | Round-trip of every key, pure restore mapping                                                                                      |
+| `src/hooks/useURLSync.ts`                                                                         | Modify     | Deserialize, map, one `restoreConfig` call                                                                                         |
+| `src/hooks/useConfigNotices.tsx`                                                                  | Create     | Toast the store's `pendingNotice`, then clear it                                                                                   |
+| `src/hooks/useAllowedOptions.ts`                                                                  | Create     | `allowedOptions` bound to the store                                                                                                |
+| `src/engines/kv-tier.ts`                                                                          | Modify     | Remove `resetTierForGPU`; comment points at R4                                                                                     |
+| `src/utils/gpuLimits.ts`                                                                          | Modify     | Comment: clamping is a rule with a notice now                                                                                      |
+| `src/utils/schemas.ts`                                                                            | Modify     | `unified_memory`, `nvlink_bridge`, `nvlink-3`                                                                                      |
+| `src/types/gpu.ts`                                                                                | Modify     | `CustomGPUInput.unified_memory` passthrough                                                                                        |
+| `scripts/fetch-gpus.ts`                                                                           | Modify     | Per-card topology corrections, H200 NVL row                                                                                        |
+| `src/data/gpus.json`                                                                              | Regenerate | Output of `npm run refresh:gpus`                                                                                                   |
+| `src/engines/types.ts`                                                                            | Modify     | `nvlink-3`, `ethernet-200g`, `FabricSpec` without `classFactor`, `interNodeGBps`                                                   |
+| `src/engines/constants.ts`                                                                        | Modify     | `INTERCONNECT_SPECS['nvlink-3']`, label                                                                                            |
+| `src/engines/multi-gpu.ts`                                                                        | Modify     | `resolveInterconnect(gpu, groupSize)`, `interconnectLabel`, `interNodeGBps: 0`                                                     |
+| `src/engines/fabric.ts`                                                                           | Modify     | Hop time, eta, vLLM chunk size, microbatch fill, 200GbE preset                                                                     |
+| `src/engines/multi-node.ts`                                                                       | Modify     | Section 3b composition                                                                                                             |
+| `src/engines/performance.ts`                                                                      | Modify     | Bridge-aware link, decode hop, amortized prefill hop                                                                               |
+| `src/engines/index.ts`                                                                            | Modify     | Barrel follows `fabric.ts` exports                                                                                                 |
+| `src/engines/frameworks.ts`                                                                       | Modify     | TGI labelled archived                                                                                                              |
+| `src/utils/perfLabels.ts`                                                                         | Create     | `firstTokenLabel(batchSize)`                                                                                                       |
+| `src/hooks/useInferenceCalculation.ts`, `src/workers/calculation.worker.ts`                       | Modify     | `sequenceLength` to multi-node, new breakdown field, override drops bridge                                                         |
+| `src/components/inputs/*`                                                                         | Modify     | Options from `allowedOptions`; labels                                                                                              |
+| `src/components/layout/InputPanel.tsx`                                                            | Modify     | Essential / Advanced layout, "Reset advanced settings" button                                                                      |
+| `src/components/layout/Header.tsx`                                                                | Modify     | "Reset all" button                                                                                                                 |
+| `src/components/layout/Header.test.tsx`                                                           | Create     | Reset-all button test                                                                                                              |
+| `src/components/layout/advancedChanges.ts`                                                        | Create     | Count non-default advanced settings                                                                                                |
+| `src/components/layout/ResultsPanel.tsx`                                                          | Modify     | Verdict, warnings, collapsed details, soft warnings                                                                                |
+| `src/components/outputs/VerdictBlock.tsx`                                                         | Create     | Fit, decode, first token, sessions                                                                                                 |
+| `src/hooks/useResultExports.ts`                                                                   | Modify     | PDF expands all `<details>` before capture                                                                                         |
+| `src/utils/exportPptx.ts`                                                                         | Modify     | TTFT label, GPUs-per-replica row                                                                                                   |
+| `src/components/guide/GuidePage.tsx`, `CHANGELOG.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `README.md` | Modify     | Docs (Task 7)                                                                                                                      |
 
 Task order follows spec Section 7: 1 (1a, 1b) rules; 2 (2a, 2b) store and URL; 3 (3a, 3b) GPU data and interconnect; 4 (4a, 4b) multi-node model; 5 UI options and notices; 6 (6a, 6b) composition tests then layout; 7 docs.
 
@@ -197,54 +197,379 @@ interface RuleCase {
 
 const CASES: RuleCase[] = [
   // R1: numGPUs in [1, max_gpus_per_node]
-  { rule: 'R1', path: 'field', name: '9 on an 8-GPU board', config: { numGPUs: 9 }, model: L70, gpu: H100, expected: { numGPUs: 8 } },
-  { rule: 'R1', path: 'dependency', name: '8 then a 1-GPU part', config: { numGPUs: 8 }, model: L70, gpu: M3, validUnder: { model: L70, gpu: H100 }, expected: { numGPUs: 1 } },
-  { rule: 'R1', path: 'link', name: 'negative count', config: { numGPUs: -3 }, model: L70, gpu: H100, expected: { numGPUs: 1 } },
+  {
+    rule: 'R1',
+    path: 'field',
+    name: '9 on an 8-GPU board',
+    config: { numGPUs: 9 },
+    model: L70,
+    gpu: H100,
+    expected: { numGPUs: 8 },
+  },
+  {
+    rule: 'R1',
+    path: 'dependency',
+    name: '8 then a 1-GPU part',
+    config: { numGPUs: 8 },
+    model: L70,
+    gpu: M3,
+    validUnder: { model: L70, gpu: H100 },
+    expected: { numGPUs: 1 },
+  },
+  {
+    rule: 'R1',
+    path: 'link',
+    name: 'negative count',
+    config: { numGPUs: -3 },
+    model: L70,
+    gpu: H100,
+    expected: { numGPUs: 1 },
+  },
   // R2: expert-parallel only for a splittable MoE
-  { rule: 'R2', path: 'field', name: 'EP on a dense model', config: { shardingStrategy: 'expert-parallel', numGPUs: 8 }, model: L70, gpu: H100, expected: { shardingStrategy: 'tensor-parallel' } },
-  { rule: 'R2', path: 'dependency', name: 'EP then a dense model', config: { shardingStrategy: 'expert-parallel', numGPUs: 8 }, model: L70, gpu: H100, validUnder: { model: DSR1, gpu: H100 }, expected: { shardingStrategy: 'tensor-parallel' } },
-  { rule: 'R2', path: 'link', name: 'dense + EP at 6 cascades into R14', config: { shardingStrategy: 'expert-parallel', numGPUs: 6 }, model: L70, gpu: H100, expected: { shardingStrategy: 'tensor-parallel', numGPUs: 4 } },
+  {
+    rule: 'R2',
+    path: 'field',
+    name: 'EP on a dense model',
+    config: { shardingStrategy: 'expert-parallel', numGPUs: 8 },
+    model: L70,
+    gpu: H100,
+    expected: { shardingStrategy: 'tensor-parallel' },
+  },
+  {
+    rule: 'R2',
+    path: 'dependency',
+    name: 'EP then a dense model',
+    config: { shardingStrategy: 'expert-parallel', numGPUs: 8 },
+    model: L70,
+    gpu: H100,
+    validUnder: { model: DSR1, gpu: H100 },
+    expected: { shardingStrategy: 'tensor-parallel' },
+  },
+  {
+    rule: 'R2',
+    path: 'link',
+    name: 'dense + EP at 6 cascades into R14',
+    config: { shardingStrategy: 'expert-parallel', numGPUs: 6 },
+    model: L70,
+    gpu: H100,
+    expected: { shardingStrategy: 'tensor-parallel', numGPUs: 4 },
+  },
   // R3: host-grace only on a Grace host
-  { rule: 'R3', path: 'field', name: 'host-grace on HGX', config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace' } }, model: L70, gpu: H100, expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } } },
-  { rule: 'R3', path: 'dependency', name: 'host-grace then HGX', config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace' } }, model: L70, gpu: H100, validUnder: { model: L70, gpu: NVL72 }, expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } } },
-  { rule: 'R3', path: 'link', name: 'host-grace with a 500% active share', config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace', activeShare: 5 } }, model: L70, gpu: H100, expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none', activeShare: 1 } } },
+  {
+    rule: 'R3',
+    path: 'field',
+    name: 'host-grace on HGX',
+    config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace' } },
+    model: L70,
+    gpu: H100,
+    expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } },
+  },
+  {
+    rule: 'R3',
+    path: 'dependency',
+    name: 'host-grace then HGX',
+    config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace' } },
+    model: L70,
+    gpu: H100,
+    validUnder: { model: L70, gpu: NVL72 },
+    expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } },
+  },
+  {
+    rule: 'R3',
+    path: 'link',
+    name: 'host-grace with a 500% active share',
+    config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace', activeShare: 5 } },
+    model: L70,
+    gpu: H100,
+    expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none', activeShare: 1 } },
+  },
   // R4: KV tier bounds, host capacity positive or null (no model/GPU dependency: live in both modes)
-  { rule: 'R4', path: 'field', name: 'active share 0', config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'network', activeShare: 0 } }, model: L70, gpu: H100, expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'network', activeShare: 0.01 } } },
-  { rule: 'R4', path: 'dependency', name: 'still live in training mode', config: { mode: 'training', kvTier: { ...DEFAULT_KV_TIER, burstSeconds: 0 } }, model: L70, gpu: H100, expected: { kvTier: { ...DEFAULT_KV_TIER, burstSeconds: 1 } } },
-  { rule: 'R4', path: 'link', name: 'host capacity 0', config: { offloadHostCapacityGB: 0 }, model: L70, gpu: H100, expected: { offloadHostCapacityGB: null } },
+  {
+    rule: 'R4',
+    path: 'field',
+    name: 'active share 0',
+    config: { kvTier: { ...DEFAULT_KV_TIER, tier: 'network', activeShare: 0 } },
+    model: L70,
+    gpu: H100,
+    expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'network', activeShare: 0.01 } },
+  },
+  {
+    rule: 'R4',
+    path: 'dependency',
+    name: 'still live in training mode',
+    config: { mode: 'training', kvTier: { ...DEFAULT_KV_TIER, burstSeconds: 0 } },
+    model: L70,
+    gpu: H100,
+    expected: { kvTier: { ...DEFAULT_KV_TIER, burstSeconds: 1 } },
+  },
+  {
+    rule: 'R4',
+    path: 'link',
+    name: 'host capacity 0',
+    config: { offloadHostCapacityGB: 0 },
+    model: L70,
+    gpu: H100,
+    expected: { offloadHostCapacityGB: null },
+  },
   // R5: interconnect override must be one of the GPU's options
-  { rule: 'R5', path: 'field', name: 'override on a GPU without options', config: { interconnectOverride: 'pcie-5' }, model: L70, gpu: H100, expected: { interconnectOverride: null } },
-  { rule: 'R5', path: 'dependency', name: 'valid override then another GPU', config: { interconnectOverride: 'pcie-5' }, model: L70, gpu: H100, validUnder: { model: L70, gpu: WITH_OPTIONS }, expected: { interconnectOverride: null } },
-  { rule: 'R5', path: 'link', name: 'garbage override', config: { interconnectOverride: 'nvlink-9' }, model: L70, gpu: WITH_OPTIONS, expected: { interconnectOverride: null } },
+  {
+    rule: 'R5',
+    path: 'field',
+    name: 'override on a GPU without options',
+    config: { interconnectOverride: 'pcie-5' },
+    model: L70,
+    gpu: H100,
+    expected: { interconnectOverride: null },
+  },
+  {
+    rule: 'R5',
+    path: 'dependency',
+    name: 'valid override then another GPU',
+    config: { interconnectOverride: 'pcie-5' },
+    model: L70,
+    gpu: H100,
+    validUnder: { model: L70, gpu: WITH_OPTIONS },
+    expected: { interconnectOverride: null },
+  },
+  {
+    rule: 'R5',
+    path: 'link',
+    name: 'garbage override',
+    config: { interconnectOverride: 'nvlink-9' },
+    model: L70,
+    gpu: WITH_OPTIONS,
+    expected: { interconnectOverride: null },
+  },
   // R6: unified memory has no separate host
-  { rule: 'R6', path: 'field', name: 'cpu-ram offload on unified memory', config: { offloadingEnabled: true, offloadTarget: 'cpu-ram' }, model: L8, gpu: UNIFIED_M3, expected: { offloadingEnabled: false } },
-  { rule: 'R6', path: 'dependency', name: 'offload + PCIe tier then unified GPU', config: { offloadingEnabled: true, offloadTarget: 'cpu-ram', kvTier: { ...DEFAULT_KV_TIER, tier: 'host-pcie' } }, model: L8, gpu: UNIFIED_M3, validUnder: { model: L8, gpu: H100 }, expected: { offloadingEnabled: false, kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } } },
-  { rule: 'R6', path: 'link', name: 'training optimizer offload on unified memory', config: { mode: 'training', frameworkPreset: 'deepspeed-zero3', cpuOffloadOptimizer: true }, model: L8, gpu: UNIFIED_M3, expected: { cpuOffloadOptimizer: false } },
+  {
+    rule: 'R6',
+    path: 'field',
+    name: 'cpu-ram offload on unified memory',
+    config: { offloadingEnabled: true, offloadTarget: 'cpu-ram' },
+    model: L8,
+    gpu: UNIFIED_M3,
+    expected: { offloadingEnabled: false },
+  },
+  {
+    rule: 'R6',
+    path: 'dependency',
+    name: 'offload + PCIe tier then unified GPU',
+    config: {
+      offloadingEnabled: true,
+      offloadTarget: 'cpu-ram',
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'host-pcie' },
+    },
+    model: L8,
+    gpu: UNIFIED_M3,
+    validUnder: { model: L8, gpu: H100 },
+    expected: { offloadingEnabled: false, kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } },
+  },
+  {
+    rule: 'R6',
+    path: 'link',
+    name: 'training optimizer offload on unified memory',
+    config: { mode: 'training', frameworkPreset: 'deepspeed-zero3', cpuOffloadOptimizer: true },
+    model: L8,
+    gpu: UNIFIED_M3,
+    expected: { cpuOffloadOptimizer: false },
+  },
   // R7: inference-only presets cleared in training
-  { rule: 'R7', path: 'field', name: 'vLLM in training', config: { mode: 'training', frameworkPreset: 'vllm' }, model: L70, gpu: H100, expected: { frameworkPreset: 'none' } },
-  { rule: 'R7', path: 'dependency', name: 'vLLM then training mode', config: { mode: 'training', frameworkPreset: 'vllm' }, model: L70, gpu: H100, validUnder: { model: L70, gpu: H100, mode: 'inference' }, expected: { frameworkPreset: 'none' } },
-  { rule: 'R7', path: 'link', name: 'TGI + optimizer offload cascades into R8', config: { mode: 'training', frameworkPreset: 'tgi', cpuOffloadOptimizer: true }, model: L70, gpu: H100, expected: { frameworkPreset: 'none', cpuOffloadOptimizer: false } },
+  {
+    rule: 'R7',
+    path: 'field',
+    name: 'vLLM in training',
+    config: { mode: 'training', frameworkPreset: 'vllm' },
+    model: L70,
+    gpu: H100,
+    expected: { frameworkPreset: 'none' },
+  },
+  {
+    rule: 'R7',
+    path: 'dependency',
+    name: 'vLLM then training mode',
+    config: { mode: 'training', frameworkPreset: 'vllm' },
+    model: L70,
+    gpu: H100,
+    validUnder: { model: L70, gpu: H100, mode: 'inference' },
+    expected: { frameworkPreset: 'none' },
+  },
+  {
+    rule: 'R7',
+    path: 'link',
+    name: 'TGI + optimizer offload cascades into R8',
+    config: { mode: 'training', frameworkPreset: 'tgi', cpuOffloadOptimizer: true },
+    model: L70,
+    gpu: H100,
+    expected: { frameworkPreset: 'none', cpuOffloadOptimizer: false },
+  },
   // R8: CPU optimizer offload needs a ZeRO preset
-  { rule: 'R8', path: 'field', name: 'offload with Unsloth', config: { mode: 'training', frameworkPreset: 'unsloth', cpuOffloadOptimizer: true }, model: L70, gpu: H100, expected: { cpuOffloadOptimizer: false } },
-  { rule: 'R8', path: 'dependency', name: 'ZeRO-2 offload then no preset', config: { mode: 'training', frameworkPreset: 'none', cpuOffloadOptimizer: true }, model: L70, gpu: H100, expected: { cpuOffloadOptimizer: false } },
-  { rule: 'R8', path: 'link', name: 'offload flag with no preset', config: { mode: 'training', cpuOffloadOptimizer: true }, model: L70, gpu: H100, expected: { cpuOffloadOptimizer: false } },
+  {
+    rule: 'R8',
+    path: 'field',
+    name: 'offload with Unsloth',
+    config: { mode: 'training', frameworkPreset: 'unsloth', cpuOffloadOptimizer: true },
+    model: L70,
+    gpu: H100,
+    expected: { cpuOffloadOptimizer: false },
+  },
+  {
+    rule: 'R8',
+    path: 'dependency',
+    name: 'ZeRO-2 offload then no preset',
+    config: { mode: 'training', frameworkPreset: 'none', cpuOffloadOptimizer: true },
+    model: L70,
+    gpu: H100,
+    expected: { cpuOffloadOptimizer: false },
+  },
+  {
+    rule: 'R8',
+    path: 'link',
+    name: 'offload flag with no preset',
+    config: { mode: 'training', cpuOffloadOptimizer: true },
+    model: L70,
+    gpu: H100,
+    expected: { cpuOffloadOptimizer: false },
+  },
   // R9: offload amounts bounded by the model
-  { rule: 'R9', path: 'field', name: '500 layers on an 80-layer model', config: { offloadLayers: 500 }, model: L70, gpu: H100, expected: { offloadLayers: 80 } },
-  { rule: 'R9', path: 'dependency', name: '60 layers then a 32-layer model', config: { offloadLayers: 60 }, model: L8, gpu: H100, validUnder: { model: L70, gpu: H100 }, expected: { offloadLayers: 32 } },
-  { rule: 'R9', path: 'link', name: '150% and -2 layers', config: { offloadPercentage: 150, offloadLayers: -2 }, model: L70, gpu: H100, expected: { offloadPercentage: 100, offloadLayers: 0 } },
+  {
+    rule: 'R9',
+    path: 'field',
+    name: '500 layers on an 80-layer model',
+    config: { offloadLayers: 500 },
+    model: L70,
+    gpu: H100,
+    expected: { offloadLayers: 80 },
+  },
+  {
+    rule: 'R9',
+    path: 'dependency',
+    name: '60 layers then a 32-layer model',
+    config: { offloadLayers: 60 },
+    model: L8,
+    gpu: H100,
+    validUnder: { model: L70, gpu: H100 },
+    expected: { offloadLayers: 32 },
+  },
+  {
+    rule: 'R9',
+    path: 'link',
+    name: '150% and -2 layers',
+    config: { offloadPercentage: 150, offloadLayers: -2 },
+    model: L70,
+    gpu: H100,
+    expected: { offloadPercentage: 100, offloadLayers: 0 },
+  },
   // R10: numeric bounds (no model/GPU dependency: live in both modes)
-  { rule: 'R10', path: 'field', name: 'batch 0', config: { batchSize: 0 }, model: L70, gpu: H100, expected: { batchSize: 1 } },
-  { rule: 'R10', path: 'dependency', name: 'LoRA rank 0 in training', config: { mode: 'training', loraRank: 0 }, model: L70, gpu: H100, expected: { loraRank: 1 } },
-  { rule: 'R10', path: 'link', name: 'every bound at once', config: { sequenceLength: 100, numNodes: 12, concurrentUsers: 0, gradientAccumulationSteps: 0 }, model: L70, gpu: H100, expected: { sequenceLength: 512, numNodes: 8, concurrentUsers: 1, gradientAccumulationSteps: 1 } },
+  {
+    rule: 'R10',
+    path: 'field',
+    name: 'batch 0',
+    config: { batchSize: 0 },
+    model: L70,
+    gpu: H100,
+    expected: { batchSize: 1 },
+  },
+  {
+    rule: 'R10',
+    path: 'dependency',
+    name: 'LoRA rank 0 in training',
+    config: { mode: 'training', loraRank: 0 },
+    model: L70,
+    gpu: H100,
+    expected: { loraRank: 1 },
+  },
+  {
+    rule: 'R10',
+    path: 'link',
+    name: 'every bound at once',
+    config: { sequenceLength: 100, numNodes: 12, concurrentUsers: 0, gradientAccumulationSteps: 0 },
+    model: L70,
+    gpu: H100,
+    expected: {
+      sequenceLength: 512,
+      numNodes: 8,
+      concurrentUsers: 1,
+      gradientAccumulationSteps: 1,
+    },
+  },
   // R12: KV cache offload excludes a KV tier
-  { rule: 'R12', path: 'field', name: 'tier on top of KV offload', config: { offloadingEnabled: true, kvCacheOffload: true, kvTier: { ...DEFAULT_KV_TIER, tier: 'network' } }, model: L70, gpu: H100, expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } } },
-  { rule: 'R12', path: 'dependency', name: 'tier then offloading turned on', config: { offloadingEnabled: true, kvCacheOffload: true, kvTier: { ...DEFAULT_KV_TIER, tier: 'local-nvme' } }, model: L70, gpu: H100, expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } } },
-  { rule: 'R12', path: 'link', name: 'stale kvCacheOffload with offloading off is inert', config: { offloadingEnabled: false, kvCacheOffload: true, kvTier: { ...DEFAULT_KV_TIER, tier: 'network' } }, model: L70, gpu: H100, expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'network' } } },
+  {
+    rule: 'R12',
+    path: 'field',
+    name: 'tier on top of KV offload',
+    config: {
+      offloadingEnabled: true,
+      kvCacheOffload: true,
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'network' },
+    },
+    model: L70,
+    gpu: H100,
+    expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } },
+  },
+  {
+    rule: 'R12',
+    path: 'dependency',
+    name: 'tier then offloading turned on',
+    config: {
+      offloadingEnabled: true,
+      kvCacheOffload: true,
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'local-nvme' },
+    },
+    model: L70,
+    gpu: H100,
+    expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'none' } },
+  },
+  {
+    rule: 'R12',
+    path: 'link',
+    name: 'stale kvCacheOffload with offloading off is inert',
+    config: {
+      offloadingEnabled: false,
+      kvCacheOffload: true,
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'network' },
+    },
+    model: L70,
+    gpu: H100,
+    expected: { kvTier: { ...DEFAULT_KV_TIER, tier: 'network' } },
+  },
   // R14: vLLM tensor-parallel divisibility
-  { rule: 'R14', path: 'field', name: 'Llama 70B on 6', config: { numGPUs: 6 }, model: L70, gpu: H100, expected: { numGPUs: 4 } },
-  { rule: 'R14', path: 'dependency', name: 'PP at 6 then tensor parallel', config: { numGPUs: 6, shardingStrategy: 'tensor-parallel' }, model: L70, gpu: H100, expected: { numGPUs: 4 } },
-  { rule: 'R14', path: 'dependency', name: '8 then a 4-head model', config: { numGPUs: 8 }, model: GEMMA_1B, gpu: H100, validUnder: { model: L70, gpu: H100 }, expected: { numGPUs: 4 } },
-  { rule: 'R14', path: 'link', name: 'Kimi K3 keeps 6 (96 heads)', config: { numGPUs: 6 }, model: KIMI_K3, gpu: H100, expected: { numGPUs: 6 } },
+  {
+    rule: 'R14',
+    path: 'field',
+    name: 'Llama 70B on 6',
+    config: { numGPUs: 6 },
+    model: L70,
+    gpu: H100,
+    expected: { numGPUs: 4 },
+  },
+  {
+    rule: 'R14',
+    path: 'dependency',
+    name: 'PP at 6 then tensor parallel',
+    config: { numGPUs: 6, shardingStrategy: 'tensor-parallel' },
+    model: L70,
+    gpu: H100,
+    expected: { numGPUs: 4 },
+  },
+  {
+    rule: 'R14',
+    path: 'dependency',
+    name: '8 then a 4-head model',
+    config: { numGPUs: 8 },
+    model: GEMMA_1B,
+    gpu: H100,
+    validUnder: { model: L70, gpu: H100 },
+    expected: { numGPUs: 4 },
+  },
+  {
+    rule: 'R14',
+    path: 'link',
+    name: 'Kimi K3 keeps 6 (96 heads)',
+    config: { numGPUs: 6 },
+    model: KIMI_K3,
+    gpu: H100,
+    expected: { numGPUs: 6 },
+  },
 ]
 
 describe('normalizeConfig: per-rule paths (field, dependency, link)', () => {
@@ -333,13 +658,65 @@ describe('normalizeConfig: no model or GPU selected', () => {
 
 // Hostile configurations used by the property tests: every rule fires at least once.
 const HOSTILE: { name: string; config: RuleConfig; model: Model | null; gpu: GPU | null }[] = [
-  { name: 'dense EP at 100 GPUs', config: cfg({ shardingStrategy: 'expert-parallel', numGPUs: 100 }), model: L70, gpu: H100 },
-  { name: 'GLM-4.7-Flash at 100 on 8', config: cfg({ numGPUs: 100 }), model: findModel('zai-org-glm-4.7-flash'), gpu: H100 },
-  { name: 'every bound broken', config: cfg({ numGPUs: 2.5, batchSize: 0, sequenceLength: 100, numNodes: 12, concurrentUsers: 0, offloadLayers: 500, offloadPercentage: -5, offloadHostCapacityGB: -1, interconnectOverride: 'nvlink-9', kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace', activeShare: 0 } }), model: L70, gpu: H100 },
-  { name: 'unified memory, everything offloaded', config: cfg({ offloadingEnabled: true, offloadTarget: 'cpu-ram', kvCacheOffload: true, kvTier: { ...DEFAULT_KV_TIER, tier: 'host-pcie' } }), model: L8, gpu: UNIFIED_M3 },
-  { name: 'training with inference preset', config: cfg({ mode: 'training', frameworkPreset: 'tgi', cpuOffloadOptimizer: true, loraRank: 0, gradientAccumulationSteps: -1 }), model: L70, gpu: UNIFIED_M3 },
+  {
+    name: 'dense EP at 100 GPUs',
+    config: cfg({ shardingStrategy: 'expert-parallel', numGPUs: 100 }),
+    model: L70,
+    gpu: H100,
+  },
+  {
+    name: 'GLM-4.7-Flash at 100 on 8',
+    config: cfg({ numGPUs: 100 }),
+    model: findModel('zai-org-glm-4.7-flash'),
+    gpu: H100,
+  },
+  {
+    name: 'every bound broken',
+    config: cfg({
+      numGPUs: 2.5,
+      batchSize: 0,
+      sequenceLength: 100,
+      numNodes: 12,
+      concurrentUsers: 0,
+      offloadLayers: 500,
+      offloadPercentage: -5,
+      offloadHostCapacityGB: -1,
+      interconnectOverride: 'nvlink-9',
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace', activeShare: 0 },
+    }),
+    model: L70,
+    gpu: H100,
+  },
+  {
+    name: 'unified memory, everything offloaded',
+    config: cfg({
+      offloadingEnabled: true,
+      offloadTarget: 'cpu-ram',
+      kvCacheOffload: true,
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'host-pcie' },
+    }),
+    model: L8,
+    gpu: UNIFIED_M3,
+  },
+  {
+    name: 'training with inference preset',
+    config: cfg({
+      mode: 'training',
+      frameworkPreset: 'tgi',
+      cpuOffloadOptimizer: true,
+      loraRank: 0,
+      gradientAccumulationSteps: -1,
+    }),
+    model: L70,
+    gpu: UNIFIED_M3,
+  },
   { name: 'NaN count', config: cfg({ numGPUs: Number.NaN }), model: L70, gpu: NVL72 },
-  { name: 'a billion GPUs (R14 must stay bounded in any rule order)', config: cfg({ numGPUs: 1e9 }), model: L70, gpu: H100 },
+  {
+    name: 'a billion GPUs (R14 must stay bounded in any rule order)',
+    config: cfg({ numGPUs: 1e9 }),
+    model: L70,
+    gpu: H100,
+  },
 ]
 
 function ruleOrders(): (readonly (typeof RULES)[number][])[] {
@@ -360,18 +737,17 @@ describe('normalizeConfig: properties', () => {
     expect(twice.config).toEqual(once.config)
   })
 
-  it.each(HOSTILE)('is independent of rule order and converges within 4 passes: $name', ({
-    config,
-    model,
-    gpu,
-  }) => {
-    const reference = normalizeConfig(config, model, gpu).config
-    for (const order of ruleOrders()) {
-      const result = normalizeConfig(config, model, gpu, order)
-      expect(result.config).toEqual(reference)
-      expect(result.passes).toBeLessThanOrEqual(MAX_NORMALIZE_PASSES)
-    }
-  })
+  it.each(HOSTILE)(
+    'is independent of rule order and converges within 4 passes: $name',
+    ({ config, model, gpu }) => {
+      const reference = normalizeConfig(config, model, gpu).config
+      for (const order of ruleOrders()) {
+        const result = normalizeConfig(config, model, gpu, order)
+        expect(result.config).toEqual(reference)
+        expect(result.passes).toBeLessThanOrEqual(MAX_NORMALIZE_PASSES)
+      }
+    },
+  )
 
   it('reaches the GLM-4.7-Flash fixpoint (100 -> 5) in 3 passes at worst', () => {
     const glm = findModel('zai-org-glm-4.7-flash')
@@ -526,7 +902,19 @@ export function pickRuleConfig(source: RuleConfig): RuleConfig {
   }
 }
 
-export type RuleId = 'R1' | 'R2' | 'R3' | 'R4' | 'R5' | 'R6' | 'R7' | 'R8' | 'R9' | 'R10' | 'R12' | 'R14'
+export type RuleId =
+  | 'R1'
+  | 'R2'
+  | 'R3'
+  | 'R4'
+  | 'R5'
+  | 'R6'
+  | 'R7'
+  | 'R8'
+  | 'R9'
+  | 'R10'
+  | 'R12'
+  | 'R14'
 
 /** What the correction was adjusted for; picks the notice title for a plain setting change */
 export type CorrectionSubject = 'gpu' | 'model' | 'mode' | 'preset' | 'offload' | 'range'
@@ -701,7 +1089,14 @@ export const RULES: readonly Rule[] = [
       const tier = clampKVTier(c.kvTier)
       if (!sameTier(tier, c.kvTier)) {
         out.push(
-          fix('R4', 'kvTier', c.kvTier, tier, 'range', 'KV tier setting adjusted to its allowed range.'),
+          fix(
+            'R4',
+            'kvTier',
+            c.kvTier,
+            tier,
+            'range',
+            'KV tier setting adjusted to its allowed range.',
+          ),
         )
       }
       const hc = c.offloadHostCapacityGB
@@ -992,6 +1387,7 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 ```
 
 ---
+
 ### Task 1b: `allowedOptions`, soft warnings, notice builder
 
 **Files:**
@@ -1033,23 +1429,34 @@ describe('allowedOptions', () => {
 
   it('offers every count up to the bound for pipeline parallel, training, or no model', () => {
     const all8 = [1, 2, 3, 4, 5, 6, 7, 8]
-    expect(allowedOptions({ ...input, shardingStrategy: 'pipeline-parallel' }, L70, H100).gpuCounts).toEqual(all8)
+    expect(
+      allowedOptions({ ...input, shardingStrategy: 'pipeline-parallel' }, L70, H100).gpuCounts,
+    ).toEqual(all8)
     expect(allowedOptions({ ...input, mode: 'training' }, L70, H100).gpuCounts).toEqual(all8)
     expect(allowedOptions(input, null, H100).gpuCounts).toEqual(all8)
   })
 
   it('offers expert parallel only for a splittable MoE (R2)', () => {
-    expect(allowedOptions(input, L70, H100).strategies).toEqual(['tensor-parallel', 'pipeline-parallel'])
+    expect(allowedOptions(input, L70, H100).strategies).toEqual([
+      'tensor-parallel',
+      'pipeline-parallel',
+    ])
     expect(allowedOptions(input, DSR1, H100).strategies).toContain('expert-parallel')
     expect(allowedOptions(input, null, H100).strategies).not.toContain('expert-parallel')
   })
 
   it('filters KV tiers by Grace host, unified memory and KV offload (R3, R6, R12)', () => {
-    expect(allowedOptions(input, L70, H100).kvTiers).toEqual(['none', 'host-pcie', 'local-nvme', 'network'])
+    expect(allowedOptions(input, L70, H100).kvTiers).toEqual([
+      'none',
+      'host-pcie',
+      'local-nvme',
+      'network',
+    ])
     expect(allowedOptions(input, L70, NVL72).kvTiers).toContain('host-grace')
     expect(allowedOptions(input, L8, UNIFIED_M3).kvTiers).toEqual(['none', 'local-nvme', 'network'])
     expect(
-      allowedOptions({ ...input, offloadingEnabled: true, kvCacheOffload: true }, L70, H100).kvTiers,
+      allowedOptions({ ...input, offloadingEnabled: true, kvCacheOffload: true }, L70, H100)
+        .kvTiers,
     ).toEqual(['none'])
   })
 
@@ -1059,24 +1466,44 @@ describe('allowedOptions', () => {
   })
 
   it('offers interconnect variants only with two or more options on a multi-GPU part (R5, R13)', () => {
-    expect(allowedOptions(input, L70, WITH_OPTIONS).interconnectOptions).toEqual(['nvlink-4', 'pcie-5'])
+    expect(allowedOptions(input, L70, WITH_OPTIONS).interconnectOptions).toEqual([
+      'nvlink-4',
+      'pcie-5',
+    ])
     expect(allowedOptions(input, L70, H100).interconnectOptions).toEqual([])
     const singleWithOptions = validateGPU({ ...M3, interconnect_options: ['pcie-5', 'nvlink-5'] })
     expect(allowedOptions(input, L70, singleWithOptions).interconnectOptions).toEqual([])
   })
 
   it('offers CPU optimizer offload only with a ZeRO preset and separate host memory (R6, R8)', () => {
-    expect(allowedOptions({ ...input, frameworkPreset: 'deepspeed-zero3' }, L70, H100).cpuOffloadOptimizer).toBe(true)
-    expect(allowedOptions({ ...input, frameworkPreset: 'unsloth' }, L70, H100).cpuOffloadOptimizer).toBe(false)
-    expect(allowedOptions({ ...input, frameworkPreset: 'deepspeed-zero3' }, L8, UNIFIED_M3).cpuOffloadOptimizer).toBe(false)
+    expect(
+      allowedOptions({ ...input, frameworkPreset: 'deepspeed-zero3' }, L70, H100)
+        .cpuOffloadOptimizer,
+    ).toBe(true)
+    expect(
+      allowedOptions({ ...input, frameworkPreset: 'unsloth' }, L70, H100).cpuOffloadOptimizer,
+    ).toBe(false)
+    expect(
+      allowedOptions({ ...input, frameworkPreset: 'deepspeed-zero3' }, L8, UNIFIED_M3)
+        .cpuOffloadOptimizer,
+    ).toBe(false)
   })
 
   it('never offers a value the store would correct', () => {
-    const pairs: [Model, GPU][] = [[L70, H100], [KIMI_K3, H100], [GEMMA_1B, NVL72], [DSR1, NVL72], [L8, UNIFIED_M3]]
+    const pairs: [Model, GPU][] = [
+      [L70, H100],
+      [KIMI_K3, H100],
+      [GEMMA_1B, NVL72],
+      [DSR1, NVL72],
+      [L8, UNIFIED_M3],
+    ]
     for (const [model, gpu] of pairs) {
       const options = allowedOptions(input, model, gpu)
       for (const n of options.gpuCounts) {
-        expect(normalizeConfig(cfg({ numGPUs: n }), model, gpu).corrections, `${model.id} ${n}`).toEqual([])
+        expect(
+          normalizeConfig(cfg({ numGPUs: n }), model, gpu).corrections,
+          `${model.id} ${n}`,
+        ).toEqual([])
       }
       for (const tier of options.kvTiers) {
         const tiered = cfg({ kvTier: { ...DEFAULT_KV_TIER, tier } })
@@ -1087,7 +1514,12 @@ describe('allowedOptions', () => {
 })
 
 describe('softWarnings', () => {
-  const base = { mode: 'inference' as const, numGPUs: 1, numNodes: 1, shardingStrategy: 'tensor-parallel' as const }
+  const base = {
+    mode: 'inference' as const,
+    numGPUs: 1,
+    numNodes: 1,
+    shardingStrategy: 'tensor-parallel' as const,
+  }
 
   it('W3: multi-node clusters of single-GPU or unified-memory parts', () => {
     expect(softWarnings({ ...base, numNodes: 2 }, L70, M3).map((w) => w.id)).toEqual(['W3'])
@@ -1095,16 +1527,31 @@ describe('softWarnings', () => {
   })
 
   it('W6: more pipeline stages than layers', () => {
-    const w = softWarnings({ ...base, numGPUs: 8, numNodes: 8, shardingStrategy: 'pipeline-parallel' }, L8, H100)
+    const w = softWarnings(
+      { ...base, numGPUs: 8, numNodes: 8, shardingStrategy: 'pipeline-parallel' },
+      L8,
+      H100,
+    )
     expect(w).toEqual([
-      { id: 'W6', message: `64 pipeline stages exceed ${L8.name}'s ${L8.num_hidden_layers} layers; some stages would be empty.` },
+      {
+        id: 'W6',
+        message: `64 pipeline stages exceed ${L8.name}'s ${L8.num_hidden_layers} layers; some stages would be empty.`,
+      },
     ])
   })
 
   it('W8: experts that do not divide by the EP degree', () => {
-    const uneven = softWarnings({ ...base, numGPUs: 6, shardingStrategy: 'expert-parallel' }, DSR1, H100)
-    expect(uneven).toEqual([{ id: 'W8', message: `${DSR1.num_experts} experts don't split evenly across 6 GPUs.` }])
-    expect(softWarnings({ ...base, numGPUs: 8, shardingStrategy: 'expert-parallel' }, DSR1, H100)).toEqual([])
+    const uneven = softWarnings(
+      { ...base, numGPUs: 6, shardingStrategy: 'expert-parallel' },
+      DSR1,
+      H100,
+    )
+    expect(uneven).toEqual([
+      { id: 'W8', message: `${DSR1.num_experts} experts don't split evenly across 6 GPUs.` },
+    ])
+    expect(
+      softWarnings({ ...base, numGPUs: 8, shardingStrategy: 'expert-parallel' }, DSR1, H100),
+    ).toEqual([])
   })
 
   it('is silent in training, where these inputs are inert', () => {
@@ -1118,7 +1565,11 @@ describe('buildNotice', () => {
   })
 
   it('titles a GPU change after the GPU and lists one line per correction', () => {
-    const r = normalizeConfig(cfg({ numGPUs: 64, kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace' } }), L70, H100)
+    const r = normalizeConfig(
+      cfg({ numGPUs: 64, kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace' } }),
+      L70,
+      H100,
+    )
     const notice = buildNotice(r.corrections, 'gpu', { model: L70, gpu: H100, config: r.config })
     expect(notice?.title).toBe(`Adjusted for ${H100.name}`)
     expect(notice?.lines).toEqual([
@@ -1129,30 +1580,30 @@ describe('buildNotice', () => {
 
   it('titles a restored link "Shared link adjusted"', () => {
     const r = normalizeConfig(cfg({ batchSize: 0 }), L70, H100)
-    expect(buildNotice(r.corrections, 'link', { model: L70, gpu: H100, config: r.config })?.title).toBe(
-      'Shared link adjusted',
-    )
+    expect(
+      buildNotice(r.corrections, 'link', { model: L70, gpu: H100, config: r.config })?.title,
+    ).toBe('Shared link adjusted')
   })
 
   it('titles a mode switch after the mode', () => {
     const r = normalizeConfig(cfg({ mode: 'training', frameworkPreset: 'vllm' }), L70, H100)
-    expect(buildNotice(r.corrections, 'mode', { model: L70, gpu: H100, config: r.config })?.title).toBe(
-      'Adjusted for fine-tuning mode',
-    )
+    expect(
+      buildNotice(r.corrections, 'mode', { model: L70, gpu: H100, config: r.config })?.title,
+    ).toBe('Adjusted for fine-tuning mode')
   })
 
   it('titles a plain setting change after the first correction subject', () => {
     const r = normalizeConfig(cfg({ numGPUs: 6 }), L70, H100)
-    expect(buildNotice(r.corrections, 'setting', { model: L70, gpu: H100, config: r.config })?.title).toBe(
-      `Adjusted for ${L70.name}`,
-    )
+    expect(
+      buildNotice(r.corrections, 'setting', { model: L70, gpu: H100, config: r.config })?.title,
+    ).toBe(`Adjusted for ${L70.name}`)
   })
 
   it('titles a reset "Reset to defaults" (Task 2a\'s resetAdvancedSettings/resetAll)', () => {
     const r = normalizeConfig(cfg({ numGPUs: 6 }), L70, H100)
-    expect(buildNotice(r.corrections, 'reset', { model: L70, gpu: H100, config: r.config })?.title).toBe(
-      'Reset to defaults',
-    )
+    expect(
+      buildNotice(r.corrections, 'reset', { model: L70, gpu: H100, config: r.config })?.title,
+    ).toBe('Reset to defaults')
   })
 
   it('keeps one line per rule and field, stating the final value, in first-appearance order', () => {
@@ -1374,6 +1825,7 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 ```
 
 ---
+
 ### Task 2a: Store integration and the notice channel
 
 **Files:**
@@ -1482,7 +1934,12 @@ describe('uiStore: every action normalizes, one notice per action', () => {
 
   it('model change to a dense model resets EP and snaps 6 -> 4 in one notice (R2 then R14)', async () => {
     const store = await freshStore()
-    store.setState({ selectedModel: DSR1, selectedGPU: H100, shardingStrategy: 'expert-parallel', numGPUs: 6 })
+    store.setState({
+      selectedModel: DSR1,
+      selectedGPU: H100,
+      shardingStrategy: 'expert-parallel',
+      numGPUs: 6,
+    })
     store.getState().setSelectedModel(L70)
     const state = store.getState()
     expect(state.shardingStrategy).toBe('tensor-parallel')
@@ -1493,7 +1950,12 @@ describe('uiStore: every action normalizes, one notice per action', () => {
 
   it('training ZeRO-3 on 6 GPUs keeps 6 silently; switching to inference snaps to 4 with a mode notice', async () => {
     const store = await freshStore()
-    store.setState({ selectedModel: L70, selectedGPU: H100, mode: 'training', frameworkPreset: 'deepspeed-zero3' })
+    store.setState({
+      selectedModel: L70,
+      selectedGPU: H100,
+      mode: 'training',
+      frameworkPreset: 'deepspeed-zero3',
+    })
     store.getState().setNumGPUs(6)
     expect(store.getState().numGPUs).toBe(6)
     expect(store.getState().pendingNotice).toBeNull()
@@ -1927,7 +2389,8 @@ function describeAdvancedReset(before: UIConfig): string[] {
     before.kvCacheOffload !== d.kvCacheOffload ||
     before.offloadHostCapacityGB !== d.offloadHostCapacityGB
   if (offloadChanged) lines.push('Offloading reset to off.')
-  if (JSON.stringify(before.kvTier) !== JSON.stringify(d.kvTier)) lines.push('KV tier reset to none.')
+  if (JSON.stringify(before.kvTier) !== JSON.stringify(d.kvTier))
+    lines.push('KV tier reset to none.')
   return lines
 }
 
@@ -1964,17 +2427,19 @@ export const useUIStore = create<UIState>()(
       setNumNodes: (numNodes) => commit(set, get, { numNodes }, 'setting'),
       setInterNodeFabric: (interNodeFabric) => commit(set, get, { interNodeFabric }, 'setting'),
       setCustomFabric: (customFabric) => commit(set, get, { customFabric }, 'setting'),
-      setShardingStrategy: (shardingStrategy) =>
-        commit(set, get, { shardingStrategy }, 'setting'),
+      setShardingStrategy: (shardingStrategy) => commit(set, get, { shardingStrategy }, 'setting'),
       setOffloadingEnabled: (enabled) => {
         const { selectedGPU, offloadTarget } = get()
         // Action intent, not a rule: on unified memory the only offload target is NVMe,
         // so turning offloading on picks it instead of letting R6 switch it off again.
-        const toNVMe = enabled && selectedGPU?.unified_memory === true && offloadTarget === 'cpu-ram'
+        const toNVMe =
+          enabled && selectedGPU?.unified_memory === true && offloadTarget === 'cpu-ram'
         commit(
           set,
           get,
-          toNVMe ? { offloadingEnabled: true, offloadTarget: 'nvme' } : { offloadingEnabled: enabled },
+          toNVMe
+            ? { offloadingEnabled: true, offloadTarget: 'nvme' }
+            : { offloadingEnabled: enabled },
           'setting',
           // The action, not a rule, made this change (R6 never fires: the patch above
           // already leaves offloadTarget off 'cpu-ram'), but the product rule is
@@ -2221,7 +2686,13 @@ describe('urlStateToConfig', () => {
     numGPUs: 4,
     shardingStrategy: 'pipeline-parallel' as const,
     concurrentUsers: 64,
-    kvTier: { tier: 'network' as const, customGBps: 20, activeShare: 0.5, burstSeconds: 12, capacityTB: 3 },
+    kvTier: {
+      tier: 'network' as const,
+      customGBps: 20,
+      activeShare: 0.5,
+      burstSeconds: 12,
+      capacityTB: 3,
+    },
     numNodes: 2,
     interNodeFabric: 'custom' as const,
     customFabric: { name: 'Lab', port_gbps: 25 },
@@ -2259,7 +2730,12 @@ describe('urlStateToConfig', () => {
   })
 
   it('restores fp raw: no auto-optimizations overwrite the link optimizer and flags', () => {
-    const state = { ...everyKey, frameworkPreset: 'unsloth' as const, optimizer: 'adamw' as const, gradientCheckpointing: false }
+    const state = {
+      ...everyKey,
+      frameworkPreset: 'unsloth' as const,
+      optimizer: 'adamw' as const,
+      gradientCheckpointing: false,
+    }
     const decoded = deserializeFromURL(serializeToURL(state))
     if (!decoded) throw new Error('expected the link to parse')
     const { patch } = urlStateToConfig(decoded, lookups)
@@ -2270,16 +2746,35 @@ describe('urlStateToConfig', () => {
 
   it('defaults absent keys like links made before they existed', () => {
     const decoded = deserializeFromURL(
-      compressToEncodedURIComponent(JSON.stringify({ q: 'fp16', sl: 4096, bs: 1, kvq: 'fp16', ng: 1, ss: 'tensor-parallel' })),
+      compressToEncodedURIComponent(
+        JSON.stringify({ q: 'fp16', sl: 4096, bs: 1, kvq: 'fp16', ng: 1, ss: 'tensor-parallel' }),
+      ),
     )
     if (!decoded) throw new Error('expected the link to parse')
     const { patch } = urlStateToConfig(decoded, lookups)
-    expect(patch).toMatchObject({ mode: 'inference', concurrentUsers: 1, numNodes: 1, kvTier: DEFAULT_KV_TIER, interconnectOverride: null })
+    expect(patch).toMatchObject({
+      mode: 'inference',
+      concurrentUsers: 1,
+      numNodes: 1,
+      kvTier: DEFAULT_KV_TIER,
+      interconnectOverride: null,
+    })
   })
 
   it('reports an unknown model or GPU id without custom params', () => {
     const decoded = deserializeFromURL(
-      compressToEncodedURIComponent(JSON.stringify({ modelId: 'gone', gpuId: 'gone', q: 'fp16', sl: 4096, bs: 1, kvq: 'fp16', ng: 1, ss: 'tensor-parallel' })),
+      compressToEncodedURIComponent(
+        JSON.stringify({
+          modelId: 'gone',
+          gpuId: 'gone',
+          q: 'fp16',
+          sl: 4096,
+          bs: 1,
+          kvq: 'fp16',
+          ng: 1,
+          ss: 'tensor-parallel',
+        }),
+      ),
     )
     if (!decoded) throw new Error('expected the link to parse')
     expect(urlStateToConfig(decoded, lookups).missing).toEqual([
@@ -2290,7 +2785,18 @@ describe('urlStateToConfig', () => {
 
   it('parses out-of-range numbers instead of rejecting the whole link (R10 corrects them)', () => {
     const decoded = deserializeFromURL(
-      compressToEncodedURIComponent(JSON.stringify({ q: 'fp16', sl: 100, bs: 0, kvq: 'fp16', ng: -3, ss: 'tensor-parallel', nn: 12, cu: 0 })),
+      compressToEncodedURIComponent(
+        JSON.stringify({
+          q: 'fp16',
+          sl: 100,
+          bs: 0,
+          kvq: 'fp16',
+          ng: -3,
+          ss: 'tensor-parallel',
+          nn: 12,
+          cu: 0,
+        }),
+      ),
     )
     expect(decoded).toMatchObject({ sl: 100, bs: 0, ng: -3, nn: 12, cu: 0 })
   })
@@ -2298,14 +2804,31 @@ describe('urlStateToConfig', () => {
   it('rejects a hand-edited custom model or GPU with a non-positive numeric field (no rule reads these)', () => {
     const badModel = compressToEncodedURIComponent(
       JSON.stringify({
-        q: 'fp16', sl: 4096, bs: 1, kvq: 'fp16', ng: 1, ss: 'tensor-parallel',
-        customModel: { name: 'x', num_parameters_billion: 0, hidden_size: 4096, num_hidden_layers: 32, num_attention_heads: 32, intermediate_size: 11008 },
+        q: 'fp16',
+        sl: 4096,
+        bs: 1,
+        kvq: 'fp16',
+        ng: 1,
+        ss: 'tensor-parallel',
+        customModel: {
+          name: 'x',
+          num_parameters_billion: 0,
+          hidden_size: 4096,
+          num_hidden_layers: 32,
+          num_attention_heads: 32,
+          intermediate_size: 11008,
+        },
       }),
     )
     expect(deserializeFromURL(badModel)).toBeNull()
     const badGPU = compressToEncodedURIComponent(
       JSON.stringify({
-        q: 'fp16', sl: 4096, bs: 1, kvq: 'fp16', ng: 1, ss: 'tensor-parallel',
+        q: 'fp16',
+        sl: 4096,
+        bs: 1,
+        kvq: 'fp16',
+        ng: 1,
+        ss: 'tensor-parallel',
         customGPU: { name: 'x', vram_gb: 0, memory_bandwidth_gbps: 1000 },
       }),
     )
@@ -2353,11 +2876,19 @@ describe('uiStore: shared-link restore is one normalized action', () => {
   it('clamps non-integer and negative counts', async () => {
     expect((await restore({ ...base, modelId: L70.id, gpuId: H100.id, ng: 2.5 })).numGPUs).toBe(2)
     expect((await restore({ ...base, modelId: L70.id, gpuId: H100.id, ng: -3 })).numGPUs).toBe(1)
-    expect((await restore({ ...base, modelId: L70.id, gpuId: H100.id, nn: 12, cu: 0 })).numNodes).toBe(8)
+    expect(
+      (await restore({ ...base, modelId: L70.id, gpuId: H100.id, nn: 12, cu: 0 })).numNodes,
+    ).toBe(8)
   })
 
   it('keeps EP and 6 GPUs when the link model is unknown; the first model pick then corrects both', async () => {
-    const state = await restore({ ...base, modelId: 'no-such-model', gpuId: H100.id, ss: 'expert-parallel', ng: 6 })
+    const state = await restore({
+      ...base,
+      modelId: 'no-such-model',
+      gpuId: H100.id,
+      ss: 'expert-parallel',
+      ng: 6,
+    })
     expect(state.selectedModel).toBeNull()
     expect(state.shardingStrategy).toBe('expert-parallel')
     expect(state.numGPUs).toBe(6)
@@ -2420,9 +2951,22 @@ describe('uiStore: shared-link restore is one normalized action', () => {
   })
 
   it('gives the same result whatever order the link keys come in', async () => {
-    const link = { ...base, modelId: L70.id, gpuId: H100.id, ss: 'expert-parallel', ng: 6, bs: 0, sl: 100, nn: 12 }
+    const link = {
+      ...base,
+      modelId: L70.id,
+      gpuId: H100.id,
+      ss: 'expert-parallel',
+      ng: 6,
+      bs: 0,
+      sl: 100,
+      nn: 12,
+    }
     const entries = Object.entries(link)
-    const orders = [entries, [...entries].reverse(), [...entries].sort(([a], [b]) => a.localeCompare(b))]
+    const orders = [
+      entries,
+      [...entries].reverse(),
+      [...entries].sort(([a], [b]) => a.localeCompare(b)),
+    ]
     const results = []
     for (const order of orders) {
       const state = await restore(Object.fromEntries(order))
@@ -2763,6 +3307,7 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 ```
 
 ---
+
 ### Task 3a: GPU topology data (schema, `nvlink-3`, per-card corrections, H200 NVL)
 
 **Files:**
@@ -2791,18 +3336,18 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 In `src/utils/gpus.test.ts`, replace the `validInterconnects` array in `'should have consistent interconnect types'` (lines 70-78) with:
 
 ```ts
-    const validInterconnects = [
-      'none',
-      'nvlink',
-      'nvlink-3',
-      'nvlink-4',
-      'nvlink-5',
-      'pcie-4',
-      'pcie-5',
-      'infinity-fabric',
-      'unified',
-      undefined,
-    ]
+const validInterconnects = [
+  'none',
+  'nvlink',
+  'nvlink-3',
+  'nvlink-4',
+  'nvlink-5',
+  'pcie-4',
+  'pcie-5',
+  'infinity-fabric',
+  'unified',
+  undefined,
+]
 ```
 
 and append:
@@ -2973,9 +3518,9 @@ Apply each change (ids never change):
 `nvidia-h200-141gb` (lines 54-70): set `name: 'NVIDIA H200 141GB SXM'`, delete the `interconnect_options` line, and put this comment above the row:
 
 ```ts
-  // H200 SXM: HGX 4- or 8-GPU NVSwitch baseboards only (NVIDIA HGX AI Factory
-  // reference architecture). The PCIe card is a separate row below (H200 NVL);
-  // this id stays SXM so old links resolve to the product they most likely meant.
+// H200 SXM: HGX 4- or 8-GPU NVSwitch baseboards only (NVIDIA HGX AI Factory
+// reference architecture). The PCIe card is a separate row below (H200 NVL);
+// this id stays SXM so old links resolve to the product they most likely meant.
 ```
 
 Insert right after the H200 SXM row:
@@ -3018,9 +3563,9 @@ Before committing, open the PNY datasheet URL above and confirm 141 GB, 4.8 TB/s
 `nvidia-gb10` (lines 287-303): `interconnect: 'none',`, delete `interconnect_options`, `max_gpus_per_node: 1,`, add `unified_memory: true,` and `gpudirect_rdma: false, // DGX Spark: no GPUDirect RDMA; NCCL send/recv ~9 GB/s vs 24.6 GB/s raw RDMA (multimodalflow.net, secondary source)`, and put above the row:
 
 ```ts
-  // DGX Spark: one GB10 per unit, no GPU-to-GPU link. Two or four Sparks cluster
-  // over ConnectX-7 200 GbE as separate servers (NVIDIA Sync cluster assistant), so
-  // model them as numNodes with the 200GbE fabric preset, not as 2 GPUs per node.
+// DGX Spark: one GB10 per unit, no GPU-to-GPU link. Two or four Sparks cluster
+// over ConnectX-7 200 GbE as separate servers (NVIDIA Sync cluster assistant), so
+// model them as numNodes with the 200GbE fabric preset, not as 2 GPUs per node.
 ```
 
 Every Apple row (`apple-m1-ultra` ... `apple-m1-max`): add `unified_memory: true,` after `interconnect: 'unified',`.
@@ -3052,12 +3597,14 @@ and in `serializeToURL`'s `customGPU` literal (lines 194-199) add `unified_memor
 Add to `src/store/urlSerializer.test.ts` (inside `describe('urlStateToConfig', ...)`):
 
 ```ts
-  it('round-trips a custom GPU unified-memory flag', () => {
-    const custom = { ...realGPU('apple-m3-ultra'), id: 'custom-1' }
-    const decoded = deserializeFromURL(serializeToURL({ ...everyKey, mode: 'inference' as const, selectedGPU: custom }))
-    if (!decoded) throw new Error('expected the link to parse')
-    expect(urlStateToConfig(decoded, lookups).patch.selectedGPU?.unified_memory).toBe(true)
-  })
+it('round-trips a custom GPU unified-memory flag', () => {
+  const custom = { ...realGPU('apple-m3-ultra'), id: 'custom-1' }
+  const decoded = deserializeFromURL(
+    serializeToURL({ ...everyKey, mode: 'inference' as const, selectedGPU: custom }),
+  )
+  if (!decoded) throw new Error('expected the link to parse')
+  expect(urlStateToConfig(decoded, lookups).patch.selectedGPU?.unified_memory).toBe(true)
+})
 ```
 
 - [ ] **Step 7: Replace the Task 1a/2a derived fixtures with the real rows**
@@ -3137,23 +3684,57 @@ describe('resolveInterconnect with NVLink bridges (spec Section 3)', () => {
   })
 
   it('prices TP-2 over the bridge and TP-4 over PCIe (chart and PPTX read this figure)', () => {
-    const single = calculateInferenceVRAM({ model: llama70, quantization: 'fp8', sequenceLength: 8192, batchSize: 1 })
-    const tp2 = calculateMultiGPUVRAM(single, llama70, h100pcie.vram_gb, 2, 'tensor-parallel', h100pcie)
-    const tp4 = calculateMultiGPUVRAM(single, llama70, h100pcie.vram_gb, 4, 'tensor-parallel', h100pcie)
+    const single = calculateInferenceVRAM({
+      model: llama70,
+      quantization: 'fp8',
+      sequenceLength: 8192,
+      batchSize: 1,
+    })
+    const tp2 = calculateMultiGPUVRAM(
+      single,
+      llama70,
+      h100pcie.vram_gb,
+      2,
+      'tensor-parallel',
+      h100pcie,
+    )
+    const tp4 = calculateMultiGPUVRAM(
+      single,
+      llama70,
+      h100pcie.vram_gb,
+      4,
+      'tensor-parallel',
+      h100pcie,
+    )
     expect(tp2.interconnectBandwidthGBps).toBe(600)
     expect(tp4.interconnectBandwidthGBps).toBe(128)
   })
 
   it('falls back to PCIe for EP-4 on a 2-card bridge', () => {
-    const single = calculateInferenceVRAM({ model: dsr1, quantization: 'fp8', sequenceLength: 8192, batchSize: 1 })
-    const ep4 = calculateMultiGPUVRAM(single, dsr1, h100pcie.vram_gb, 4, 'expert-parallel', h100pcie, 'fp8')
+    const single = calculateInferenceVRAM({
+      model: dsr1,
+      quantization: 'fp8',
+      sequenceLength: 8192,
+      batchSize: 1,
+    })
+    const ep4 = calculateMultiGPUVRAM(
+      single,
+      dsr1,
+      h100pcie.vram_gb,
+      4,
+      'expert-parallel',
+      h100pcie,
+      'fp8',
+    )
     expect(ep4.interconnectBandwidthGBps).toBe(128)
   })
 
   it('warns (W2) at TP-8 on PCIe 5 and TP-4 on PCIe 4, not at TP-2 over the bridge', () => {
     expect(validateInterconnect(h100pcie, 2, 'tensor-parallel').warning).toBeNull()
     expect(validateInterconnect(h100pcie, 8, 'tensor-parallel').warning).not.toBeNull()
-    expect(validateInterconnect(byId('nvidia-a100-80gb-pcie'), 4, 'tensor-parallel').warning).not.toBeNull()
+    expect(
+      validateInterconnect(byId('nvidia-a100-80gb-pcie'), 4, 'tensor-parallel').warning,
+    ).not.toBeNull()
   })
 })
 ```
@@ -3172,24 +3753,48 @@ describe('bridge-aware decode (spec Section 3 impact anchor)', () => {
 
   const tps = (numGPUs: number) => {
     const single = calculateInferenceVRAM({ model, quantization: 'fp8', sequenceLength, batchSize })
-    const multi = calculateMultiGPUVRAM(single, model, gpu.vram_gb, numGPUs, 'tensor-parallel', gpu, 'fp8')
-    return estimatePerformance({ model, gpu, quantization: 'fp8', sequenceLength, batchSize, multiGPUResult: multi })
-      .tokensPerSecond.toNumber()
+    const multi = calculateMultiGPUVRAM(
+      single,
+      model,
+      gpu.vram_gb,
+      numGPUs,
+      'tensor-parallel',
+      gpu,
+      'fp8',
+    )
+    return estimatePerformance({
+      model,
+      gpu,
+      quantization: 'fp8',
+      sequenceLength,
+      batchSize,
+      multiGPUResult: multi,
+    }).tokensPerSecond.toNumber()
   }
   // Hand-priced from the corrected data: weights and KV split across the TP group,
   // read at 2000 GB/s, plus two all-reduces per layer at the resolved link's latency.
   const expected = (numGPUs: number, latencyUs: number) => {
-    const weights = calculateModelWeightVRAM(model.num_parameters_billion, 'fp8', model).mul(BYTES_PER_GB)
-    const kv = calculateKVCacheVRAM({ model, sequenceLength, batchSize, kvPrecision: 'fp16' }).mul(BYTES_PER_GB)
+    const weights = calculateModelWeightVRAM(model.num_parameters_billion, 'fp8', model).mul(
+      BYTES_PER_GB,
+    )
+    const kv = calculateKVCacheVRAM({ model, sequenceLength, batchSize, kvPrecision: 'fp16' }).mul(
+      BYTES_PER_GB,
+    )
     const kvShards = Math.min(numGPUs, model.num_kv_heads ?? model.num_attention_heads)
-    const memorySeconds = weights.div(numGPUs).add(kv.div(kvShards)).div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
+    const memorySeconds = weights
+      .div(numGPUs)
+      .add(kv.div(kvShards))
+      .div(new Decimal(gpu.memory_bandwidth_gbps).mul(1e9))
     const stageSeconds = memorySeconds.add((2 * latencyUs * model.num_hidden_layers) / 1e6)
     return new Decimal(1).div(stageSeconds).toNumber()
   }
 
   it('TP-8 crosses PCIe 5; TP-2 stays on the NVLink 3 bridge', () => {
     expect(tps(8) / expected(8, INTERCONNECT_SPECS['pcie-5'].allreduceLatencyUs)).toBeCloseTo(1, 9)
-    expect(tps(2) / expected(2, INTERCONNECT_SPECS['nvlink-3'].allreduceLatencyUs)).toBeCloseTo(1, 9)
+    expect(tps(2) / expected(2, INTERCONNECT_SPECS['nvlink-3'].allreduceLatencyUs)).toBeCloseTo(
+      1,
+      9,
+    )
   })
 
   it('TP-8 decode drops about a quarter versus the old NVLink pricing (spec: -25.7%)', () => {
@@ -3315,22 +3920,22 @@ In `src/engines/performance.ts` line 260: `const link = INTERCONNECT_SPECS[resol
 In `src/components/inputs/ShardingStrategySelector.tsx`, change the import on line 3 to `import { interconnectLabel as linkLabel, resolveInterconnect } from '@engines/multi-gpu'`, replace lines 28-30 with:
 
 ```tsx
-  // Resolve the link for THIS group size: an NVLink bridge only carries a group that fits it
-  const interconnectType = selectedGPU ? resolveInterconnect(selectedGPU, numGPUs) : 'none'
-  const interconnectSpec = INTERCONNECT_SPECS[interconnectType]
-  const bridgeSize =
-    selectedGPU?.nvlink_bridge && numGPUs <= selectedGPU.nvlink_bridge.size
-      ? selectedGPU.nvlink_bridge.size
-      : null
+// Resolve the link for THIS group size: an NVLink bridge only carries a group that fits it
+const interconnectType = selectedGPU ? resolveInterconnect(selectedGPU, numGPUs) : 'none'
+const interconnectSpec = INTERCONNECT_SPECS[interconnectType]
+const bridgeSize =
+  selectedGPU?.nvlink_bridge && numGPUs <= selectedGPU.nvlink_bridge.size
+    ? selectedGPU.nvlink_bridge.size
+    : null
 ```
 
 replace lines 47-52 (the `interconnectLabel` const and its comment) with:
 
 ```tsx
-  // The badge renders bandwidthGBps separately, so only the name part of the label is used
-  const interconnectLabel = (
-    selectedGPU ? linkLabel(selectedGPU, numGPUs) : (INTERCONNECT_LABELS.none ?? 'None')
-  ).split(' — ')[0]
+// The badge renders bandwidthGBps separately, so only the name part of the label is used
+const interconnectLabel = (
+  selectedGPU ? linkLabel(selectedGPU, numGPUs) : (INTERCONNECT_LABELS.none ?? 'None')
+).split(' — ')[0]
 ```
 
 and in the NVLink/Infinity Fabric badge branch (lines 157-159) replace `TP up to {interconnectSpec.recommendedMaxTPDegree} GPUs` with `TP up to {bridgeSize ?? interconnectSpec.recommendedMaxTPDegree} GPUs`.
@@ -3340,15 +3945,15 @@ and in the NVLink/Infinity Fabric badge branch (lines 157-159) replace `TP up to
 In `src/hooks/useInferenceCalculation.ts` replace lines 256-259 with:
 
 ```ts
-    // Apply the interconnect variant the user picked; it replaces the bridge too,
-    // because the user chose the link explicitly.
-    const effectiveGPU = interconnectOverride
-      ? {
-          ...gpu,
-          interconnect: interconnectOverride as GPU['interconnect'],
-          nvlink_bridge: undefined,
-        }
-      : gpu
+// Apply the interconnect variant the user picked; it replaces the bridge too,
+// because the user chose the link explicitly.
+const effectiveGPU = interconnectOverride
+  ? {
+      ...gpu,
+      interconnect: interconnectOverride as GPU['interconnect'],
+      nvlink_bridge: undefined,
+    }
+  : gpu
 ```
 
 - [ ] **Step 6: Run the tests**
@@ -3369,6 +3974,7 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 ```
 
 ---
+
 ### Task 4a: Fabric primitives (hop time, eta, vLLM chunk, microbatch fill, 200GbE preset)
 
 **Files:**
@@ -3381,7 +3987,7 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 - Consumes: `GPU` (with Task 3a data: GB10 is 128 GB, one per node, `gpudirect_rdma: false`). Task 4a runs after Task 3a, so `GPU.gpudirect_rdma` already exists on every row when `effectiveFraction` is written.
 - Produces (exported from `src/engines/fabric.ts`):
   - `HGX_EFFECTIVE_FRACTION = 0.8` (ASSUMPTION), `GB10_EFFECTIVE_FRACTION = 0.37` (SECONDARY SOURCE), `FABRIC_HOP_LATENCY_S = 10e-6`
-  - `effectiveFraction(gpu: GPU): number` — reads `gpu.gpudirect_rdma` (GPU *data*, from Task 3a), not `gpu.id`: `GB10_EFFECTIVE_FRACTION` when `gpu.gpudirect_rdma === false`, else `HGX_EFFECTIVE_FRACTION`.
+  - `effectiveFraction(gpu: GPU): number` — reads `gpu.gpudirect_rdma` (GPU _data_, from Task 3a), not `gpu.id`: `GB10_EFFECTIVE_FRACTION` when `gpu.gpudirect_rdma === false`, else `HGX_EFFECTIVE_FRACTION`.
   - `interNodeGBps(portGBps: number, gpusPerNode: number, fraction: number): number` — `port x gpusPerNode x fraction`
   - `fabricHopSeconds(tokens: number, hiddenSize: number, gbps: number): number` — `tokens x hidden x 2 x 2 / (gbps x 1e9) + FABRIC_HOP_LATENCY_S`
   - `maxNumBatchedTokens(gpu: GPU): number` — 16384 (>= 160 GB), 8192 (>= 70 GB, not A100), else 2048
@@ -3426,7 +4032,11 @@ function findGPU(id: string) {
 
 describe('fabricHopSeconds (spec Section 3b)', () => {
   it('Llama 70B at 8k over one GB10 on 200 GbE: 268,435,456 B at 25 x 0.37 GB/s + 10 us = 29.03 ms', () => {
-    const gbps = interNodeGBps(FABRIC_SPECS['ethernet-200g'].portGBps, 1, effectiveFraction(findGPU('nvidia-gb10')))
+    const gbps = interNodeGBps(
+      FABRIC_SPECS['ethernet-200g'].portGBps,
+      1,
+      effectiveFraction(findGPU('nvidia-gb10')),
+    )
     expect(gbps).toBeCloseTo(9.25, 10)
     expect(8192 * 8192 * 2 * 2).toBe(268_435_456)
     expect(fabricHopSeconds(8192, 8192, gbps)).toBeCloseTo(0.02903, 6)
@@ -3496,7 +4106,18 @@ Append to `src/store/urlSerializer.test.ts`:
 describe('200GbE fabric links', () => {
   it('parses fab: ethernet-200g', () => {
     const decoded = deserializeFromURL(
-      compressToEncodedURIComponent(JSON.stringify({ q: 'fp16', sl: 4096, bs: 1, kvq: 'fp16', ng: 1, ss: 'tensor-parallel', nn: 2, fab: 'ethernet-200g' })),
+      compressToEncodedURIComponent(
+        JSON.stringify({
+          q: 'fp16',
+          sl: 4096,
+          bs: 1,
+          kvq: 'fp16',
+          ng: 1,
+          ss: 'tensor-parallel',
+          nn: 2,
+          fab: 'ethernet-200g',
+        }),
+      ),
     )
     expect(decoded?.fab).toBe('ethernet-200g')
   })
@@ -3665,9 +4286,21 @@ describe('multi-node prefill and decode from bytes over the fabric (spec Section
 
   function run(
     gpu: GPU,
-    o: { gpusPerNode: number; numNodes: number; batchSize: number; sequenceLength: number; fabric: Exclude<FabricType, 'custom'>; quantization: QuantizationFormat },
+    o: {
+      gpusPerNode: number
+      numNodes: number
+      batchSize: number
+      sequenceLength: number
+      fabric: Exclude<FabricType, 'custom'>
+      quantization: QuantizationFormat
+    },
   ) {
-    const singleGPU = calculateInferenceVRAM({ model, quantization: o.quantization, sequenceLength: o.sequenceLength, batchSize: o.batchSize })
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: o.quantization,
+      sequenceLength: o.sequenceLength,
+      batchSize: o.batchSize,
+    })
     const multi = calculateMultiNodeVRAM({
       singleGPU,
       model,
@@ -3691,7 +4324,13 @@ describe('multi-node prefill and decode from bytes over the fabric (spec Section
     })
     return { singleGPU, multi, perf }
   }
-  const hgx = { gpusPerNode: 8, batchSize: 1, sequenceLength: 8192, fabric: 'ethernet-400g' as const, quantization: 'fp8' as const }
+  const hgx = {
+    gpusPerNode: 8,
+    batchSize: 1,
+    sequenceLength: 8192,
+    fabric: 'ethernet-400g' as const,
+    quantization: 'fp8' as const,
+  }
 
   it('2-node batch-1 prefill = single-node prefill + one hop of the whole prompt, exactly', () => {
     const one = run(h100, { ...hgx, numNodes: 1 })
@@ -3699,12 +4338,28 @@ describe('multi-node prefill and decode from bytes over the fabric (spec Section
     const gbps = interNodeGBps(FABRIC_SPECS['ethernet-400g'].portGBps, 8, effectiveFraction(h100))
     expect(two.multi.interNodeGBps).toBeCloseTo(320, 10)
     const hop = fabricHopSeconds(8192, model.hidden_size, gbps)
-    expect(two.perf.prefillSeconds?.toNumber()).toBeCloseTo((one.perf.prefillSeconds?.toNumber() ?? Number.NaN) + hop, 10)
+    expect(two.perf.prefillSeconds?.toNumber()).toBeCloseTo(
+      (one.perf.prefillSeconds?.toNumber() ?? Number.NaN) + hop,
+      10,
+    )
   })
 
   it('2x GB10 on 200 GbE: TTFT within 1% of one GB10 (was 15x slower under the heuristic)', () => {
-    const single = estimatePerformance({ model, gpu: gb10, quantization: 'fp8', sequenceLength: 8192, batchSize: 1 })
-    const two = run(gb10, { gpusPerNode: 1, numNodes: 2, batchSize: 1, sequenceLength: 8192, fabric: 'ethernet-200g', quantization: 'fp8' })
+    const single = estimatePerformance({
+      model,
+      gpu: gb10,
+      quantization: 'fp8',
+      sequenceLength: 8192,
+      batchSize: 1,
+    })
+    const two = run(gb10, {
+      gpusPerNode: 1,
+      numNodes: 2,
+      batchSize: 1,
+      sequenceLength: 8192,
+      fabric: 'ethernet-200g',
+      quantization: 'fp8',
+    })
     const ratio = two.perf.timeToFirstToken.div(single.timeToFirstToken).toNumber()
     expect(Math.abs(ratio - 1)).toBeLessThan(0.01)
   })
@@ -3720,7 +4375,10 @@ describe('multi-node prefill and decode from bytes over the fabric (spec Section
   it('batch 32 pipelines M = ceil(B x T / C) = 32 microbatches over 2 nodes', () => {
     const { multi } = run(h100, { ...hgx, numNodes: 2, batchSize: 32 })
     expect(multi.bubbleEfficiency).toBeCloseTo(32 / 33, 12)
-    expect(multi.prefillScalingEfficiency).toBeCloseTo(INTERCONNECT_SPECS['nvlink-4'].tpScalingEfficiency * (32 / 33), 12)
+    expect(multi.prefillScalingEfficiency).toBeCloseTo(
+      INTERCONNECT_SPECS['nvlink-4'].tpScalingEfficiency * (32 / 33),
+      12,
+    )
     const longPrompt = run(h100, { ...hgx, numNodes: 2, batchSize: 1, sequenceLength: 32768 })
     expect(longPrompt.multi.bubbleEfficiency).toBeCloseTo(4 / 5, 12) // M = 32768 / 8192
   })
@@ -3728,13 +4386,27 @@ describe('multi-node prefill and decode from bytes over the fabric (spec Section
   it('single node, batch > 1: prefill is exactly the per-prompt formula (burst / B cancels)', () => {
     const { perf } = run(h100, { ...hgx, numNodes: 1, batchSize: 8 })
     const promptTokens = 8192
-    const flops = calculateMoEActiveParams(model) * 2e9 * promptTokens + 2 * model.num_hidden_layers * promptTokens ** 2 * model.hidden_size
-    const effective = (h100.fp16_tflops ?? 0) * 1e12 * PREFILL_MFU.toNumber() * 8 * INTERCONNECT_SPECS['nvlink-4'].tpScalingEfficiency
+    const flops =
+      calculateMoEActiveParams(model) * 2e9 * promptTokens +
+      2 * model.num_hidden_layers * promptTokens ** 2 * model.hidden_size
+    const effective =
+      (h100.fp16_tflops ?? 0) *
+      1e12 *
+      PREFILL_MFU.toNumber() *
+      8 *
+      INTERCONNECT_SPECS['nvlink-4'].tpScalingEfficiency
     expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(flops / effective, 9)
   })
 
   it('KV-tier verdict on the tightest config: B200x8, 4 nodes, 1.6T, batch 32 still resumes faster', () => {
-    const { singleGPU, multi, perf } = run(b200, { gpusPerNode: 8, numNodes: 4, batchSize: 32, sequenceLength: 8192, fabric: 'ethernet-1600g', quantization: 'fp16' })
+    const { singleGPU, multi, perf } = run(b200, {
+      gpusPerNode: 8,
+      numNodes: 4,
+      batchSize: 32,
+      sequenceLength: 8192,
+      fabric: 'ethernet-1600g',
+      quantization: 'fp16',
+    })
     const summary = kvTierSummary({
       settings: { ...DEFAULT_KV_TIER, tier: 'network' },
       maxHotSessions: 32,
@@ -3760,30 +4432,48 @@ In `src/engines/multi-node.test.ts`:
 - Replace the four tests `'separates decode from prefill efficiency once nodes > 1'`, `'charges a pipeline bubble at batch 1 across nodes'`, `'rewards a faster fabric'` and `'puts a 72-GPU NVL72 node at the pipeline efficiency ceiling, not beyond it'` with:
 
 ```ts
-  it('keeps decode efficiency intra-node only; prefill adds the pipeline fill', () => {
-    const result = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4 })
-    expect(result.scalingEfficiency).toBe(result.intraNodeEfficiency)
-    expect(result.prefillScalingEfficiency).toBeCloseTo(result.intraNodeEfficiency * result.bubbleEfficiency, 12)
-  })
+it('keeps decode efficiency intra-node only; prefill adds the pipeline fill', () => {
+  const result = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4 })
+  expect(result.scalingEfficiency).toBe(result.intraNodeEfficiency)
+  expect(result.prefillScalingEfficiency).toBeCloseTo(
+    result.intraNodeEfficiency * result.bubbleEfficiency,
+    12,
+  )
+})
 
-  it('gives one request within one scheduler chunk no cross-node prefill speedup', () => {
-    // B = 1, T = 4096 <= C = 16384 (288 GB MI355X): M = 1, fill = 1 / 4
-    const result = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4 })
-    expect(result.bubbleEfficiency).toBeCloseTo(0.25, 12)
-  })
+it('gives one request within one scheduler chunk no cross-node prefill speedup', () => {
+  // B = 1, T = 4096 <= C = 16384 (288 GB MI355X): M = 1, fill = 1 / 4
+  const result = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4 })
+  expect(result.bubbleEfficiency).toBeCloseTo(0.25, 12)
+})
 
-  it('reports the effective bandwidth between servers: port x GPUs per node x eta', () => {
-    const slow = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4, fabric: FABRIC_SPECS['ethernet-100g'] })
-    const fast = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 4, fabric: FABRIC_SPECS['ethernet-1600g'] })
-    expect(slow.interNodeGBps).toBeCloseTo(12.5 * 8 * 0.8, 10)
-    expect(fast.interNodeGBps).toBeCloseTo(200 * 8 * 0.8, 10)
+it('reports the effective bandwidth between servers: port x GPUs per node x eta', () => {
+  const slow = calculateMultiNodeVRAM({
+    ...base,
+    gpusPerNode: 8,
+    numNodes: 4,
+    fabric: FABRIC_SPECS['ethernet-100g'],
   })
+  const fast = calculateMultiNodeVRAM({
+    ...base,
+    gpusPerNode: 8,
+    numNodes: 4,
+    fabric: FABRIC_SPECS['ethernet-1600g'],
+  })
+  expect(slow.interNodeGBps).toBeCloseTo(12.5 * 8 * 0.8, 10)
+  expect(fast.interNodeGBps).toBeCloseTo(200 * 8 * 0.8, 10)
+})
 
-  it('handles a 72-GPU NVL72 node per stage', () => {
-    const result = calculateMultiNodeVRAM({ ...base, gpusPerNode: 72, numNodes: 2, fabric: resolveFabricSpec('ethernet-800g', null) })
-    expect(result.interNodeGBps).toBeCloseTo(100 * 72 * 0.8, 10)
-    expect(result.totalPerGPU.isFinite()).toBe(true)
+it('handles a 72-GPU NVL72 node per stage', () => {
+  const result = calculateMultiNodeVRAM({
+    ...base,
+    gpusPerNode: 72,
+    numNodes: 2,
+    fabric: resolveFabricSpec('ethernet-800g', null),
   })
+  expect(result.interNodeGBps).toBeCloseTo(100 * 72 * 0.8, 10)
+  expect(result.totalPerGPU.isFinite()).toBe(true)
+})
 ```
 
 In `src/engines/multi-gpu.test.ts` lines 826-828 replace the two efficiency assertions with `expect(result.interNodeGBps).toBe(0)` (keep the `bubbleEfficiency` one).
@@ -3802,19 +4492,19 @@ Expected: FAIL: `interNodeGBps` undefined; 2x GB10 TTFT is ~15x one GB10; bubble
 `src/engines/types.ts`: delete the `classFactor` member (and its doc comment) from `FabricSpec`. Replace the `MultiGPUVRAMBreakdown` members from `intraNodeEfficiency` through `prefillScalingEfficiency` (lines 217-238) with:
 
 ```ts
-  /** Intra-node scaling efficiency, from INTERCONNECT_SPECS */
-  intraNodeEfficiency: number
-  /**
-   * Effective scale-out bandwidth of one node, GB/s: port x GPUs per node x eta
-   * (fabric.ts effectiveFraction). 0 when numNodes === 1.
-   */
-  interNodeGBps: number
-  /** Prefill pipeline fill across nodes, M / (M + N - 1); 1.0 when numNodes === 1 */
-  bubbleEfficiency: number
-  /** Intra-node efficiency (the decode roofline never multiplies by it) */
-  scalingEfficiency: number
-  /** Prefill roofline efficiency: intraNodeEfficiency * bubbleEfficiency */
-  prefillScalingEfficiency: number
+/** Intra-node scaling efficiency, from INTERCONNECT_SPECS */
+intraNodeEfficiency: number
+/**
+ * Effective scale-out bandwidth of one node, GB/s: port x GPUs per node x eta
+ * (fabric.ts effectiveFraction). 0 when numNodes === 1.
+ */
+interNodeGBps: number
+/** Prefill pipeline fill across nodes, M / (M + N - 1); 1.0 when numNodes === 1 */
+bubbleEfficiency: number
+/** Intra-node efficiency (the decode roofline never multiplies by it) */
+scalingEfficiency: number
+/** Prefill roofline efficiency: intraNodeEfficiency * bubbleEfficiency */
+prefillScalingEfficiency: number
 ```
 
 `src/engines/fabric.ts`: delete lines 4-21 (`FABRIC_REFERENCE_GBPS`, `PP_BASE_EFFICIENCY`, `EFFICIENCY_FLOOR`), every `classFactor: ...` line in `FABRIC_SPECS` and in `resolveFabricSpec`'s custom branch, and lines 83-142 (`halvingsBelowReference`, `clamp`, `fabricPrefillEfficiency`, `fabricDecodeEfficiency`, `pipelineBubbleEfficiency`).
@@ -3884,7 +4574,14 @@ In `src/engines/performance.ts`, add `import { fabricHopSeconds } from './fabric
 ```ts
 function decodeLayout(model: Model, multi: MultiGPUVRAMBreakdown | null | undefined) {
   if (!multi || multi.numGPUs <= 1) {
-    return { strategy: null, stages: 1, gpusPerStage: 1, kvShards: 1, numNodes: 1, interNodeGBps: 0 }
+    return {
+      strategy: null,
+      stages: 1,
+      gpusPerStage: 1,
+      kvShards: 1,
+      numNodes: 1,
+      interNodeGBps: 0,
+    }
   }
   const intraPP = multi.strategy === 'pipeline-parallel'
   const gpusPerStage = intraPP ? 1 : multi.gpusPerNode
@@ -3905,69 +4602,69 @@ function decodeLayout(model: Model, multi: MultiGPUVRAMBreakdown | null | undefi
 Replace lines 253-281 (the step-4 comment through `tokensPerSecond`) with:
 
 ```ts
-  // 4. Roofline per stage, plus communication per layer: two all-reduces for tensor
-  //    parallelism (after attention and after the MLP), one dispatch + combine
-  //    all-to-all for expert parallelism. Across servers each step also crosses N - 1
-  //    stage boundaries with B tokens (Section 3b), spread over the stages
-  //    (conservative: vLLM sends asynchronously). A step flows through the stages in
-  //    turn; with batchSize sequences in flight the pipeline overlaps them, less the
-  //    bubble B / (B + stages - 1). A decode token cannot be split into micro-batches
-  //    (unlike a prompt, see fabric.ts prefillPipelineFill), so at batch 1 pipeline
-  //    parallelism gives no decode speedup.
-  const link = INTERCONNECT_SPECS[resolveInterconnect(gpu, layout.gpusPerStage)]
-  const layersPerStage = model.num_hidden_layers / layout.stages
-  let commSecondsPerLayer = 0
-  if (layout.strategy === 'tensor-parallel') {
-    commSecondsPerLayer = (2 * link.allreduceLatencyUs) / 1e6
-  } else if (layout.strategy === 'expert-parallel' && split) {
-    // bandwidthGBps is bidirectional per GPU; one direction carries each transfer
-    commSecondsPerLayer = expertAllToAllSeconds(
-      batchSize / layout.gpusPerStage,
-      split.expertsPerToken,
-      model.hidden_size,
-      link.bandwidthGBps / 2,
-      link.allreduceLatencyUs,
-    )
-  }
-  const multiNode = layout.numNodes > 1 && layout.interNodeGBps > 0
-  const hopSecondsPerStage = multiNode
-    ? ((layout.numNodes - 1) / layout.stages) *
-      fabricHopSeconds(batchSize, model.hidden_size, layout.interNodeGBps)
-    : 0
-  const stageSeconds = Decimal.max(memorySeconds, computeSeconds)
-    .add(commSecondsPerLayer * layersPerStage)
-    .add(hopSecondsPerStage)
-  const tokensPerSecond = new Decimal(batchSize)
-    .div(stageSeconds)
-    .mul(new Decimal(batchSize).div(batchSize + layout.stages - 1))
+// 4. Roofline per stage, plus communication per layer: two all-reduces for tensor
+//    parallelism (after attention and after the MLP), one dispatch + combine
+//    all-to-all for expert parallelism. Across servers each step also crosses N - 1
+//    stage boundaries with B tokens (Section 3b), spread over the stages
+//    (conservative: vLLM sends asynchronously). A step flows through the stages in
+//    turn; with batchSize sequences in flight the pipeline overlaps them, less the
+//    bubble B / (B + stages - 1). A decode token cannot be split into micro-batches
+//    (unlike a prompt, see fabric.ts prefillPipelineFill), so at batch 1 pipeline
+//    parallelism gives no decode speedup.
+const link = INTERCONNECT_SPECS[resolveInterconnect(gpu, layout.gpusPerStage)]
+const layersPerStage = model.num_hidden_layers / layout.stages
+let commSecondsPerLayer = 0
+if (layout.strategy === 'tensor-parallel') {
+  commSecondsPerLayer = (2 * link.allreduceLatencyUs) / 1e6
+} else if (layout.strategy === 'expert-parallel' && split) {
+  // bandwidthGBps is bidirectional per GPU; one direction carries each transfer
+  commSecondsPerLayer = expertAllToAllSeconds(
+    batchSize / layout.gpusPerStage,
+    split.expertsPerToken,
+    model.hidden_size,
+    link.bandwidthGBps / 2,
+    link.allreduceLatencyUs,
+  )
+}
+const multiNode = layout.numNodes > 1 && layout.interNodeGBps > 0
+const hopSecondsPerStage = multiNode
+  ? ((layout.numNodes - 1) / layout.stages) *
+    fabricHopSeconds(batchSize, model.hidden_size, layout.interNodeGBps)
+  : 0
+const stageSeconds = Decimal.max(memorySeconds, computeSeconds)
+  .add(commSecondsPerLayer * layersPerStage)
+  .add(hopSecondsPerStage)
+const tokensPerSecond = new Decimal(batchSize)
+  .div(stageSeconds)
+  .mul(new Decimal(batchSize).div(batchSize + layout.stages - 1))
 ```
 
 In the offload baseline (lines 292-294) change the `baselineStageSeconds` expression to add the hop too:
 
 ```ts
-    const baselineStageSeconds = Decimal.max(baselineMemorySeconds, computeSeconds)
-      .add(commSecondsPerLayer * layersPerStage)
-      .add(hopSecondsPerStage)
+const baselineStageSeconds = Decimal.max(baselineMemorySeconds, computeSeconds)
+  .add(commSecondsPerLayer * layersPerStage)
+  .add(hopSecondsPerStage)
 ```
 
 Replace the prefill comment line `//    Batch is NOT applied: TTFT is a per-request latency for one sequence of T tokens.` with:
 
 ```ts
-  //    Per request: a burst of B prompts takes B times the FLOPs on the same machine, so
-  //    dividing by B leaves one prompt's FLOPs (ADR 0007). Across servers the pipeline
-  //    fill (prefillScalingEfficiency) and N - 1 hops of the prompt are amortized the same way.
+//    Per request: a burst of B prompts takes B times the FLOPs on the same machine, so
+//    dividing by B leaves one prompt's FLOPs (ADR 0007). Across servers the pipeline
+//    fill (prefillScalingEfficiency) and N - 1 hops of the prompt are amortized the same way.
 ```
 
 and after `prefillSeconds = linearFLOPs.add(attentionFLOPs).div(effectiveFLOPS)` insert:
 
 ```ts
-    if (multiNode) {
-      prefillSeconds = prefillSeconds.add(
-        new Decimal(fabricHopSeconds(sequenceLength, model.hidden_size, layout.interNodeGBps))
-          .mul(layout.numNodes - 1)
-          .div(batchSize),
-      )
-    }
+if (multiNode) {
+  prefillSeconds = prefillSeconds.add(
+    new Decimal(fabricHopSeconds(sequenceLength, model.hidden_size, layout.interNodeGBps))
+      .mul(layout.numNodes - 1)
+      .div(batchSize),
+  )
+}
 ```
 
 - [ ] **Step 6: Worker and sync hook**
@@ -3981,21 +4678,19 @@ and after `prefillSeconds = linearFLOPs.add(attentionFLOPs).div(effectiveFLOPS)`
 In `src/components/outputs/MultiGPUBreakdownChart.test.tsx`, in `'reports the per-node split (not just the total) across multiple servers'`, add after the strategy-line assertion:
 
 ```tsx
-    // 100 GB/s per port x 8 GPUs x eta 0.8 (HGX assumption, fabric.ts)
-    expect(screen.getByText(/640 GB\/s effective between servers/)).toBeInTheDocument()
+// 100 GB/s per port x 8 GPUs x eta 0.8 (HGX assumption, fabric.ts)
+expect(screen.getByText(/640 GB\/s effective between servers/)).toBeInTheDocument()
 ```
 
 In `src/components/outputs/MultiGPUBreakdownChart.tsx` replace the efficiency paragraph (lines 184-189) with:
 
 ```tsx
-          <p>
-            Modelled from bandwidth, not measured:{' '}
-            {(breakdown.intraNodeEfficiency * 100).toFixed(0)}% intra-server ·{' '}
-            {breakdown.interNodeGBps.toFixed(0)} GB/s effective between servers ·{' '}
-            {(breakdown.bubbleEfficiency * 100).toFixed(0)}% pipeline fill on prefill
-          </p>
+;<p>
+  Modelled from bandwidth, not measured: {(breakdown.intraNodeEfficiency * 100).toFixed(0)}%
+  intra-server · {breakdown.interNodeGBps.toFixed(0)} GB/s effective between servers ·{' '}
+  {(breakdown.bubbleEfficiency * 100).toFixed(0)}% pipeline fill on prefill
+</p>
 ```
-
 
 - [ ] **Step 8: Run the tests**
 
@@ -4016,6 +4711,7 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 ```
 
 ---
+
 ### Task 4c: Relabel the first-token figure (UI and PPTX)
 
 **Files:**
@@ -4049,39 +4745,46 @@ describe('firstTokenLabel', () => {
 Append to `src/components/outputs/PerformanceSection.test.tsx` (inside its `describe`):
 
 ```tsx
-  it('labels the first-token figure as amortized over the batch when B > 1', () => {
-    render(<PerformanceSection performance={performance} concurrentUsers={8} batchSize={8} />)
-    expect(screen.getByText('Prefill per request (amortized over batch 8)')).toBeInTheDocument()
-    expect(screen.queryByText(/Time to First Token/i)).not.toBeInTheDocument()
-  })
+it('labels the first-token figure as amortized over the batch when B > 1', () => {
+  render(<PerformanceSection performance={performance} concurrentUsers={8} batchSize={8} />)
+  expect(screen.getByText('Prefill per request (amortized over batch 8)')).toBeInTheDocument()
+  expect(screen.queryByText(/Time to First Token/i)).not.toBeInTheDocument()
+})
 ```
 
 Append to `src/utils/exportPptx.test.ts` (inside the top-level `describe`, reusing its `model`, `gpu`, `performance`, `tableRows`):
 
 ```ts
-  it('labels the first-token row as amortized over the batch when B > 1 (ADR 0007)', async () => {
-    const singleGPU = calculateInferenceVRAM({ model, quantization: 'fp16', sequenceLength: 4096, batchSize: 8 })
-    await exportPptx({
-      model,
-      gpu,
-      quantization: 'fp16',
-      numGPUs: 1,
-      numNodes: 1,
-      sequenceLength: 4096,
-      batchSize: 8,
-      vram: singleGPU,
-      performance,
-      multiGPU: null,
-      maxSessions: null,
-      tierSessionsHeld: null,
-      weightSource: null,
-      concurrentUsers: 8,
-      offload: null,
-    })
-    const perfRows = tableRows(2)
-    expect(perfRows.some(([label]) => label === 'Prefill per request (amortized over batch 8)')).toBe(true)
-    expect(perfRows.some(([label]) => label === 'Time to First Token')).toBe(false)
+it('labels the first-token row as amortized over the batch when B > 1 (ADR 0007)', async () => {
+  const singleGPU = calculateInferenceVRAM({
+    model,
+    quantization: 'fp16',
+    sequenceLength: 4096,
+    batchSize: 8,
   })
+  await exportPptx({
+    model,
+    gpu,
+    quantization: 'fp16',
+    numGPUs: 1,
+    numNodes: 1,
+    sequenceLength: 4096,
+    batchSize: 8,
+    vram: singleGPU,
+    performance,
+    multiGPU: null,
+    maxSessions: null,
+    tierSessionsHeld: null,
+    weightSource: null,
+    concurrentUsers: 8,
+    offload: null,
+  })
+  const perfRows = tableRows(2)
+  expect(perfRows.some(([label]) => label === 'Prefill per request (amortized over batch 8)')).toBe(
+    true,
+  )
+  expect(perfRows.some(([label]) => label === 'Time to First Token')).toBe(false)
+})
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -4188,7 +4891,12 @@ const H100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
 describe('useConfigNotices', () => {
   beforeEach(() => {
     warning.mockClear()
-    useUIStore.setState({ ...DEFAULT_UI_CONFIG, selectedModel: L70, selectedGPU: H100, pendingNotice: null })
+    useUIStore.setState({
+      ...DEFAULT_UI_CONFIG,
+      selectedModel: L70,
+      selectedGPU: H100,
+      pendingNotice: null,
+    })
   })
 
   it('toasts one grouped notice per action and clears it', () => {
@@ -4223,8 +4931,14 @@ import { SoftWarnings } from './SoftWarnings'
 
 describe('SoftWarnings', () => {
   it('renders each warning with its id', () => {
-    render(<SoftWarnings warnings={[{ id: 'W8', message: "256 experts don't split evenly across 6 GPUs." }]} />)
-    expect(screen.getByTestId('soft-warning-W8')).toHaveTextContent("256 experts don't split evenly across 6 GPUs.")
+    render(
+      <SoftWarnings
+        warnings={[{ id: 'W8', message: "256 experts don't split evenly across 6 GPUs." }]}
+      />,
+    )
+    expect(screen.getByTestId('soft-warning-W8')).toHaveTextContent(
+      "256 experts don't split evenly across 6 GPUs.",
+    )
   })
 
   it('renders nothing without warnings', () => {
@@ -4267,7 +4981,9 @@ const gpus = validateGPUs(gpusData)
 const L8 = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-8b') ?? null
 
 describe('OffloadingPanel', () => {
-  beforeEach(() => useUIStore.setState({ ...DEFAULT_UI_CONFIG, selectedModel: L8, pendingNotice: null }))
+  beforeEach(() =>
+    useUIStore.setState({ ...DEFAULT_UI_CONFIG, selectedModel: L8, pendingNotice: null }),
+  )
 
   it('offers only NVMe on unified memory (R6)', () => {
     useUIStore.setState({ selectedGPU: gpus.find((g) => g.id === 'apple-m3-ultra') ?? null })
@@ -4344,7 +5060,10 @@ describe('GPUCountSelector', () => {
   })
 
   it('raises the range to 72 stops for an NVL72 rack under pipeline parallel', () => {
-    useUIStore.setState({ selectedGPU: gpu('nvidia-gb300-nvl72'), shardingStrategy: 'pipeline-parallel' })
+    useUIStore.setState({
+      selectedGPU: gpu('nvidia-gb300-nvl72'),
+      shardingStrategy: 'pipeline-parallel',
+    })
     render(<GPUCountSelector />)
     expect(screen.getByRole('slider')).toHaveAttribute('max', '71')
   })
@@ -4384,17 +5103,21 @@ describe('GPUCountSelector', () => {
 In `src/components/inputs/KVTierPanel.test.tsx`, extend the mocked store's type and initial state with `selectedModel: null`, `mode: 'inference'`, `shardingStrategy: 'tensor-parallel'`, `offloadingEnabled: false`, `kvCacheOffload: false`, `frameworkPreset: 'none'` (add them to the `create<{...}>` type as `unknown`/literal types and to the initial object), reset them in the `beforeEach` setState, and append:
 
 ```tsx
-  it('offers only None when the KV cache is already offloaded (R12)', () => {
-    useUIStore.setState({ selectedGPU: findGPU('nvidia-h100-80gb-sxm'), offloadingEnabled: true, kvCacheOffload: true })
-    render(<KVTierPanel />)
-    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None'])
+it('offers only None when the KV cache is already offloaded (R12)', () => {
+  useUIStore.setState({
+    selectedGPU: findGPU('nvidia-h100-80gb-sxm'),
+    offloadingEnabled: true,
+    kvCacheOffload: true,
   })
+  render(<KVTierPanel />)
+  expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None'])
+})
 
-  it('hides host-memory tiers on unified memory (R6)', () => {
-    useUIStore.setState({ selectedGPU: findGPU('apple-m3-ultra') })
-    render(<KVTierPanel />)
-    expect(screen.queryByRole('option', { name: /Host memory/ })).not.toBeInTheDocument()
-  })
+it('hides host-memory tiers on unified memory (R6)', () => {
+  useUIStore.setState({ selectedGPU: findGPU('apple-m3-ultra') })
+  render(<KVTierPanel />)
+  expect(screen.queryByRole('option', { name: /Host memory/ })).not.toBeInTheDocument()
+})
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -4496,19 +5219,21 @@ In `src/components/layout/ResultsPanel.tsx`, after the interconnect-warning bloc
 `src/components/inputs/GPUCountSelector.tsx`: add `import { useAllowedOptions } from '@hooks/useAllowedOptions'` and, below the store selectors, `const { gpuCounts } = useAllowedOptions()`. Replace the `<input ... />` slider (lines 64-73) with:
 
 ```tsx
-        {/* The slider moves over the allowed counts only (R1 + R14): a tensor-parallel
-            degree vLLM refuses is not selectable. */}
-        <input
-          id="gpu-count"
-          type="range"
-          min={0}
-          max={gpuCounts.length - 1}
-          step={1}
-          value={Math.max(0, gpuCounts.indexOf(numGPUs))}
-          aria-valuetext={`${numGPUs} GPUs`}
-          onChange={(e) => setNumGPUs(gpuCounts[Number(e.target.value)] ?? 1)}
-          className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
-        />
+{
+  /* The slider moves over the allowed counts only (R1 + R14): a tensor-parallel
+            degree vLLM refuses is not selectable. */
+}
+;<input
+  id="gpu-count"
+  type="range"
+  min={0}
+  max={gpuCounts.length - 1}
+  step={1}
+  value={Math.max(0, gpuCounts.indexOf(numGPUs))}
+  aria-valuetext={`${numGPUs} GPUs`}
+  onChange={(e) => setNumGPUs(gpuCounts[Number(e.target.value)] ?? 1)}
+  className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+/>
 ```
 
 `src/components/inputs/ShardingStrategySelector.tsx`: replace line 21 (`const isMoE = ...`) with `const { strategies } = useAllowedOptions()` (import in the same edit) and line 120 `{isMoE && (` with `{strategies.includes('expert-parallel') && (`.
@@ -4561,6 +5286,7 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 ```
 
 ---
+
 ### Task 6a: Composition tests for InputPanel and ResultsPanel (before the layout change)
 
 These characterization tests pass on the current layout and must still pass after Task 6b. They pin what the simplification may not lose: every input stays reachable, the essential inputs and the verdict figures stay visible, warnings stay visible.
@@ -4627,7 +5353,15 @@ describe('InputPanel composition', () => {
   it('shows the essential inputs in inference', () => {
     const { container } = render(<InputPanel />)
     expect(screen.getByText('Inference Mode')).toBeVisible()
-    for (const id of ['model-selector', 'quantization-picker', 'gpu-selector', 'gpu-count', 'node-count', 'sequence-length', 'concurrent-users']) {
+    for (const id of [
+      'model-selector',
+      'quantization-picker',
+      'gpu-selector',
+      'gpu-count',
+      'node-count',
+      'sequence-length',
+      'concurrent-users',
+    ]) {
       expect(field(container, id), id).toBeVisible()
     }
   })
@@ -4735,7 +5469,11 @@ describe('ResultsPanel composition', () => {
   })
 
   it('keeps soft warnings visible (W8: 256 experts over 6 GPUs)', async () => {
-    useUIStore.setState({ selectedModel: model('deepseek-r1'), shardingStrategy: 'expert-parallel', numGPUs: 6 })
+    useUIStore.setState({
+      selectedModel: model('deepseek-r1'),
+      shardingStrategy: 'expert-parallel',
+      numGPUs: 6,
+    })
     render(<ResultsPanel />)
     expect(await screen.findByTestId('soft-warning-W8')).toBeVisible()
   })
@@ -4810,7 +5548,13 @@ import { countAdvancedChanges } from './advancedChanges'
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
-    value: (query: string) => ({ matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false }),
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
   })
 })
 vi.mock('zustand/middleware', async (importOriginal) => {
@@ -4825,14 +5569,35 @@ describe('countAdvancedChanges', () => {
 
   it('counts each non-default advanced setting', () => {
     expect(countAdvancedChanges({ ...DEFAULT_UI_CONFIG, batchSize: 8 })).toBe(1)
-    expect(countAdvancedChanges({ ...DEFAULT_UI_CONFIG, batchSize: 8, kvQuantization: 'fp8', offloadingEnabled: true })).toBe(3)
-    expect(countAdvancedChanges({ ...DEFAULT_UI_CONFIG, kvTier: { ...DEFAULT_UI_CONFIG.kvTier, tier: 'network' } })).toBe(1)
+    expect(
+      countAdvancedChanges({
+        ...DEFAULT_UI_CONFIG,
+        batchSize: 8,
+        kvQuantization: 'fp8',
+        offloadingEnabled: true,
+      }),
+    ).toBe(3)
+    expect(
+      countAdvancedChanges({
+        ...DEFAULT_UI_CONFIG,
+        kvTier: { ...DEFAULT_UI_CONFIG.kvTier, tier: 'network' },
+      }),
+    ).toBe(1)
   })
 
   it('ignores the fabric while there is one server, and inert inputs in training', () => {
     expect(countAdvancedChanges({ ...DEFAULT_UI_CONFIG, interNodeFabric: 'ethernet-100g' })).toBe(0)
-    expect(countAdvancedChanges({ ...DEFAULT_UI_CONFIG, numNodes: 2, interNodeFabric: 'ethernet-100g' })).toBe(1)
-    expect(countAdvancedChanges({ ...DEFAULT_UI_CONFIG, mode: 'training', kvQuantization: 'fp8', shardingStrategy: 'pipeline-parallel' })).toBe(0)
+    expect(
+      countAdvancedChanges({ ...DEFAULT_UI_CONFIG, numNodes: 2, interNodeFabric: 'ethernet-100g' }),
+    ).toBe(1)
+    expect(
+      countAdvancedChanges({
+        ...DEFAULT_UI_CONFIG,
+        mode: 'training',
+        kvQuantization: 'fp8',
+        shardingStrategy: 'pipeline-parallel',
+      }),
+    ).toBe(0)
   })
 })
 ```
@@ -4892,7 +5657,14 @@ describe('InputPanel layout (ADR 0005)', () => {
   it('hides inputs that are inert in training', () => {
     useUIStore.setState({ mode: 'training' })
     const { container } = render(<InputPanel />)
-    for (const id of ['quantization-picker', 'kv-quantization-picker', 'concurrent-users', 'node-count', 'kv-tier', 'gpu-count']) {
+    for (const id of [
+      'quantization-picker',
+      'kv-quantization-picker',
+      'concurrent-users',
+      'node-count',
+      'kv-tier',
+      'gpu-count',
+    ]) {
       expect(field(container, id), id).toBeNull()
     }
     expect(screen.queryByText('Offloading Configuration')).not.toBeInTheDocument()
@@ -5011,17 +5783,26 @@ describe('ResultsPanel layout (ADR 0005)', () => {
 In `src/components/inputs/GPUCountSelector.test.tsx` append:
 
 ```tsx
-  it('summarizes one replica across servers', () => {
-    useUIStore.setState({ numGPUs: 8, numNodes: 2 })
-    render(<GPUCountSelector />)
-    expect(screen.getByText('8 GPUs per server × 2 servers per replica, tensor parallel')).toBeInTheDocument()
-  })
+it('summarizes one replica across servers', () => {
+  useUIStore.setState({ numGPUs: 8, numNodes: 2 })
+  render(<GPUCountSelector />)
+  expect(
+    screen.getByText('8 GPUs per server × 2 servers per replica, tensor parallel'),
+  ).toBeInTheDocument()
+})
 
-  it('names expert parallel correctly (was "pipeline parallel")', () => {
-    useUIStore.setState({ selectedModel: model('deepseek-r1'), shardingStrategy: 'expert-parallel', numGPUs: 8, numNodes: 1 })
-    render(<GPUCountSelector />)
-    expect(screen.getByText('8 GPUs per replica (in one server), expert parallel')).toBeInTheDocument()
+it('names expert parallel correctly (was "pipeline parallel")', () => {
+  useUIStore.setState({
+    selectedModel: model('deepseek-r1'),
+    shardingStrategy: 'expert-parallel',
+    numGPUs: 8,
+    numNodes: 1,
   })
+  render(<GPUCountSelector />)
+  expect(
+    screen.getByText('8 GPUs per replica (in one server), expert parallel'),
+  ).toBeInTheDocument()
+})
 ```
 
 and reset `numNodes: 1` in its `beforeEach`.
@@ -5029,19 +5810,19 @@ and reset `numNodes: 1` in its `beforeEach`.
 In `src/components/inputs/ShardingStrategySelector.test.tsx` append:
 
 ```tsx
-  it('stays visible at 1 GPU on a multi-GPU part, without an interconnect badge', () => {
-    useUIStore.setState({ selectedGPU: gpu('nvidia-h100-80gb-sxm'), numGPUs: 1 })
-    render(<ShardingStrategySelector />)
-    expect(screen.getByText('Intra-server sharding strategy')).toBeInTheDocument()
-    expect(screen.queryByText(/GB\/s ·/)).not.toBeInTheDocument()
-  })
+it('stays visible at 1 GPU on a multi-GPU part, without an interconnect badge', () => {
+  useUIStore.setState({ selectedGPU: gpu('nvidia-h100-80gb-sxm'), numGPUs: 1 })
+  render(<ShardingStrategySelector />)
+  expect(screen.getByText('Intra-server sharding strategy')).toBeInTheDocument()
+  expect(screen.queryByText(/GB\/s ·/)).not.toBeInTheDocument()
+})
 ```
 
 In `src/utils/exportPptx.test.ts` replace lines 179-180 with:
 
 ```ts
-    expect(configRows).toContainEqual(['GPUs per replica', '8 per server × 4 servers (32 total)'])
-    expect(configRows.some(([label]) => label === 'Number of GPUs')).toBe(false)
+expect(configRows).toContainEqual(['GPUs per replica', '8 per server × 4 servers (32 total)'])
+expect(configRows.some(([label]) => label === 'Number of GPUs')).toBe(false)
 ```
 
 and line 237 with `expect(configRows).toContainEqual(['GPUs per replica', '1 (in one server)'])`.
@@ -5270,15 +6051,15 @@ In `src/components/inputs/GPUSelector.tsx` delete line 15 (`import { Interconnec
 In `src/components/layout/Header.tsx` add `import { ArrowPathIcon } from '@heroicons/react/24/outline'` to the existing heroicons import, `import { useUIStore } from '@store/uiStore'`, and inside `Header()` add `const resetAll = useUIStore((s) => s.resetAll)`. Add a button before the existing share button (same `<div className="flex items-center gap-2">`):
 
 ```tsx
-            <button
-              type="button"
-              onClick={resetAll}
-              aria-label="Reset all settings to defaults"
-              title="Reset all"
-              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <ArrowPathIcon className="w-5 h-5" />
-            </button>
+;<button
+  type="button"
+  onClick={resetAll}
+  aria-label="Reset all settings to defaults"
+  title="Reset all"
+  className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+>
+  <ArrowPathIcon className="w-5 h-5" />
+</button>
 ```
 
 Section 4's "returns to the initial empty state and clears the URL hash" is `resetAll()`'s own job (Task 2a); the button is a one-line call plus the toast `useConfigNotices` already shows for the resulting notice.
@@ -5310,25 +6091,27 @@ const STRATEGY_LABELS: Record<ShardingStrategy, string> = {
 (import `type ShardingStrategy` from `@engines/types` in the same edit); add `const numNodes = useUIStore((s) => s.numNodes)`; replace lines 29-33 with:
 
 ```tsx
-  const label = isTraining ? 'Number of GPUs' : 'GPUs per replica (in one server)'
+const label = isTraining ? 'Number of GPUs' : 'GPUs per replica (in one server)'
 
-  const tooltip = isTraining
-    ? 'GPUs used for data-parallel training, e.g. DeepSpeed ZeRO sharding. Multi-node training is not modelled, so this is the total GPU count.'
-    : `The parallel degree of one model replica inside one server. Tensor, pipeline or expert parallelism runs at this level, over NVLink, Infinity Fabric or PCIe. Capped at ${maxGPUs} — the largest GPU count this hardware forms in one node.`
+const tooltip = isTraining
+  ? 'GPUs used for data-parallel training, e.g. DeepSpeed ZeRO sharding. Multi-node training is not modelled, so this is the total GPU count.'
+  : `The parallel degree of one model replica inside one server. Tensor, pipeline or expert parallelism runs at this level, over NVLink, Infinity Fabric or PCIe. Capped at ${maxGPUs} — the largest GPU count this hardware forms in one node.`
 ```
 
 and replace the summary paragraph (lines 78-86) with:
 
 ```tsx
-      {(numGPUs > 1 || (!isTraining && numNodes > 1)) && (
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {isTraining
-            ? `${numGPUs} GPUs`
-            : numNodes > 1
-              ? `${numGPUs} GPUs per server × ${numNodes} servers per replica, ${STRATEGY_LABELS[shardingStrategy]}`
-              : `${numGPUs} GPUs per replica (in one server), ${STRATEGY_LABELS[shardingStrategy]}`}
-        </p>
-      )}
+{
+  ;(numGPUs > 1 || (!isTraining && numNodes > 1)) && (
+    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      {isTraining
+        ? `${numGPUs} GPUs`
+        : numNodes > 1
+          ? `${numGPUs} GPUs per server × ${numNodes} servers per replica, ${STRATEGY_LABELS[shardingStrategy]}`
+          : `${numGPUs} GPUs per replica (in one server), ${STRATEGY_LABELS[shardingStrategy]}`}
+    </p>
+  )
+}
 ```
 
 - [ ] **Step 6: Verdict block and collapsed details**
@@ -5369,7 +6152,9 @@ export function VerdictBlock({
           </dd>
         </div>
         <div>
-          <dt className="text-sm text-gray-500 dark:text-gray-400 mb-1">{firstTokenLabel(batchSize)}</dt>
+          <dt className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+            {firstTokenLabel(batchSize)}
+          </dt>
           <dd className="text-lg font-semibold text-gray-900 dark:text-white">
             {formatDuration(performance.timeToFirstToken)}
           </dd>
@@ -5460,35 +6245,35 @@ The `KEEP`/`MOVE` comments above are instructions for this edit, not code to lea
 In `src/hooks/useResultExports.ts`, replace lines 58-77 (from `// Force light mode` through the inner `finally`) with:
 
 ```ts
-      // Force light mode so the capture uses correct contrast
-      const root = document.documentElement
-      const wasDark = root.classList.contains('dark')
-      if (wasDark) root.classList.remove('dark')
+// Force light mode so the capture uses correct contrast
+const root = document.documentElement
+const wasDark = root.classList.contains('dark')
+if (wasDark) root.classList.remove('dark')
 
-      // Collapsed sections (Advanced, Details) would be missing from the PDF: open every
-      // <details> for the capture, then put each back exactly as the user left it.
-      const sections = Array.from(captureEl.querySelectorAll('details'))
-      const wasOpen = sections.map((d) => d.open)
-      for (const d of sections) d.open = true
+// Collapsed sections (Advanced, Details) would be missing from the PDF: open every
+// <details> for the capture, then put each back exactly as the user left it.
+const sections = Array.from(captureEl.querySelectorAll('details'))
+const wasOpen = sections.map((d) => d.open)
+for (const d of sections) d.open = true
 
-      let canvas: HTMLCanvasElement
-      try {
-        canvas = await html2canvasPro(captureEl, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#f9fafb', // gray-50 — matches page background
-          logging: false,
-          // windowWidth: 800 tells the renderer to use the mobile breakpoint:
-          // lg:grid-cols-12 collapses to grid-cols-1, panels stack vertically.
-          // This is a render-time option — the live app and mobile users are unaffected.
-          windowWidth: 800,
-        })
-      } finally {
-        if (wasDark) root.classList.add('dark')
-        sections.forEach((d, i) => {
-          d.open = wasOpen[i] ?? false
-        })
-      }
+let canvas: HTMLCanvasElement
+try {
+  canvas = await html2canvasPro(captureEl, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#f9fafb', // gray-50 — matches page background
+    logging: false,
+    // windowWidth: 800 tells the renderer to use the mobile breakpoint:
+    // lg:grid-cols-12 collapses to grid-cols-1, panels stack vertically.
+    // This is a render-time option — the live app and mobile users are unaffected.
+    windowWidth: 800,
+  })
+} finally {
+  if (wasDark) root.classList.add('dark')
+  sections.forEach((d, i) => {
+    d.open = wasOpen[i] ?? false
+  })
+}
 ```
 
 - [ ] **Step 8: PPTX "GPUs per replica" row**
@@ -5523,6 +6308,7 @@ Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z"
 ```
 
 ---
+
 ### Task 7: Docs (guide, CHANGELOG, CLAUDE.md, ARCHITECTURE.md, README)
 
 No version bump: `package.json` stays at 1.13.0 (release PR later). ADR 0006 is already `Accepted` (no edit needed).
@@ -5647,14 +6433,13 @@ Insert after the Results Panel section (before `{/* Comparison View */}`):
 Replace the GPU Selection paragraph about interconnects (line 173-175, the "Key specs" `<P>`) with:
 
 ```tsx
-        <P>
-          <strong>Key specs that affect calculations:</strong> VRAM determines fit/no-fit. Memory
-          bandwidth determines decode speed. FP16 TFLOPS (dense) determines prefill. The scale-up
-          link sets multi-GPU cost: NVSwitch baseboards connect 4 or 8 GPUs (HGX), an NVL72 rack up
-          to 72; NVLink bridges pair 2 PCIe cards (H100/A100 PCIe) or up to 4 (H200 NVL), and a
-          larger group crosses PCIe. Unified-memory parts (Apple Silicon, DGX Spark) have no
-          separate host memory.
-        </P>
+;<P>
+  <strong>Key specs that affect calculations:</strong> VRAM determines fit/no-fit. Memory bandwidth
+  determines decode speed. FP16 TFLOPS (dense) determines prefill. The scale-up link sets multi-GPU
+  cost: NVSwitch baseboards connect 4 or 8 GPUs (HGX), an NVL72 rack up to 72; NVLink bridges pair 2
+  PCIe cards (H100/A100 PCIe) or up to 4 (H200 NVL), and a larger group crosses PCIe. Unified-memory
+  parts (Apple Silicon, DGX Spark) have no separate host memory.
+</P>
 ```
 
 Replace the Hardware Configuration `Number of GPUs` subsection (lines 185-191) with:
@@ -5675,10 +6460,10 @@ and change `<P>Visible when using 2+ GPUs. Two options:</P>` (line 194) to `<P>V
 In the Offloading section, after the Offload Target list add:
 
 ```tsx
-        <P>
-          On unified-memory parts (Apple Silicon, DGX Spark) only NVMe is offered: RAM is already the
-          GPU&apos;s memory, so there is nothing to offload into.
-        </P>
+;<P>
+  On unified-memory parts (Apple Silicon, DGX Spark) only NVMe is offered: RAM is already the
+  GPU&apos;s memory, so there is nothing to offload into.
+</P>
 ```
 
 In the Results Panel section (after its first paragraph at line 373-376) add:
@@ -5704,15 +6489,14 @@ In the Results Panel section (after its first paragraph at line 373-376) add:
 Replace the URL Sharing paragraph (lines 472-477) with:
 
 ```tsx
-        <P>
-          Every configuration change is encoded into the URL hash using LZ-String compression. Click
-          the link icon in the header to copy the current URL. A link restores the whole
-          configuration in one step, including the fine-tuning settings (gradient accumulation,
-          gradient checkpointing, Flash Attention, framework preset, CPU optimizer offload) and the
-          interconnect variant. If the link encodes a combination that is no longer allowed (or a GPU
-          whose data was corrected), it opens corrected with a &quot;Shared link adjusted&quot; notice
-          explaining what changed.
-        </P>
+;<P>
+  Every configuration change is encoded into the URL hash using LZ-String compression. Click the
+  link icon in the header to copy the current URL. A link restores the whole configuration in one
+  step, including the fine-tuning settings (gradient accumulation, gradient checkpointing, Flash
+  Attention, framework preset, CPU optimizer offload) and the interconnect variant. If the link
+  encodes a combination that is no longer allowed (or a GPU whose data was corrected), it opens
+  corrected with a &quot;Shared link adjusted&quot; notice explaining what changed.
+</P>
 ```
 
 - [ ] **Step 2: CHANGELOG**

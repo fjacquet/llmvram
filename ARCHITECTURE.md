@@ -8,19 +8,19 @@ LLM VRAM Calculator is a browser-based Single Page Application (SPA) for estimat
 
 ## Technology Stack
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| React | 19.x | UI framework (Functional Components + Hooks) |
-| TypeScript | 5.x | Type safety (Strict Mode, noUncheckedIndexedAccess) |
-| Zustand | 5.x | State management with URL hash persistence |
-| Tailwind CSS | 4.x | Responsive styling (class-based dark mode) |
-| Vite | 7.x | Build tool |
-| Recharts | 3.x | Donut chart and data visualization |
-| Decimal.js | 10.x | Precision arithmetic for all calculations |
-| LZ-String | 1.x | URL state compression |
-| Zod | 4.x | Schema validation (single source of truth for types) |
-| Biome | 2.x | Linting and formatting |
-| Vitest | 4.x | Unit testing (jsdom environment) |
+| Technology   | Version | Purpose                                              |
+| ------------ | ------- | ---------------------------------------------------- |
+| React        | 19.x    | UI framework (Functional Components + Hooks)         |
+| TypeScript   | 5.x     | Type safety (Strict Mode, noUncheckedIndexedAccess)  |
+| Zustand      | 5.x     | State management with URL hash persistence           |
+| Tailwind CSS | 4.x     | Responsive styling (class-based dark mode)           |
+| Vite         | 7.x     | Build tool                                           |
+| Recharts     | 3.x     | Donut chart and data visualization                   |
+| Decimal.js   | 10.x    | Precision arithmetic for all calculations            |
+| LZ-String    | 1.x     | URL state compression                                |
+| Zod          | 4.x     | Schema validation (single source of truth for types) |
+| Biome        | 2.x     | Linting and formatting                               |
+| Vitest       | 4.x     | Unit testing (jsdom environment)                     |
 
 ---
 
@@ -314,12 +314,12 @@ Types in `src/types/` re-export from schemas. All data is validated through Zod 
 
 Both schemas include optional display/linking fields that do not affect calculations:
 
-| Schema | Field | Type | Purpose |
-|--------|-------|------|---------|
-| `ModelSchema` | `context_length` | `number` | Max token context (shown in selector) |
-| `ModelSchema` | `license` | `string` | License identifier (shown in selector) |
-| `ModelSchema` | `hf_url` | `string (URL)` | HuggingFace model card link |
-| `GPUSchema` | `spec_url` | `string (URL)` | Vendor spec sheet link |
+| Schema        | Field            | Type           | Purpose                                |
+| ------------- | ---------------- | -------------- | -------------------------------------- |
+| `ModelSchema` | `context_length` | `number`       | Max token context (shown in selector)  |
+| `ModelSchema` | `license`        | `string`       | License identifier (shown in selector) |
+| `ModelSchema` | `hf_url`         | `string (URL)` | HuggingFace model card link            |
+| `GPUSchema`   | `spec_url`       | `string (URL)` | Vendor spec sheet link                 |
 
 ---
 
@@ -389,16 +389,16 @@ Main Thread                    Worker Thread
 
 ## Key Files Reference
 
-| File | Purpose |
-|------|---------|
-| `src/App.tsx` | Root component |
-| `src/store/uiStore.ts` | Main Zustand store |
-| `src/hooks/useInferenceCalculation.ts` | Calculation orchestration via Worker |
-| `src/engines/inference.ts` | Core VRAM calculation |
-| `src/engines/quantization.ts` | 22 quantization formats |
-| `src/engines/multi-gpu.ts` | Multi-GPU distribution |
-| `src/utils/schemas.ts` | Zod schemas (type source of truth) |
-| `src/data/models.json` | 54 curated models (alphabetically sorted) |
-| `src/data/gpus.json` | 28 curated GPUs |
-| `src/store/urlSerializer.ts` | URL hash state persistence |
-| `src/workers/calculation.worker.ts` | Background calculation thread |
+| File                                   | Purpose                                   |
+| -------------------------------------- | ----------------------------------------- |
+| `src/App.tsx`                          | Root component                            |
+| `src/store/uiStore.ts`                 | Main Zustand store                        |
+| `src/hooks/useInferenceCalculation.ts` | Calculation orchestration via Worker      |
+| `src/engines/inference.ts`             | Core VRAM calculation                     |
+| `src/engines/quantization.ts`          | 22 quantization formats                   |
+| `src/engines/multi-gpu.ts`             | Multi-GPU distribution                    |
+| `src/utils/schemas.ts`                 | Zod schemas (type source of truth)        |
+| `src/data/models.json`                 | 54 curated models (alphabetically sorted) |
+| `src/data/gpus.json`                   | 28 curated GPUs                           |
+| `src/store/urlSerializer.ts`           | URL hash state persistence                |
+| `src/workers/calculation.worker.ts`    | Background calculation thread             |

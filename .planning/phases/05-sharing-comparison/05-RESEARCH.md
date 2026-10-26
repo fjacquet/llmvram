@@ -18,33 +18,33 @@ Phase 5 enables users to share configurations via URL and compare multiple scena
 
 ### Core (Already in Project)
 
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
+| Library | Version        | Purpose                                  | Why Standard                                                                                                                        |
+| ------- | -------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Zustand | 5.0.9 → 5.0.10 | State management with persist middleware | Built-in persist middleware with custom storage support. Official hashStorage pattern. **Upgrade to 5.0.10 for persist bug fixes.** |
-| React | 19.2.0 | UI framework | Current stable version, no changes needed |
-| Zod | 3.25.76 | Runtime validation | Already used for data schemas, extend for URL state validation |
+| React   | 19.2.0         | UI framework                             | Current stable version, no changes needed                                                                                           |
+| Zod     | 3.25.76        | Runtime validation                       | Already used for data schemas, extend for URL state validation                                                                      |
 
 ### New Dependencies Required
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| **lz-string** | ^1.5.0 | URL-safe compression | Compress state before encoding to URL. Use `compressToEncodedURIComponent` / `decompressFromEncodedURIComponent`. Reduces URL size by 60-70%. |
+| Library       | Version | Purpose              | When to Use                                                                                                                                   |
+| ------------- | ------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **lz-string** | ^1.5.0  | URL-safe compression | Compress state before encoding to URL. Use `compressToEncodedURIComponent` / `decompressFromEncodedURIComponent`. Reduces URL size by 60-70%. |
 
 ### Optional/Nice-to-Have
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| **superjson** | ^2.2.1 | Enhanced JSON serialization | If Decimal.js values need URL serialization. Register custom handlers. **May not be needed** if we convert Decimals to numbers for URL state. |
-| **deep-object-diff** | ^1.1.9 | Object comparison | Highlight specific changed fields in comparison view. **Start without it** - simple shallow comparison may suffice. |
+| Library              | Version | Purpose                     | When to Use                                                                                                                                   |
+| -------------------- | ------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **superjson**        | ^2.2.1  | Enhanced JSON serialization | If Decimal.js values need URL serialization. Register custom handlers. **May not be needed** if we convert Decimals to numbers for URL state. |
+| **deep-object-diff** | ^1.1.9  | Object comparison           | Highlight specific changed fields in comparison view. **Start without it** - simple shallow comparison may suffice.                           |
 
 ### Alternatives Considered
 
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| lz-string | pako (gzip) | Pako has better compression but larger library size (~45kb vs 3kb). lz-string is "good enough" for config state. |
-| URL hash | Query params | Hash doesn't trigger server requests, better for pure client-side SPA. Query params better for SSR/SEO (not needed here). |
-| Custom comparison | react-diff-view | react-diff-view is for text/code diffs. Configuration comparison is simpler - just show values side-by-side. |
-| superjson | devalue | devalue smaller but less flexible. Only use if superjson too heavy. |
+| Instead of        | Could Use       | Tradeoff                                                                                                                  |
+| ----------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| lz-string         | pako (gzip)     | Pako has better compression but larger library size (~45kb vs 3kb). lz-string is "good enough" for config state.          |
+| URL hash          | Query params    | Hash doesn't trigger server requests, better for pure client-side SPA. Query params better for SSR/SEO (not needed here). |
+| Custom comparison | react-diff-view | react-diff-view is for text/code diffs. Configuration comparison is simpler - just show values side-by-side.              |
+| superjson         | devalue         | devalue smaller but less flexible. Only use if superjson too heavy.                                                       |
 
 **Installation:**
 
@@ -398,13 +398,13 @@ function Field({ label, value, isDifferent }: FieldProps) {
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| URL compression | Custom base64 + compression | **lz-string** | Handles URL-safe encoding, compression, and edge cases (unicode, special chars). Battle-tested in production. |
-| State serialization | Manual JSON.stringify with type handling | **Zod + JSON** (or superjson if needed) | Zod validates structure. superjson handles Date/Map/Set/Decimal if needed. Don't write custom serializers. |
-| Hash storage | `window.location.hash = ...` directly | **Zustand persist middleware** with custom StateStorage | Handles race conditions, initialization order, SSR compatibility. Custom hash code is bug-prone. |
-| Object comparison | Nested loops comparing fields | **Shallow comparison** (for simple cases) or **deep-object-diff** (if complex) | Comparison logic is subtle (NaN, undefined, null edge cases). Use library. |
-| URL length validation | Counting characters | **Test with actual browsers** | Limits vary by browser. Test with real data, add buffer (stay under 1800 chars to be safe). |
+| Problem               | Don't Build                              | Use Instead                                                                    | Why                                                                                                           |
+| --------------------- | ---------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| URL compression       | Custom base64 + compression              | **lz-string**                                                                  | Handles URL-safe encoding, compression, and edge cases (unicode, special chars). Battle-tested in production. |
+| State serialization   | Manual JSON.stringify with type handling | **Zod + JSON** (or superjson if needed)                                        | Zod validates structure. superjson handles Date/Map/Set/Decimal if needed. Don't write custom serializers.    |
+| Hash storage          | `window.location.hash = ...` directly    | **Zustand persist middleware** with custom StateStorage                        | Handles race conditions, initialization order, SSR compatibility. Custom hash code is bug-prone.              |
+| Object comparison     | Nested loops comparing fields            | **Shallow comparison** (for simple cases) or **deep-object-diff** (if complex) | Comparison logic is subtle (NaN, undefined, null edge cases). Use library.                                    |
+| URL length validation | Counting characters                      | **Test with actual browsers**                                                  | Limits vary by browser. Test with real data, add buffer (stay under 1800 chars to be safe).                   |
 
 **Key insight:** URL state management has many edge cases (initialization timing, SSR, browser history, URL length limits, encoding issues). Use proven libraries and patterns from Zustand ecosystem rather than custom solutions.
 
@@ -719,13 +719,13 @@ export function ComparisonView() {
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| Query params (`?model=x&gpu=y`) | URL hash (`#compressed-state`) | 2020+ | Hash doesn't trigger page reload, better for SPAs. Works offline. |
-| Manual `JSON.stringify` + base64 | lz-string compression | 2019+ | 60-70% size reduction. Critical for complex state. |
-| Redux with manual hash sync | Zustand persist middleware | 2021+ | Built-in storage abstraction. Less boilerplate. |
-| Deep cloning for snapshots | Structural sharing (Zustand) | 2020+ | Better memory efficiency. Faster updates. |
-| Custom diff algorithms | Shallow comparison + visual hints | Current | Simple configs don't need deep diffing. Visual cues suffice. |
+| Old Approach                     | Current Approach                  | When Changed | Impact                                                            |
+| -------------------------------- | --------------------------------- | ------------ | ----------------------------------------------------------------- |
+| Query params (`?model=x&gpu=y`)  | URL hash (`#compressed-state`)    | 2020+        | Hash doesn't trigger page reload, better for SPAs. Works offline. |
+| Manual `JSON.stringify` + base64 | lz-string compression             | 2019+        | 60-70% size reduction. Critical for complex state.                |
+| Redux with manual hash sync      | Zustand persist middleware        | 2021+        | Built-in storage abstraction. Less boilerplate.                   |
+| Deep cloning for snapshots       | Structural sharing (Zustand)      | 2020+        | Better memory efficiency. Faster updates.                         |
+| Custom diff algorithms           | Shallow comparison + visual hints | Current      | Simple configs don't need deep diffing. Visual cues suffice.      |
 
 **Deprecated/outdated:**
 
