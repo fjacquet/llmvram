@@ -1685,8 +1685,10 @@ describe('multi-node prefill and decode from bytes over the fabric (spec Section
 })
 
 describe('estimatePerformance - compute rate per weight format (spec D5, D9)', () => {
-  const b200 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-b200-192gb')
-  if (!b200) throw new Error('nvidia-b200-192gb missing from gpus.json')
+  const allGPUs = validateGPUs(gpusData)
+  const b200 = allGPUs.find((g) => g.id === 'nvidia-b200-192gb')
+  const h100 = allGPUs.find((g) => g.id === 'nvidia-h100-80gb-sxm')
+  if (!b200 || !h100) throw new Error('B200 or H100 SXM missing from gpus.json')
   const run = (gpu: GPU, quantization: QuantizationFormat, sequenceLength: number, batchSize = 1) =>
     estimatePerformance({ model: llama3_70b, gpu, quantization, sequenceLength, batchSize })
   // Two-term prefill: linear at its rate, attention at the 16-bit rate, both at MFU 0.45
@@ -1704,14 +1706,15 @@ describe('estimatePerformance - compute rate per weight format (spec D5, D9)', (
   })
 
   it('nvfp4 on H100 computes at the bf16 rate (no native FP4)', () => {
-    const nvfp4 = run(h100_80gb_sxm, 'nvfp4', 2048).prefillSeconds?.toNumber() ?? 0
-    const bf16 = run(h100_80gb_sxm, 'bf16', 2048).prefillSeconds?.toNumber() ?? 0
+    // Real row: it has fp8_tflops, so nvfp4 must fall back to fp16, not to fp8
+    const nvfp4 = run(h100, 'nvfp4', 2048).prefillSeconds?.toNumber() ?? 0
+    const bf16 = run(h100, 'bf16', 2048).prefillSeconds?.toNumber() ?? 0
     expect(nvfp4).toBeCloseTo(bf16, 9)
     // Decode compute term: equal once both are compute-bound (8B, short context, big batch)
     const decode = (q: QuantizationFormat) =>
       estimatePerformance({
         model: llama3_8b,
-        gpu: h100_80gb_sxm,
+        gpu: h100,
         quantization: q,
         sequenceLength: 128,
         batchSize: 4096,
@@ -1742,6 +1745,12 @@ describe('estimatePerformance - compute rate per weight format (spec D5, D9)', (
     expect(nvfp4.prefillSeconds?.toNumber()).toBeCloseTo(prefill(T, 4500, 2250), 9)
     // Linear-only scaling would predict bf16 x 2250 / 4500; attention keeps it slower
     expect(nvfp4.prefillSeconds?.toNumber() ?? 0).toBeGreaterThan(bf16 / 2)
+  })
+
+  it('prefill bottleneck is by time: fp8 on B200 at 80k is attention-bound, bf16 stays linear', () => {
+    // Linear FLOPs 11.2e15 > attention 8.4e15, but at fp8 linear takes 5.5 s vs attention 8.3 s
+    expect(run(b200, 'fp8', 80000).prefillBottleneck).toBe('attention')
+    expect(run(b200, 'bf16', 80000).prefillBottleneck).toBe('linear')
   })
 
   it('decode compute ceiling uses the format rate: large-batch fp8 decode on B200', () => {

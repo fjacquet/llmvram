@@ -358,7 +358,8 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     .mul(promptTokens.pow(2))
     .mul(model.hidden_size)
 
-  const prefillBottleneck: 'linear' | 'attention' = attentionFLOPs.greaterThan(linearFLOPs)
+  // FLOP comparison only when no FLOPS data; otherwise compared by time below
+  let prefillBottleneck: 'linear' | 'attention' = attentionFLOPs.greaterThan(linearFLOPs)
     ? 'attention'
     : 'linear'
 
@@ -387,10 +388,11 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
       .mul(PREFILL_MFU_BY_PRECISION[linearRate.precision])
     const attentionFLOPS = scale.mul(attentionRate.tflops).mul(PREFILL_MFU_BY_PRECISION.fp16)
 
-    prefillSeconds = linearFLOPs
-      .div(linearFLOPS)
-      .add(attentionFLOPs.div(attentionFLOPS))
-      .add(hopSeconds)
+    const linearSeconds = linearFLOPs.div(linearFLOPS)
+    const attentionSeconds = attentionFLOPs.div(attentionFLOPS)
+    // The terms run at different rates, so the label is about time, not FLOPs
+    prefillBottleneck = attentionSeconds.greaterThan(linearSeconds) ? 'attention' : 'linear'
+    prefillSeconds = linearSeconds.add(attentionSeconds).add(hopSeconds)
     timeToFirstToken = prefillSeconds.add(new Decimal(1).div(tokensPerSecond))
   } else {
     // No usable FLOPS data (missing, zero, or negative): prefill time is not
