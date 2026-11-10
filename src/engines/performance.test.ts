@@ -1647,16 +1647,16 @@ describe('multi-node prefill and decode from bytes over the fabric (spec Section
   it('single node, batch > 1: prefill is exactly the per-prompt formula (burst / B cancels)', () => {
     const { perf } = run(h100, { ...hgx, numNodes: 1, batchSize: 8 })
     const promptTokens = 8192
-    const flops =
-      calculateMoEActiveParams(model) * 2e9 * promptTokens +
-      2 * model.num_hidden_layers * promptTokens ** 2 * model.hidden_size
-    const effective =
-      (h100.fp16_tflops ?? 0) *
-      1e12 *
-      PREFILL_MFU.toNumber() *
-      8 *
-      INTERCONNECT_SPECS['nvlink-4'].tpScalingEfficiency
-    expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(flops / effective, 9)
+    const linearFlops = calculateMoEActiveParams(model) * 2e9 * promptTokens
+    const attentionFlops = 2 * model.num_hidden_layers * promptTokens ** 2 * model.hidden_size
+    const scale =
+      1e12 * PREFILL_MFU.toNumber() * 8 * INTERCONNECT_SPECS['nvlink-4'].tpScalingEfficiency
+    // 2026-11-10: fp8 linear FLOPs now run at H100's fp8 peak (spec D5); attention stays fp16
+    expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(
+      linearFlops / ((h100.fp8_tflops ?? 0) * scale) +
+        attentionFlops / ((h100.fp16_tflops ?? 0) * scale),
+      9,
+    )
   })
 
   it('KV-tier verdict on the tightest config: B200x8, 4 nodes, 1.6T, batch 32 still resumes faster', () => {
@@ -1681,5 +1681,80 @@ describe('multi-node prefill and decode from bytes over the fabric (spec Section
     expect(summary?.resumeFaster).toBe(true)
     expect(summary?.resumeSeconds).toBeCloseTo(0.037, 3)
     expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(0.048, 2)
+  })
+})
+
+describe('estimatePerformance - compute rate per weight format (spec D5, D9)', () => {
+  const b200 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-b200-192gb')
+  if (!b200) throw new Error('nvidia-b200-192gb missing from gpus.json')
+  const run = (gpu: GPU, quantization: QuantizationFormat, sequenceLength: number, batchSize = 1) =>
+    estimatePerformance({ model: llama3_70b, gpu, quantization, sequenceLength, batchSize })
+  // Two-term prefill: linear at its rate, attention at the 16-bit rate, both at MFU 0.45
+  const prefill = (T: number, linearTFLOPS: number, attentionTFLOPS: number) =>
+    (2 * 70e9 * T) / (linearTFLOPS * 1e12 * 0.45) +
+    (2 * 80 * T ** 2 * 8192) / (attentionTFLOPS * 1e12 * 0.45)
+
+  it('FP8 linear prefill on B200 runs at fp8 peak x MFU, attention at fp16 peak x MFU', () => {
+    // Linear dominates at 1024 tokens; linear-term ratio = (4500 * 0.45) / (2250 * 0.45) = 2
+    const fp8 = run(b200, 'fp8', 1024).prefillSeconds?.toNumber() ?? 0
+    const bf16 = run(b200, 'bf16', 1024).prefillSeconds?.toNumber() ?? 0
+    expect(fp8).toBeCloseTo(prefill(1024, 4500, 2250), 9)
+    expect(bf16).toBeCloseTo(prefill(1024, 2250, 2250), 9)
+    expect(fp8).toBeLessThan(bf16)
+  })
+
+  it('nvfp4 on H100 computes at the bf16 rate (no native FP4)', () => {
+    const nvfp4 = run(h100_80gb_sxm, 'nvfp4', 2048).prefillSeconds?.toNumber() ?? 0
+    const bf16 = run(h100_80gb_sxm, 'bf16', 2048).prefillSeconds?.toNumber() ?? 0
+    expect(nvfp4).toBeCloseTo(bf16, 9)
+    // Decode compute term: equal once both are compute-bound (8B, short context, big batch)
+    const decode = (q: QuantizationFormat) =>
+      estimatePerformance({
+        model: llama3_8b,
+        gpu: h100_80gb_sxm,
+        quantization: q,
+        sequenceLength: 128,
+        batchSize: 4096,
+      })
+    expect(decode('nvfp4').bottleneck).toBe('compute')
+    expect(decode('bf16').bottleneck).toBe('compute')
+    expect(decode('nvfp4').tokensPerSecond.toNumber()).toBeCloseTo(
+      decode('bf16').tokensPerSecond.toNumber(),
+      6,
+    )
+  })
+
+  it('a FP16-only GPU gives fp8 the pre-change single-rate prefill', () => {
+    // The fixture has no fp8_tflops, so fp8 falls back to 989 for both terms
+    const fp8 = run(h100_80gb_sxm, 'fp8', 2048).prefillSeconds?.toNumber() ?? 0
+    expect(fp8).toBeCloseTo((2 * 70e9 * 2048 + 2 * 80 * 2048 ** 2 * 8192) / (989e12 * 0.45), 9)
+    expect(run(h100_80gb_sxm, 'bf16', 2048).prefillSeconds?.toNumber()).toBeCloseTo(
+      0.656594895267678,
+      9,
+    )
+  })
+
+  it('attention stays on FP16 at long context: 128k nvfp4 prefill on B200', () => {
+    const T = 131072
+    const nvfp4 = run(b200, 'nvfp4', T)
+    const bf16 = run(b200, 'bf16', T).prefillSeconds?.toNumber() ?? 0
+    expect(nvfp4.prefillBottleneck).toBe('attention')
+    expect(nvfp4.prefillSeconds?.toNumber()).toBeCloseTo(prefill(T, 4500, 2250), 9)
+    // Linear-only scaling would predict bf16 x 2250 / 4500; attention keeps it slower
+    expect(nvfp4.prefillSeconds?.toNumber() ?? 0).toBeGreaterThan(bf16 / 2)
+  })
+
+  it('decode compute ceiling uses the format rate: large-batch fp8 decode on B200', () => {
+    const perf = estimatePerformance({
+      model: llama3_8b,
+      gpu: b200,
+      quantization: 'fp8',
+      sequenceLength: 128,
+      batchSize: 4096,
+    })
+    // Per token: linear 2 * 8e9 at 4500 TFLOPS, attention 4 * 32 * 128 * 4096 at 2250
+    const secondsPerToken = (2 * 8e9) / 4500e12 + (4 * 32 * 128 * 4096) / 2250e12
+    expect(perf.bottleneck).toBe('compute')
+    expect(perf.tokensPerSecond.toNumber() * secondsPerToken).toBeCloseTo(1, 9)
   })
 })
