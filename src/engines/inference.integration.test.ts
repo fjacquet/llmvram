@@ -6,9 +6,13 @@
  * These are NON-Worker tests (Workers don't work in jsdom environment).
  */
 
+import gpusData from '@data/gpus.json'
 import type { GPU, Model } from '@utils/schemas'
+import { validateGPUs } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
+import { maxConcurrentSessions } from './concurrency'
+import { GPU_MEMORY_UTILIZATION } from './constants'
 import { FABRIC_SPECS } from './fabric'
 import { calculateInferenceVRAM } from './inference'
 import { calculateMultiNodeVRAM } from './multi-node'
@@ -429,5 +433,41 @@ describe('multi-node end to end', () => {
 
     expect(twoNodes.totalPerGPU.lessThan(oneNode.totalPerGPU)).toBe(true)
     expect(twoNodes.utilizationPercent.lessThan(oneNode.utilizationPercent)).toBe(true)
+  })
+})
+
+describe('GB300 NVL72 at 278 GB usable (ADR 0008)', () => {
+  it('a config that fit at 288 GB now reads "does not fit", without throwing', () => {
+    // A shared link saved before 2026-11-10 restores the same GPU id at 278 GB (20 TB / 72).
+    // 405B int4 at 131072 context, batch 1: 279.42 GB, between 278 and 288.
+    const gb300 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-gb300-nvl72')
+    expect(gb300?.vram_gb).toBe(278)
+    const vramGB = gb300?.vram_gb ?? 0
+
+    let total = 0
+    let kv = 0
+    expect(() => {
+      const r = calculateInferenceVRAM({
+        model: llama405b,
+        quantization: 'int4',
+        sequenceLength: 131072,
+        batchSize: 1,
+      })
+      total = r.total.toNumber()
+      kv = r.kvCache.toNumber()
+    }).not.toThrow()
+
+    expect(total).toBeGreaterThan(vramGB) // does not fit (the UI's total > vram_gb check)
+    expect(total).toBeLessThan(288) // fit before the change
+    expect(vramGB * GPU_MEMORY_UTILIZATION).toBeLessThan(total) // vLLM's 90% share holds less
+    // vLLM's share of 278 GB holds no session at this context
+    expect(
+      maxConcurrentSessions({
+        totalPerGPUGB: total,
+        kvPerGPUGB: kv,
+        concurrentUsers: 1,
+        gpuVramGB: vramGB,
+      }),
+    ).toBe(0)
   })
 })

@@ -91,7 +91,7 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3e',
     bus_width: 5120,
     fp16_tflops: 835,
-    fp8_tflops: 1671, // Dense: NVIDIA H200 page 3,341 TF "with sparsity" / 2 (Flopper.io: 3,341 sparse)
+    fp8_tflops: 1670, // Dense: NVIDIA H200 page 3,341 TF "with sparsity" / 2, rounded down (Flopper.io: 3,341 sparse)
     fp32_tflops: 60,
     tdp_watts: 600,
     interconnect: 'pcie-5',
@@ -481,7 +481,7 @@ const GPUS: GPU[] = [
     bus_width: 8192,
     // Same CDNA 3 compute core as MI300X, more memory.
     fp16_tflops: 1307,
-    fp8_tflops: 2615, // Dense: AMD MI325X datasheet 2,614.9 TF (5,229.8 sparse); InferenceX 2,615
+    fp8_tflops: 2614, // Dense: AMD MI325X datasheet 2,614.9 TF (5,229.8 sparse), rounded down; InferenceX 2,615
     fp32_tflops: 163,
     tdp_watts: 1000,
     interconnect: 'infinity-fabric',
@@ -497,7 +497,7 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3',
     bus_width: 8192,
     fp16_tflops: 1307,
-    fp8_tflops: 2615, // Dense: AMD MI300X page 2,614.9 TF (5,229.8 with sparsity); InferenceX 2,615
+    fp8_tflops: 2614, // Dense: AMD MI300X page 2,614.9 TF (5,229.8 sparse), rounded down; InferenceX 2,615
     fp32_tflops: 163,
     tdp_watts: 750,
     interconnect: 'infinity-fabric',
