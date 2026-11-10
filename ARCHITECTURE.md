@@ -88,7 +88,7 @@ src/
 ├── workers/                    # Web Workers
 │   └── calculation.worker.ts   # Offloads engine calculations to background thread
 ├── data/                       # Static databases
-│   ├── gpus.json               # 29 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
+│   ├── gpus.json               # 32 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
 │   └── models.json             # 54 curated models (sorted alphabetically by name) + context_length, license, hf_url
 └── test/                       # Test infrastructure
     └── setup.ts                # @testing-library/jest-dom + cleanup

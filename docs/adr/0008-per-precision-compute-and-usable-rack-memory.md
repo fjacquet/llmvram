@@ -96,8 +96,9 @@ Searched and rejected:
   The verdict flips; nothing throws (pinned in `inference.integration.test.ts`).
 - The prefill bottleneck label compares time, not FLOPs, because the two terms
   now run at different rates.
-- When a prefill-isolating FP4 measurement appears, `PREFILL_MFU_BY_PRECISION`
-  gains an FP4 entry and `linearComputeRate` returns FP4.
+- When a prefill-isolating FP4 measurement appears, the FP4 entry of
+  `PREFILL_MFU_BY_PRECISION` (today a 0.45 placeholder that nothing reads) gets
+  the sourced value and `linearComputeRate` returns FP4.
 
 ## Sources
 
