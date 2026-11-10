@@ -611,6 +611,25 @@ describe('calculateMultiGPUVRAM - Bandwidth-aware overhead', () => {
   })
 })
 
+describe('NVLink 6', () => {
+  const base = validateGPUs(gpusData).find((g) => g.id === 'nvidia-b200-192gb')
+
+  it('resolves an NVLink 6 GPU to nvlink-6, not none', () => {
+    if (!base) throw new Error('fixture row missing')
+    const gpu: GPU = { ...base, interconnect: 'nvlink-6' as const }
+    expect(resolveInterconnect(gpu, 8)).toBe('nvlink-6')
+  })
+
+  it('prices NVLink 6 at 3000 GB/s bidirectional with efficiency below 1', () => {
+    const s = INTERCONNECT_SPECS['nvlink-6']
+    expect(s.bandwidthGBps).toBe(3000)
+    expect(s.tpScalingEfficiency).toBe(0.98)
+    expect(s.tpScalingEfficiency).toBeLessThan(1)
+    expect(s.recommendedMaxTPDegree).toBe(8)
+    expect(s.allreduceLatencyUs).toBe(11)
+  })
+})
+
 describe('resolveInterconnect', () => {
   it('maps nvlink-4 to nvlink-4', () => {
     const result = resolveInterconnect(h100, 8)

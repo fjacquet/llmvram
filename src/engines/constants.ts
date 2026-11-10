@@ -253,6 +253,15 @@ export const INTERCONNECT_SPECS: Record<InterconnectType, InterconnectSpec> = {
     tpScalingEfficiency: 0.97, // 1800 GB/s — near-linear scaling
     allreduceLatencyUs: NVLINK_ALLREDUCE_LATENCY_US,
   },
+  'nvlink-6': {
+    type: 'nvlink-6',
+    // 216 TB/s / 72 per NVIDIA's Vera Rubin NVL72 page, the same convention as nvlink-5 (130 / 72).
+    // The slope would give 1.007, capped at 0.98. Derived, not measured.
+    bandwidthGBps: 3000,
+    recommendedMaxTPDegree: 8,
+    tpScalingEfficiency: 0.98,
+    allreduceLatencyUs: NVLINK_ALLREDUCE_LATENCY_US,
+  },
   'infinity-fabric': {
     type: 'infinity-fabric',
     bandwidthGBps: 1075,
@@ -468,6 +477,7 @@ export const INTERCONNECT_LABELS: Partial<Record<string, string>> = {
   'nvlink-3': 'NVLink 3 — 600 GB/s',
   'nvlink-4': 'NVLink 4 — 900 GB/s',
   'nvlink-5': 'NVLink 5 — 1800 GB/s',
+  'nvlink-6': 'NVLink 6 — 3000 GB/s',
   'infinity-fabric': 'Infinity Fabric — 1075 GB/s',
   'pcie-5': 'PCIe 5 — 128 GB/s',
   'pcie-4': 'PCIe 4 — 64 GB/s',

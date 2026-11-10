@@ -49,6 +49,7 @@ const GPU_INTERCONNECTS = [
   'nvlink-3',
   'nvlink-4',
   'nvlink-5',
+  'nvlink-6',
   'pcie-4',
   'pcie-5',
   'infinity-fabric',
@@ -86,6 +87,10 @@ export const GPUSchema = z.object({
   // Performance (optional for inference speed estimation)
   fp16_tflops: z.number().positive().optional(),
   fp32_tflops: z.number().positive().optional(),
+  /** Dense; present only where vLLM runs this precision natively (spec D4). */
+  fp8_tflops: z.number().positive().optional(),
+  /** Dense; present only where vLLM runs this precision natively (spec D4). */
+  fp4_tflops: z.number().positive().optional(),
 
   // Power and interconnect
   tdp_watts: z.number().positive().optional(),

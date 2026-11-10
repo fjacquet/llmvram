@@ -97,6 +97,12 @@ describe('GPU Database Validation', () => {
     }
   })
 
+  it('accepts dense fp8/fp4 TFLOPS and rejects zero', () => {
+    const row = gpusData[0]
+    expect(() => GPUSchema.parse({ ...row, fp8_tflops: 5000, fp4_tflops: 15000 })).not.toThrow()
+    expect(() => GPUSchema.parse({ ...row, fp8_tflops: 0 })).toThrow()
+  })
+
   it('should have unique GPU IDs', () => {
     const ids = gpusData.map((gpu) => gpu.id)
     const uniqueIds = new Set(ids)
