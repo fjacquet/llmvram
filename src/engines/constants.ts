@@ -256,6 +256,7 @@ export const INTERCONNECT_SPECS: Record<InterconnectType, InterconnectSpec> = {
   'nvlink-6': {
     type: 'nvlink-6',
     // 216 TB/s / 72 per NVIDIA's Vera Rubin NVL72 page, the same convention as nvlink-5 (130 / 72).
+    // https://www.nvidia.com/en-us/data-center/vera-rubin-nvl72/
     // The slope would give 1.007, capped at 0.98. Derived, not measured.
     bandwidthGBps: 3000,
     recommendedMaxTPDegree: 8,

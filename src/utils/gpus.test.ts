@@ -73,6 +73,7 @@ describe('GPU Database Validation', () => {
       'nvlink-3',
       'nvlink-4',
       'nvlink-5',
+      'nvlink-6',
       'pcie-4',
       'pcie-5',
       'infinity-fabric',
@@ -174,10 +175,110 @@ describe('GPU Database Validation', () => {
   })
 
   it('stores dense FP16 for every GPU, never a with-sparsity figure', () => {
-    // The densest part in the database is ~2.5 PF (GB300, MI355X). Anything above
-    // 2600 means a vendor's with-sparsity number leaked in.
+    // The densest pre-Rubin part is ~2.5 PF (GB300, MI355X). Anything above 2600
+    // means a vendor's with-sparsity number leaked in. NVIDIA's Rubin pages
+    // footnote FP16/BF16 as a dense specification, so those two are allowed.
+    const allowed: Record<string, number> = {
+      'nvidia-vera-rubin-nvl72': 4000,
+      'nvidia-hgx-rubin-nvl8': 4000,
+    }
     for (const gpu of gpusData) {
-      expect(gpu.fp16_tflops ?? 0, gpu.id).toBeLessThan(2600)
+      const fp16 = gpu.fp16_tflops ?? 0
+      if (gpu.id in allowed) expect(fp16, gpu.id).toBe(allowed[gpu.id])
+      else expect(fp16, gpu.id).toBeLessThan(2600)
+    }
+  })
+
+  it.each([
+    // id, vram, GB/s, fp16, fp8, fp4, interconnect, max per node
+    ['nvidia-gb200-nvl72', 186, 8000, 2500, 5000, 10000, 'nvlink-5', 72],
+    ['nvidia-vera-rubin-nvl72', 278, 19200, 4000, 17500, 35000, 'nvlink-6', 72],
+    // HGX page system totals / 8 for every figure (130 PF FP8, 270 PF NVFP4 training)
+    ['nvidia-hgx-rubin-nvl8', 250, 16250, 4000, 16250, 33750, 'nvlink-6', 8],
+  ] as const)(
+    'lists %s at usable memory and dense compute',
+    (id, vram, bw, f16, f8, f4, ic, max) => {
+      const gpu = validateGPUs(gpusData).find((g) => g.id === id)
+      expect(gpu).toMatchObject({
+        manufacturer: 'nvidia',
+        tier: 'datacenter',
+        vram_gb: vram,
+        memory_bandwidth_gbps: bw,
+        fp16_tflops: f16,
+        fp8_tflops: f8,
+        fp4_tflops: f4,
+        interconnect: ic,
+        max_gpus_per_node: max,
+      })
+    },
+  )
+
+  it('lists GB300 NVL72 at usable memory (20 TB / 72 ≈ 278, InferenceX 278), not 288', () => {
+    const nvl72 = gpusData.find((g) => g.id === 'nvidia-gb300-nvl72')
+    expect(nvl72?.vram_gb).toBe(278)
+    expect(nvl72?.name).not.toContain('288')
+    expect(nvl72?.fp8_tflops).toBe(5000)
+    expect(nvl72?.fp4_tflops).toBe(15000)
+  })
+
+  it('tags every Rubin row preliminary', () => {
+    const rubin = gpusData.filter((g) => g.id.includes('rubin'))
+    expect(rubin.length).toBe(2)
+    for (const gpu of rubin) expect(gpu.name, gpu.id).toContain('preliminary')
+  })
+
+  it('lists B200 and HGX B300 dense FP8/FP4 from the HGX page', () => {
+    const b200 = gpusData.find((g) => g.id === 'nvidia-b200-192gb')
+    const b300 = gpusData.find((g) => g.id === 'nvidia-gb300-288gb')
+    expect([b200?.fp8_tflops, b200?.fp4_tflops]).toEqual([4500, 9000])
+    expect([b300?.fp8_tflops, b300?.fp4_tflops]).toEqual([4500, 13500])
+  })
+
+  it('lists dense FP8 for Hopper and AMD, FP4 only where vLLM runs it natively', () => {
+    const fp = (id: string) => {
+      const g = gpusData.find((x) => x.id === id)
+      return [g?.fp8_tflops, g?.fp4_tflops]
+    }
+    expect(fp('nvidia-h100-80gb-pcie')).toEqual([1513, undefined])
+    expect(fp('nvidia-h100-80gb-sxm')).toEqual([1979, undefined])
+    expect(fp('nvidia-h200-141gb')).toEqual([1979, undefined])
+    expect(fp('nvidia-h200-nvl-141gb')).toEqual([1671, undefined])
+    expect(fp('nvidia-gb300-desktop-252gb')).toEqual([5000, 15000])
+    expect(fp('amd-mi300x')).toEqual([2615, undefined])
+    expect(fp('amd-mi325x')).toEqual([2615, undefined])
+    expect(fp('amd-mi350x')).toEqual([4600, 9200])
+    expect(fp('amd-mi355x')).toEqual([5033, 10066])
+  })
+
+  it('never stores fp8/fp4 without fp16, and orders fp16 <= fp8 <= fp4', () => {
+    for (const gpu of validateGPUs(gpusData)) {
+      if (gpu.fp8_tflops !== undefined) {
+        expect(gpu.fp16_tflops, gpu.id).toBeDefined()
+        expect(gpu.fp8_tflops, gpu.id).toBeGreaterThanOrEqual(gpu.fp16_tflops ?? Infinity)
+      }
+      if (gpu.fp4_tflops !== undefined) {
+        expect(gpu.fp8_tflops, gpu.id).toBeDefined()
+        expect(gpu.fp4_tflops, gpu.id).toBeGreaterThanOrEqual(gpu.fp8_tflops ?? Infinity)
+      }
+    }
+  })
+
+  it('gives no fp8/fp4 to workstation, consumer, GB10 or Apple rows', () => {
+    // An explicit id list, not tier: GB300 Desktop is tier 'consumer' yet gets fp8/fp4.
+    const ids = [
+      'nvidia-l40s',
+      'nvidia-rtx-6000-ada',
+      'nvidia-rtx-pro-6000-server',
+      'nvidia-rtx-5090',
+      'nvidia-rtx-4090',
+      'nvidia-rtx-3090',
+      'nvidia-gb10',
+      ...gpusData.filter((g) => g.id.startsWith('apple-')).map((g) => g.id),
+    ]
+    for (const id of ids) {
+      const gpu = gpusData.find((g) => g.id === id)
+      expect(gpu, id).toBeDefined()
+      expect([gpu?.fp8_tflops, gpu?.fp4_tflops], id).toEqual([undefined, undefined])
     }
   })
 })
@@ -246,10 +347,10 @@ describe('GPU topology (v2 per-card audit, spec Section 3)', () => {
     return gpu
   }
 
-  // HEAD already carried 28 rows (including nvidia-gb300-nvl72, added after the
-  // "27 GPUs" count in the spec/brief was written); this task adds one more.
-  it('lists 29 GPUs (28 at HEAD incl. GB300 NVL72, plus H200 NVL split from H200 SXM)', () => {
-    expect(gpus).toHaveLength(29)
+  // 29 after the v2 audit (H200 NVL split from H200 SXM), plus GB200 NVL72,
+  // Vera Rubin NVL72 and HGX Rubin NVL8.
+  it('lists 32 GPUs (29 after the v2 audit, plus GB200 NVL72 and two Rubin rows)', () => {
+    expect(gpus).toHaveLength(32)
   })
 
   it('H100 PCIe: PCIe 5 with a 2-card NVLink bridge at 600 GB/s, dense FP16 756', () => {

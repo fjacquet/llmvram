@@ -42,9 +42,9 @@ describe('tierBandwidthGBps', () => {
     expect(tierBandwidthGBps({ ...network, customGBps: null })).toBe(12.5)
   })
 
-  it('resolves host-grace bandwidth from the GPU id (225 NVL72, 396 Desktop)', () => {
+  it('resolves host-grace bandwidth from the GPU id (194 NVL72, 396 Desktop)', () => {
     const grace: KVTierSettings = { ...DEFAULT_KV_TIER, tier: 'host-grace' }
-    expect(tierBandwidthGBps(grace, 'nvidia-gb300-nvl72')).toBe(225)
+    expect(tierBandwidthGBps(grace, 'nvidia-gb300-nvl72')).toBe(194)
     expect(tierBandwidthGBps(grace, 'nvidia-gb300-desktop-252gb')).toBe(396)
   })
 
@@ -70,8 +70,13 @@ describe('resumeSeconds', () => {
 })
 
 describe('graceLinkGBps', () => {
-  it('is 225 GB/s for the NVL72 (2 GPUs share one Grace link)', () => {
-    expect(graceLinkGBps('nvidia-gb300-nvl72')).toBe(225)
+  it('is 194 GB/s for both NVL72 racks (2 GPUs share one Grace, LPDDR5X-bound)', () => {
+    expect(graceLinkGBps('nvidia-gb300-nvl72')).toBe(194)
+    expect(graceLinkGBps('nvidia-gb200-nvl72')).toBe(194)
+  })
+
+  it('is 450 GB/s for Vera Rubin NVL72 (1.8 TB/s C2C, one direction, 2 GPUs)', () => {
+    expect(graceLinkGBps('nvidia-vera-rubin-nvl72')).toBe(450)
   })
 
   it('is 396 GB/s for the Desktop Superchip (1 GPU, LPDDR5X-bound, not link-bound)', () => {
@@ -80,6 +85,7 @@ describe('graceLinkGBps', () => {
 
   it('is null for the x86 HGX B300, GB10 unified memory, and non-Grace GPUs', () => {
     expect(graceLinkGBps('nvidia-gb300-288gb')).toBeNull()
+    expect(graceLinkGBps('nvidia-hgx-rubin-nvl8')).toBeNull()
     expect(graceLinkGBps('nvidia-gb10')).toBeNull()
     expect(graceLinkGBps('nvidia-h100-80gb-sxm')).toBeNull()
   })
@@ -153,7 +159,7 @@ describe('kvTierSummary', () => {
     const grace: KVTierSettings = { ...DEFAULT_KV_TIER, tier: 'host-grace' }
     const nvl72 = kvTierSummary({ ...base, settings: grace, gpuId: 'nvidia-gb300-nvl72' })
     const desktop = kvTierSummary({ ...base, settings: grace, gpuId: 'nvidia-gb300-desktop-252gb' })
-    expect(nvl72?.tierGBps).toBe(225 * 4)
+    expect(nvl72?.tierGBps).toBe(194 * 4)
     expect(desktop?.tierGBps).toBe(396 * 4)
   })
 })
