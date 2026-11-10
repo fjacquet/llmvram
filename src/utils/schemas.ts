@@ -64,7 +64,7 @@ export const GPUSchema = z.object({
   vram_gb: z.number().positive(),
   memory_bandwidth_gbps: z.number().positive(),
   memory_type: z.string(),
-  bus_width: z.number().int().nonnegative(), // 0 for unified memory (Apple Silicon)
+  bus_width: z.number().int().nonnegative(), // 0 for unified memory (Apple Silicon) or unknown (preliminary Rubin rows)
 
   /**
    * Largest GPU count that can exist inside one node for this part.

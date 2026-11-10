@@ -494,7 +494,8 @@ export const INTERCONNECT_LABELS: Partial<Record<string, string>> = {
  * literature reports 40-60% MFU for prefill against 1-5% for batch-1 decode.
  * 0.45 sits inside that range.
  *
- * Used as: prefillSeconds = prefillFLOPs / (gpuFLOPS * PREFILL_MFU)
+ * Prefill now uses PREFILL_MFU_BY_PRECISION: linearFLOPs / (linearRate * MFU[precision])
+ * + attentionFLOPs / (rate16 * MFU.fp16). See src/engines/compute.ts.
  */
 export const PREFILL_MFU = new Decimal(0.45)
 

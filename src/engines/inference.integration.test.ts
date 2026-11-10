@@ -439,6 +439,7 @@ describe('GB300 NVL72 at 278 GB usable (ADR 0008)', () => {
   it('a config that fit at 288 GB now reads "does not fit", without throwing', () => {
     // A shared link saved before 2026-11-10 restores the same GPU id at 278 GB (20 TB / 72).
     // 405B int4 at 131072 context, batch 1, one GPU: 279.42 GB, between 278 and 288.
+    // intent: a total between 278 and 288 GB; if this fails after an overhead change, re-pick the context length, don't loosen the assertions
     const gb300 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-gb300-nvl72')
     if (!gb300) throw new Error('nvidia-gb300-nvl72 missing from gpus.json')
     expect(gb300.vram_gb).toBe(278)

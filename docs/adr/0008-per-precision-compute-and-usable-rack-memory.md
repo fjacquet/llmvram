@@ -33,8 +33,9 @@ numbers that hold up in front of a customer. Five things were wrong:
   non-obvious figure (`scripts/fetch-gpus.ts`).
 - **D4** Optional dense `fp8_tflops` and `fp4_tflops` fields. A field's
   presence means vLLM runs that precision natively on the card, not that the
-  vendor publishes a figure. Workstation, consumer, GB10 and Apple rows stay on
-  FP16.
+  vendor publishes a figure. The one exception is the GB300 Desktop Superchip
+  (`nvidia-gb300-desktop-252gb`, tier 'consumer'), which carries fp8/fp4.
+  Workstation, consumer RTX, GB10 and Apple rows stay on FP16.
 - **D5** One table (`src/engines/compute.ts`) maps each weight format to the
   tensor core vLLM computes it on: fp8 to FP8, nvfp4 to FP4 on NVIDIA only,
   mxfp4 to FP4, everything else to FP16. Without the field the format falls back
@@ -97,7 +98,7 @@ Searched and rejected:
 - The prefill bottleneck label compares time, not FLOPs, because the two terms
   now run at different rates.
 - When a prefill-isolating FP4 measurement appears, the FP4 entry of
-  `PREFILL_MFU_BY_PRECISION` (today a 0.45 placeholder that nothing reads) gets
+  `PREFILL_MFU_BY_PRECISION` (today a 0.45 placeholder; the fp16 and fp8 entries are read by `performance.ts`, only fp4 is unread) gets
   the sourced value and `linearComputeRate` returns FP4.
 
 ## Sources

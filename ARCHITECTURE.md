@@ -206,10 +206,10 @@ Orchestrates total VRAM calculation:
 One decode step produces one token for each of `batchSize` sequences:
 
 - **Memory:** `bytes_per_GPU = (weights_read / tp + batch × kv_per_seq / kv_shards) / stages`, then `/ bandwidth`. Weights use active (batched) parameters for MoE; KV is read at the full context.
-- **Compute:** `batch × (2 × active_params + 4 × layers × context × hidden) / (tp × stages × FLOPS)`. An aggregate ceiling, never multiplied by batch.
+- **Compute** (`src/engines/compute.ts`): `batch × [2 × active_params / linearRate + 4 × layers × context × hidden / rate16] / (tp × stages)`. Linear FLOPs run at the weight format's tensor core, attention at the 16-bit rate; no MFU. An aggregate ceiling, never multiplied by batch.
 - **Step:** `max(memory, compute) + 2 × layers / stages × allreduceLatencyUs` (tensor parallelism only; NVLink 11 µs, Infinity Fabric 20 µs, PCIe 25 µs estimate).
 - **Tokens/sec:** `batch / step × B / (B + stages − 1) × interNodeDecodeEfficiency`. A decode token cannot be split into micro-batches, so pipeline parallelism gives no speedup at batch 1.
-- **TTFT:** prefill FLOPs (`2 × active × T` + `2 × layers × T² × hidden`) / (FLOPS × PREFILL_MFU × numGPUs × prefillScalingEfficiency), plus one decode step.
+- **TTFT:** linear FLOPs (`2 × active × T`) / (linearRate × MFU[precision]) + attention FLOPs (`2 × layers × T² × hidden`) / (16-bit rate × MFU.fp16), both over `numGPUs × prefillScalingEfficiency` (`src/engines/compute.ts`), plus one decode step.
 - 5% tolerance for bottleneck classification.
 
 ### Concurrency (`concurrency.ts`)

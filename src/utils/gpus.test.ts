@@ -239,6 +239,7 @@ describe('GPU Database Validation', () => {
       const g = gpusData.find((x) => x.id === id)
       return [g?.fp8_tflops, g?.fp4_tflops]
     }
+    // 2026-11-10: dense FP8 is half the published sparse figure; odd halves round down (lower wins)
     expect(fp('nvidia-h100-80gb-pcie')).toEqual([1513, undefined])
     expect(fp('nvidia-h100-80gb-sxm')).toEqual([1979, undefined])
     expect(fp('nvidia-h200-141gb')).toEqual([1979, undefined])

@@ -45,7 +45,7 @@ export const KV_TIER_PRESETS: Record<
   Exclude<KVTierType, 'none'>,
   { label: string; gbpsPerGPU: number }
 > = {
-  'host-grace': { label: 'Host memory (Grace NVLink-C2C)', gbpsPerGPU: 194 },
+  'host-grace': { label: 'Host memory (Grace/Vera NVLink-C2C)', gbpsPerGPU: 194 },
   // PCIe 5 x16 ~64 GB/s theoretical, ~50 practical.
   'host-pcie': { label: 'Host memory (PCIe 5)', gbpsPerGPU: 50 },
   // GB300 tray: 4 E1.S Gen5 drives for 4 GPUs (NVIDIA NVL72 reference architecture).
