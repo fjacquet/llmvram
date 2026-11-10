@@ -62,7 +62,7 @@ schema field.
 | ------------------------- | -------------------------------------------------- | --------- | -------- | ----------------------------- | ------------ | ----------------- |
 | `nvidia-gb200-nvl72`      | NVIDIA GB200 NVL72 (72-GPU rack) 186GB             | 186       | 8000     | 2500 / 5000 / 10000           | nvlink-5     | 72                |
 | `nvidia-vera-rubin-nvl72` | NVIDIA Vera Rubin NVL72 (72-GPU rack, preliminary) | ~278 (D1) | 19200    | 4000 / 17500 / 35000          | nvlink-6     | 72                |
-| `nvidia-hgx-rubin-nvl8`   | NVIDIA HGX Rubin NVL8 (8-GPU, preliminary)         | 250       | 19200    | 4000 / 17500 / 35000          | nvlink-6     | 8                 |
+| `nvidia-hgx-rubin-nvl8`   | NVIDIA HGX Rubin NVL8 (8-GPU, preliminary)         | 250       | 16250    | 4000 / 17500 / 35000          | nvlink-6     | 8                 |
 
 Sources: NVIDIA rack pages (gb200-nvl72, gb300-nvl72, vera-rubin-nvl72) and the
 HGX page. Rubin FP4 is the dense "NVFP4 training" figure (35 PF). The 50 PF
@@ -71,8 +71,9 @@ used.
 
 _Our call on HGX Rubin NVL8:_ NVIDIA's HGX page lists 22 TB/s and 3.6 TB/s per
 GPU, but its own system totals (2 TB, 130 TB/s) don't divide back to those
-figures. Use the NVL72 page's 19.2 TB/s and 3 TB/s (lower, and matching the
-newest figures) until NVIDIA's pages agree. Memory follows the HGX B300 row's
+figures. One rule for every figure, the page's system totals / 8: 2 TB to 250
+GB, 130 TB/s to 16.25 TB/s, 24 TB/s NVLink to 3 TB/s (the lower figures), until
+NVIDIA's pages agree. Memory follows the HGX B300 row's
 rule (page system total / 8): "2 TB" / 8 = 250 GB, below D1's ~278. D1 asks for
 the safe figure, so 250 it is.
 

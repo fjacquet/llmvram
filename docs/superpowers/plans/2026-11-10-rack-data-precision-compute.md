@@ -23,7 +23,7 @@
 - `vram_gb` is usable memory, never physical (D1).
 - Rubin `name`s contain `preliminary` (D2).
 - Field presence = vLLM runs that precision natively on that card (D4). Workstation/consumer cards, GB10 and Apple get no `fp8_tflops`/`fp4_tflops`.
-- Formats that compute at FP16 today (fp16, bf16, fp32, int8, int4, nf4, gptq, awq, nvfp6, gguf-*) must give byte-identical results to today, except on `nvidia-gb300-nvl72` (memory change).
+- Formats that compute at FP16 today (fp16, bf16, fp32, int8, int4, nf4, gptq, awq, nvfp6, gguf-*) must give today's results (assert `toBeCloseTo(x, 9)`, as the existing pins do; splitting one division into two can move the last digit), except on `nvidia-gb300-nvl72` (memory change).
 - Biome: 2-space indent, single quotes, no semicolons, 100 columns, no `!` non-null assertions.
 - Every commit message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Verification commands: `npx vitest run`, `npm run typecheck`, `npm run lint`, `npm run build` (never `npm test`, which watches).
@@ -127,7 +127,7 @@ it.each([
   // id, vram, GB/s, fp16, fp8, fp4, interconnect, max per node
   ['nvidia-gb200-nvl72', 186, 8000, 2500, 5000, 10000, 'nvlink-5', 72],
   ['nvidia-vera-rubin-nvl72', 278, 19200, 4000, 17500, 35000, 'nvlink-6', 72],
-  ['nvidia-hgx-rubin-nvl8', 250, 19200, 4000, 17500, 35000, 'nvlink-6', 8],
+  ['nvidia-hgx-rubin-nvl8', 250, 16250, 4000, 17500, 35000, 'nvlink-6', 8],
 ])('lists %s at usable memory and dense compute', (id, vram, bw, f16, f8, f4, ic, max) => { … })
 it('lists GB300 NVL72 at usable memory (20 TB / 72 ≈ 278, InferenceX 278), not 288', () => {
   expect(nvl72?.vram_gb).toBe(278)
@@ -139,7 +139,8 @@ it('lists B200 and HGX B300 dense FP8/FP4 from the HGX page', …)
 // b200: 4500 / 9000; nvidia-gb300-288gb: 4500 / 13500
 it('never stores fp8/fp4 without fp16, and orders fp16 <= fp8 <= fp4', …)
 it('gives no fp8/fp4 to workstation, consumer, GB10 or Apple rows', …)
-// tier !== 'datacenter' or id in [l40s, rtx-6000-ada, rtx-pro-6000-server, gb10]
+// explicit id list (not tier: GB300 Desktop is tier 'consumer' yet gets fp8/fp4):
+// l40s, rtx-6000-ada, rtx-pro-6000-server, rtx-5090, rtx-4090, rtx-3090, gb10, every apple-*
 ```
 
 Replace the existing `'stores dense FP16 for every GPU…'` test with this. Every GPU's `fp16_tflops` stays below 2600, except an allow-list `{ 'nvidia-vera-rubin-nvl72': 4000, 'nvidia-hgx-rubin-nvl8': 4000 }`, whose comment says NVIDIA's Rubin page footnotes FP16 as dense.
@@ -159,6 +160,8 @@ New rows use the values in spec D3. The other fields:
 - `spec_url`: the NVIDIA rack page; the HGX page for NVL8;
 - `fp32_tflops` and `tdp_watts`: from the same pages. Omit a field the page doesn't give; don't guess;
 - `bus_width` copied from the GB300 row for GB200. For Rubin, use 0 unless a source gives it.
+
+HGX Rubin NVL8: one rule for every figure, namely NVIDIA HGX page system totals / 8: 2 TB to 250 GB, 130 TB/s to 16250 GB/s, NVLink 24 TB/s to 3000 GB/s. The page's per-GPU 288 GB / 22 TB/s / 3.6 TB/s are higher and inconsistent with its own totals; the lower figure wins (D1 "safe version"). Comment says so.
 
 GB300 NVL72: `vram_gb: 278`, with a comment citing NVIDIA's 20 TB / 72 and InferenceX 278. Look for one more source (an nvidia-smi or vLLM log). If sources disagree, take the lower value, never above 278.
 
@@ -182,6 +185,8 @@ Run `npm run refresh:gpus`, then add the two `graceLinkGBps` branches to `kv-tie
 - Vera Rubin: 1.8 TB/s C2C per superchip of 2 GPUs (NVIDIA Vera Rubin NVL72 page), halved for one direction, then shared by 2, giving 450.
 
 Config rule R3 keys on `graceLinkGBps`, so it needs no edit.
+
+**Verify the host side before trusting the link figure.** Each value is min(link share, host memory bandwidth share), as the Desktop row already does (396). GB300/GB200 NVL72: NVIDIA's rack page gives 14 TB/s LPDDR5X / 36 Grace = 389 GB/s per Grace, which is 194 per GPU, below 225. If that holds after one second source, both NVL72 rows become 194. That changes the existing GB300 value too, so update `kv-tier.test.ts`/`offloading.test.ts` pins and put it in the CHANGELOG (Task 5). Vera: use 450 unless a Vera LPDDR5X bandwidth figure gives a lower per-GPU share.
 
 - [ ] **Step 5: Run them and confirm they pass**
 
@@ -221,12 +226,12 @@ Expected: PASS. Then run `npx vitest run` and **list** every other failing test 
 
 - [ ] **Step 1: Research the prefill efficiency (D9) before any code**
 
-Look for measured prefill throughput at FP8 and FP4 on Hopper or Blackwell, at the same model and prompt as a BF16 or FP8 baseline. Candidate sources: MLPerf Inference (offline, Llama 2 70B / Llama 3.1 405B), SemiAnalysis InferenceX, NVIDIA or vLLM blog benchmarks. Derive efficiency = measured / (peak × the 0.45 FP16 basis).
+Look for a measurement that **isolates prefill**: input (prompt) tokens/s, or time to first token at a known prompt length and batch, at FP8 and at FP4, on Hopper or Blackwell. MLPerf offline throughput does **not** qualify, because it is mostly decode. Candidates: SemiAnalysis InferenceX, NVIDIA/vLLM/SGLang prefill benchmarks, the TensorRT-LLM perf overview (context-phase numbers). Derive efficiency = (2 × active params × prompt tokens/s, plus attention FLOPs) / (peak TFLOPS at that precision × 1e12).
 
 Record the result in the commit message and in ADR 0008 (Task 5):
 
 - **Outcome A (sourced):** `fp8` and `fp4` get their sourced values, each with a source comment.
-- **Outcome B (no usable FP4 source):** `fp4` is not used. `linearComputeRate` maps nvfp4/mxfp4 to the card's `fp8_tflops` (precision `'fp8'`, falling back to FP16), and the comment says so (spec D9 fallback). `fp8` without a source keeps 0.45.
+- **Outcome B (no prefill-isolating FP4 source):** where the format *would* get FP4 (card has `fp4_tflops`, and is NVIDIA for nvfp4), it gets the card's `fp8_tflops` instead (precision `'fp8'`). Everywhere else the normal fallback to FP16 applies: H100 + nvfp4 stays FP16, and MI355X + nvfp4 stays FP16. The comment cites spec D9. `fp8` without a source keeps 0.45.
 
 Steps 2-5 below are written for Outcome A. Under Outcome B, the FP4 rows of the test table expect `{precision:'fp8', tflops: fp8_tflops}`.
 
