@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js'
+import type { ComputePrecision } from './compute'
 import type {
   InterconnectSpec,
   InterconnectType,
@@ -496,3 +497,18 @@ export const INTERCONNECT_LABELS: Partial<Record<string, string>> = {
  * Used as: prefillSeconds = prefillFLOPs / (gpuFLOPS * PREFILL_MFU)
  */
 export const PREFILL_MFU = new Decimal(0.45)
+
+/**
+ * Prefill MFU per compute precision (spec D9), against that precision's dense peak
+ *
+ * No measurement isolating prefill at FP8 or FP4 on the same basis as the FP16 figure was
+ * found (2026-11-10; MLPerf offline and InferenceX are mostly decode). So, per D9:
+ * - fp8 keeps 0.45 on the FP8 peak: vLLM's FP8 W8A8 path is mature.
+ * - fp4 is never selected: `linearComputeRate` computes FP4 formats at the card's FP8 rate.
+ *   Do not pair this entry with an FP4 peak without a sourced value.
+ */
+export const PREFILL_MFU_BY_PRECISION: Record<ComputePrecision, Decimal> = {
+  fp16: PREFILL_MFU,
+  fp8: new Decimal(0.45),
+  fp4: new Decimal(0.45),
+}
