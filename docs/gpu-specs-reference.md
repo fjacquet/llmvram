@@ -205,6 +205,13 @@ Every figure below is per GPU and **dense**. `vram_gb` is the usable figure,
 never the physical stack size. Each value has a vendor source and a second
 source. Where the two disagree, the lower value wins ("safe version").
 
+How each source was read: the NVIDIA pages, every InferenceX page, the Flopper.io
+pages for H100 PCIe, H200 NVL and MI355X/MI350X, the H100 datasheet PDF, the Meta
+post and the ServeTheHome article were opened directly (fetched). The AMD
+product pages and datasheets timed out, so their figures come from search-result
+excerpts. So do CoreWeave, CUDO, Gigabyte, pi3g/Supermicro and Tom's Hardware.
+Every InferenceX page says it is an unofficial copy that may be out of date.
+
 ### NVIDIA vendor figures and their sparsity footnotes
 
 | Page | Raw figures (as published) | Footnote |
@@ -230,11 +237,11 @@ source. Where the two disagree, the lower value wins ("safe version").
 | `nvidia-h100-80gb-pcie` | 80 | 2000 | 756 | 1513 | — | The H100 datasheet gives 3,026 TF FP8 with sparsity. Flopper.io gives 1,513 dense. |
 | `nvidia-h100-80gb-sxm` | 80 | 3350 | 989 | 1979 | — | The [H100 page](https://www.nvidia.com/en-us/data-center/h100/) and the datasheet give 3,958 TF with sparsity. [InferenceX H100](https://inferencex.semianalysis.com/chips/h100) gives 1,979 dense. |
 | `nvidia-h200-141gb` | 141 | 4800 | 989 | 1979 | — | The [H200 page](https://www.nvidia.com/en-us/data-center/h200/) gives 3,958 TF with sparsity. Flopper.io gives 1,979 dense. |
-| `nvidia-h200-nvl-141gb` | 141 | 4800 | 835 | 1671 | — | The H200 page gives 3,341 TF with sparsity. Flopper.io gives 1,670.5 dense. An aggregator quotes Lenovo at 1,570, which is unverified. |
+| `nvidia-h200-nvl-141gb` | 141 | 4800 | 835 | 1671 | — | The H200 page gives 3,341 TF with sparsity. Flopper.io gives the same 3,341 as "2:4 sparse only". |
 | `amd-mi300x` | 192 | 5300 | 1307 | 2615 | — | AMD MI300X page: 2,614.9 TF, or 5,229.8 with sparsity. [InferenceX MI325X](https://inferencex.semianalysis.com/chips/mi325x) states the same 2,615 as MI300X. |
 | `amd-mi325x` | 256 | 6000 | 1307 | 2615 | — | AMD MI325X datasheet: 2,614.9 TF dense. InferenceX: 2,615. |
-| `amd-mi350x` | 288 | 8000 | 2300 | 4600 | 9200 | AMD MI350X page: MXFP8 4.6 PF and MXFP4 9.2 PF. The AMD partner brief agrees. |
-| `amd-mi355x` | 288 | 8000 | 2516 | 5033 | 10066 | AMD MI355X page: FP8 5 PF and MXFP4 10.1 PF, with no sparsity figure for FP4. Flopper.io gives 5,033.2 and 10,066.3. |
+| `amd-mi350x` | 288 | 8000 | 2300 | 4600 | 9200 | AMD MI350X page (excerpt): MXFP8 4.6 PF and MXFP4 9.2 PF. Flopper.io lists 4,614 / 9,227.5 dense. The stored values are rounded down to match the stored 2300 FP16. |
+| `amd-mi355x` | 288 | 8000 | 2516 | 5033 | 10066 | AMD MI355X page (excerpt): FP8 5 PF and MXFP4 10.1 PF. Flopper.io and [InferenceX MI355X](https://inferencex.semianalysis.com/chips/mi355x) give 5,033 and 10,066, both labelled dense. |
 
 The workstation and consumer rows (L40S, RTX 6000 Ada, RTX PRO 6000, RTX
 5090/4090/3090), GB10 and Apple get no FP8 or FP4 figure (spec D4). Their
@@ -257,7 +264,20 @@ The sources conflict on NVL72 memory bandwidth. Together AI and CUDO quote
 is the lower one, so it wins. The Gigabyte pages returned HTTP 403 to automated
 fetches, so their 14 TB/s figure comes from search-result excerpts.
 
+### Other facts recorded, not used
+
+- The Vera Rubin NVL72 rack lists 20.7 TB HBM4, which is 287.5 GB per GPU (about
+  physical). The stored 278 is D1's estimate, not a published usable figure.
+- Meta puts the Vera Rubin NVL72 rack at "over 170 kW". That is not a per-GPU TDP.
+- ServeTheHome derives 16.8 TB/s per HGX Rubin GPU. The stored value is 130 / 8 = 16.25,
+  the lower of the two.
+- InferenceX gives the HGX B300 268 GB usable. The stored value is 262.5 (2.1 TB / 8),
+  the lower of the two.
+
 ### Still open
+
+- An aggregator quotes Lenovo's H200 NVL product guide at 1,570 TF dense FP8. That
+  is 6% below the stored 1671, and it is unverified.
 
 - No nvidia-smi or vLLM log for GB300 shows usable MiB. The stored 278 rests on
   NVIDIA's 20 TB / 72 and InferenceX.

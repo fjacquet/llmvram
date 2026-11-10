@@ -91,7 +91,7 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3e',
     bus_width: 5120,
     fp16_tflops: 835,
-    fp8_tflops: 1671, // Dense: NVIDIA H200 page 3,341 TF "with sparsity" / 2 (Flopper.io agrees)
+    fp8_tflops: 1671, // Dense: NVIDIA H200 page 3,341 TF "with sparsity" / 2 (Flopper.io: 3,341 sparse)
     fp32_tflops: 60,
     tdp_watts: 600,
     interconnect: 'pcie-5',
@@ -441,7 +441,7 @@ const GPUS: GPU[] = [
     // Dense FP16. AMD's headline 5.0 PFLOPS figure is with sparsity.
     fp16_tflops: 2516,
     // Dense: AMD MI355X page FP8 5 PF, MXFP4 10.1 PF (no sparsity on FP4); Flopper.io
-    // lists 5,033 / 10,066.
+    // and InferenceX list 5,033 / 10,066 dense.
     fp8_tflops: 5033,
     fp4_tflops: 10066,
     fp32_tflops: 157,
@@ -461,7 +461,9 @@ const GPUS: GPU[] = [
     // Same die and memory as MI355X; the ~9% throughput gap is clocks,
     // enabled by 1400 W liquid vs 1000 W air cooling.
     fp16_tflops: 2300,
-    fp8_tflops: 4600, // Dense: AMD MI350X page FP8 4.6 PF, MXFP4 9.2 PF; AMD partner brief agrees
+    // Dense: AMD MI350X page FP8 4.6 PF, MXFP4 9.2 PF; Flopper.io 4,614 / 9,227.5 dense
+    // (rounded down, matching the stored 2300 FP16).
+    fp8_tflops: 4600,
     fp4_tflops: 9200,
     fp32_tflops: 144,
     tdp_watts: 1000,
