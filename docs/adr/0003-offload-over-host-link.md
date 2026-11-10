@@ -14,7 +14,8 @@ host memory.
 
 - Offloaded bytes are read over the host link every decode step:
   `hostLinkGBps` reuses the KV-tier presets (PCIe 5: 50 GB/s per GPU, Grace
-  NVLink-C2C: 225 on NVL72 / 396 on GB300 Desktop, NVMe: 12). The offloaded
+  NVLink-C2C: 194 on GB200/GB300 NVL72 (host-memory bound, ADR 0008) / 450 on
+  Vera Rubin NVL72 / 396 on GB300 Desktop, NVMe: 12). The offloaded
   share per GPU mirrors the on-device layout (MLA KV duplication,
   expert-parallel replicated base). The computed slowdown is shown.
 - A "Host capacity per server (GB)" input bounds offloaded memory; exceeding

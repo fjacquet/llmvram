@@ -237,9 +237,9 @@ Every InferenceX page says it is an unofficial copy that may be out of date.
 | `nvidia-h100-80gb-pcie` | 80 | 2000 | 756 | 1513 | — | The H100 datasheet gives 3,026 TF FP8 with sparsity. Flopper.io gives 1,513 dense. |
 | `nvidia-h100-80gb-sxm` | 80 | 3350 | 989 | 1979 | — | The [H100 page](https://www.nvidia.com/en-us/data-center/h100/) and the datasheet give 3,958 TF with sparsity. [InferenceX H100](https://inferencex.semianalysis.com/chips/h100) gives 1,979 dense. |
 | `nvidia-h200-141gb` | 141 | 4800 | 989 | 1979 | — | The [H200 page](https://www.nvidia.com/en-us/data-center/h200/) gives 3,958 TF with sparsity. Flopper.io gives 1,979 dense. |
-| `nvidia-h200-nvl-141gb` | 141 | 4800 | 835 | 1671 | — | The H200 page gives 3,341 TF with sparsity. Flopper.io gives the same 3,341 as "2:4 sparse only". |
-| `amd-mi300x` | 192 | 5300 | 1307 | 2615 | — | AMD MI300X page: 2,614.9 TF, or 5,229.8 with sparsity. [InferenceX MI325X](https://inferencex.semianalysis.com/chips/mi325x) states the same 2,615 as MI300X. |
-| `amd-mi325x` | 256 | 6000 | 1307 | 2615 | — | AMD MI325X datasheet: 2,614.9 TF dense. InferenceX: 2,615. |
+| `nvidia-h200-nvl-141gb` | 141 | 4800 | 835 | 1670 | — | The H200 page gives 3,341 TF with sparsity; half is 1,670.5, rounded down. Flopper.io gives the same 3,341 as "2:4 sparse only". |
+| `amd-mi300x` | 192 | 5300 | 1307 | 2614 | — | AMD MI300X page: 2,614.9 TF (rounded down), or 5,229.8 with sparsity. [InferenceX MI325X](https://inferencex.semianalysis.com/chips/mi325x) states the same 2,615 as MI300X. |
+| `amd-mi325x` | 256 | 6000 | 1307 | 2614 | — | AMD MI325X datasheet: 2,614.9 TF dense (rounded down). InferenceX: 2,615. |
 | `amd-mi350x` | 288 | 8000 | 2300 | 4600 | 9200 | AMD MI350X page (excerpt): MXFP8 4.6 PF and MXFP4 9.2 PF. Flopper.io lists 4,614 / 9,227.5 dense. The stored values are rounded down to match the stored 2300 FP16. |
 | `amd-mi355x` | 288 | 8000 | 2516 | 5033 | 10066 | AMD MI355X page (excerpt): FP8 5 PF and MXFP4 10.1 PF. Flopper.io and [InferenceX MI355X](https://inferencex.semianalysis.com/chips/mi355x) give 5,033 and 10,066, both labelled dense. |
 
@@ -277,8 +277,7 @@ fetches, so their 14 TB/s figure comes from search-result excerpts.
 ### Still open
 
 - An aggregator quotes Lenovo's H200 NVL product guide at 1,570 TF dense FP8. That
-  is 6% below the stored 1671, and it is unverified.
-
+  is 6% below the stored 1670, and it is unverified.
 - No nvidia-smi or vLLM log for GB300 shows usable MiB. The stored 278 rests on
   NVIDIA's 20 TB / 72 and InferenceX.
 - Rubin has no published TDP, LPDDR5X bandwidth or bus width. Those fields are

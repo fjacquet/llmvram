@@ -13,3 +13,4 @@ Proposed, Accepted or Superseded. Detailed designs live in
 | [0005](0005-presales-audience-and-ui-scope.md) | Presales/datacenter audience: essential vs advanced inputs, feature freeze | Accepted |
 | [0006](0006-gpu-topology-data.md) | GPU topology: NVLink bridges, parallel degree per replica, per-card data | Accepted |
 | [0007](0007-multi-node-prefill-model.md) | Multi-node prefill and decode from bytes over the fabric (replaces the efficiency heuristic) | Accepted |
+| [0008](0008-per-precision-compute-and-usable-rack-memory.md) | Compute at the tensor core vLLM runs each format on; usable memory for rack GPUs | Accepted |
