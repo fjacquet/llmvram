@@ -1,9 +1,12 @@
+import gpusData from '@data/gpus.json'
+import modelsData from '@data/models.json'
 import { FABRIC_SPECS } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { calculateMultiGPUVRAM } from '@engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '@engines/multi-node'
+import { estimatePerformance } from '@engines/performance'
 import { render, screen } from '@testing-library/react'
-import type { GPU, Model } from '@utils/schemas'
+import { type GPU, type Model, validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 
 import { MultiGPUBreakdownChart } from './MultiGPUBreakdownChart'
@@ -244,5 +247,42 @@ describe('MultiGPUBreakdownChart', () => {
 
     expect(screen.getByText('0.0 GB headroom')).toBeInTheDocument()
     expect(screen.queryByText(/GB over/)).not.toBeInTheDocument()
+  })
+
+  it('shows expected throughput with the theoretical ceiling beside it (spec P3)', () => {
+    const realModel = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-70b')
+    const realGpu = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+    if (!realModel || !realGpu) throw new Error('fixture not found')
+    const vram = calculateInferenceVRAM({
+      model: realModel,
+      quantization: 'fp8',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+    const breakdown = calculateMultiGPUVRAM(vram, realModel, 80, 2, 'tensor-parallel', realGpu)
+    const perf = estimatePerformance({
+      model: realModel,
+      gpu: realGpu,
+      quantization: 'fp8',
+      sequenceLength: 4096,
+      batchSize: 1,
+      multiGPUResult: breakdown,
+    })
+    const expected = perf.expected.tokensPerSecond.toFixed(0)
+    const ceiling = perf.tokensPerSecond.toFixed(0)
+    expect(expected).not.toBe(ceiling)
+
+    render(
+      <MultiGPUBreakdownChart
+        breakdown={breakdown}
+        gpuVRAM={80}
+        effectiveTokPerSec={perf.expected.tokensPerSecond.toNumber()}
+        ceilingTokPerSec={perf.tokensPerSecond.toNumber()}
+      />,
+    )
+    expect(screen.getByText(`~${expected} tok/s`, { exact: false })).toBeInTheDocument()
+    expect(
+      screen.getByText(`Theoretical ceiling: ~${ceiling} tok/s`, { exact: false }),
+    ).toBeInTheDocument()
   })
 })

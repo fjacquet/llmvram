@@ -473,10 +473,12 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
 
   const { expected } = performance
   const decodeCeiling = `(ceiling ${performance.tokensPerSecond.toFixed(1)})`
-  const ttftLabel = `${formatDuration(expected.timeToFirstToken)} (ceiling ${formatDuration(performance.timeToFirstToken)})`
+  const withCeiling = (exp: Decimal, ceil: Decimal) =>
+    `${formatDuration(exp)} (ceiling ${formatDuration(ceil)})`
+  const ttftLabel = withCeiling(expected.timeToFirstToken, performance.timeToFirstToken)
   const prefillValue =
     expected.prefillSeconds && performance.prefillSeconds
-      ? `${formatDuration(expected.prefillSeconds)} (ceiling ${formatDuration(performance.prefillSeconds)})`
+      ? withCeiling(expected.prefillSeconds, performance.prefillSeconds)
       : null
   const bottleneckLabel =
     performance.bottleneck === 'memory'

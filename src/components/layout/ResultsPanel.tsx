@@ -658,6 +658,7 @@ export function ResultsPanel() {
                 breakdown={result.multiGPU}
                 gpuVRAM={selectedGPU.vram_gb}
                 effectiveTokPerSec={result.performance.expected.tokensPerSecond.toNumber()}
+                ceilingTokPerSec={result.performance.tokensPerSecond.toNumber()}
               />
             )}
 

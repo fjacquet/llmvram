@@ -3,8 +3,10 @@ import type { MultiGPUVRAMBreakdown } from '@engines/types'
 interface MultiGPUBreakdownChartProps {
   breakdown: MultiGPUVRAMBreakdown
   gpuVRAM: number
-  /** Effective tokens/sec after multi-GPU scaling (optional, shown in summary) */
+  /** Expected tokens/sec across the GPUs (optional, shown in summary) */
   effectiveTokPerSec?: number
+  /** Theoretical ceiling tokens/sec, shown beside the expected figure (spec P3) */
+  ceilingTokPerSec?: number
 }
 
 const COLORS = {
@@ -52,6 +54,7 @@ export function MultiGPUBreakdownChart({
   breakdown,
   gpuVRAM,
   effectiveTokPerSec,
+  ceilingTokPerSec,
 }: MultiGPUBreakdownChartProps) {
   const segmentValues: Record<(typeof BAR_KEYS)[number], number> = {
     'Model Weights': breakdown.perGPU.modelWeights.toNumber(),
@@ -165,8 +168,12 @@ export function MultiGPUBreakdownChart({
         {effectiveTokPerSec !== undefined && breakdown.numGPUs > 1 && (
           <p>
             <span className="font-medium">Effective throughput:</span> ~
-            {effectiveTokPerSec.toFixed(0)} tok/s ({breakdown.numGPUs}× GPUs ×{' '}
-            {Math.round(breakdown.scalingEfficiency * 100)}% efficiency)
+            {effectiveTokPerSec.toFixed(0)} tok/s across {breakdown.numGPUs} GPUs
+          </p>
+        )}
+        {ceilingTokPerSec !== undefined && breakdown.numGPUs > 1 && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Theoretical ceiling: ~{ceilingTokPerSec.toFixed(0)} tok/s
           </p>
         )}
       </div>
