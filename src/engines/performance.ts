@@ -10,7 +10,7 @@ import {
   routedTouchedFraction,
   splitMoEParams,
 } from './inference'
-import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
+import { attendedTokens, calculateDecodeKVReadVRAM, calculateLinearStateVRAM } from './kv-cache'
 import { kvCacheTPShards, resolveInterconnect } from './multi-gpu'
 import { calculateModelWeightVRAM } from './quantization'
 import type {
@@ -75,6 +75,23 @@ export function expertAllToAllSeconds(
   const bytes = tokensPerGPU * expertsPerToken * hidden * (1 + 2)
   return (2 * latencyUs) / 1e6 + bytes / (uniGBps * 1e9)
 }
+
+/**
+ * DSA indexer scoring of one query against `contextTokens` cached keys, halved for causal
+ * prefill: contextTokens * heads * 128 per indexer layer (x 2 for one decode token). 0 without
+ * the fields. shortcut: index_head_dim is fixed at 128 (vLLM's quant_block_size, and its fused
+ * path requires head_dim 128; GLM 5.2, DeepSeek V4, Mistral Large 4 all use 128); add a field
+ * if a model differs.
+ */
+function indexerScoringFLOPs(model: Model, contextTokens: number): Decimal {
+  if (!model.sparse_indexer_heads || !model.sparse_indexer_layers) return new Decimal(0)
+  return new Decimal(contextTokens)
+    .mul(model.sparse_indexer_heads)
+    .mul(INDEXER_HEAD_DIM)
+    .mul(model.sparse_indexer_layers)
+}
+
+const INDEXER_HEAD_DIM = 128
 
 /**
  * How a multi-GPU layout divides one decode step.
@@ -170,7 +187,8 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   //    sequences route independently and the union of touched experts grows, so the
   //    memory side uses the batched figure rather than the batch-1 one.
   //    KV is read at the full context (sequenceLength): the end of a generation, the
-  //    conservative point.
+  //    conservative point. Sparse attention (DSA) reads the KV of only topk tokens, plus its
+  //    indexer cache over the full context (calculateDecodeKVReadVRAM).
   const activeParams = calculateMoEActiveParams(model)
   const decodeParams = calculateMoEBatchedParams(model, batchSize)
   const weightSplit = moeWeightSplit(model, quantization)
@@ -179,7 +197,7 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     weightSplit && touched !== null
       ? weightSplit.baseGiB.add(weightSplit.routedGiB.mul(touched)).mul(BYTES_PER_GB)
       : calculateModelWeightVRAM(decodeParams, quantization, model).mul(BYTES_PER_GB)
-  const kvBytes = calculateKVCacheVRAM({
+  const kvBytes = calculateDecodeKVReadVRAM({
     model,
     sequenceLength,
     batchSize,
@@ -251,8 +269,14 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   const linearFLOPsPerToken = new Decimal(activeParams).mul(2e9)
   const attentionFLOPsPerToken = new Decimal(4)
     .mul(model.num_hidden_layers)
-    .mul(sequenceLength)
+    .mul(attendedTokens(model, sequenceLength))
     .mul(model.hidden_size)
+  // DSA indexer: vLLM scores every cached token each step (fp8_fp4_paged_mqa_logits over
+  // seq_lens) in FP8, so it runs at the FP8 rate (16-bit without one). Its weights are
+  // ReplicatedLinear and its cache is replicated, so TP does not split it: it divides only
+  // where the KV does (kvShards).
+  const indexerRate = linearComputeRate(gpu, 'fp8')
+  const indexerFLOPsPerToken = indexerScoringFLOPs(model, sequenceLength).mul(2)
 
   // Handle missing/non-positive FLOPS: a GPU with no usable FLOPS figure (undefined,
   // zero, or negative — e.g. a user-entered custom-FLOPS value of 0) can never be
@@ -266,6 +290,12 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
         .div(1e12)
         .mul(batchSize)
         .div(layout.gpusPerStage * layout.stages)
+        .add(
+          indexerFLOPsPerToken
+            .div(indexerRate.tflops * 1e12)
+            .mul(batchSize)
+            .div(layout.kvShards * layout.stages),
+        )
     : new Decimal(0)
 
   // 4. Roofline per stage, plus communication per layer: two all-reduces for tensor
@@ -348,6 +378,8 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   //    bandwidth-bound decode above. Two terms:
   //      linear:    2 * activeParams * T          (precision-independent FLOPs)
   //      attention: 2 * layers * T^2 * hidden      (1/2 * 4 * T^2 * D * L, causal)
+  //    Sparse attention (DSA) reads min(T, topk) keys per query, 2 * layers * T * min(T, topk)
+  //    * hidden (exact up to topk, linear beyond), and its indexer scores all T, causally.
   //    Per request: a burst of B prompts takes B times the FLOPs on the same machine, so
   //    dividing by B leaves one prompt's FLOPs (ADR 0007). Across servers the pipeline
   //    fill (prefillScalingEfficiency) and N - 1 hops of the prompt are amortized the same way.
@@ -355,11 +387,15 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   const linearFLOPs = new Decimal(activeParams).mul(2e9).mul(promptTokens)
   const attentionFLOPs = new Decimal(2)
     .mul(model.num_hidden_layers)
-    .mul(promptTokens.pow(2))
+    .mul(promptTokens)
+    .mul(attendedTokens(model, sequenceLength))
     .mul(model.hidden_size)
+  const indexerFLOPs = indexerScoringFLOPs(model, sequenceLength).mul(promptTokens)
 
   // FLOP comparison only when no FLOPS data; otherwise compared by time below
-  let prefillBottleneck: 'linear' | 'attention' = attentionFLOPs.greaterThan(linearFLOPs)
+  let prefillBottleneck: 'linear' | 'attention' = attentionFLOPs
+    .add(indexerFLOPs)
+    .greaterThan(linearFLOPs)
     ? 'attention'
     : 'linear'
 
@@ -387,9 +423,15 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
       .mul(linearRate.tflops)
       .mul(PREFILL_MFU_BY_PRECISION[linearRate.precision])
     const attentionFLOPS = scale.mul(attentionRate.tflops).mul(PREFILL_MFU_BY_PRECISION.fp16)
+    // Replicated across tensor-parallel ranks, like the decode term above
+    const indexerFLOPS = scale
+      .mul(layout.kvShards)
+      .div(layout.gpusPerStage)
+      .mul(indexerRate.tflops)
+      .mul(PREFILL_MFU_BY_PRECISION[indexerRate.precision])
 
     const linearSeconds = linearFLOPs.div(linearFLOPS)
-    const attentionSeconds = attentionFLOPs.div(attentionFLOPS)
+    const attentionSeconds = attentionFLOPs.div(attentionFLOPS).add(indexerFLOPs.div(indexerFLOPS))
     // The terms run at different rates, so the label is about time, not FLOPs
     prefillBottleneck = attentionSeconds.greaterThan(linearSeconds) ? 'attention' : 'linear'
     prefillSeconds = linearSeconds.add(attentionSeconds).add(hopSeconds)

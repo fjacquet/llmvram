@@ -177,6 +177,15 @@ const ModelFields = z.object({
   // length; its dtype comes from the model config (fp32 SSM state for Qwen3.5 and NemotronH).
   linear_state_bytes_per_session: z.number().int().positive().optional(),
 
+  // Sparse attention (DSA: config.json index_topk). Each token attends to topk selected tokens;
+  // an indexer scores every cached token to pick them. Its cache is bytes per token summed over
+  // the layers that own an indexer (vLLM: uint8, index_head_dim + 4 scale bytes per 128).
+  sparse_attention_topk: z.number().int().positive().optional(),
+  sparse_indexer_bytes_per_token: z.number().int().positive().optional(),
+  // Indexer scoring FLOPs: index_n_heads, and the number of layers that own an indexer.
+  sparse_indexer_heads: z.number().int().positive().optional(),
+  sparse_indexer_layers: z.number().int().positive().optional(),
+
   // Measured weight-file size per format from a published checkpoint (GiB = bytes / 1024^3).
   // Recipes differ (what stays 16-bit depends on who quantized it), so each format carries
   // its own reference repo. Absent formats use BYTES_PER_PARAMETER.
@@ -218,6 +227,23 @@ export const ModelSchema = ModelFields.refine(
     path: ['kv_sliding_window'],
   },
 )
+  .refine(
+    (m) =>
+      (m.sparse_attention_topk === undefined) === (m.sparse_indexer_bytes_per_token === undefined),
+    {
+      error: 'sparse_attention_topk and sparse_indexer_bytes_per_token must be set together',
+      path: ['sparse_indexer_bytes_per_token'],
+    },
+  )
+  .refine(
+    (m) =>
+      (m.sparse_indexer_heads === undefined) === (m.sparse_indexer_layers === undefined) &&
+      (m.sparse_indexer_heads === undefined || m.sparse_attention_topk !== undefined),
+    {
+      error: 'sparse_indexer_heads and sparse_indexer_layers are set together, with the topk',
+      path: ['sparse_indexer_layers'],
+    },
+  )
 
 // Export inferred types
 export type GPU = z.infer<typeof GPUSchema>

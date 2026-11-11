@@ -1767,3 +1767,132 @@ describe('estimatePerformance - compute rate per weight format (spec D5, D9)', (
     expect(perf.tokensPerSecond.toNumber() * secondsPerToken).toBeCloseTo(1, 9)
   })
 })
+
+describe('sparse attention (DSA): topk-bounded reads and FLOPs, indexer cache and scoring', () => {
+  const glm = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-5.2')
+  const b200 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-b200-192gb')
+  if (!glm || !b200) throw new Error('fixture rows missing')
+  // Fixture only (Task 4 fills the real row): 132 bytes per token per indexer layer (vLLM uint8
+  // cache, index_head_dim 128 + 4 scale bytes); 21 layers and 32 heads are assumed counts.
+  const indexerBytes = 21 * 132
+  const sparse: Model = {
+    ...glm,
+    sparse_attention_topk: 2048,
+    sparse_indexer_bytes_per_token: indexerBytes,
+  }
+  const scored: Model = { ...sparse, sparse_indexer_heads: 32, sparse_indexer_layers: 21 }
+  const L = glm.num_hidden_layers
+  const H = glm.hidden_size
+  const run = (model: Model, sequenceLength: number, gpu: GPU = b200, batchSize = 1) =>
+    estimatePerformance({ model, gpu, quantization: 'fp8', sequenceLength, batchSize })
+  const prefill = (model: Model, T: number) => run(model, T).prefillSeconds?.toNumber() ?? 0
+  const stepSeconds = (model: Model, T: number, gpu: GPU = b200) =>
+    1 / run(model, T, gpu).tokensPerSecond.toNumber()
+
+  it('a model without sparse fields is unchanged (Review Focus 1)', () => {
+    // Captured before the change: GLM 5.2 fp8, 128k, batch 4, TP8 on B200
+    const vram = calculateInferenceVRAM({
+      model: glm,
+      quantization: 'fp8',
+      sequenceLength: 131072,
+      batchSize: 4,
+      kvQuantization: 'fp8',
+    })
+    const multi = calculateMultiGPUVRAM(vram, glm, 180, 8, 'tensor-parallel', b200, 'fp8')
+    const perf = estimatePerformance({
+      model: glm,
+      gpu: b200,
+      quantization: 'fp8',
+      sequenceLength: 131072,
+      batchSize: 4,
+      kvQuantization: 'fp8',
+      multiGPUResult: multi,
+    })
+    expect(vram.total.toNumber()).toBeCloseTo(726.7284643554688, 9)
+    expect(multi.perGPU.total.toNumber()).toBeCloseTo(111.16449478149414, 9)
+    expect(perf.tokensPerSecond.toNumber()).toBeCloseTo(616.2858022675886, 9)
+    expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(2.949875593429219, 9)
+    expect(perf.prefillBottleneck).toBe('attention')
+  })
+
+  it('below topk equals full attention except the indexer cache in memory and reads (RF 2)', () => {
+    const T = 1024
+    expect(prefill(sparse, T)).toBeCloseTo(prefill(glm, T), 9)
+    expect(stepSeconds(sparse, T) - stepSeconds(glm, T)).toBeCloseTo(
+      (indexerBytes * T) / (b200.memory_bandwidth_gbps * 1e9),
+      12,
+    )
+    const mem = (model: Model) =>
+      calculateInferenceVRAM({ model, quantization: 'fp8', sequenceLength: T, batchSize: 1 }).total
+    expect(mem(sparse).sub(mem(glm)).toNumber()).toBeCloseTo((indexerBytes * T) / BYTES_PER_GB, 12)
+  })
+
+  it('prefill attention FLOPs are 2 x L x T x topk x hidden beyond topk, linear in T', () => {
+    const T = 131072
+    // Same linear term; the attention term drops from 2 L T^2 H to 2 L T 2048 H at 16-bit
+    expect(prefill(glm, T) - prefill(sparse, T)).toBeCloseTo(
+      (2 * L * H * T * (T - 2048)) / (2250e12 * PREFILL_MFU.toNumber()),
+      9,
+    )
+    expect(prefill(sparse, 2 * T)).toBeCloseTo(2 * prefill(sparse, T), 9)
+  })
+
+  it('decode at 128k reads the KV of topk tokens plus the indexer over the full context', () => {
+    expect(stepSeconds(sparse, 131072) - stepSeconds(glm, 2048)).toBeCloseTo(
+      (indexerBytes * 131072) / (b200.memory_bandwidth_gbps * 1e9),
+      12,
+    )
+  })
+
+  it('indexer scoring: 2 x context x heads x 128 per layer in decode, at the FP8 rate', () => {
+    const T = 131072
+    const fast = { ...b200, memory_bandwidth_gbps: 1e12 } // compute-bound decode
+    expect(stepSeconds(scored, T, fast) - stepSeconds(sparse, T, fast)).toBeCloseTo(
+      (2 * T * 32 * 128 * 21) / 4500e12,
+      12,
+    )
+  })
+
+  it('indexer scoring in prefill: T^2 x heads x 128 per layer at FP8, on the attention side', () => {
+    const T = 131072
+    expect(prefill(scored, T) - prefill(sparse, T)).toBeCloseTo(
+      (21 * 32 * 128 * T * T) / (4500e12 * PREFILL_MFU.toNumber()),
+      9,
+    )
+    // At 2M tokens the indexer outweighs the linear term; the label counts it as attention
+    expect(run(sparse, 16 * T).prefillBottleneck).toBe('linear')
+    expect(run(scored, 16 * T).prefillBottleneck).toBe('attention')
+  })
+
+  it('tensor parallelism does not split the indexer (vLLM replicates it on every rank)', () => {
+    const T = 131072
+    const perf = (model: Model) => {
+      const vram = calculateInferenceVRAM({
+        model,
+        quantization: 'fp8',
+        sequenceLength: T,
+        batchSize: 1,
+      })
+      const multi = calculateMultiGPUVRAM(vram, model, 180, 8, 'tensor-parallel', b200, 'fp8')
+      return {
+        multi,
+        p: estimatePerformance({
+          model,
+          gpu: b200,
+          quantization: 'fp8',
+          sequenceLength: T,
+          batchSize: 1,
+          multiGPUResult: multi,
+        }),
+      }
+    }
+    const a = perf(scored)
+    const b = perf(sparse)
+    const extra = (a.p.prefillSeconds?.toNumber() ?? 0) - (b.p.prefillSeconds?.toNumber() ?? 0)
+    expect(extra).toBeCloseTo(
+      (21 * 32 * 128 * T * T) /
+        (4500e12 * PREFILL_MFU.toNumber() * a.multi.prefillScalingEfficiency),
+      9,
+    )
+  })
+})
