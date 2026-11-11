@@ -53,7 +53,9 @@ read at most `topk` KV positions per token, not the whole context.
   (`GPU_MEMORY_UTILIZATION`, helper `fitsInference`). Training stays at
   `total <= vram`, tiers literally 80/95. Inference tiers: comfortable <= 80%,
   tight <= 90%, else does not fit. The utilisation % shown stays total / vram.
-  Recommendations measure the deficit against `vram x 0.9`.
+  Recommendations measure the deficit, size GPU counts and pick upgrade cards
+  against `vram x 0.9`. The fit bar and the multi-GPU bar mark the 90% line.
+  Training draws no marker.
 - **D5 KV tier.** The "vs recompute" comparison uses the ceiling prefill. That
   is the safe direction: recompute looks fastest, so the tier must beat it.
 - **D6 KV fixes.** Mistral Large 3: 35,136 elements per token (sessions go up
@@ -62,8 +64,10 @@ read at most `topk` KV positions per token, not the whole context.
   `sparse_attention_topk`, `sparse_indexer_bytes_per_token`,
   `sparse_indexer_heads`, `sparse_indexer_layers`.
   - Decode reads min(ctx, topk) KV plus the full indexer cache.
-  - Prefill attention FLOPs = 2 x L x T x min(T, topk) x H, plus indexer T^2
-    scoring at FP8.
+  - Prefill attention FLOPs = 2 x L x H x a x (2T - a), a = min(T, topk): query
+    t attends min(t, topk) keys. T^2 up to topk, 4 x L x H x topk x (T - topk/2)
+    beyond. Plus indexer T^2 scoring at FP8. (2026-11-11, final review M1: was
+    2 x L x T x min(T, topk) x H, which under-charged beyond topk.)
   - Memory: full KV plus the indexer cache per session. The indexer is
     replicated per TP rank.
 - **D8 Which models.** GLM 5.2: topk 2048, 32 heads, 21 layers, 2772 B.
@@ -93,9 +97,14 @@ Open items:
 
 - The `fp8_ds_mla` KV layout is 656 B per token against the 576 charged, so FP8
   MLA KV is undercounted about 14%. This is the unsafe direction. Triage in a later piece.
+  Sessions are 9-17% high when FP8 KV is selected on MLA models. This must be resolved,
+  verified against vLLM source, before piece 2 divides targets by session counts.
 - The indexer compute is divided by `kvShards`. That is exact only for MLA with
   1 KV head.
 - One median over mixed models and GPUs hides per-config spread (decode p5 is 0.27).
+- Batch-dependent decode efficiency. The AMD rows fall from about 0.63 at batch 1 to
+  about 0.24 at batch 128. The flat median 0.47 is optimistic at the high concurrency
+  that rack sizing uses. Revisit in piece 2.
 
 ## Sources
 

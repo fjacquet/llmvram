@@ -101,12 +101,12 @@
 **Engine rules (spec P6):**
 - **Decode KV read per sequence:** the main KV at `attendedTokens(context)` tokens, plus the full indexer cache (`sparse_indexer_bytes_per_token × context`).
 - **Decode attention FLOPs per token:** `4 × layers × attendedTokens(context) × hidden`, plus indexer scoring. Indexer scoring is `2 × context × indexer_heads × indexer_head_dim` per indexer layer, and it needs two more optional fields: `sparse_indexer_heads` and `sparse_indexer_layers`. Before coding, check vLLM's DSA indexer (Context7 `/websites/vllm_ai_en_stable`, or GitHub) for whether it scores the full context. Add the two fields only if it does; otherwise leave indexer FLOPs out and say so in a comment. Task 4 relies on your finding.
-- **Prefill attention FLOPs:** replace `2 × layers × T² × hidden` with `2 × layers × T × attendedTokens(T) × hidden`. That is exact when T ≤ topk and linear in T beyond it.
+- **Prefill attention FLOPs:** replace `2 × layers × T² × hidden` with `2 × layers × hidden × a × (2T − a)`, a = `attendedTokens(T)`. That is exact when T ≤ topk and affine in T beyond it. (2026-11-11, final review M1: the plan first said `2 × layers × T × attendedTokens(T) × hidden`, which under-charged beyond topk.)
 
 - [ ] **Step 1: Write the failing tests.** Use a fixture built from a real model row (spread `deepseek-v4-pro` or `zai-org-glm-5.2` plus fields), never a literal:
   - A model without sparse fields gives the same memory, prefillSeconds and tokensPerSecond as before the change (`toBeCloseTo` 9). This is Review Focus 1.
   - At context 1024 with topk 2048, results equal full attention, except that memory and decode reads include the indexer cache. This is Review Focus 2.
-  - At 128k with topk 2048, prefill attention FLOPs are `2 × L × T × 2048 × hidden`, and doubling T doubles them.
+  - At 128k with topk 2048, prefill attention FLOPs are `2 × L × hidden × 2048 × (2T − 2048)`; doubling T adds `2 × L × hidden × 2048²` beyond twice them (final review M1).
   - At 128k, decode KV bytes per sequence equal the KV at 2048 tokens plus `indexer_bytes × 131072`.
   - The schema rejects topk without indexer bytes.
 - [ ] **Step 2:** Run the tests and confirm they fail.

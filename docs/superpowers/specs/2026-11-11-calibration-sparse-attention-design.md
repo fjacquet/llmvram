@@ -122,7 +122,9 @@ New optional model fields, sourced from `config.json`:
 Engine effects:
 - **Decode:** each step reads, per sequence, the KV of min(context, topk) tokens for the main
   attention, plus the indexer cache over the full context.
-- **Prefill:** main attention FLOPs scale with T × min(T, topk) instead of T², plus the indexer's
+- **Prefill:** main attention FLOPs are 2 × L × H × a × (2T − a), a = min(T, topk), instead of
+  2 × L × H × T² (query t attends min(t, topk) keys; 2026-11-11, final review M1: was
+  T × min(T, topk), which under-charged beyond topk), plus the indexer's
   scoring FLOPs (T² × indexer heads × indexer head dim, at FP8 where vLLM runs it in FP8).
 - **Memory:** KV stays the full context (every token is stored), plus the indexer cache per
   session.
@@ -181,7 +183,7 @@ Add `mistralai-mistral-large-4-1t-a52b` (id per the existing pattern):
   - fit at 0.9 (a config at 0.95 utilisation reads "does not fit");
   - the M1/M2 KV values with two sources;
   - sparse decode reads at 128k equal to topk-bounded KV plus the indexer, for Mistral Large 4;
-  - prefill attention FLOPs linear in T beyond topk;
+  - prefill attention FLOPs affine in T beyond topk (4 × L × H × topk × (T − topk/2));
   - Mistral Large 4 entry validated and sorted.
 - ADR 0009 (calibration and sparse attention), CHANGELOG (breaking: headline speeds drop by the
   ratios; fit at 90%), README model count, in-app guide text for the two figures.

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking changes
 
 - Headline speed is now the expected figure, the theoretical ceiling shown beside it (ADR 0009). Decode tok/s is the ceiling x 0.47 (median of 512 vLLM points); TTFT and prefill are the ceiling / 0.469 (median of 62), about 2.13x longer. Rack counts will use expected.
-- Inference fits at 90% of VRAM (`gpu_memory_utilization`), not 100%. Tiers: comfortable up to 80%, tight up to 90%, else does not fit. Training is unchanged (80/95 of VRAM). A shared link that fit between 90% and 100% now reads "does not fit".
+- Inference fits at 90% of VRAM (`gpu_memory_utilization`), not 100%. Tiers: comfortable up to 80%, tight up to 90%, else does not fit. Training is unchanged (80/95 of VRAM). A shared link that fit between 90% and 100% now reads "does not fit". The fit bar and the multi-GPU bar mark the 90% line; the multi-GPU bar's colour and headroom follow it; Recommendations size GPU counts and upgrade cards at 90%, so some advise one more GPU (DeepSeek R1 Distill 70B fp16 at 32k on H100: 3x, was 2x).
 - Mistral Large 3 KV per token is 35,136 (was overstated about 24.9x): sessions up about 25x. Nemotron Ultra KV is 131,072 (was 2.5x over): sessions up about 2.5x.
 - GLM 5.2 long-context decode and prefill are faster: sparse attention reads at most 2048 KV positions. DeepSeek V4 long-context speed does NOT change; its compressed KV could not be modelled with confidence, so it stays on full-attention reads.
 - GB300 NVL72 (`nvidia-gb300-nvl72`, id unchanged) is now 278 GB usable (NVIDIA's 20 TB / 72; SemiAnalysis InferenceX), not the 288 GB physical. A shared link that fit at 288 GB may now read "does not fit".
@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Mistral Large 4 1T-A52B (1053.2B total, 52.3B active, MLA, KV 36,288) with measured fp8, nvfp4 and GGUF weights; pending upstream vLLM support (PR #64534). 55 models in total.
-- Sparse attention (DSA): model fields `sparse_attention_topk`, `sparse_indexer_bytes_per_token`, `sparse_indexer_heads`, `sparse_indexer_layers`, for GLM 5.2 and Mistral Large 4.
+- Sparse attention (DSA): model fields `sparse_attention_topk`, `sparse_indexer_bytes_per_token`, `sparse_indexer_heads`, `sparse_indexer_layers`, for GLM 5.2 and Mistral Large 4. Prefill main attention is 2·L·H·a·(2T − a) FLOPs, a = min(T, topk): query t attends min(t, topk) keys.
 - Expected vs ceiling speed in results, comparison and exports, with the committed calibration points in `docs/calibration/`.
 - ADR 0009.
 - GPUs: GB200 NVL72 (186 GB), Vera Rubin NVL72 (preliminary, 278 GB estimated) and HGX Rubin NVL8 (preliminary, 250 GB); 32 GPUs in total.
