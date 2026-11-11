@@ -1,10 +1,12 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
-import { FABRIC_SPECS } from '@engines/fabric'
+import { FABRIC_SPECS, resolveFabricSpec } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
+import { DEFAULT_KV_TIER } from '@engines/kv-tier'
 import { applyInterconnectOverride } from '@engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '@engines/multi-node'
 import { estimatePerformance } from '@engines/performance'
+import { sizeDeployment } from '@engines/sizing'
 import { formatDuration } from '@utils/formatDuration'
 import { type GPU, type Model, validateGPUs, validateModels } from '@utils/schemas'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -84,7 +86,7 @@ class MockPptxGenJS {
 
 vi.mock('pptxgenjs-plus', () => ({ default: MockPptxGenJS }))
 
-const { exportPptx } = await import('./exportPptx')
+const { exportPptx, exportSizingPptx } = await import('./exportPptx')
 
 const model: Model = {
   id: 'test-llama-3-70b',
@@ -758,5 +760,68 @@ describe('exportPptx', () => {
       perfRows.some(([label]) => label === 'Prefill per request (amortized over batch 8)'),
     ).toBe(true)
     expect(perfRows.some(([label]) => label === 'Time to First Token')).toBe(false)
+  })
+})
+
+describe('exportSizingPptx', () => {
+  beforeEach(() => {
+    tables.length = 0
+    charts.length = 0
+    texts.length = 0
+  })
+
+  const sizingGpu = validateGPUs(gpusData).find((g) => g.id === 'nvidia-gb300-nvl72')
+  if (!sizingGpu) throw new Error('fixture not found')
+  const size = (kvTier = DEFAULT_KV_TIER) =>
+    sizeDeployment({
+      model: realModel,
+      gpu: sizingGpu,
+      quantization: 'fp8',
+      kvQuantization: 'fp16',
+      sequenceLength: 32768,
+      users: 2000,
+      fabric: resolveFabricSpec('ethernet-800g', null),
+      kvTier,
+    })
+  const run = (result: ReturnType<typeof size>, activeShare = 0.25) =>
+    exportSizingPptx({
+      model: realModel,
+      gpu: sizingGpu,
+      quantization: 'fp8',
+      sequenceLength: 32768,
+      users: 2000,
+      result,
+      activeShare,
+    })
+
+  it('writes one summary slide with headline, replica, replicas, sessions and speed with ceiling, and no memory charts', async () => {
+    const r = size()
+    const c = r.chosen
+    if (!c) throw new Error('expected a fit')
+    await run(r)
+    expect(charts).toHaveLength(0)
+    expect(tables).toHaveLength(1)
+    expect(texts[0]?.text.startsWith(`${r.units} rack`)).toBe(true)
+    expect(texts[0]?.text).toContain(sizingGpu.name)
+    const rows = tableRows(0)
+    expect(rows).toContainEqual(['Replica', expect.stringContaining(`TP ${c.tp} × ${c.nodes}`)])
+    expect(rows).toContainEqual(['Replicas', String(r.replicas)])
+    expect(rows).toContainEqual(['Sessions per replica', String(c.sessionsPerReplica)])
+    const speed = rows.find(([k]) => k.startsWith('Per-user decode speed'))
+    expect(speed?.[1]).toBe(
+      `${c.perUserTokensPerSecond.toFixed(1)} tok/s (ceiling ${c.perUserCeilingTokensPerSecond.toFixed(1)})`,
+    )
+    // No tier: no activity assumption to state
+    expect(rows.some(([k]) => k === 'Assumption')).toBe(false)
+  })
+
+  it('states the tier and the active-share assumption when a KV tier raised the count', async () => {
+    const r = size({ ...DEFAULT_KV_TIER, tier: 'host-grace' })
+    const c = r.chosen
+    if (!c?.tierUsed || c.tierUsed === 'none') throw new Error('expected a tier')
+    await run(r, 0.25)
+    const rows = tableRows(0)
+    expect(rows).toContainEqual(['Assumption', '25% of sessions decode at once'])
+    expect(rows.find(([k]) => k === 'Open sessions per replica')?.[1]).toMatch(/parked in/)
   })
 })

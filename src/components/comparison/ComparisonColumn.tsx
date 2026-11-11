@@ -1,3 +1,4 @@
+import { KV_TIER_PRESETS } from '@engines/kv-tier'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { formatDurationMs } from '@utils/formatDuration'
@@ -67,6 +68,7 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
         totalVRAM: false,
         fits: false,
         tokensPerSecond: false,
+        sizing: false,
       }
     }
 
@@ -102,8 +104,13 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
       tokensPerSecond: others.some(
         (s) => s.results.tokensPerSecond !== snapshot.results.tokensPerSecond,
       ),
+      sizing: others.some(
+        (s) => JSON.stringify(s.results.sizing) !== JSON.stringify(snapshot.results.sizing),
+      ),
     }
   }, [snapshot, allSnapshots])
+
+  const { sizing } = snapshot.results
 
   // Calculate effective utilization (per-GPU if multi-GPU)
   const effectiveVRAM =
@@ -230,6 +237,27 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
             isDifferent={
               diffMap.offloadingEnabled || diffMap.offloadPercentage || diffMap.offloadTarget
             }
+          />
+        )}
+      </div>
+
+      {/* Sizing rows: blank for inference snapshots so the columns stay aligned */}
+      <div className="space-y-1">
+        <Field
+          label="Units"
+          value={sizing ? `${sizing.units} ${sizing.unit}${sizing.units === 1 ? '' : 's'}` : '—'}
+          isDifferent={diffMap.sizing}
+        />
+        <Field
+          label="Replica"
+          value={sizing ? `TP ${sizing.tp} × ${sizing.nodes}` : '—'}
+          isDifferent={diffMap.sizing}
+        />
+        {sizing?.tier && (
+          <Field
+            label="KV tier"
+            value={KV_TIER_PRESETS[sizing.tier].label}
+            isDifferent={diffMap.sizing}
           />
         )}
       </div>

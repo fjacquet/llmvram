@@ -137,4 +137,34 @@ describe('ComparisonColumn', () => {
     render(<ComparisonColumn snapshot={a} allSnapshots={[a, otherExpected]} onRemove={() => {}} />)
     expect(screen.getByText('Performance').closest('div')?.className).toMatch(/bg-amber-50/)
   })
+
+  it('shows Units and Replica for a sizing snapshot, with the KV tier name', () => {
+    const snapshot = makeSnapshot(
+      'a',
+      {},
+      {
+        sizing: {
+          unit: 'rack',
+          units: 3,
+          replicas: 20,
+          tp: 8,
+          nodes: 1,
+          sessionsPerReplica: 100,
+          tier: 'host-pcie',
+        },
+      },
+    )
+    render(<ComparisonColumn snapshot={snapshot} allSnapshots={[snapshot]} onRemove={() => {}} />)
+    expect(screen.getByText('Units').nextElementSibling).toHaveTextContent('3 racks')
+    expect(screen.getByText('Replica').nextElementSibling).toHaveTextContent('TP 8 × 1')
+    expect(screen.getByText('KV tier')).toBeInTheDocument()
+  })
+
+  it('leaves Units and Replica blank for an inference snapshot', () => {
+    const snapshot = makeSnapshot('a')
+    render(<ComparisonColumn snapshot={snapshot} allSnapshots={[snapshot]} onRemove={() => {}} />)
+    expect(screen.getByText('Units').nextElementSibling).toHaveTextContent('—')
+    expect(screen.getByText('Replica').nextElementSibling).toHaveTextContent('—')
+    expect(screen.queryByText('KV tier')).not.toBeInTheDocument()
+  })
 })

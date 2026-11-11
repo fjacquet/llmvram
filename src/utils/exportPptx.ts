@@ -1,4 +1,4 @@
-import { DECIMAL_GB_PER_GIB } from '@engines/kv-tier'
+import { DECIMAL_GB_PER_GIB, KV_TIER_PRESETS } from '@engines/kv-tier'
 import { interconnectLabel } from '@engines/multi-gpu'
 import { roundOffloadSlowdown } from '@engines/offloading'
 import type { weightSource } from '@engines/quantization'
@@ -6,6 +6,7 @@ import type {
   InferenceVRAMBreakdown,
   MultiGPUVRAMBreakdown,
   PerformanceEstimate,
+  SizingResult,
 } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
 import { firstTokenLabel } from '@utils/perfLabels'
@@ -81,30 +82,13 @@ const C = {
   darkBlue: '1E3A5F',
 } as const
 
-export async function exportPptx(params: ExportPptxParams): Promise<void> {
-  const {
-    model,
-    gpu,
-    quantization,
-    numGPUs,
-    numNodes,
-    sequenceLength,
-    batchSize,
-    vram,
-    performance,
-    multiGPU,
-    maxSessions,
-    tierSessionsHeld,
-    weightSource,
-    concurrentUsers,
-    offload,
-  } = params
-
+/** A wide deck with the app's header-bar master, shared by every export */
+async function newDeck(title: string) {
   const PptxGenJS = (await import('pptxgenjs-plus')).default
   const pptx = new PptxGenJS()
 
   pptx.layout = 'LAYOUT_WIDE'
-  pptx.title = `LLM VRAM Estimate — ${model.name}`
+  pptx.title = title
 
   // Define slide master — applied to all slides
   pptx.defineSlideMaster({
@@ -131,6 +115,37 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       },
     ],
   })
+  return pptx
+}
+
+const fileName = (modelName: string) =>
+  `llmvram-${
+    modelName
+      .replace(/\s+/g, '-')
+      .replace(/[/\\:*?"<>|]+/g, '_')
+      .replace(/^[-_]+|[-_]+$/g, '') || 'model'
+  }.pptx`
+
+export async function exportPptx(params: ExportPptxParams): Promise<void> {
+  const {
+    model,
+    gpu,
+    quantization,
+    numGPUs,
+    numNodes,
+    sequenceLength,
+    batchSize,
+    vram,
+    performance,
+    multiGPU,
+    maxSessions,
+    tierSessionsHeld,
+    weightSource,
+    concurrentUsers,
+    offload,
+  } = params
+
+  const pptx = await newDeck(`LLM VRAM Estimate — ${model.name}`)
 
   // ─── Slide 1: Configuration Summary ─────────────────────────────────────────
   const slide1 = pptx.addSlide({ masterName: 'LLMVRAM' })
@@ -620,10 +635,93 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     },
   )
 
-  const safeName =
-    model.name
-      .replace(/\s+/g, '-')
-      .replace(/[/\\:*?"<>|]+/g, '_')
-      .replace(/^[-_]+|[-_]+$/g, '') || 'model'
-  await pptx.writeFile({ fileName: `llmvram-${safeName}.pptx` })
+  await pptx.writeFile({ fileName: fileName(model.name) })
+}
+
+export interface ExportSizingPptxParams {
+  model: Model
+  gpu: GPU
+  quantization: string
+  sequenceLength: number
+  users: number
+  result: SizingResult
+  /** Share of open sessions decoding at once; stated whenever a KV tier raised the count */
+  activeShare: number
+}
+
+/** One summary slide: the answer in racks or servers, with the assumptions it rests on */
+export async function exportSizingPptx(params: ExportSizingPptxParams): Promise<void> {
+  const { model, gpu, quantization, sequenceLength, users, result, activeShare } = params
+  const c = result.chosen
+  if (!result.fits || !c) throw new Error('Nothing fits: no sizing to export')
+
+  const pptx = await newDeck(`LLM Sizing — ${model.name}`)
+  const slide = pptx.addSlide({ masterName: 'LLMVRAM' })
+  const unit = `${result.units} ${result.unit}${result.units === 1 ? '' : 's'}`
+  slide.addText(`${unit} of ${gpu.name} — ${model.name}`, {
+    x: 0.4,
+    y: 0.7,
+    w: 12.5,
+    h: 0.5,
+    fontSize: 22,
+    bold: true,
+    color: C.darkBlue,
+  })
+
+  const tier = c.tierUsed && c.tierUsed !== 'none' ? KV_TIER_PRESETS[c.tierUsed].label : null
+  const rows: [string, string][] = [
+    [
+      'Replica',
+      `TP ${c.tp} × ${c.nodes} (${c.gpusPerReplica} GPUs${c.nodes > 1 ? `, ${c.nodes} servers` : ''})`,
+    ],
+    ['Replicas', String(result.replicas)],
+    ['Weights', quantization.toUpperCase()],
+    ['Context', `${sequenceLength.toLocaleString('en-US')} tokens`],
+    ['Users', users.toLocaleString('en-US')],
+    [
+      tier ? 'Open sessions per replica' : 'Sessions per replica',
+      tier
+        ? `${c.sessionsPerReplica} (${c.hotSessions} in HBM, the rest parked in ${tier})`
+        : String(c.sessionsPerReplica),
+    ],
+    [
+      `Per-user decode speed (at ${c.decodeBatch} decoding at once)`,
+      `${c.perUserTokensPerSecond.toFixed(1)} tok/s (ceiling ${c.perUserCeilingTokensPerSecond.toFixed(1)})`,
+    ],
+    [
+      'Time to first token',
+      `${formatDuration(c.timeToFirstToken)} (ceiling ${formatDuration(c.ceilingTimeToFirstToken)})`,
+    ],
+  ]
+  if (tier)
+    rows.push(['Assumption', `${Math.round(activeShare * 100)}% of sessions decode at once`])
+
+  slide.addTable(
+    [
+      [
+        { text: 'Item', options: { bold: true, fill: C.headerFill, color: 'FFFFFF' } },
+        { text: 'Value', options: { bold: true, fill: C.headerFill, color: 'FFFFFF' } },
+      ],
+      ...rows.map(([k, v], i) => {
+        const fill = i % 2 === 0 ? C.whiteFill : C.altRowFill
+        return [
+          { text: k, options: { fill } },
+          { text: v, options: { fill } },
+        ]
+      }),
+    ],
+    {
+      x: 0.4,
+      y: 1.4,
+      w: 12.5,
+      colW: [6, 6.5],
+      border: { pt: 1, color: C.tableBorder },
+      fontSize: 13,
+    },
+  )
+  slide.addText(
+    'Unit counts use expected speed, which includes real serving losses. The ceiling is the theoretical bandwidth and compute limit.',
+    { x: 0.4, y: 6.9, w: 12.5, h: 0.4, fontSize: 11, italic: true, color: C.bodyText },
+  )
+  await pptx.writeFile({ fileName: fileName(model.name) })
 }

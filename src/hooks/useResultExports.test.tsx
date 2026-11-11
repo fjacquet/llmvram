@@ -1,6 +1,9 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
+import { resolveFabricSpec } from '@engines/fabric'
+import { DEFAULT_KV_TIER } from '@engines/kv-tier'
 import { estimatePerformance } from '@engines/performance'
+import { sizeDeployment } from '@engines/sizing'
 import { act, renderHook } from '@testing-library/react'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
@@ -20,10 +23,13 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 // PPTX interconnect-override test below only needs to see WHICH gpu reaches
 // exportPptx, not a rendered deck — mock it the way the PDF path mocks its libs.
-const { exportPptx } = vi.hoisted(() => ({ exportPptx: vi.fn(async () => undefined) }))
-vi.mock('@utils/exportPptx', () => ({ exportPptx }))
+const { exportPptx, exportSizingPptx } = vi.hoisted(() => ({
+  exportPptx: vi.fn(async () => undefined),
+  exportSizingPptx: vi.fn(async () => undefined),
+}))
+vi.mock('@utils/exportPptx', () => ({ exportPptx, exportSizingPptx }))
 
-import { useResultExports } from './useResultExports'
+import { useResultExports, useSizingExports } from './useResultExports'
 
 const params = {
   selectedModel: null,
@@ -143,5 +149,62 @@ describe('useResultExports: PPTX interconnect override', () => {
     await act(() => result.current.handleExportPptx(capacity))
 
     expect(exportPptx.mock.calls[0]?.[0]?.gpu).toBe(bridgedGpu)
+  })
+})
+
+describe('useSizingExports', () => {
+  const rack = validateGPUs(gpusData).find((g) => g.id === 'nvidia-gb300-nvl72')
+  const llama = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-70b')
+  if (!rack || !llama) throw new Error('fixture not found')
+  const sizing = sizeDeployment({
+    model: llama,
+    gpu: rack,
+    quantization: 'fp8',
+    kvQuantization: 'fp16',
+    sequenceLength: 8192,
+    users: 500,
+    fabric: resolveFabricSpec('ethernet-800g', null),
+    kvTier: DEFAULT_KV_TIER,
+  })
+  const sizingParams = {
+    selectedModel: llama,
+    selectedGPU: rack,
+    quantization: 'fp8' as const,
+    sequenceLength: 8192,
+    users: 500,
+    activeShare: 0.25,
+    result: sizing,
+  }
+
+  afterEach(() => {
+    document.getElementById('calculator-section')?.remove()
+    capture.mockReset()
+    exportSizingPptx.mockClear()
+  })
+
+  it('PDF captures the calculator section, which holds the Sizing card', async () => {
+    mountSection()
+    let captured: HTMLElement | null = null
+    capture.mockImplementation(async (el: HTMLElement) => {
+      captured = el
+      return { width: 100, height: 100, toDataURL: () => 'data:image/jpeg;base64,' }
+    })
+    const { result } = renderHook(() => useSizingExports(sizingParams))
+    await act(() => result.current.handleExportPDF())
+    expect(captured).toBe(document.getElementById('calculator-section'))
+  })
+
+  it('PPTX hands the sizing result, assumptions and active share to exportSizingPptx', async () => {
+    const { result } = renderHook(() => useSizingExports(sizingParams))
+    await act(() => result.current.handleExportPptx())
+    expect(exportSizingPptx).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: llama,
+        gpu: rack,
+        result: sizing,
+        activeShare: 0.25,
+        users: 500,
+      }),
+    )
   })
 })
