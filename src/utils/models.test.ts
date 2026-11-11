@@ -198,7 +198,8 @@ describe('Model Database Validation', () => {
       'mistralai-mistral-large-3-675b': 35136,
       // MLA: 63 of 72 layers x (kv_lora_rank 512 + rope 64); the 9 layers whose kv_source_layers
       // entry is 35 (39, 43, ..., 71) reuse its cache. vLLM PR #64534 (28a4495) skips their
-      // cache spec and keeps 576 on NoPE layers; HF kv_sharing_modes agrees on 63 owners
+      // cache spec and keeps 576 on NoPE layers; HF kv_sharing_modes agrees on 63 owners (HF
+      // caches 512 on its 9 NoPE owners, 35712; vLLM's allocation governs)
       'mistralai-mistral-large-4-1t-a52b': 36288,
       'mistralai-mistral-small-4-119b': 11520, // MLA: 36 x (kv_lora_rank 256 + rope 64)
       'mistralai-magistral-small-2507': 81920, // 40 x 8 kv x head_dim 128 (not 160) x 2
