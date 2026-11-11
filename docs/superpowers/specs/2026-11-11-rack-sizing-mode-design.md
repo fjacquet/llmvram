@@ -156,3 +156,14 @@ All of these are pure functions of their inputs. The UI calls `sizeDeployment` i
 - The exact field layout of the Sizing results card. It follows the existing results style.
 - How the worker message carries the sizing input.
 - The ADR 0010 text.
+
+## Amendment: KV storage tier in Sizing (user, 2026-11-11)
+
+Making rack GPUs Sizing-only left the Grace KV tier (`host-grace`, which exists only on GB200/GB300 NVL72) unreachable. The user chose: **Sizing models the KV tier.**
+
+- **Panel.** The existing `KVTierPanel` shows in Sizing. Its tier options come from `allowedOptions`: host-grace on Grace racks, host-pcie, local-nvme and network elsewhere. Its inputs (active share, burst, capacity) are unchanged.
+- **Sessions per replica.** With a tier other than `none`, a replica holds `kvTierSummary(...).sessionsHeld` open sessions instead of the HBM-only count. This reuses the existing engine (DRY).
+  - **Overloaded tier.** If the tier's churn traffic exceeds what it delivers (`overloaded`), fall back to the HBM-only count. This is the safe direction, and the result says why.
+- **Speed.** The decode batch is the sessions decoding at once: `min(hotSessions, ceil(sessionsHeld × activeShare))`. Per-user speed is expected tok/s ÷ that batch. The result also shows the resume time against the recompute time. Recompute uses the ceiling prefill, the same as in Inference.
+- **Results line.** It reads "S open sessions per replica (H in HBM, the rest parked in <tier>)".
+- **Comparison and exports** carry the tier name when one is used.

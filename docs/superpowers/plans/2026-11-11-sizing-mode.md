@@ -176,6 +176,27 @@ export function sizeDeployment(input: SizingInput): SizingResult
 - [ ] **Step 4:** Run the sizing tests and see them pass. Then run the full suite.
 - [ ] **Step 5:** Commit `feat(engine): pure sizing solver — fewest servers or racks for N simultaneous users`.
 
+### Task 4b: KV storage tier in the solver (spec amendment)
+
+**Files:** `src/engines/sizing.ts`, `src/engines/sizing.test.ts`, `src/engines/types.ts`.
+
+**Interfaces:**
+- `SizingInput` gains `kvTier: KVTierSettings`.
+- `ReplicaCandidate` gains `hotSessions: number`, `decodeBatch: number`, `tierUsed: KVTierType | null`, `tierOverloaded: boolean` and `resumeSeconds: number | null`.
+- `sessionsPerReplica` becomes the open sessions.
+- Consumes `kvTierSummary` and `clampKVTier` from `src/engines/kv-tier.ts`, unchanged.
+
+- [ ] **Step 1: Failing tests.** All use real models and GPUs.
+  - With tier `none`, results are identical to today. Pin the Task 4 literal cases unchanged.
+  - With `host-grace` on GB300 NVL72, activeShare 0.25 and default burst, `sessionsPerReplica` equals `kvTierSummary(...).sessionsHeld`, which is greater than `hotSessions`. `decodeBatch = min(hot, ceil(open × 0.25))`, and `units` is at most the `none` case.
+  - With an overloaded tier (for example `network` with a tiny `customGBps`), the result falls back to the HBM count with `tierOverloaded: true`.
+  - Per-user speed is computed at `decodeBatch`, not at open sessions.
+- [ ] **Step 2: Implement.**
+  - In `evaluateReplica`, after the HBM session count, call `kvTierSummary` with the replica's per-GPU and total KV.
+  - Set `multi = { strategy: 'tensor-parallel', gpusPerNode: tp, numNodes: nodes, numGPUs: tp × nodes }`.
+  - Pass `recomputeSeconds` = the ceiling prefill at one session, and `gpuId: gpu.id`.
+- [ ] **Step 3:** Run the suite, then commit `feat(engine): sizing models the KV storage tier (open vs decoding sessions)`.
+
 ### Task 5: The `'sizing'` mode in config rules, store and URL
 
 **Files:**
