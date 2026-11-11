@@ -1,3 +1,4 @@
+import type { GPU, Model } from '@utils/schemas'
 import { MAX_SEQUENCE_LENGTH, QUANTIZATION_FORMATS } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 import { z } from 'zod'
@@ -476,4 +477,46 @@ export interface ZeROResult {
   numGPUs: number
   /** ZeRO stage applied */
   zeroStage: import('./frameworks').ZeROStage
+}
+
+/** What one sizing answer is counted in: a server (<= 8 GPUs) or a rack (NVL72) */
+export type SizingUnit = 'server' | 'rack'
+
+export interface SizingInput {
+  model: Model
+  gpu: GPU
+  quantization: QuantizationFormat
+  kvQuantization: KVCachePrecision
+  sequenceLength: number
+  users: number
+  fabric: FabricSpec
+}
+
+/** One replica shape (tp GPUs per server across `nodes` pipeline stages), evaluated */
+export interface ReplicaCandidate {
+  tp: number
+  nodes: number
+  /** tp * nodes */
+  gpusPerReplica: number
+  /** Memory-bound, >= 1 when it fits, capped at the user count */
+  sessionsPerReplica: number
+  perUserTokensPerSecond: Decimal
+  perUserCeilingTokensPerSecond: Decimal
+  timeToFirstToken: Decimal
+  ceilingTimeToFirstToken: Decimal
+  totalPerGPUGB: number
+}
+
+export interface SizingResult {
+  fits: boolean
+  unit: SizingUnit
+  /** Racks or servers; 0 when nothing fits */
+  units: number
+  replicas: number
+  /** 0 for a replica spanning several servers */
+  replicasPerUnit: number
+  idleGPUsPerUnit: number
+  chosen: ReplicaCandidate | null
+  /** Set when !fits: the candidate nearest to fitting */
+  closest: { candidate: ReplicaCandidate; lackingGB: number } | null
 }

@@ -74,6 +74,9 @@ export { estimatePerformance } from './performance'
 // Quantization engine
 export { calculateModelWeightVRAM, getBytesPerParameter } from './quantization'
 
+// Sizing solver
+export { evaluateReplica, isRackGPU, replicaCandidates, sizeDeployment } from './sizing'
+
 // Training engine
 export {
   calculateFullFineTuningVRAM,
@@ -93,6 +96,10 @@ export type {
   OptimizerType,
   PerformanceEstimate,
   QuantizationFormat,
+  ReplicaCandidate,
+  SizingInput,
+  SizingResult,
+  SizingUnit,
   TrainingOptimizationConfig,
   TrainingPrecision,
   TrainingVRAMBreakdown,
