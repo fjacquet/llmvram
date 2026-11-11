@@ -36,4 +36,14 @@ describe('FitIndicator', () => {
     expect(screen.getByText('Fits Comfortably')).toBeInTheDocument()
     expect(screen.getByText('80%')).toBeInTheDocument()
   })
+
+  it('inference limit of 90 reads "Does Not Fit" at 92%, training keeps "Tight Fit"', () => {
+    const { unmount } = render(
+      <FitIndicator totalVRAM={new Decimal(73.6)} availableVRAM={80} limitPercent={90} />,
+    )
+    expect(screen.getByText('Does Not Fit')).toBeInTheDocument()
+    unmount()
+    render(<FitIndicator totalVRAM={new Decimal(73.6)} availableVRAM={80} />)
+    expect(screen.getByText('Tight Fit')).toBeInTheDocument()
+  })
 })

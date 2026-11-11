@@ -6,6 +6,8 @@ interface FitIndicatorProps {
   availableVRAM: number
   /** When > 1, labels show "X GPUs × Y GB = Z GB" instead of plain "Y GB" */
   numGPUs?: number
+  /** Inference passes vLLM's 90; tiers become <= limit-10 comfortable, <= limit tight. Training omits it. */
+  limitPercent?: number
 }
 
 interface StatusTier {
@@ -18,7 +20,12 @@ interface StatusTier {
   icon: ReactElement
 }
 
-export function FitIndicator({ totalVRAM, availableVRAM, numGPUs }: FitIndicatorProps) {
+export function FitIndicator({
+  totalVRAM,
+  availableVRAM,
+  numGPUs,
+  limitPercent,
+}: FitIndicatorProps) {
   const percentage = totalVRAM.div(availableVRAM).mul(100).toNumber()
 
   // Status icons as inline SVG
@@ -55,7 +62,7 @@ export function FitIndicator({ totalVRAM, availableVRAM, numGPUs }: FitIndicator
 
   // Determine status tier
   const getStatusTier = (): StatusTier => {
-    if (percentage <= 80) {
+    if (percentage <= (limitPercent === undefined ? 80 : limitPercent - 10)) {
       return {
         label: 'Fits Comfortably',
         bgLight: 'bg-green-50',
@@ -66,7 +73,7 @@ export function FitIndicator({ totalVRAM, availableVRAM, numGPUs }: FitIndicator
         icon: CheckIcon,
       }
     }
-    if (percentage <= 95) {
+    if (percentage <= (limitPercent ?? 95)) {
       return {
         label: 'Tight Fit',
         bgLight: 'bg-yellow-50',

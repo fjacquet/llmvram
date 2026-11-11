@@ -63,6 +63,18 @@ describe('ResultsPanel composition', () => {
     expectSomeVisible(/sessions at 4,096 tokens/)
   })
 
+  it('reads "Does Not Fit" above vLLM 0.9 utilisation (audit M4)', async () => {
+    useUIStore.setState({
+      numGPUs: 1,
+      selectedGPU: gpu('nvidia-h100-80gb-sxm'),
+      sequenceLength: 16384,
+    })
+    render(<ResultsPanel />)
+    await screen.findAllByText(/\d+%/)
+    expectSomeVisible(/Does Not Fit/)
+    expectSomeVisible(/^9[0-5]%$/) // fit under the old 100% rule, over vLLM's 90%
+  })
+
   it('keeps the interconnect warning visible (W2 at TP-8 over PCIe 5)', async () => {
     useUIStore.setState({ selectedGPU: gpu('nvidia-h100-80gb-pcie'), numGPUs: 8 })
     render(<ResultsPanel />)
