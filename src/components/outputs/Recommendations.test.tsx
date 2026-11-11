@@ -1,6 +1,11 @@
+import gpusData from '@data/gpus.json'
+import modelsData from '@data/models.json'
+import { fitsInference } from '@engines/concurrency'
+import { calculateInferenceVRAM } from '@engines/inference'
+import { calculateMultiGPUVRAM } from '@engines/multi-gpu'
 import type { InferenceVRAMBreakdown } from '@engines/types'
 import { render, screen } from '@testing-library/react'
-import type { GPU } from '@utils/schemas'
+import { type GPU, validateGPUs, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -224,9 +229,10 @@ describe('Recommendations', () => {
   })
 
   it('sizes the GPU count by memory alone, not by interconnect efficiency', () => {
-    // 150 GB (3 GB framework) on 80 GB GPUs: each GPU holds its own framework context
-    // and 0.25 GB of NCCL buffers, so (150 - 3) / (80 - 3 - 0.25) = 1.9, i.e. 2x.
-    // Derating by a scaling efficiency (150 / (80 * 0.85) = 2.2) asked for 3x.
+    // 2026-11-11, final review I1: 150 GB -> 130 GB, capacity is now 90% of the card, and at
+    // 150 GB memory alone needs 3x. 130 GB (2.6 GB framework) on 80 GB GPUs: each GPU holds its
+    // own framework context and 0.25 GB of NCCL buffers, so (130 - 2.6) / (72 - 2.6 - 0.25) =
+    // 1.84, i.e. 2x. Derating by a scaling efficiency (130 / (72 * 0.85) = 2.1) asks for 3x.
     const pcie = gpu({
       manufacturer: 'nvidia',
       tier: 'consumer',
@@ -236,7 +242,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={pcie}
-        breakdown={breakdown(150)}
+        breakdown={breakdown(130)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
         numGPUs={1}
@@ -258,6 +264,62 @@ describe('Recommendations', () => {
       />,
     )
     expect(container).not.toBeEmptyDOMElement()
-    expect(container.textContent).toMatch(/4\.0\d* ?GB|4 ?GB/)
+    // 2026-11-11, final review I1: exact text; the old regex also matched "24 GB"
+    expect(screen.getByText(/Need 4\.00 GB more VRAM/)).toBeInTheDocument()
+  })
+
+  it('advises an upgrade only to a card the total fits at 90% of', () => {
+    // 2026-11-11, final review I1: 30 GB fits a 32 GB card at 100% (old rule) but not at 90%
+    render(
+      <Recommendations
+        gpu={gpu({ vram_gb: 16, max_gpus_per_node: 1 })}
+        breakdown={breakdown(30)}
+        currentQuantization="fp16"
+        currentSequenceLength={2048}
+      />,
+    )
+    expect(screen.queryByText(/RTX 5090/)).not.toBeInTheDocument()
+    expect(screen.getByText(/A6000 \(48 GB\)/)).toBeInTheDocument()
+  })
+
+  describe('advised GPU count passes the inference fit rule (final review I1)', () => {
+    // 2026-11-11: sized at 100% of the card, the advice landed between 90% and 100% and the
+    // verdict then read "Does Not Fit" on the very configuration it advised
+    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+    if (!h100) throw new Error('nvidia-h100-80gb-sxm missing from gpus.json')
+    const advise = (modelId: string, sequenceLength: number) => {
+      const model = validateModels(modelsData).find((m) => m.id === modelId)
+      if (!model) throw new Error(`${modelId} missing from models.json`)
+      const vram = calculateInferenceVRAM({
+        model,
+        quantization: 'fp16',
+        sequenceLength,
+        batchSize: 1,
+      })
+      render(
+        <Recommendations
+          gpu={h100}
+          breakdown={vram}
+          currentQuantization="fp16"
+          currentSequenceLength={sequenceLength}
+          numGPUs={1}
+          multiGPUBreakdown={null}
+        />,
+      )
+      const text = screen.getByText(/with tensor parallelism/).textContent ?? ''
+      const n = Number(text.match(/Use (\d+)x/)?.[1])
+      const multi = calculateMultiGPUVRAM(vram, model, 80, n, 'tensor-parallel', h100, 'fp16')
+      return { n, perGPU: multi.totalPerGPU.toNumber() }
+    }
+
+    it('DeepSeek R1 Distill 70B fp16, 32k, H100 80 GB', () => {
+      const { perGPU } = advise('deepseek-r1-distill-llama-70b', 32768)
+      expect(fitsInference(perGPU, 80)).toBe(true)
+    })
+
+    it('Devstral 2 123B fp16, 8k, H100 80 GB', () => {
+      const { perGPU } = advise('mistralai-devstral-2-123b', 8192)
+      expect(fitsInference(perGPU, 80)).toBe(true)
+    })
   })
 })

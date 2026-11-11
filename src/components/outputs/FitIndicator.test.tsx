@@ -46,4 +46,36 @@ describe('FitIndicator', () => {
     render(<FitIndicator totalVRAM={new Decimal(73.6)} availableVRAM={80} />)
     expect(screen.getByText('Tight Fit')).toBeInTheDocument()
   })
+
+  it('inference decides fit with fitsInference: exactly 90% is a tight fit, above is not (M5)', () => {
+    // 2026-11-11, final review M5: 0.9 * 100 is 90.00000000000001 in JS; the decision is now
+    // fitsInference, the same rule as the verdict. No RED was observable: Decimal gives exactly 90.
+    const { unmount } = render(
+      <FitIndicator totalVRAM={new Decimal(72)} availableVRAM={80} limitPercent={90} />,
+    )
+    expect(screen.getByText('Tight Fit')).toBeInTheDocument()
+    unmount()
+    render(<FitIndicator totalVRAM={new Decimal(72.01)} availableVRAM={80} limitPercent={90} />)
+    expect(screen.getByText('Does Not Fit')).toBeInTheDocument()
+  })
+
+  it('draws the 90% marker in inference only (I2)', () => {
+    // 2026-11-11, final review I2: spec P4, the 90% line marked where a bar exists
+    const { unmount } = render(
+      <FitIndicator totalVRAM={new Decimal(40)} availableVRAM={80} limitPercent={90} />,
+    )
+    expect(screen.getByTestId('limit-marker').style.left).toBe('90%')
+    unmount()
+    render(<FitIndicator totalVRAM={new Decimal(40)} availableVRAM={80} />)
+    expect(screen.queryByTestId('limit-marker')).not.toBeInTheDocument()
+  })
+
+  it('training between 90% and 100% of VRAM is unchanged: Tight Fit, 95%, no marker', () => {
+    // 2026-11-11, final review training guard: training keeps total <= vram, tiers 80/95
+    render(<FitIndicator totalVRAM={new Decimal(76)} availableVRAM={80} />)
+    expect(screen.getByText('Tight Fit')).toBeInTheDocument()
+    expect(screen.getByText('95%')).toBeInTheDocument()
+    expect(screen.getByText('Using 76.00 GB of 80 GB')).toBeInTheDocument()
+    expect(screen.queryByTestId('limit-marker')).not.toBeInTheDocument()
+  })
 })

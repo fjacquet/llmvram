@@ -1,5 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
+import { GPU_MEMORY_UTILIZATION } from '@engines/constants'
 import { FABRIC_SPECS } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { calculateMultiGPUVRAM } from '@engines/multi-gpu'
@@ -101,9 +102,10 @@ describe('MultiGPUBreakdownChart', () => {
   })
 
   it('shows the headroom figure under capacity', () => {
+    // 2026-11-11, final review I2: headroom is to vLLM's 90% limit, not to the full card
     const breakdown = calculateMultiGPUVRAM(singleGPU, model, 80, 4, 'tensor-parallel', gpu)
     const gpuVRAM = 80
-    const headroom = gpuVRAM - breakdown.totalPerGPU.toNumber()
+    const headroom = gpuVRAM * GPU_MEMORY_UTILIZATION - breakdown.totalPerGPU.toNumber()
     expect(headroom).toBeGreaterThan(0)
 
     render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
@@ -119,7 +121,8 @@ describe('MultiGPUBreakdownChart', () => {
     const breakdown = calculateMultiGPUVRAM(singleGPU, model, 80, 4, 'tensor-parallel', gpu)
     const totalPerGPU = breakdown.totalPerGPU.toNumber()
     const gpuVRAM = totalPerGPU / 2
-    const overAmount = totalPerGPU - gpuVRAM
+    // 2026-11-11, final review I2: over the 90% limit, was over the full card
+    const overAmount = totalPerGPU - gpuVRAM * GPU_MEMORY_UTILIZATION
 
     render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
 
@@ -237,16 +240,47 @@ describe('MultiGPUBreakdownChart', () => {
     ).toBeInTheDocument()
   })
 
-  it('reads as exactly full, not over, when usage equals capacity', () => {
-    // Boundary: the meter flips to the over-capacity styling only when usage
-    // strictly exceeds capacity. At equality it is full, with zero headroom.
+  it('reads as over the limit at a full card, without renormalizing the widths', () => {
+    // 2026-11-11, final review I2: was "0.0 GB headroom" at usage = capacity; the limit is
+    // now vLLM's 90%, so a full card is 10% over it. Widths stay a share of the card (100%).
     const breakdown = calculateMultiGPUVRAM(singleGPU, model, 80, 4, 'tensor-parallel', gpu)
     const gpuVRAM = breakdown.totalPerGPU.toNumber()
 
     render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
 
-    expect(screen.getByText('0.0 GB headroom')).toBeInTheDocument()
-    expect(screen.queryByText(/GB over/)).not.toBeInTheDocument()
+    const over = gpuVRAM - gpuVRAM * GPU_MEMORY_UTILIZATION
+    expect(screen.getByText(`${over.toFixed(1)} GB over`)).toBeInTheDocument()
+    expect(screen.queryByText(/GB headroom/)).not.toBeInTheDocument()
+  })
+
+  it('between 90% and 100% of the card: over-limit colours, no headroom, 90% marker (I2)', () => {
+    // 2026-11-11, final review I2: 76 GB per GPU on an 80 GB card read as normal colours with
+    // 4.0 GB headroom while the verdict said "Does Not Fit". Same 95% ratio, real breakdown.
+    const breakdown = calculateMultiGPUVRAM(singleGPU, model, 80, 4, 'tensor-parallel', gpu)
+    const totalPerGPU = breakdown.totalPerGPU.toNumber()
+    const gpuVRAM = totalPerGPU / 0.95
+
+    render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
+
+    const over = totalPerGPU - gpuVRAM * GPU_MEMORY_UTILIZATION
+    expect(screen.getByText(`${over.toFixed(1)} GB over`)).toBeInTheDocument()
+    expect(screen.queryByText(/GB headroom/)).not.toBeInTheDocument()
+    let widthSum = 0
+    for (const el of screen.getAllByRole('img')) {
+      expect(el.style.backgroundColor).toBe('rgb(220, 38, 38)')
+      widthSum += Number.parseFloat(el.style.width)
+    }
+    // Under the card the widths stay a share of it, so the marker sits at 90% of the bar
+    expect(widthSum).toBeCloseTo(95, 5)
+    expect(Number.parseFloat(screen.getByTestId('limit-marker').style.left)).toBeCloseTo(90, 9)
+  })
+
+  it('marks the 90% limit relative to the bar when over the card', () => {
+    const breakdown = calculateMultiGPUVRAM(singleGPU, model, 80, 4, 'tensor-parallel', gpu)
+    const gpuVRAM = breakdown.totalPerGPU.toNumber() / 2
+    render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
+    // Widths renormalize to the total (2x the card), so 90% of the card is 45% of the bar
+    expect(Number.parseFloat(screen.getByTestId('limit-marker').style.left)).toBeCloseTo(45, 5)
   })
 
   it('shows expected throughput with the theoretical ceiling beside it (spec P3)', () => {

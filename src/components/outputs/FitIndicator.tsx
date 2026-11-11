@@ -1,3 +1,4 @@
+import { fitsInference } from '@engines/concurrency'
 import type Decimal from 'decimal.js'
 import type { ReactElement } from 'react'
 
@@ -73,7 +74,12 @@ export function FitIndicator({
         icon: CheckIcon,
       }
     }
-    if (percentage <= (limitPercent ?? 95)) {
+    // Inference: the verdict's own rule (fitsInference); training: total <= 95% of the card
+    const fits =
+      limitPercent === undefined
+        ? percentage <= 95
+        : fitsInference(totalVRAM.toNumber(), availableVRAM)
+    if (fits) {
       return {
         label: 'Tight Fit',
         bgLight: 'bg-yellow-50',
@@ -127,12 +133,21 @@ export function FitIndicator({
         </div>
 
         {/* Progress bar */}
-        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div className="relative h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
           <div
             className={`h-full ${status.bar} transition-all duration-300`}
             style={{ width: `${Math.min(percentage, 100)}%` }}
             aria-hidden="true"
           />
+          {limitPercent !== undefined && (
+            <div
+              data-testid="limit-marker"
+              aria-hidden="true"
+              className="absolute inset-y-0 w-0.5 bg-gray-900 dark:bg-white"
+              style={{ left: `${limitPercent}%` }}
+              title={`vLLM limit: ${Math.round(limitPercent)}% of the GPU`}
+            />
+          )}
         </div>
       </div>
     </output>
