@@ -1,7 +1,7 @@
 # Piece 2: Sizing mode (users in, servers or racks out)
 
 **Date:** 2026-11-11
-**Status:** Draft with the user's answers, awaiting approval
+**Status:** Approved by the user 2026-11-11 (subagent-driven, Sonnet subagents)
 **Series:** piece 2 of the rack-sizing effort. Piece 1 (rack data, PR #78) and the calibration piece (PR #79) come before it.
 **Branch:** `feat/sizing-mode`, stacked on `feat/calibration-sparse-attention`. The user merges everything at the end (2026-11-11).
 
