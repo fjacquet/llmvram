@@ -1001,11 +1001,48 @@ describe('sizing mode (2026-11-11, sizing T5)', () => {
       kvCacheOffload: true,
       offloadHostCapacityGB: -1,
       interconnectOverride: 'bogus',
-      kvTier: { ...DEFAULT_KV_TIER, tier: 'network', activeShare: 5 },
+      // 2026-11-11, sizing final review C1: was a hostile kvTier (activeShare 5) left alone
+      // here, now a valid tier, because the KV tier is live in Sizing and R4 corrects it.
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'network' },
     })
     const result = normalizeConfig(hostile, L70, H100)
     expect(result.corrections).toEqual([])
     expect(result.config).toEqual(hostile)
+  })
+
+  it('runs the KV tier rules in Sizing: R3 and R4', () => {
+    const r3 = normalizeConfig(
+      cfg({ mode: 'sizing', kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace' } }),
+      L70,
+      H100,
+    )
+    expect(r3.config.kvTier.tier).toBe('none')
+    expect(ids(r3)).toContain('R3:kvTier')
+    const r4 = normalizeConfig(
+      cfg({ mode: 'sizing', kvTier: { ...DEFAULT_KV_TIER, tier: 'network', activeShare: 5 } }),
+      L70,
+      H100,
+    )
+    expect(r4.config.kvTier.activeShare).toBe(1)
+  })
+
+  it('allowedOptions ignores the hidden offloading flags in Sizing', () => {
+    const flags = {
+      offloadingEnabled: true,
+      kvCacheOffload: true,
+      frameworkPreset: 'none' as const,
+    }
+    expect(
+      allowedOptions({ mode: 'sizing', shardingStrategy: 'tensor-parallel', ...flags }, L70, H100)
+        .kvTiers,
+    ).toContain('network')
+    expect(
+      allowedOptions(
+        { mode: 'inference', shardingStrategy: 'tensor-parallel', ...flags },
+        L70,
+        H100,
+      ).kvTiers,
+    ).toEqual(['none'])
   })
 
   it('runs the rules for the fields Sizing shows: users and context', () => {

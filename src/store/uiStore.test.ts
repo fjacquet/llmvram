@@ -91,9 +91,9 @@ describe('uiStore: host-grace KV tier guard', () => {
   })
 
   // 2026-11-11, sizing T5: was "keeps host-grace for a Grace-host GPU" in inference. The only
-  // Grace-host GPUs that are not unified memory are racks, now selectable in sizing only,
-  // where R3 does not run (kvTier is hidden); selecting one switches the mode.
-  it('a Grace-host rack GPU switches to sizing and keeps host-grace (inert there)', async () => {
+  // Grace-host GPUs that are not unified memory are racks, now selectable in sizing only;
+  // selecting one switches the mode, and R3 keeps the tier there (it has a Grace link).
+  it('a Grace-host rack GPU switches to sizing and keeps host-grace', async () => {
     const { useUIStore } = await import('@store/uiStore')
     useUIStore.getState().setSelectedGPU(findGPU('nvidia-gb300-nvl72'))
     useUIStore.getState().setKVTier({ tier: 'host-grace' })
@@ -101,17 +101,81 @@ describe('uiStore: host-grace KV tier guard', () => {
     expect(useUIStore.getState().kvTier.tier).toBe('host-grace')
   })
 
-  it('GPU-change path (through the store, not just the helper): falls back to none', async () => {
+  // 2026-11-11, sizing final review C1: was "survives the GPU change in sizing (R3 inert) and
+  // falls back once the mode is inference", now host-grace resets to none in Sizing itself
+  // because the KV tier is live there and a quote must not assume a tier the GPU lacks.
+  it('GPU-change path (through the store, not just the helper): falls back to none in Sizing', async () => {
     const { useUIStore } = await import('@store/uiStore')
-    // 2026-11-11, sizing T5: the rack GPU is sizing-only and R3 is inert there, so the tier
-    // survives the GPU change and falls back once the mode is inference again.
     useUIStore.getState().setSelectedGPU(findGPU('nvidia-gb300-nvl72'))
     useUIStore.getState().setKVTier({ tier: 'host-grace' })
     expect(useUIStore.getState().kvTier.tier).toBe('host-grace')
 
     useUIStore.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-sxm'))
-    useUIStore.getState().setMode('inference')
+    expect(useUIStore.getState().mode).toBe('sizing')
     expect(useUIStore.getState().kvTier.tier).toBe('none')
+    expect(useUIStore.getState().pendingNotice?.lines.join(' ')).toMatch(/KV tier turned off/)
+  })
+})
+
+describe('uiStore: Sizing runs the KV tier rules (final review C1)', () => {
+  it('scenario 1: GB300 host-grace then H100 gives the no-tier server count', async () => {
+    const store = await freshStore()
+    const { sizeDeployment } = await import('@engines/sizing')
+    const { resolveFabricSpec } = await import('@engines/fabric')
+    store.getState().setSelectedGPU(NVL72)
+    store.getState().setKVTier({ tier: 'host-grace' })
+    store.getState().setSelectedGPU(H100)
+    expect(store.getState().mode).toBe('sizing')
+    expect(store.getState().kvTier.tier).toBe('none')
+    const size = (kvTier: typeof DEFAULT_KV_TIER) =>
+      sizeDeployment({
+        model: findModel('meta-llama-llama-3.3-70b'),
+        gpu: H100,
+        quantization: 'fp8',
+        kvQuantization: 'fp16',
+        sequenceLength: 32768,
+        users: 1000,
+        fabric: resolveFabricSpec('ethernet-800g', null),
+        kvTier,
+      }).units
+    // 2026-11-11, sizing final review C1: was 5 (a Grace tier on an H100), now the no-tier 20.
+    expect(size(store.getState().kvTier)).toBe(20)
+    expect(size({ ...DEFAULT_KV_TIER, tier: 'host-grace' })).toBe(20)
+  })
+
+  it('scenario 2: host-pcie then Apple M3 Ultra resets the tier to none', async () => {
+    const store = await freshStore()
+    store.getState().setMode('sizing')
+    store.getState().setSelectedGPU(H100)
+    store.getState().setKVTier({ tier: 'host-pcie' })
+    expect(store.getState().kvTier.tier).toBe('host-pcie')
+    store.getState().setSelectedGPU(UNIFIED_M3)
+    expect(store.getState().kvTier.tier).toBe('none')
+  })
+
+  it('a shared sizing link with host-grace on an H100 restores as none, adjusted', async () => {
+    const store = await freshStore()
+    const { deserializeFromURL, urlStateToConfig } = await import('@store/urlSerializer')
+    const { findGPUById, findModelById } = await import('@store/uiStore')
+    const json = {
+      q: 'fp16',
+      sl: 4096,
+      bs: 1,
+      kvq: 'fp16',
+      ng: 1,
+      ss: 'tensor-parallel',
+      m: 'sizing',
+      modelId: L70.id,
+      gpuId: H100.id,
+      kt: { t: 'host-grace', a: 0.25, b: 30 },
+    }
+    const decoded = deserializeFromURL(compressToEncodedURIComponent(JSON.stringify(json)))
+    if (!decoded) throw new Error('expected the link to parse')
+    const { patch } = urlStateToConfig(decoded, { findModel: findModelById, findGPU: findGPUById })
+    store.getState().restoreConfig(patch)
+    expect(store.getState().mode).toBe('sizing')
+    expect(store.getState().kvTier.tier).toBe('none')
+    expect(store.getState().pendingNotice?.title).toBe('Shared link adjusted')
   })
 })
 

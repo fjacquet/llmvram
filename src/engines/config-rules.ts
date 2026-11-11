@@ -138,8 +138,9 @@ export interface Rule {
   check: (config: RuleConfig, ctx: RuleContext) => Correction[]
 }
 
-// Sizing hides numGPUs, numNodes, sharding, batch size, offloading, KV tier and the
-// interconnect override, so only the rules for fields it shows run there (2026-11-11).
+// Sizing hides numGPUs, numNodes, sharding, batch size, offloading and the interconnect
+// override, so only the rules for fields it shows run there. It shows the KV tier, so the
+// tier rules (R3, R4, the kvTier half of R6) run there too (2026-11-11).
 const ALL_MODES: readonly ConfigMode[] = ['inference', 'training', 'sizing']
 const INFERENCE_SIZING: readonly ConfigMode[] = ['inference', 'sizing']
 const NOT_SIZING: readonly ConfigMode[] = ['inference', 'training']
@@ -325,7 +326,7 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R3',
-    modes: INFERENCE,
+    modes: INFERENCE_SIZING,
     check: (c, { gpu }) =>
       c.kvTier.tier === 'host-grace' && graceLinkGBps(gpu?.id ?? '') === null
         ? [
@@ -342,7 +343,7 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R4',
-    modes: INFERENCE,
+    modes: INFERENCE_SIZING,
     check: (c) => {
       const out: Correction[] = []
       const tier = clampKVTier(c.kvTier)
@@ -359,7 +360,8 @@ export const RULES: readonly Rule[] = [
         )
       }
       const hc = c.offloadHostCapacityGB
-      if (hc !== null && !(Number.isFinite(hc) && hc > 0)) {
+      // host capacity belongs to offloading, hidden (inert) in Sizing
+      if (c.mode !== 'sizing' && hc !== null && !(Number.isFinite(hc) && hc > 0)) {
         out.push(
           fix(
             'R4',
@@ -399,11 +401,12 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R6',
-    modes: INFERENCE,
+    modes: INFERENCE_SIZING,
     check: (c, { gpu }) => {
       if (gpu?.unified_memory !== true) return []
       const out: Correction[] = []
-      if (c.offloadingEnabled && c.offloadTarget === 'cpu-ram') {
+      // offloading is hidden (inert) in Sizing
+      if (c.mode === 'inference' && c.offloadingEnabled && c.offloadTarget === 'cpu-ram') {
         out.push(
           fix(
             'R6',
@@ -675,14 +678,15 @@ export function allowedOptions(
   if (model && splitMoEParams(model)) strategies.push('expert-parallel')
 
   const unified = gpu?.unified_memory === true
-  const kvTiers: KVTierType[] =
-    input.offloadingEnabled && input.kvCacheOffload
-      ? ['none']
-      : KV_TIER_TYPES.filter((tier) => {
-          if (tier === 'host-grace') return !unified && graceLinkGBps(gpu?.id ?? '') !== null
-          if (tier === 'host-pcie') return !unified
-          return true
-        })
+  // Sizing hides offloading, so a stale flag must not empty the tier list
+  const offloadsKV = input.mode !== 'sizing' && input.offloadingEnabled && input.kvCacheOffload
+  const kvTiers: KVTierType[] = offloadsKV
+    ? ['none']
+    : KV_TIER_TYPES.filter((tier) => {
+        if (tier === 'host-grace') return !unified && graceLinkGBps(gpu?.id ?? '') !== null
+        if (tier === 'host-pcie') return !unified
+        return true
+      })
 
   const variants = gpu && gpu.max_gpus_per_node > 1 ? (gpu.interconnect_options ?? []) : []
 
