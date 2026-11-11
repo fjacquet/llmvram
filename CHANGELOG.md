@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-11
+
 ### Breaking changes
 
 - Linear-attention state is charged at fp32 recurrent for Kimi K3, Kimi Linear and Ling 3.0 (vLLM kda_state_dtype auto = float32): fewer sessions. A deployment setting `--mamba-ssm-cache-dtype bfloat16` needs less than shown.
