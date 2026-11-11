@@ -2151,6 +2151,80 @@
     }
   },
   {
+    "id": "inclusionai-ling-3.1-flash",
+    "name": "Ling 3.1 Flash",
+    "architecture": "moe",
+    "num_parameters_billion": 572.1,
+    "hidden_size": 4096,
+    "num_hidden_layers": 72,
+    "num_attention_heads": 64,
+    "num_kv_heads": 64,
+    "intermediate_size": 10240,
+    "num_experts": 512,
+    "num_experts_per_token": 8,
+    "context_length": 262144,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/inclusionAI/Ling-3.1-flash-1019",
+    "kv_cache_elements_per_token": 5184,
+    "linear_state_bytes_per_session": 273530880,
+    "use_mla": true,
+    "active_parameters_billion": 25,
+    "weight_refs": {
+      "fp8": {
+        "repo": "inclusionAI/Ling-3.1-flash-1019",
+        "gib": 534.38,
+        "high_precision": {
+          "params_b": 1.492,
+          "gib": 2.78
+        }
+      },
+      "gguf-q8_0": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 566.6
+      },
+      "gguf-q6_k": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 467.14
+      },
+      "gguf-q5_k_m": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 406.35
+      },
+      "gguf-q5_k_s": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 378.17
+      },
+      "gguf-q4_k_m": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 333.39
+      },
+      "gguf-q4_k_s": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 313.51
+      },
+      "gguf-q4_0": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 304.21
+      },
+      "gguf-q3_k_l": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 268.22
+      },
+      "gguf-q3_k_m": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 256.17
+      },
+      "gguf-q3_k_s": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 243.61
+      },
+      "gguf-q2_k": {
+        "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
+        "gib": 204.12
+      }
+    }
+  },
+  {
     "id": "meta-llama-llama-4-maverick",
     "name": "Llama 4 Maverick 17B 128E",
     "architecture": "moe",

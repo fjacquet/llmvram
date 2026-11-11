@@ -66,6 +66,7 @@ const MODEL_IDS = [
   // Ling (inclusionAI)
   'inclusionAI/Ling-3.0-flash',
   'inclusionAI/Ling-3.0-tiny',
+  'inclusionAI/Ling-3.1-flash-1019',
 
   // Mistral
   'mistralai/Mistral-Large-4-1T-A52B',
