@@ -115,3 +115,12 @@ Option 3 gives the only numbers you can defend in front of a customer.
 - Mistral Large 3 `params.json`: https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512
 - Nemotron Ultra `config.json` `block_configs`: https://huggingface.co/nvidia/Llama-3_1-Nemotron-Ultra-253B-v1
 - InferenceX GB300 NVL72 (278 GB usable): https://inferencex.semianalysis.com/chips/gb300-nvl72
+
+## Decision (user, 2026-11-11)
+
+No lab is available. Calibration policy: **two figures**. The headline is the *expected* figure,
+the roofline divided by an efficiency factor sourced from published vLLM runs (InferenceX,
+MLPerf, vendor or vLLM benchmarks), taking the pessimistic end when sources disagree. The
+*best case* is today's roofline, labelled "theoretical ceiling". Rack counts use the expected
+figure. Factors carry source comments like every other constant, and only the factors change
+when better data appears.
