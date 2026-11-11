@@ -8,6 +8,13 @@ import { DEFAULT_UI_CONFIG, type UIConfig } from '@store/uiStore'
 export function countAdvancedChanges(config: UIConfig): number {
   const d = DEFAULT_UI_CONFIG
   if (config.mode === 'training') return config.batchSize !== d.batchSize ? 1 : 0
+  // Sizing hides batch, strategy, servers, interconnect and offloading: the solver chooses them
+  if (config.mode === 'sizing')
+    return [
+      config.kvQuantization !== d.kvQuantization,
+      config.interNodeFabric !== d.interNodeFabric || config.customFabric !== d.customFabric,
+      config.kvTier.tier !== d.kvTier.tier,
+    ].filter(Boolean).length
   return [
     config.batchSize !== d.batchSize,
     config.kvQuantization !== d.kvQuantization,

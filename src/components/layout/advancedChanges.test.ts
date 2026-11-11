@@ -71,3 +71,11 @@ describe('countAdvancedChanges', () => {
     ).toBe(1)
   })
 })
+
+describe('countAdvancedChanges in sizing', () => {
+  it('ignores the inputs Sizing hides and counts the ones it shows', () => {
+    const sizing = { ...DEFAULT_UI_CONFIG, mode: 'sizing' as const }
+    expect(countAdvancedChanges({ ...sizing, batchSize: 8, offloadingEnabled: true })).toBe(0)
+    expect(countAdvancedChanges({ ...sizing, kvQuantization: 'fp8' })).toBe(1)
+  })
+})

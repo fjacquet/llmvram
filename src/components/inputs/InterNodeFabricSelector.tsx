@@ -13,13 +13,15 @@ import { useUIStore } from '@store/uiStore'
  */
 export function InterNodeFabricSelector() {
   const numGPUs = useUIStore((s) => s.numGPUs)
+  const mode = useUIStore((s) => s.mode)
   const numNodes = useUIStore((s) => s.numNodes)
   const interNodeFabric = useUIStore((s) => s.interNodeFabric)
   const setInterNodeFabric = useUIStore((s) => s.setInterNodeFabric)
   const customFabric = useUIStore((s) => s.customFabric)
   const setCustomFabric = useUIStore((s) => s.setCustomFabric)
 
-  if (numNodes <= 1) {
+  // Sizing picks the server count itself, so the fabric is always relevant there
+  if (mode !== 'sizing' && numNodes <= 1) {
     return null
   }
 

@@ -5,6 +5,7 @@ import {
   type ConfigMode,
   type Correction,
   DEFAULT_RULE_CONFIG,
+  isRackGPU,
   type Notice,
   type NoticeSource,
   normalizeConfig,
@@ -14,7 +15,6 @@ import {
 import { resolveFabricSpec } from '@engines/fabric'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
 import type { KVTierSettings } from '@engines/kv-tier'
-import { isRackGPU } from '@engines/sizing'
 import type {
   FabricType,
   FineTuningMethod,

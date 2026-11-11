@@ -13,10 +13,12 @@
 
 import { resolveFabricSpec } from '../engines/fabric'
 import { calculateInferenceVRAM } from '../engines/inference'
+import type { KVTierSettings } from '../engines/kv-tier'
 import { validateInterconnect } from '../engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '../engines/multi-node'
 import { calculateOffloadedVRAM, hostLinkGBps, offloadWeightFraction } from '../engines/offloading'
 import { estimatePerformance } from '../engines/performance'
+import { sizeDeployment } from '../engines/sizing'
 import type {
   FabricType,
   KVCachePrecision,
@@ -26,6 +28,7 @@ import type {
   ShardingStrategy,
 } from '../engines/types'
 import type { CustomFabricInput, GPU, Model } from '../utils/schemas'
+import { serializeSizingResult } from './sizing-serialize'
 
 /**
  * Request message for calculation
@@ -137,7 +140,23 @@ interface CalculationErrorResponse {
   error: string
 }
 
-type WorkerMessage = CalculationRequest
+/** Sizing request: the solver picks replica shape and unit count, so no GPU counts here */
+interface SizingRequest {
+  type: 'CALCULATE_SIZING'
+  payload: {
+    model: Model
+    gpu: GPU
+    quantization: QuantizationFormat
+    kvQuantization: KVCachePrecision
+    sequenceLength: number
+    users: number
+    interNodeFabric: FabricType
+    customFabric: CustomFabricInput | null
+    kvTier: KVTierSettings
+  }
+}
+
+type WorkerMessage = CalculationRequest | SizingRequest
 
 /**
  * Message handler
@@ -145,7 +164,26 @@ type WorkerMessage = CalculationRequest
  * Listens for CALCULATE_INFERENCE messages, runs calculations, and posts results.
  */
 self.onmessage = (event: MessageEvent<WorkerMessage>) => {
-  const { type, payload } = event.data
+  const message = event.data
+
+  if (message.type === 'CALCULATE_SIZING') {
+    try {
+      const { interNodeFabric, customFabric, ...rest } = message.payload
+      const result = sizeDeployment({
+        ...rest,
+        fabric: resolveFabricSpec(interNodeFabric, customFabric),
+      })
+      self.postMessage({ type: 'SIZING_RESULT', result: serializeSizingResult(result) })
+    } catch (error) {
+      self.postMessage({
+        type: 'CALCULATION_ERROR',
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+    return
+  }
+
+  const { type, payload } = message
 
   if (type === 'CALCULATE_INFERENCE') {
     try {

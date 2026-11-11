@@ -4,6 +4,7 @@ import { MemoryBreakdownTable } from '@components/outputs/MemoryBreakdownTable'
 import { MultiGPUBreakdownChart } from '@components/outputs/MultiGPUBreakdownChart'
 import { PerformanceSection } from '@components/outputs/PerformanceSection'
 import { Recommendations } from '@components/outputs/Recommendations'
+import { SizingResults } from '@components/outputs/SizingResults'
 import { SoftWarnings } from '@components/outputs/SoftWarnings'
 import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownChart'
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
@@ -19,6 +20,7 @@ import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
 import { useResultExports } from '@hooks/useResultExports'
+import { useSizingCalculation } from '@hooks/useSizingCalculation'
 import { useTrainingCalculation } from '@hooks/useTrainingCalculation'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
@@ -34,6 +36,39 @@ import { toast } from 'sonner'
  * Supports multi-GPU and offloading configurations.
  */
 export function ResultsPanel() {
+  const mode = useUIStore((s) => s.mode)
+  return mode === 'sizing' ? <SizingPanel /> : <InferenceTrainingPanel />
+}
+
+/** Sizing mode: its own hook, so the inference calculation does not run alongside it */
+function SizingPanel() {
+  const selectedGPU = useUIStore((s) => s.selectedGPU)
+  const selectedModel = useUIStore((s) => s.selectedModel)
+  const kvTier = useUIStore((s) => s.kvTier)
+  const { result, isCalculating, error } = useSizingCalculation()
+
+  useEffect(() => {
+    if (error) toast.error(error)
+  }, [error])
+
+  if (!selectedModel || !selectedGPU) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center text-lg font-medium text-gray-500 dark:text-gray-400">
+        Select a model and GPU to size a deployment
+      </div>
+    )
+  }
+  if (isCalculating || !result) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="h-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+      </div>
+    )
+  }
+  return <SizingResults result={result} gpu={selectedGPU} kvTier={kvTier} />
+}
+
+function InferenceTrainingPanel() {
   // Read all selections from store
   const {
     mode,

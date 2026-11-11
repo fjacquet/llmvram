@@ -11,7 +11,6 @@ import {
   type KVTierSettings,
   type KVTierType,
 } from './kv-tier'
-import { isRackGPU } from './sizing'
 import type { OffloadTarget, ShardingStrategy } from './types'
 
 /**
@@ -20,7 +19,8 @@ import type { OffloadTarget, ShardingStrategy } from './types'
  * Every input dependency lives in RULES. normalizeConfig applies the rules live in
  * the current mode until nothing changes, so a field that is hidden as inert is
  * never corrected. Every correction is a constant or a clamp toward model/GPU data,
- * which no rule writes, so the loop converges in at most 3 passes in any rule order.
+ * which no rule writes, so the loop converges in at most 3 passes. Order independence holds within
+ * a mode; R15 (rack GPU -> sizing) must run before the mode-gated rules.
  * Engine throws stay as a backstop only.
  */
 
@@ -256,7 +256,8 @@ function rangeCheck(bounds: readonly RangeBound[]): Rule['check'] {
 
 /**
  * The hard rules. Order is the dependency order (R1 and R2 before R14, R7 before R8),
- * but normalizeConfig loops to a fixpoint, so any order gives the same result.
+ * but normalizeConfig loops to a fixpoint, so order does not matter within a mode.
+ * R15 (rack GPU -> sizing) must run before the mode-gated rules.
  */
 export const RULES: readonly Rule[] = [
   {
@@ -629,6 +630,11 @@ export function normalizeConfig<C extends RuleConfig>(
 }
 
 /** Rack GPUs are selectable in Sizing only (R15); the selector lists what this allows */
+/** A GPU sold as a rack (NVL72) rather than an 8-way server */
+export function isRackGPU(gpu: GPU): boolean {
+  return gpu.max_gpus_per_node > 8
+}
+
 export function gpuAllowed(mode: ConfigMode, gpu: GPU): boolean {
   return mode === 'sizing' || !isRackGPU(gpu)
 }

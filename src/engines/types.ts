@@ -512,6 +512,8 @@ export interface ReplicaCandidate {
   tierOverloaded: boolean
   /** Resume time of one parked session; null when no tier is used */
   resumeSeconds: number | null
+  /** Ceiling prefill of one parked session, the alternative to resuming it; null when no tier is used */
+  recomputeSeconds: number | null
   perUserTokensPerSecond: Decimal
   perUserCeilingTokensPerSecond: Decimal
   timeToFirstToken: Decimal

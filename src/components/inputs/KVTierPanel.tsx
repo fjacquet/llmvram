@@ -1,4 +1,5 @@
 import { InfoTip } from '@components/common/InfoTip'
+import { isRackGPU } from '@engines/config-rules'
 import { graceLinkGBps, KV_TIER_PRESETS, type KVTierType } from '@engines/kv-tier'
 import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
@@ -58,6 +59,7 @@ export function KVTierPanel() {
   const kvTier = useUIStore((s) => s.kvTier)
   const setKVTier = useUIStore((s) => s.setKVTier)
   const selectedGPU = useUIStore((s) => s.selectedGPU)
+  const mode = useUIStore((s) => s.mode)
   const preset = kvTier.tier === 'none' ? null : KV_TIER_PRESETS[kvTier.tier]
   // Grace-host bandwidth depends on which Grace GPU is selected (194 NVL72,
   // 396 Desktop Superchip) — resolve it once and use it everywhere the
@@ -126,7 +128,12 @@ export function KVTierPanel() {
             }}
           />
           <NumberField
-            label="Tier capacity (TB)"
+            label={
+              // Sizing splits the capacity across the replicas of one server or rack
+              mode === 'sizing'
+                ? `Tier capacity per ${selectedGPU && isRackGPU(selectedGPU) ? 'rack' : 'server'} (TB)`
+                : 'Tier capacity (TB)'
+            }
             min={0}
             placeholder="unlimited"
             value={kvTier.capacityTB}

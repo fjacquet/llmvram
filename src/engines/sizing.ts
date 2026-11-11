@@ -1,18 +1,13 @@
 import type { GPU, Model } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 import { fitsInference, maxConcurrentSessions } from './concurrency'
-import { validTPDegrees } from './config-rules'
+import { isRackGPU, validTPDegrees } from './config-rules'
 import { GPU_MEMORY_UTILIZATION } from './constants'
 import { calculateInferenceVRAM } from './inference'
 import { clampKVTier, kvTierSummary } from './kv-tier'
 import { calculateMultiNodeVRAM } from './multi-node'
 import { estimatePerformance } from './performance'
 import type { ReplicaCandidate, SizingInput, SizingResult, SizingUnit } from './types'
-
-/** A GPU sold as a rack (NVL72) rather than an 8-way server */
-export function isRackGPU(gpu: GPU): boolean {
-  return gpu.max_gpus_per_node > 8
-}
 
 /** Every replica shape vLLM accepts: TP inside one server/rack, plus full servers as pipeline stages */
 export function replicaCandidates(model: Model, gpu: GPU): Array<{ tp: number; nodes: number }> {
@@ -80,6 +75,19 @@ export function evaluateReplica(
     ...clamped,
     capacityTB: clamped.capacityTB === null ? null : clamped.capacityTB / replicasPerUnit,
   }
+  // ceiling prefill at one session, as in Inference
+  const recomputeSeconds =
+    memorySessions === null
+      ? null
+      : (estimatePerformance({
+          model,
+          gpu,
+          quantization,
+          sequenceLength,
+          batchSize: 1,
+          kvQuantization,
+          multiGPUResult: one.multi,
+        }).prefillSeconds?.toNumber() ?? null)
   const tier =
     memorySessions === null
       ? null
@@ -95,17 +103,7 @@ export function evaluateReplica(
             numNodes: nodes,
             numGPUs: tp * nodes,
           },
-          // ceiling prefill at one session, as in Inference
-          recomputeSeconds:
-            estimatePerformance({
-              model,
-              gpu,
-              quantization,
-              sequenceLength,
-              batchSize: 1,
-              kvQuantization,
-              multiGPUResult: one.multi,
-            }).prefillSeconds?.toNumber() ?? null,
+          recomputeSeconds,
           gpuId: gpu.id,
         })
   // An overloaded tier cannot sustain the churn: keep the HBM-only count
@@ -136,6 +134,7 @@ export function evaluateReplica(
     tierUsed: used ? settings.tier : null,
     tierOverloaded: tier?.overloaded ?? false,
     resumeSeconds: used?.resumeSeconds ?? null,
+    recomputeSeconds: used ? recomputeSeconds : null,
     perUserTokensPerSecond: perUser(perf.expected.tokensPerSecond),
     perUserCeilingTokensPerSecond: perUser(perf.tokensPerSecond),
     timeToFirstToken: perf.expected.timeToFirstToken,
