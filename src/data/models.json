@@ -561,6 +561,18 @@
     "sparse_indexer_layers": 21,
     "active_parameters_billion": 51.2,
     "weight_refs": {
+      "bf16": {
+        "repo": "zai-org/GLM-5.3-BF16",
+        "gib": 1403.19
+      },
+      "nvfp4": {
+        "repo": "nvidia/GLM-5.3-NVFP4",
+        "gib": 432.27,
+        "high_precision": {
+          "params_b": 27.875,
+          "gib": 51.92
+        }
+      },
       "fp8": {
         "repo": "zai-org/GLM-5.3",
         "gib": 703.74,
@@ -569,12 +581,12 @@
           "gib": 3.92
         }
       },
-      "nvfp4": {
-        "repo": "nvidia/GLM-5.3-NVFP4",
-        "gib": 432.27,
+      "awq": {
+        "repo": "cyankiwi/GLM-5.3-AWQ-INT4",
+        "gib": 454.65,
         "high_precision": {
-          "params_b": 27.875,
-          "gib": 51.92
+          "params_b": 37.012,
+          "gib": 68.94
         }
       },
       "gguf-q8_0": {
