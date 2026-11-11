@@ -3,13 +3,13 @@ import modelsData from '@data/models.json'
 import type { GPU, Model } from '@utils/schemas'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
-import { maxConcurrentSessions } from './concurrency'
+import { fitsInference, maxConcurrentSessions } from './concurrency'
 import { isRackGPU, validTPDegrees } from './config-rules'
 import { resolveFabricSpec } from './fabric'
 import { calculateInferenceVRAM } from './inference'
 import { DEFAULT_KV_TIER, kvTierSummary } from './kv-tier'
 import { estimatePerformance } from './performance'
-import { evaluateReplica, replicaCandidates, sizeDeployment } from './sizing'
+import { evaluateReplica, perGPUBreakdown, replicaCandidates, sizeDeployment } from './sizing'
 import type { SizingInput } from './types'
 
 const models = validateModels(modelsData)
@@ -304,5 +304,39 @@ describe('KV storage tier', () => {
       direct.expected.tokensPerSecond.div(c.decodeBatch).toNumber(),
       6,
     )
+  })
+})
+
+describe('activations at the real batch (final review C2)', () => {
+  const llama70 = model('meta-llama-llama-3.3-70b')
+  const at = (g: string, ctx: number, users: number, q: SizingInput['quantization']) =>
+    sizeDeployment({ ...input(llama70, gpu(g), users, q), sequenceLength: ctx })
+
+  // 2026-11-11, sizing final review C2: was 1 server, now 2 because the one-session
+  // breakdown sized activations at batch 1; at 100 users they hit their cap and the
+  // per-GPU fixed cost no longer leaves room for the KV the count assumed.
+  it('Llama 3.3 70B int4 on RTX 4090, 4096 context, 100 users: 2 servers', () => {
+    expect(at('nvidia-rtx-4090', 4096, 100, 'int4').units).toBe(2)
+  })
+
+  // 2026-11-11, sizing final review C2: was 3 servers, now 4, same cause.
+  it('Llama 3.3 70B fp8 on L40S, 1024 context, 3000 users: 4 servers', () => {
+    expect(at('nvidia-l40s', 1024, 3000, 'fp8').units).toBe(4)
+  })
+
+  it('the chosen candidate fits at its real batch', () => {
+    for (const [g, ctx, users, q] of [
+      ['nvidia-rtx-4090', 4096, 100, 'int4'],
+      ['nvidia-l40s', 1024, 3000, 'fp8'],
+      ['nvidia-h100-80gb-sxm', 8192, 500, 'fp16'],
+    ] as const) {
+      const r = at(g, ctx, users, q)
+      const c = r.chosen
+      expect(c).not.toBeNull()
+      if (!c) continue
+      const inp = { ...input(llama70, gpu(g), users, q), sequenceLength: ctx }
+      const real = perGPUBreakdown(inp, c.tp, c.nodes, c.hotSessions)
+      expect(fitsInference(real.perGPU.total.toNumber(), inp.gpu.vram_gb)).toBe(true)
+    }
   })
 })

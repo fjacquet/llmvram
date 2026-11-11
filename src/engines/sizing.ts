@@ -19,14 +19,23 @@ export function replicaCandidates(model: Model, gpu: GPU): Array<{ tp: number; n
   return [...single, ...stages]
 }
 
-/** Per-GPU memory of one replica at `sessions` simultaneous sessions (the worker's composition) */
-function perGPUBreakdown(input: SizingInput, tp: number, nodes: number, sessions: number) {
+/**
+ * Per-GPU memory of one replica at `sessions` simultaneous sessions (the worker's composition).
+ * `batch` sizes activations (vLLM runs the whole batch at once); KV follows `sessions`.
+ */
+export function perGPUBreakdown(
+  input: SizingInput,
+  tp: number,
+  nodes: number,
+  sessions: number,
+  batch = sessions,
+) {
   const { model, gpu, quantization, kvQuantization, sequenceLength, fabric } = input
   const single = calculateInferenceVRAM({
     model,
     quantization,
     sequenceLength,
-    batchSize: sessions,
+    batchSize: batch,
     kvQuantization,
     concurrentUsers: sessions,
   })
@@ -41,7 +50,7 @@ function perGPUBreakdown(input: SizingInput, tp: number, nodes: number, sessions
           intraNodeStrategy: 'tensor-parallel',
           gpu,
           fabric,
-          batchSize: sessions,
+          batchSize: batch,
           sequenceLength,
           quantization,
         })
@@ -55,7 +64,9 @@ export function evaluateReplica(
   nodes: number,
 ): ReplicaCandidate & { fits: boolean; lackingGB: number } {
   const { model, gpu, quantization, kvQuantization, sequenceLength, users } = input
-  const one = perGPUBreakdown(input, tp, nodes, 1)
+  // KV of one session, activations at the real batch (capped), so the count never assumes
+  // room the activations take
+  const one = perGPUBreakdown(input, tp, nodes, 1, Math.max(1, users))
   const totalPerGPUGB = one.perGPU.total.toNumber()
   const memorySessions = maxConcurrentSessions({
     totalPerGPUGB,
