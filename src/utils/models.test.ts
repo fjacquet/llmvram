@@ -343,7 +343,8 @@ describe('Model Database Validation', () => {
       // KDA: 63 of 72 layers. vLLM kda_state_shape (64 heads x 128, conv kernel 4 -> 3 columns):
       // conv 3 x 8192 x 3 bf16 + recurrent 64 x 128 x 128 fp32 (kda_state_dtype, mamba_ssm_cache_dtype
       // auto) = 147456 + 4194304 per layer. HF modeling_bailing_moe_v3.py: q/k/v conv1d states plus
-      // chunk_kda recurrent state, same layer split. fp32 recurrent is charged (K3 above is bf16)
+      // chunk_kda recurrent state, same layer split. fp32 recurrent is charged (K3 above is bf16):
+      // bailing_moe_v3.py get_state_dtype never passes mamba_ssm_cache_dtype, so auto = fp32
       'inclusionai-ling-3.1-flash': 273530880,
       // mamba2: conv (heads*head_dim + 2*8*128) x 3 bf16, recurrent heads x head_dim x 128 fp32
       'nvidia-nemotron-3-nano-30b-a3b': 49082368, // 23 mamba layers
