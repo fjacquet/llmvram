@@ -67,6 +67,8 @@ export function ModelSelector() {
       <span
         data-testid="origin-country"
         title={countryName(code)}
+        aria-label={countryName(code)}
+        role="img"
         className={`text-xs font-medium ${className}`}
       >
         {code}

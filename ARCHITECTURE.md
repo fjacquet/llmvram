@@ -407,6 +407,6 @@ Main Thread                    Worker Thread
 | `src/engines/multi-gpu.ts`             | Multi-GPU distribution                    |
 | `src/utils/schemas.ts`                 | Zod schemas (type source of truth)        |
 | `src/data/models.json`                 | 59 curated models (alphabetically sorted) |
-| `src/data/gpus.json`                   | 28 curated GPUs                           |
+| `src/data/gpus.json`                   | 32 curated GPUs                           |
 | `src/store/urlSerializer.ts`           | URL hash state persistence                |
 | `src/workers/calculation.worker.ts`    | Background calculation thread             |

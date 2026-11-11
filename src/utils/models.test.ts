@@ -195,7 +195,7 @@ describe('Model Database Validation', () => {
       // MLA: 9 of 72 layers x 576. vLLM bailing_moe_v3.py _is_kda_layer: (layer_idx + 1) % 8 == 0 is
       // MLA (cache = kv_lora_rank 512 + qk_rope_head_dim 64); card: "63 KDA + 9 Gated MLA (7:1)";
       // config.json g_proj only on layers 7, 15, ..., 71
-      'inclusionai-ling-3.1-flash': 5184,
+      'inclusionai-ling-3.1-flash-1019': 5184,
       'liquidai-lfm2.5-2.6b': 8192, // GQA: 8 of 30 layers x (8 kv heads x 64 head_dim x 2)
       'qwen-qwen3.8-27b': 32768, // GQA: 16 of 64 layers x (4 kv heads x 256 head_dim x 2)
       'qwen-qwen3.8-2.4t-a95b': 47104, // GQA: 23 of 92 layers x 2048
@@ -296,7 +296,7 @@ describe('Model Database Validation', () => {
       'deepseek-r1',
       'inclusionai-ling-3.0-flash',
       'inclusionai-ling-3.0-tiny',
-      'inclusionai-ling-3.1-flash',
+      'inclusionai-ling-3.1-flash-1019',
       'mistralai-mistral-large-3-675b',
       'mistralai-mistral-large-4-1t-a52b',
       'mistralai-mistral-small-4-119b',
@@ -332,20 +332,21 @@ describe('Model Database Validation', () => {
       'qwen-qwen3.6-35b-a3b': 64389120, // 30 layers, 32 v-heads
       'qwen-qwen3.8-27b': 153944064, // 48 layers, 48 v-heads
       'qwen-qwen3.8-2.4t-a95b': 587292672, // 69 layers, 128 v-heads
-      // KDA: conv q,k,v 3 x heads x 128 x 3, recurrent heads x 128 x 128, all bf16
-      'moonshotai-kimi-k3': 232316928, // 69 KDA layers, 96 heads
+      // 2026-11-11: recurrent state re-pinned to fp32 (vLLM kda_state_dtype auto; model classes never override).
+      // KDA: conv q,k,v 3 x heads x 128 x 3 bf16, recurrent heads x 128 x 128 fp32 (kda_state_dtype auto)
+      'moonshotai-kimi-k3': 449372160, // 69 x (221184 conv + 6291456 fp32 recurrent), 96 heads
       // K3.1 Pro linear_attn_config (kda_layers, head_dim 128, 96 heads) is identical to K3's
       // (config.json diff has no linear_attn_config change); vLLM kimi_k3 KDA state shape
-      'moonshotai-kimi-k3.1-pro': 232316928,
-      'moonshotai-kimi-linear-48b-a3b': 22446080, // 20 layers, 32 heads
-      'inclusionai-ling-3.0-flash': 39280640, // 35 of 42 (layer_group_size 6), 32 heads; single source
-      'inclusionai-ling-3.0-tiny': 10100736, // 18 of 24 (layer_group_size 4), 16 heads; single source
+      'moonshotai-kimi-k3.1-pro': 449372160,
+      'moonshotai-kimi-linear-48b-a3b': 43417600, // 20 x (73728 + 2097152), 20 layers, 32 heads
+      'inclusionai-ling-3.0-flash': 75980800, // 35 x (73728 + 2097152): 35 of 42 (layer_group_size 6), 32 heads; single source
+      'inclusionai-ling-3.0-tiny': 19537920, // 18 x (36864 + 1048576): 18 of 24 (layer_group_size 4), 16 heads; single source
       // KDA: 63 of 72 layers. vLLM kda_state_shape (64 heads x 128, conv kernel 4 -> 3 columns):
       // conv 3 x 8192 x 3 bf16 + recurrent 64 x 128 x 128 fp32 (kda_state_dtype, mamba_ssm_cache_dtype
       // auto) = 147456 + 4194304 per layer. HF modeling_bailing_moe_v3.py: q/k/v conv1d states plus
-      // chunk_kda recurrent state, same layer split. fp32 recurrent is charged (K3 above is bf16):
+      // chunk_kda recurrent state, same layer split. fp32 recurrent is charged (same for K3 above):
       // bailing_moe_v3.py get_state_dtype never passes mamba_ssm_cache_dtype, so auto = fp32
-      'inclusionai-ling-3.1-flash': 273530880,
+      'inclusionai-ling-3.1-flash-1019': 273530880,
       // mamba2: conv (heads*head_dim + 2*8*128) x 3 bf16, recurrent heads x head_dim x 128 fp32
       'nvidia-nemotron-3-nano-30b-a3b': 49082368, // 23 mamba layers
       'nvidia-nemotron-3-nano-4b': 83801088, // 21 layers, 96 x 80
@@ -427,6 +428,8 @@ describe('Model Database Validation', () => {
   })
 
   it('stores DeepSeek V4.1 Flash at the V4.1-Flash card figures', () => {
+    // Engram (196B) is charged in HBM although vLLM offloads it to host by default: safe direction
+    // (the split counts Engram as routed experts).
     // card (deepseek-ai/DeepSeek-V4.1-Flash, same config as -1017): 552B backbone + 196B Engram,
     // HF safetensors total 763.2B; activated 8B prefill / 16B decode (the decode figure is stored)
     const m = modelsData.find((x) => x.id === 'deepseek-ai-deepseek-v4.1-flash-1017')
@@ -437,7 +440,7 @@ describe('Model Database Validation', () => {
   it('stores Ling 3.1 Flash at the card figures', () => {
     // card: 560B total / 25B active; HF safetensors total 572.1B (8.17B of it is the MTP layer 72).
     // Stored total is the safetensors figure so measured bytes per parameter stay exact.
-    const m = modelsData.find((x) => x.id === 'inclusionai-ling-3.1-flash')
+    const m = modelsData.find((x) => x.id === 'inclusionai-ling-3.1-flash-1019')
     expect(m?.num_parameters_billion).toBe(572.1)
     expect(m?.active_parameters_billion).toBe(25)
     expect(m?.context_length).toBe(262144) // config max_position_embeddings (card says 1M)

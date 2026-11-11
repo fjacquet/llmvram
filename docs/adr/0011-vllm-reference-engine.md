@@ -26,6 +26,7 @@ ZML was raised as a question (2026-11).
   published vLLM runs (ADR 0009, ADR 0010).
 - **Roster:** a model joins only if vLLM has a model class for it and its KV
   layout can be sourced twice. Otherwise it is skipped and reported.
+  Mistral Large 4 is the exception: it entered pending upstream vLLM support (PR #64534). ERNIE 5.5 Flash Base, LongCat 2.5 and GLM 5.3 Flash were skipped under this rule.
 
 ## Consequences
 

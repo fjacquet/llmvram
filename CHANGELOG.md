@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking changes
 
+- Linear-attention state is charged at fp32 recurrent for Kimi K3, Kimi Linear and Ling 3.0 (vLLM kda_state_dtype auto = float32): fewer sessions. A deployment setting `--mamba-ssm-cache-dtype bfloat16` needs less than shown.
 - Headline speed is now the expected figure, the theoretical ceiling shown beside it (ADR 0009). Decode tok/s is the ceiling x 0.47 (median of 512 vLLM points); TTFT and prefill are the ceiling / 0.469 (median of 62), about 2.13x longer. Sizing counts are set by memory; the speed shown is expected, with the ceiling beside it.
 - Inference fits at 90% of VRAM (`gpu_memory_utilization`), not 100%. Tiers: comfortable up to 80%, tight up to 90%, else does not fit. Training is unchanged (80/95 of VRAM). A shared link that fit between 90% and 100% now reads "does not fit". The fit bar and the multi-GPU bar mark the 90% line; the multi-GPU bar's colour and headroom follow it; Recommendations size GPU counts and upgrade cards at 90%, so some advise one more GPU (Devstral 2 123B fp16 at 8k on H100: 4x, was 3x).
 - Mistral Large 3 KV per token is 35,136 (was overstated about 24.9x): sessions up about 25x. Nemotron Ultra KV is 131,072 (was 2.5x over): sessions up about 2.5x.
@@ -27,8 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Roster refresh (55 → 59 models), each with measured weights where official checkpoints exist and KV values confirmed by vLLM source plus the model card:
   - GLM 5.3 (DSA, 753.3B, bf16/fp8/awq/nvfp4/GGUF refs);
   - Kimi K3.1 Pro (2.8T, DSA over K3's hybrid layout, mxfp4/nvfp4 refs);
-  - DeepSeek V4.1 Flash-1017 (763.2B including 196B Engram tables, mxfp4/nvfp4 refs; sparse reads not modelled, KV charged in full, which overstates memory);
-  - Ling 3.1 Flash-1019 (572.1B including the MTP layer, 63 KDA + 9 MLA layers, fp8 and GGUF refs).
+  - DeepSeek V4.1 Flash (1017) (763.2B including 196B Engram tables, mxfp4/nvfp4 refs; the Engram tables are charged in HBM (vLLM offloads them to host by default) and KV at the chosen dtype (card: 890 B per token), both overstating memory. Sparse reads are not modelled, which understates speed);
+  - Ling 3.1 Flash (1019) (572.1B including the MTP layer, 63 KDA + 9 MLA layers, fp8 and GGUF refs).
   - Skipped because vLLM main has no in-tree model class or the KV layout has no second source: GLM 5.3 Flash, ERNIE 5.5 Flash Base, LongCat 2.5. They return when vLLM supports them.
 - Publisher country of origin shown as an ISO code (hover for the country name) in the model selector. It is the publisher's headquarters, not where a model was trained, and not a measure of bias.
 - ADR 0011: vLLM is the reference engine.

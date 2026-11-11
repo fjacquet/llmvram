@@ -34,6 +34,7 @@ describe('ModelSelector publisher country', () => {
     const badge = option?.querySelector('[data-testid="origin-country"]')
     expect(badge?.textContent).toBe('FR')
     expect(badge?.getAttribute('title')).toBe('France')
+    expect(badge?.getAttribute('aria-label')).toBe('France')
   })
 
   it('shows no code for a custom model', () => {

@@ -403,7 +403,7 @@ describe.each([
   'zai-org-glm-5.3',
   'moonshotai-kimi-k3.1-pro',
   'deepseek-ai-deepseek-v4.1-flash-1017',
-  'inclusionai-ling-3.1-flash',
+  'inclusionai-ling-3.1-flash-1019',
 ])('%s sizes', (id) => {
   it.each([
     ['server', 'nvidia-h100-80gb-sxm'],
