@@ -108,6 +108,12 @@ export function GuidePage() {
             recommendations.
           </li>
         </ol>
+        <P>
+          <strong>Reference engine: vLLM.</strong> Memory (90% utilisation, KV layout, the
+          tensor-parallel degrees offered) and the measured efficiencies follow vLLM. Other engines
+          such as TensorRT-LLM, SGLang or llama.cpp will differ, so read their figures as
+          indicative.
+        </P>
 
         {/* What's new in 2.0 */}
         <SectionHeading id="whats-new">What&apos;s new in 2.0</SectionHeading>

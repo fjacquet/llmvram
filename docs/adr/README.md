@@ -16,3 +16,4 @@ Proposed, Accepted or Superseded. Detailed designs live in
 | [0008](0008-per-precision-compute-and-usable-rack-memory.md)   | Compute at the tensor core vLLM runs each format on; usable memory for rack GPUs                        | Accepted           |
 | [0009](0009-calibrated-expected-speed-and-sparse-attention.md) | Expected speed from measured vLLM efficiency beside the ceiling; sparse attention; inference fit at 90% | Accepted           |
 | [0010](0010-sizing-mode.md)                                    | Sizing mode, decode efficiency by load band, FP8 DSA KV                                                 | Accepted           |
+| [0011](0011-vllm-reference-engine.md)                          | vLLM is the reference engine: memory, KV layout, TP degrees and calibration follow it                   | Accepted           |

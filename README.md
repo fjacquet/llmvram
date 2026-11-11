@@ -13,6 +13,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
 
 ## Features
 
+> **Reference engine: vLLM.** Memory (90% utilisation, KV layout, tensor-parallel degrees) and the measured efficiencies follow vLLM. Other engines (TensorRT-LLM, SGLang, llama.cpp) will differ; treat their figures as indicative. See [ADR 0011](docs/adr/0011-vllm-reference-engine.md).
 - **VRAM Estimation**: Model weights, KV cache, activations, and framework overhead
 - **24 Quantization Formats**: FP32, FP16, BF16, FP8, MXFP4, INT8, INT4, NF4, GPTQ, AWQ, GGUF Q2-Q8, NVFP4/6
 - **Measured weights**: weight sizes come from published checkpoints per format where one exists, and the results say whether a figure is measured or estimated
