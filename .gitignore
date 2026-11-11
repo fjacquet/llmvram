@@ -57,3 +57,7 @@ AGENTS.md
 
 # Superpowers/SDD session scaffolding (plans, briefs, review diffs, ledgers).
 .superpowers/
+
+# Serena (local tooling)
+.serena/
+.playwright-mcp/
