@@ -7,9 +7,9 @@
 ## Context
 
 Presales needs the inverse question: given a model and N simultaneous users, how
-many racks or servers? ADR 0009 left three items open before that could be built:
-the FP8 MLA KV size, the Recommendations GPU counts, and a flat decode
-efficiency that is optimistic at the concurrency rack sizing uses.
+many racks or servers? ADR 0009 left two items open before that could be built:
+the FP8 MLA KV size and a flat decode efficiency that is optimistic at the
+concurrency rack sizing uses.
 
 ## Decision
 
@@ -42,7 +42,8 @@ efficiency that is optimistic at the concurrency rack sizing uses.
   - Fit at 1 session via `fitsInference`. Sessions per replica come from `maxConcurrentSessions`, capped at users. Speed is taken at batch = sessions.
   - Units: a rack or server holds `floor(max / tp)` replicas; a multi-server replica takes `replicas x nodes` servers.
   - Tie-break, in order: units, total GPUs, replica size. Idle GPUs are shown.
-  - Examples: deepseek-v4-pro fp16 on GB300 is TP16, 4 per rack, 8 idle. kimi-k3 fp16 on GB200 is TP48, 1 per rack, 24 idle, 8 racks.
+  - Activations are sized at the real batch (users, capped), KV per session, so a count never assumes room the activations take (final review C2).
+  - Examples (fp16, 8k context, 2000 users): deepseek-v4-pro on GB300 is TP16, 4 per rack, 8 idle. kimi-k3 on GB200 is TP48, 1 per rack, 24 idle, 8 racks.
 - **D6 KV tier in Sizing** (user decision; it also keeps the host-grace tier reachable).
   - Open sessions come from `kvTierSummary.sessionsHeld`.
   - Decode batch = min(hot, ceil(open x activeShare)), only when sessions are actually parked (open > hot). An overloaded tier falls back to HBM only.
@@ -54,12 +55,19 @@ efficiency that is optimistic at the concurrency rack sizing uses.
 
 ## Consequences
 
-- Expected decode falls at batch > 32. Rack counts use the expected figure.
-- FP8 KV on GLM 5.2 and Mistral Large 4 holds 656/576 more bytes: about 12% fewer sessions.
+- Expected decode falls at batch > 32. Counts are set by memory (90% vLLM limit); the speed shown is expected, with the theoretical ceiling beside it.
+- FP8 KV on GLM 5.2 and Mistral Large 4 holds 656/576 more bytes: about 10-12% fewer sessions.
 - Rack GPUs disappear from Inference and Training (breaking); old links with them open in Sizing.
 - Recommendations may advise one more GPU where the count was not a valid TP degree.
 
-Open items: the > 128 band has one point; EP across a rack is not modelled, so MoE racks size by TP and pipeline only.
+Open items:
+- The > 128 band has one point; a decode batch above 256 needs `--max-num-seqs` raised (soft note shown).
+- EP across a rack is not modelled, so MoE racks size by TP and pipeline only.
+- `slidingWindowKV` and the dense fallback bypass `kvElementBytes` (unreachable today).
+- The results skeleton flickers on keystrokes.
+- "Does not fit" cannot be exported.
+- The decode-speed step at batch 129 follows the banding (user decision).
+- A custom GPU without bandwidth shows 0 tok/s.
 
 ## Sources
 

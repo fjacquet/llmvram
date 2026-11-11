@@ -1,6 +1,6 @@
 # vLLM efficiency points (2026-11-11)
 
-Source data for `DECODE_EFFICIENCY` and `PREFILL_EFFICIENCY` in `src/engines/constants.ts`
+Source data for `DECODE_EFFICIENCY_BANDS` and `PREFILL_EFFICIENCY` in `src/engines/constants.ts`
 (spec `docs/superpowers/specs/2026-11-11-calibration-sparse-attention-design.md`, P1). Each
 constant is the **median** of its accepted points (user decision 2026-11-11, replacing the spec's
 earlier "pessimistic end" rule). The median is the sorted value at index floor(0.5 x (n - 1)),
@@ -21,10 +21,14 @@ p = sorted value at index floor(p x (n - 1)).
 
 | Concurrency | n   | median | Used               |
 | ----------- | --- | ------ | ------------------ |
-| 2-8         | 203 | 0.481  | 0.47 (batch <= 32) |
-| 9-32        | 188 | 0.472  | 0.47 (batch <= 32) |
-| 33-128      | 103 | 0.425  | 0.425              |
+| 1           | 3   | 0.62   | 0.47 (batch <= 32) |
+| 2-8         | 209 | 0.485  | 0.47 (batch <= 32) |
+| 9-32        | 192 | 0.472  | 0.47 (batch <= 32) |
+| 33-128      | 107 | 0.423  | 0.425              |
 | > 128       | 1   | 0.252  | 0.25, provisional  |
+
+The bands total 512 points. An earlier table counted 203 / 188 / 103; it was recounted on
+2026-11-11 (final review). The constants are the user's decision and did not move.
 
 **Ratios above 1.** An individual ratio may exceed 1. That only means the run beat the engine's
 ceiling, which assumes 0.45 MFU. Only the published constant must lie in (0, 1]. Four accepted

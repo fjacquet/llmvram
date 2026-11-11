@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking changes
 
-- Headline speed is now the expected figure, the theoretical ceiling shown beside it (ADR 0009). Decode tok/s is the ceiling x 0.47 (median of 512 vLLM points); TTFT and prefill are the ceiling / 0.469 (median of 62), about 2.13x longer. Rack counts will use expected.
+- Headline speed is now the expected figure, the theoretical ceiling shown beside it (ADR 0009). Decode tok/s is the ceiling x 0.47 (median of 512 vLLM points); TTFT and prefill are the ceiling / 0.469 (median of 62), about 2.13x longer. Sizing counts are set by memory; the speed shown is expected, with the ceiling beside it.
 - Inference fits at 90% of VRAM (`gpu_memory_utilization`), not 100%. Tiers: comfortable up to 80%, tight up to 90%, else does not fit. Training is unchanged (80/95 of VRAM). A shared link that fit between 90% and 100% now reads "does not fit". The fit bar and the multi-GPU bar mark the 90% line; the multi-GPU bar's colour and headroom follow it; Recommendations size GPU counts and upgrade cards at 90%, so some advise one more GPU (Devstral 2 123B fp16 at 8k on H100: 4x, was 3x).
 - Mistral Large 3 KV per token is 35,136 (was overstated about 24.9x): sessions up about 25x. Nemotron Ultra KV is 131,072 (was 2.5x over): sessions up about 2.5x.
 - GLM 5.2 long-context decode and prefill are faster: sparse attention reads at most 2048 KV positions. DeepSeek V4 long-context speed does NOT change; its compressed KV could not be modelled with confidence, so it stays on full-attention reads.
@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Sizing mode: racks or servers for a model and N simultaneous users, with replica split, idle GPUs and expected speed beside its ceiling; optional KV storage tier (the assumption drives the count and is shown in the UI and PPTX). In comparison and exports. ADR 0010.
+- Sizing mode: racks or servers for a model and N simultaneous users, with replica split, idle GPUs and expected speed beside its ceiling; optional KV storage tier (the assumption drives the count and is shown in the UI and PPTX). In comparison and exports. ADR 0010. Sizing sizes activations at the real batch (counts can rise: Llama 3.3 70B int4 on RTX 4090, 4k, 100 users is 2 servers, was 1), runs the KV tier rules (host-grace resets to none on a GPU without a Grace host), keeps the fabric in shared links, notes `--max-num-seqs` above 256 decoding sequences, and Recommendations never advise a TP degree vLLM refuses.
 - Mistral Large 4 1T-A52B (1053.2B total, 52.3B active, MLA, KV 36,288) with measured fp8, nvfp4 and GGUF weights; pending upstream vLLM support (PR #64534). 55 models in total.
 - Sparse attention (DSA): model fields `sparse_attention_topk`, `sparse_indexer_bytes_per_token`, `sparse_indexer_heads`, `sparse_indexer_layers`, for GLM 5.2 and Mistral Large 4. Prefill main attention is 2·L·H·a·(2T − a) FLOPs, a = min(T, topk): query t attends min(t, topk) keys.
 - Expected vs ceiling speed in results, comparison and exports, with the committed calibration points in `docs/calibration/`.

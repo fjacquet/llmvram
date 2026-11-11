@@ -518,8 +518,10 @@ export const PREFILL_MFU_BY_PRECISION: Record<ComputePrecision, Decimal> = {
  * Decode efficiency by concurrency band (ADR 0010): measured vLLM decode speed / the roofline's
  * (spec P1). Expected tok/s = ceiling x decodeEfficiency(batch). Measured mean ITL against
  * engine ITL (batch / tok/s) at the measured mean context. Each band is the median of its
- * accepted points (user decision 2026-11-11): 2-8 0.481 (n=203), 9-32 0.472 (n=188), 33-128
- * 0.425 (n=103), above 128 0.252 (n=1, provisional). Bands up to 32 keep the overall median 0.47.
+ * accepted points (user decision 2026-11-11): 1 0.62 (n=3), 2-8 0.485 (n=209), 9-32 0.472
+ * (n=192), 33-128 0.423 (n=107), above 128 0.252 (n=1, provisional), 512 in all (recounted from the
+ * calibration doc table, 2026-11-11 final review). Bands up to 32 (n=404) keep the overall median
+ * 0.47; the published constants 0.47 / 0.425 / 0.25 are the user's decision.
  * Median = sorted value at index floor(0.5 (n - 1)).
  *
  * Sources: SemiAnalysis InferenceX (https://inferencex.semianalysis.com/api/v1/benchmarks),
@@ -536,8 +538,8 @@ export const DECODE_EFFICIENCY_BANDS: readonly {
   n: number
   provisional?: true
 }[] = [
-  { maxBatch: 32, efficiency: 0.47, n: 391 },
-  { maxBatch: 128, efficiency: 0.425, n: 103 },
+  { maxBatch: 32, efficiency: 0.47, n: 404 },
+  { maxBatch: 128, efficiency: 0.425, n: 107 },
   { maxBatch: Number.POSITIVE_INFINITY, efficiency: 0.25, n: 1, provisional: true },
 ]
 
