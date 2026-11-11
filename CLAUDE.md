@@ -13,6 +13,7 @@ npm run dev              # Start Vite dev server
 npm run build            # TypeScript check + Vite production build
 npm run typecheck        # TypeScript only (tsc -b --force, project-reference aware)
 npm run lint             # Biome check (lint + format validation)
+                         # the rtk wrapper can print a bogus "clean": run `./node_modules/.bin/biome check .` and read the full output before pushing (CI Lint fails on one format error)
 npm run lint:fix         # Biome auto-fix
 npm run format           # Biome format (write)
 npm run test             # Vitest in watch mode
@@ -55,6 +56,8 @@ scripts/          # Data refresh scripts (tsx) — fetch from HuggingFace, valid
 - **`numGPUs` is the parallel degree of one replica inside one server** (UI label "GPUs per replica (in one server)" in inference, "Number of GPUs" in training): total GPUs is `numGPUs × numNodes`, available as `MultiGPUVRAMBreakdown.numGPUs`. Any consumer displaying a GPU count must use the total, not the store field.
 - **`max_gpus_per_node` is a hard bound, `recommendedMaxTPDegree` is soft advice**: the first is a per-GPU field meaning "cannot be built" (8 for an HGX/OAM baseboard, 72 for GB300 NVL72, 1 for Apple Silicon); the second lives in `INTERCONNECT_SPECS` and means "buildable but scales badly". Both apply; neither replaces the other.
 - **`min_gpus_per_node` locks an HGX/OAM baseboard to its machine**: optional GPU field, 8 on exactly the SXM/OAM baseboards (H100 SXM, H200 SXM, B200, HGX B300, HGX Rubin NVL8, A100 SXM, MI300X/MI325X/MI350X/MI355X); PCIe cards and workstation parts stay free. R1 raises `numGPUs` to it (`minGPUsFor`), `allowedOptions` offers only that count, GPUCountSelector shows "8 GPUs (full machine)" with no slider. It wins over R14: a model whose heads do not divide by 8 (GLM 4.7 Flash, Gemma 3 1B) keeps 8 and gets soft warning W9 (use pipeline parallel). Results state per-GPU and total capacity (`totalCapacityLine`).
+- **A model joins the roster only if vLLM main has an in-tree model class and its KV/state layout is sourced twice** (ADR 0011: vLLM is the reference engine). Otherwise skip and report; out-of-tree plugins don't count (skipped: GLM 5.3 Flash, ERNIE 5.5 Flash Base, LongCat 2.5). New ids are the lowercased repo name, snapshot suffix included (`...-flash-1019`)
+- **`linear_state_bytes_per_session` charges the recurrent state at fp32** (vLLM `kda_state_dtype`: `mamba_ssm_cache_dtype` auto gives float32; conv state stays bf16): Kimi K3/K3.1/Linear, Ling 3.0/3.1
 - **Configuration rules live in one table**: `src/engines/config-rules.ts` (`RULES`, `normalizeConfig`, `allowedOptions`, `softWarnings`). Every store action goes through `commit()` in `uiStore.ts`, which normalizes the whole config once and writes `pendingNotice` (toasted by `useConfigNotices`); URL restore builds the whole config (`urlStateToConfig`) and calls `restoreConfig` once, with `fp` taken raw. Rules are mode-gated: a field hidden as inert is never corrected (Sizing hides offloading but shows the KV tier, so R3, R4 and the kvTier half of R6 run there). A new input must declare its rules in the table, and inputs offer only `allowedOptions` values.
 - **`nvlink_bridge` and `unified_memory` are GPU data**: a bridge carries a TP/EP group only while `groupSize <= nvlink_bridge.size`, so `resolveInterconnect(gpu, groupSize)` takes the group size and every consumer passes its own (TP/EP: GPUs per stage; badge and W2: `numGPUs`). `unified_memory` is the only source for "no separate host memory" (R6): never infer it from `interconnect === 'unified'` or the tier.
 - **Every correction is shown**: config-rules R1 clamps `numGPUs` to `max_gpus_per_node`, R14 snaps tensor-parallel degrees vLLM refuses (heads % t, KV-head rule), and every other hard rule corrects likewise; each action yields one toast ("Adjusted for …"), a restored link "Shared link adjusted". `clampGPUCount` remains only for Recommendations.
@@ -65,6 +68,10 @@ scripts/          # Data refresh scripts (tsx) — fetch from HuggingFace, valid
 - **Inference fits at 90% of VRAM**: `fitsInference` uses `GPU_MEMORY_UTILIZATION` (vLLM default). Training stays at 100% with 80/95 tiers. The utilisation % shown is still total / vram.
 - **Sparse attention (DSA) fields are optional model data**: `sparse_attention_topk`, `sparse_indexer_bytes_per_token`, `sparse_indexer_heads`, `sparse_indexer_layers`. Decode reads min(ctx, topk) KV plus the full indexer cache; prefill main attention is 2·L·H·a·(2T − a), a = min(T, topk), never 2·L·T·a·H; memory holds full KV plus the indexer per session (replicated per TP rank). Only GLM 5.2 and Mistral Large 4 carry them; DeepSeek V4 stays on full reads.
 - **Offloaded bytes are read over the host link every decode step**: `hostLinkGBps` (KV tier presets), capacity per server checked in the fit.
+
+## Releases
+
+A release is a PR (CHANGELOG `[Unreleased]` becomes the version and date, `package.json`, and `package-lock.json` lines 3 and 9), merged with `gh pr merge N --merge`, then an annotated tag `vX.Y.Z` on the merge commit (triggers `release.yml`; `deploy.yml` runs on main).
 
 ## Tech Stack & Config
 
