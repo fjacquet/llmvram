@@ -8,6 +8,7 @@ import { isRackGPU, validTPDegrees } from './config-rules'
 import { resolveFabricSpec } from './fabric'
 import { calculateInferenceVRAM } from './inference'
 import { DEFAULT_KV_TIER, kvTierSummary } from './kv-tier'
+import { calculateMultiGPUVRAM } from './multi-gpu'
 import { estimatePerformance } from './performance'
 import { evaluateReplica, perGPUBreakdown, replicaCandidates, sizeDeployment } from './sizing'
 import type { SizingInput } from './types'
@@ -346,5 +347,53 @@ describe('active share is the solver value (final review M2)', () => {
     const raw = { ...input(llama8b, h100, 1000), kvTier: { ...DEFAULT_KV_TIER, activeShare: 5 } }
     expect(evaluateReplica(raw, 1, 1).activeShare).toBe(1)
     expect(evaluateReplica(input(llama8b, h100, 1000), 1, 1).activeShare).toBe(0.25)
+  })
+})
+
+describe('final review I4: Review Focus cases', () => {
+  it('DSA model with FP8 KV: hot sessions equal the Inference composition at the same replica', () => {
+    const glm = model('zai-org-glm-5.2')
+    const users = 1000
+    const inp = {
+      ...input(glm, gb300, users, 'fp8'),
+      kvQuantization: 'fp8' as const,
+      sequenceLength: 32768,
+    }
+    const c = evaluateReplica(inp, 8, 1)
+    // Inference path: the same model, one replica of TP 8, activations at the real batch
+    const vram = calculateInferenceVRAM({
+      model: glm,
+      quantization: 'fp8',
+      sequenceLength: 32768,
+      batchSize: users,
+      kvQuantization: 'fp8',
+      concurrentUsers: 1,
+    })
+    const multi = calculateMultiGPUVRAM(
+      vram,
+      glm,
+      gb300.vram_gb,
+      8,
+      'tensor-parallel',
+      gb300,
+      'fp8',
+    )
+    const sessions = maxConcurrentSessions({
+      totalPerGPUGB: multi.perGPU.total.toNumber(),
+      kvPerGPUGB: multi.perGPU.kvCache.toNumber(),
+      concurrentUsers: 1,
+      gpuVramGB: gb300.vram_gb,
+    })
+    expect(sessions).not.toBeNull()
+    expect(c.hotSessions).toBe(Math.min(users, sessions ?? users))
+    // 2026-11-11, sizing final review I4: 97 sessions, as the probe found, recomputed by the engine
+    expect(c.hotSessions).toBe(97)
+  })
+
+  it('a single-GPU workstation part cannot hold Kimi K2: fits false, TP1 x 1, lacking GB', () => {
+    const r = sizeDeployment(input(model('moonshotai-kimi-k2-instruct'), gpu('nvidia-gb10'), 10))
+    expect(r.fits).toBe(false)
+    expect(r.closest?.candidate).toMatchObject({ tp: 1, nodes: 1 })
+    expect(r.closest?.lackingGB).toBeGreaterThan(0)
   })
 })
