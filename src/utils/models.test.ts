@@ -327,6 +327,37 @@ describe('Model Database Validation', () => {
     expect(actual).toEqual(EXOTIC_STATE)
   })
 
+  it('records the sparse attention (DSA) fields of exactly the DSA models', () => {
+    // [topk, indexer bytes per token, indexer heads, indexer layers].
+    // Source 1, HF config.json: index_topk, index_n_heads, index_head_dim 128, and the layers
+    // whose indexer_types entry is 'full' (vLLM compute_skip_topk_layers reads it first; the
+    // index_topk_freq 4 / index_skip_topk_offset 3 rule gives the same 21 of 78).
+    // Source 2, vLLM vllm/models/deepseek_v32/attention.py (GLM 5.2's CUDA path): the indexer
+    // cache is uint8, index_head_dim + index_head_dim / 128 x 4 = 132 bytes per token per layer
+    // that owns an indexer; 'shared' layers reuse the top-k and store nothing.
+    // DeepSeek V4 is left out on purpose: its top-k counts compressed positions on the C4 layers
+    // only (vllm/models/deepseek_v4/attention.py), C128 layers read every compressed entry, and
+    // its indexer key is already inside kv_cache_elements_per_token. One min(context, topk)
+    // over that figure would under-read; full reads are the safe direction.
+    const SPARSE: Record<string, [number, number, number, number]> = {
+      'zai-org-glm-5.2': [2048, 21 * 132, 32, 21],
+    }
+    const actual = Object.fromEntries(
+      models
+        .filter((m) => m.sparse_attention_topk !== undefined)
+        .map((m) => [
+          m.id,
+          [
+            m.sparse_attention_topk,
+            m.sparse_indexer_bytes_per_token,
+            m.sparse_indexer_heads,
+            m.sparse_indexer_layers,
+          ],
+        ]),
+    )
+    expect(actual).toEqual(SPARSE)
+  })
+
   it('stores DeepSeek V4 at its published parameter counts (arXiv 2606.19348)', () => {
     const flash = modelsData.find((m) => m.id === 'deepseek-v4-flash')
     const pro = modelsData.find((m) => m.id === 'deepseek-v4-pro')

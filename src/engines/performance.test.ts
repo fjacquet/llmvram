@@ -1769,11 +1769,19 @@ describe('estimatePerformance - compute rate per weight format (spec D5, D9)', (
 })
 
 describe('sparse attention (DSA): topk-bounded reads and FLOPs, indexer cache and scoring', () => {
-  const glm = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-5.2')
+  const row = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-5.2')
   const b200 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-b200-192gb')
-  if (!glm || !b200) throw new Error('fixture rows missing')
-  // Fixture only (Task 4 fills the real row): 132 bytes per token per indexer layer (vLLM uint8
-  // cache, index_head_dim 128 + 4 scale bytes); 21 layers and 32 heads are assumed counts.
+  if (!row || !b200) throw new Error('fixture rows missing')
+  // 2026-11-11: sparse attention (DSA). The real row now carries the fields; the dense baseline
+  // strips them so every comparison below keeps its meaning. 132 bytes per token per indexer
+  // layer x 21 layers, 32 heads: the values in models.json (sources in models.test.ts).
+  const {
+    sparse_attention_topk: _topk,
+    sparse_indexer_bytes_per_token: _bytes,
+    sparse_indexer_heads: _heads,
+    sparse_indexer_layers: _layers,
+    ...glm
+  } = row
   const indexerBytes = 21 * 132
   const sparse: Model = {
     ...glm,
@@ -1789,18 +1797,18 @@ describe('sparse attention (DSA): topk-bounded reads and FLOPs, indexer cache an
   const stepSeconds = (model: Model, T: number, gpu: GPU = b200) =>
     1 / run(model, T, gpu).tokensPerSecond.toNumber()
 
-  it('a model without sparse fields is unchanged (Review Focus 1)', () => {
-    // Captured before the change: GLM 5.2 fp8, 128k, batch 4, TP8 on B200
+  // GLM 5.2 fp8, 128k, batch 4, TP8 on B200
+  const headline = (model: Model) => {
     const vram = calculateInferenceVRAM({
-      model: glm,
+      model,
       quantization: 'fp8',
       sequenceLength: 131072,
       batchSize: 4,
       kvQuantization: 'fp8',
     })
-    const multi = calculateMultiGPUVRAM(vram, glm, 180, 8, 'tensor-parallel', b200, 'fp8')
+    const multi = calculateMultiGPUVRAM(vram, model, 180, 8, 'tensor-parallel', b200, 'fp8')
     const perf = estimatePerformance({
-      model: glm,
+      model,
       gpu: b200,
       quantization: 'fp8',
       sequenceLength: 131072,
@@ -1808,11 +1816,29 @@ describe('sparse attention (DSA): topk-bounded reads and FLOPs, indexer cache an
       kvQuantization: 'fp8',
       multiGPUResult: multi,
     })
+    return { vram, multi, perf }
+  }
+
+  it('a model without sparse fields is unchanged (Review Focus 1)', () => {
+    // Captured before the change
+    const { vram, multi, perf } = headline(glm)
     expect(vram.total.toNumber()).toBeCloseTo(726.7284643554688, 9)
     expect(multi.perGPU.total.toNumber()).toBeCloseTo(111.16449478149414, 9)
     expect(perf.tokensPerSecond.toNumber()).toBeCloseTo(616.2858022675886, 9)
     expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(2.949875593429219, 9)
     expect(perf.prefillBottleneck).toBe('attention')
+  })
+
+  it('the GLM 5.2 row is the scored fixture: faster at 128k, more memory', () => {
+    // 2026-11-11: sparse attention (DSA)
+    expect(row).toEqual(scored)
+    const { vram, multi, perf } = headline(row)
+    // Dense: 726.73 GiB, 111.16 per GPU, 616.29 tok/s, prefill 2.950 s attention-bound
+    expect(vram.total.toNumber()).toBeCloseTo(728.0819799804688, 9)
+    expect(multi.perGPU.total.toNumber()).toBeCloseTo(112.51801040649414, 9)
+    expect(perf.tokensPerSecond.toNumber()).toBeCloseTo(1059.9491923758633, 9)
+    expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(1.6391939203033423, 9)
+    expect(perf.prefillBottleneck).toBe('linear')
   })
 
   it('below topk equals full attention except the indexer cache in memory and reads (RF 2)', () => {

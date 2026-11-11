@@ -490,6 +490,10 @@
     "hf_url": "https://huggingface.co/zai-org/GLM-5.2",
     "kv_cache_elements_per_token": 44928,
     "use_mla": true,
+    "sparse_attention_topk": 2048,
+    "sparse_indexer_bytes_per_token": 2772,
+    "sparse_indexer_heads": 32,
+    "sparse_indexer_layers": 21,
     "active_parameters_billion": 51.2,
     "weight_refs": {
       "bf16": {

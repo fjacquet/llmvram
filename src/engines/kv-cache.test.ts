@@ -373,10 +373,18 @@ describe('calculateKVCacheVRAM - linear-attention state', () => {
 })
 
 describe('sparse attention (DSA) indexer cache and reads', () => {
-  const glm = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-5.2')
-  if (!glm) throw new Error('zai-org-glm-5.2 missing from models.json')
-  // Fixture only (Task 4 fills the real row): vLLM's indexer cache is uint8, index_head_dim 128
-  // plus 4 scale bytes = 132 bytes per token per indexer layer; 21 layers is an assumed count.
+  const row = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-5.2')
+  if (!row) throw new Error('zai-org-glm-5.2 missing from models.json')
+  // 2026-11-11: sparse attention (DSA). The real row now carries the fields; the dense baseline
+  // strips them. vLLM's indexer cache is uint8, index_head_dim 128 plus 4 scale bytes = 132 bytes
+  // per token per indexer layer, 21 layers (sources in models.test.ts).
+  const {
+    sparse_attention_topk: _topk,
+    sparse_indexer_bytes_per_token: _bytes,
+    sparse_indexer_heads: _heads,
+    sparse_indexer_layers: _layers,
+    ...glm
+  } = row
   const sparse: Model = {
     ...glm,
     sparse_attention_topk: 2048,
