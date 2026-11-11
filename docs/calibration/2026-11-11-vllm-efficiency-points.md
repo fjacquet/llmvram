@@ -17,20 +17,33 @@ p = sorted value at index floor(p x (n - 1)).
 | Prefill, as ruled: burst (c + 1) / 2, mean TTFT  | 62  | 0.219 | 0.311 | 0.520 | 0.747 | 1.020  |
 | Prefill, alternative: no correction, median TTFT | 62  | 0.118 | 0.186 | 0.213 | 0.361 | 0.494  |
 
-**Deviation from the ruled queueing correction.** The ruled correction (all c prompts arrive
-together, factor (c + 1) / 2) gives a prefill median of 1.020, which is above 1, and 33 of 62
-rows above 1. Two pieces of evidence say its premise does not fit this harness:
-- **Impossible utilisation.** On H200 FP8 TP1 at 8k, it implies 2.47 x the engine's 0.45 MFU,
-  which is 111% of the card's dense peak.
+**Ratios above 1.** An individual ratio may exceed 1. That only means the run beat the engine's
+ceiling, which assumes 0.45 MFU. Only the published constant must lie in (0, 1]. Four accepted
+rows exceed 1 with the factor used, and they are kept:
+- B200 NVFP4 TP1: 1.352;
+- H200 FP8 TP1: 1.137;
+- H200 FP8 TP2: 1.134;
+- H100 FP8 TP2: 1.126.
+
+Their implied utilisation is 51-61% of the dense peak the engine uses, which is physical.
+Rejecting them would bias the median down.
+
+**Deviation from the ruled queueing correction.** The ruled correction assumes all c prompts
+arrive together, with factor (c + 1) / 2. It was dropped because it is physically impossible on
+this harness, not because its ratios exceed 1:
+- **Over 100% of peak.** It implies more than 100% of the dense peak on 4 of 62 rows (ratio x
+  0.45 > 1). The worst is 2.94 x 0.45 = 132% (B200 NVFP4 TP1). On H200 FP8 TP1 at 8k it gives
+  2.47 x 0.45 = 111%.
 - **The harness is a closed loop.** It runs `--num-prompts 10c --max-concurrency c`, so only the
   first c of 10c prompts arrive together and the rest arrive staggered. The predicted mean
   factor is 0.9 + 0.1 x (c + 1) / 2, which is 1.15 at c4. Mean / median TTFT on that H200 row is
   1344.8 / 1165.9 = 1.15.
 
+Its median, 1.020, would also put the published constant outside (0, 1].
+
 The constant therefore uses the closed-loop factor against mean TTFT (median 0.469). The
-uncorrected engine prefill against median TTFT gives 0.494. The lower of the two is taken, per the
-standing "take the safer one" rule. With either, the highest FP8 ratio is 1.14, which is 51% of
-peak.
+uncorrected engine prefill against median TTFT gives 0.494. The lower of the two is taken, per
+the standing "take the safer one" rule.
 
 ## Sources
 
