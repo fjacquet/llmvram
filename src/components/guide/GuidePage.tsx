@@ -239,7 +239,9 @@ export function GuidePage() {
         <SectionHeading id="gpu-selection">GPU Selection</SectionHeading>
         <P>
           A searchable dropdown grouped by manufacturer (NVIDIA, AMD, Apple). Each GPU shows its
-          VRAM capacity and tier badge (DC = Datacenter, Consumer, Apple).
+          VRAM capacity and tier badge (DC = Datacenter, Consumer, Apple). Memory, bandwidth and
+          TFLOPS in the list are per GPU; multi-GPU machines also show the machine total (for
+          example 8 x 262 GB = 2.1 TB).
         </P>
         <P>
           <strong>Key specs that affect calculations:</strong> VRAM determines fit/no-fit. Memory

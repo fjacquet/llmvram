@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GPU selector labels memory, bandwidth and TFLOPS as per GPU, and shows the machine total for multi-GPU machines (8 x 262 GB = 2.1 TB). Machine names read "(8 GPUs, 262GB each)"; ids unchanged.
 - Roster refresh (55 → 59 models), each with measured weights where official checkpoints exist and KV values confirmed by vLLM source plus the model card:
   - GLM 5.3 (DSA, 753.3B, bf16/fp8/awq/nvfp4/GGUF refs);
   - Kimi K3.1 Pro (2.8T, DSA over K3's hybrid layout, mxfp4/nvfp4 refs);
