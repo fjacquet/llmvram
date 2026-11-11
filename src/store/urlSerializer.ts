@@ -245,10 +245,10 @@ export function serializeToURL(state: {
         }
       : {}),
 
-    // Multi-node (only when actually multi-node, to keep single-node links short)
-    ...(state.numNodes > 1
+    // Multi-node, or Sizing (it packs multi-server replicas): else links stay short
+    ...(state.numNodes > 1 || state.mode === 'sizing'
       ? {
-          nn: state.numNodes,
+          ...(state.numNodes > 1 ? { nn: state.numNodes } : {}),
           fab: state.interNodeFabric,
           ...(state.interNodeFabric === 'custom' && state.customFabric
             ? { fabc: state.customFabric }

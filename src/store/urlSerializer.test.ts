@@ -918,4 +918,18 @@ describe('sizing mode links (2026-11-11, sizing T5)', () => {
     expect(decoded?.tm).toBeUndefined()
     expect(decoded?.lr).toBeUndefined()
   })
+
+  // 2026-11-11, sizing final review I3: a Sizing link dropped the fabric because only
+  // numNodes > 1 wrote it; Sizing packs multi-server replicas, so the fabric is an input.
+  it('round-trips a non-default fabric in sizing mode at one node', () => {
+    const decoded = deserializeFromURL(
+      serializeToURL({
+        ...baseState,
+        mode: 'sizing',
+        selectedGPU: realGPU('nvidia-h100-80gb-sxm'),
+        interNodeFabric: 'ethernet-1600g',
+      }),
+    )
+    expect(decoded?.fab).toBe('ethernet-1600g')
+  })
 })
