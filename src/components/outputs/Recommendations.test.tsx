@@ -246,4 +246,18 @@ describe('Recommendations', () => {
     expect(screen.getByText(/2x Test GPU/)).toBeInTheDocument()
     expect(screen.queryByText(/3x Test GPU/)).not.toBeInTheDocument()
   })
+
+  it('advises for a config at 95% of the card: deficit is measured against the 90% limit', () => {
+    // 2026-11-11: fit at vLLM 0.9 (audit M4)
+    const { container } = render(
+      <Recommendations
+        gpu={gpu({ vram_gb: 80, max_gpus_per_node: 8 })}
+        breakdown={breakdown(76)}
+        currentQuantization="fp16"
+        currentSequenceLength={4096}
+      />,
+    )
+    expect(container).not.toBeEmptyDOMElement()
+    expect(container.textContent).toMatch(/4\.0\d* ?GB|4 ?GB/)
+  })
 })

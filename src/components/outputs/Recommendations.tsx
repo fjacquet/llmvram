@@ -1,4 +1,5 @@
-import { NCCL_BUFFER_PER_GPU_GB } from '@engines/constants'
+import { fitsInference } from '@engines/concurrency'
+import { GPU_MEMORY_UTILIZATION, NCCL_BUFFER_PER_GPU_GB } from '@engines/constants'
 import type {
   InferenceVRAMBreakdown,
   MultiGPUVRAMBreakdown,
@@ -33,7 +34,7 @@ export function Recommendations({
 }: RecommendationsProps) {
   const offloadingEnabled = useUIStore((s) => s.offloadingEnabled)
 
-  const deficit = breakdown.total.minus(gpu.vram_gb).toNumber()
+  const deficit = breakdown.total.minus(gpu.vram_gb * GPU_MEMORY_UTILIZATION).toNumber()
 
   // If model fits, don't show recommendations
   if (deficit <= 0) {
@@ -158,7 +159,11 @@ export function Recommendations({
   const gpusByMemory = Math.ceil(shardableGB / usablePerGPU)
 
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
-  if (numGPUs > 1 && multiGPUBreakdown && multiGPUBreakdown.totalPerGPU.greaterThan(gpu.vram_gb)) {
+  if (
+    numGPUs > 1 &&
+    multiGPUBreakdown &&
+    !fitsInference(multiGPUBreakdown.totalPerGPU.toNumber(), gpu.vram_gb)
+  ) {
     // numGPUs here is the CLUSTER TOTAL (ResultsPanel passes multiGPU.numGPUs),
     // so the ceiling is the whole cluster's, not one node's: max_gpus_per_node
     // GPUs in each of the nodes already configured. Clamping to the per-node

@@ -72,7 +72,24 @@ describe('ResultsPanel composition', () => {
     render(<ResultsPanel />)
     await screen.findAllByText(/\d+%/)
     expectSomeVisible(/Does Not Fit/)
-    expectSomeVisible(/^9[0-5]%$/) // fit under the old 100% rule, over vLLM's 90%
+    // the fit gauge (an <output>): 90-95% fit under the old 100% rule, not vLLM's 90%
+    expect(screen.getAllByRole('status')[0]?.textContent).toMatch(/Does Not Fit.*9[0-5]%/)
+  })
+
+  it('applies the 90% rule to the on-device share when offloading', async () => {
+    useUIStore.setState({
+      numGPUs: 1,
+      selectedGPU: gpu('nvidia-h100-80gb-sxm'),
+      sequenceLength: 16384,
+      offloadingEnabled: true,
+      offloadTarget: 'cpu-ram',
+      offloadMode: 'percentage',
+      offloadPercentage: 4,
+    })
+    render(<ResultsPanel />)
+    await screen.findAllByText(/\d+%/)
+    // 72.7 of 80 GB on device (91%): over 90%, with the host far from full
+    expect(screen.getAllByRole('status')[0]?.textContent).toMatch(/Does Not Fit.*91%/)
   })
 
   it('keeps the interconnect warning visible (W2 at TP-8 over PCIe 5)', async () => {
