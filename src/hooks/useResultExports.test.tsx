@@ -4,10 +4,11 @@ import { resolveFabricSpec } from '@engines/fabric'
 import { DEFAULT_KV_TIER } from '@engines/kv-tier'
 import { estimatePerformance } from '@engines/performance'
 import { sizeDeployment } from '@engines/sizing'
+import { useUIStore } from '@store/uiStore'
 import { act, renderHook } from '@testing-library/react'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { capture } = vi.hoisted(() => ({ capture: vi.fn() }))
 vi.mock('html2canvas-pro', () => ({ default: capture }))
@@ -17,6 +18,14 @@ vi.mock('jspdf', () => ({
     addImage = vi.fn()
     addPage = vi.fn()
     save = vi.fn()
+    setFont = vi.fn()
+    setFontSize = vi.fn()
+    setTextColor = vi.fn()
+    setFillColor = vi.fn()
+    text = vi.fn()
+    rect = vi.fn()
+    setPage = vi.fn()
+    getNumberOfPages = () => 1
   },
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
@@ -46,38 +55,64 @@ const params = {
 function mountSection() {
   document.body.insertAdjacentHTML(
     'beforeend',
-    '<div id="calculator-section"><details id="advanced"><summary>A</summary></details><details id="details" open><summary>D</summary></details></div>',
+    '<div id="grid"><div id="inputs"></div><div id="results-column"><button>Export PDF</button><details id="advanced"><summary>A</summary></details><details id="details" open><summary>D</summary></details></div></div>',
   )
 }
 const isOpen = (id: string) => (document.getElementById(id) as HTMLDetailsElement).open
+const fakeCanvas = { width: 100, height: 100 }
 
 describe('useResultExports: PDF', () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,')
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+  })
   afterEach(() => {
-    document.getElementById('calculator-section')?.remove()
+    document.getElementById('grid')?.remove()
     capture.mockReset()
+    vi.restoreAllMocks()
+    useUIStore.setState({ isDarkMode: false })
   })
 
-  it('expands every <details> for the capture, then restores each one exactly', async () => {
+  it('captures the results column, not the input form', async () => {
     mountSection()
-    let openAtCapture: boolean[] = []
-    capture.mockImplementation(async (el: HTMLElement) => {
-      openAtCapture = Array.from(el.querySelectorAll('details')).map((d) => d.open)
-      return { width: 100, height: 100, toDataURL: () => 'data:image/jpeg;base64,' }
+    capture.mockResolvedValue(fakeCanvas)
+    const { result } = renderHook(() => useResultExports(params))
+    await act(() => result.current.handleExportPDF())
+    expect(capture.mock.calls[0]?.[0]).toBe(document.getElementById('results-column'))
+  })
+
+  it('restyles the clone only: no buttons, details open, inputs gone, live page untouched', async () => {
+    mountSection()
+    capture.mockImplementation(
+      async (el: HTMLElement, opts: { onclone: (d: Document, e: HTMLElement) => void }) => {
+        const clone = el.cloneNode(true) as HTMLElement
+        const grid = document.createElement('div')
+        grid.append(document.createElement('div'), clone)
+        opts.onclone(document, clone)
+        expect(clone.querySelector('button')).toBeNull()
+        expect(Array.from(clone.querySelectorAll('details')).every((d) => d.open)).toBe(true)
+        expect(grid.children).toHaveLength(1)
+        return fakeCanvas
+      },
+    )
+    const { result } = renderHook(() => useResultExports(params))
+    await act(() => result.current.handleExportPDF())
+    expect(document.querySelector('#results-column button')).not.toBeNull()
+    expect(isOpen('advanced')).toBe(false)
+  })
+
+  it('renders in the light theme and puts dark mode back, even when the capture fails', async () => {
+    mountSection()
+    useUIStore.setState({ isDarkMode: true })
+    let darkAtCapture: boolean | null = null
+    capture.mockImplementation(async () => {
+      darkAtCapture = useUIStore.getState().isDarkMode
+      throw new Error('canvas failed')
     })
     const { result } = renderHook(() => useResultExports(params))
     await act(() => result.current.handleExportPDF())
-    expect(openAtCapture).toEqual([true, true])
-    expect(isOpen('advanced')).toBe(false)
-    expect(isOpen('details')).toBe(true)
-  })
-
-  it('restores the details when the capture fails', async () => {
-    mountSection()
-    capture.mockRejectedValue(new Error('canvas failed'))
-    const { result } = renderHook(() => useResultExports(params))
-    await act(() => result.current.handleExportPDF())
-    expect(isOpen('advanced')).toBe(false)
-    expect(isOpen('details')).toBe(true)
+    expect(darkAtCapture).toBe(false)
+    expect(useUIStore.getState().isDarkMode).toBe(true)
   })
 })
 
@@ -178,21 +213,20 @@ describe('useSizingExports', () => {
   }
 
   afterEach(() => {
-    document.getElementById('calculator-section')?.remove()
+    document.getElementById('grid')?.remove()
     capture.mockReset()
+    vi.restoreAllMocks()
     exportSizingPptx.mockClear()
   })
 
-  it('PDF captures the calculator section, which holds the Sizing card', async () => {
+  it('PDF captures the results column, which holds the Sizing card', async () => {
     mountSection()
-    let captured: HTMLElement | null = null
-    capture.mockImplementation(async (el: HTMLElement) => {
-      captured = el
-      return { width: 100, height: 100, toDataURL: () => 'data:image/jpeg;base64,' }
-    })
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,')
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    capture.mockResolvedValue(fakeCanvas)
     const { result } = renderHook(() => useSizingExports(sizingParams))
     await act(() => result.current.handleExportPDF())
-    expect(captured).toBe(document.getElementById('calculator-section'))
+    expect(capture.mock.calls[0]?.[0]).toBe(document.getElementById('results-column'))
   })
 
   it('PPTX hands the sizing result, KV precision and fabric to exportSizingPptx', async () => {

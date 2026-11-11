@@ -75,7 +75,7 @@ export function Layout() {
                 <InputPanel />
               </div>
             </div>
-            <div className="lg:col-span-7">
+            <div id="results-column" className="lg:col-span-7">
               <ResultsPanel />
             </div>
           </div>

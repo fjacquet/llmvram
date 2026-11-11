@@ -51,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- PDF export prints a report instead of a screenshot of the form: a title, an assumptions table (model, format, KV precision, GPU, context, users or batch, GPU count, network, KV tier) and the results column, light theme even from dark mode, no buttons or tooltips, page breaks between blocks, footer with the vLLM reference note. Training gets an Export PDF button too.
+
 - Recommendations round the GPU count up to the next valid tensor-parallel degree (R1 Distill 70B at 32k on H100: 4x, was 3x).
 - The multi-GPU chart no longer claims "N x GPUs x X% efficiency" for decode, which never applies scaling efficiency.
 - The KV tier "vs recompute" comparison uses the ceiling prefill, the safe direction.

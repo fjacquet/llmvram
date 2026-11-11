@@ -1,6 +1,7 @@
 import { applyInterconnectOverride } from '@engines/multi-gpu'
 import type { QuantizationFormat, SizingResult } from '@engines/types'
 import type { UseInferenceCalculationResult } from '@hooks/useInferenceCalculation'
+import { exportCalculatorPdf } from '@utils/exportPdf'
 import { type ExportPptxParams, exportPptx, exportSizingPptx } from '@utils/exportPptx'
 import type { GPU, Model } from '@utils/schemas'
 import { toast } from 'sonner'
@@ -32,82 +33,9 @@ interface UseResultExportsParams {
 }
 
 /**
- * Captures the whole calculator section (InputPanel + ResultsPanel, whichever mode is
- * showing) as a PDF.
- */
-async function exportCalculatorPdf(modelName: string | undefined) {
-  // Capture the full calculator section (InputPanel + ResultsPanel) so the PDF
-  // includes both the assumptions and the results without duplicating content in the UI.
-  const captureEl = document.getElementById('calculator-section')
-  if (!captureEl) return
-  try {
-    // html2canvas-pro supports oklch colors (Tailwind v4)
-    const [{ default: html2canvasPro }, { jsPDF }] = await Promise.all([
-      import('html2canvas-pro'),
-      import('jspdf'),
-    ])
-
-    // Force light mode so the capture uses correct contrast
-    const root = document.documentElement
-    const wasDark = root.classList.contains('dark')
-    if (wasDark) root.classList.remove('dark')
-
-    // Collapsed sections (Advanced, Details) would be missing from the PDF: open every
-    // <details> for the capture, then put each back exactly as the user left it.
-    const sections = Array.from(captureEl.querySelectorAll('details'))
-    const wasOpen = sections.map((d) => d.open)
-    for (const d of sections) d.open = true
-
-    let canvas: HTMLCanvasElement
-    try {
-      canvas = await html2canvasPro(captureEl, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#f9fafb', // gray-50 — matches page background
-        logging: false,
-        // windowWidth: 800 tells the renderer to use the mobile breakpoint:
-        // lg:grid-cols-12 collapses to grid-cols-1, panels stack vertically.
-        // This is a render-time option — the live app and mobile users are unaffected.
-        windowWidth: 800,
-      })
-    } finally {
-      if (wasDark) root.classList.add('dark')
-      sections.forEach((d, i) => {
-        d.open = wasOpen[i] ?? false
-      })
-    }
-
-    const imgData = canvas.toDataURL('image/jpeg', 0.97)
-    const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' })
-
-    const margin = 28.8 // 0.4 in × 72 pt/in
-    const pageW = pdf.internal.pageSize.getWidth()
-    const pageH = pdf.internal.pageSize.getHeight()
-    const imgW = pageW - margin * 2
-    const imgH = (canvas.height / canvas.width) * imgW
-
-    // Slice the full-height image across multiple pages
-    let heightLeft = imgH - (pageH - margin * 2)
-    pdf.addImage(imgData, 'JPEG', margin, margin, imgW, imgH)
-
-    while (heightLeft > 0) {
-      pdf.addPage()
-      pdf.addImage(imgData, 'JPEG', margin, margin - (imgH - heightLeft), imgW, imgH)
-      heightLeft -= pageH - margin * 2
-    }
-
-    pdf.save(`llmvram-${modelName ?? 'estimate'}.pdf`)
-    toast.success('PDF exported')
-  } catch (err) {
-    toast.error(`PDF export failed: ${err instanceof Error ? err.message : String(err)}`)
-  }
-}
-
-/**
  * PDF and PPTX export handlers for the results panel.
  *
- * PDF captures the whole calculator section (InputPanel + ResultsPanel) as a
- * screenshot; PPTX rebuilds the numbers into a native deck via exportPptx.
+ * PDF captures the results column behind an assumptions table (utils/exportPdf); PPTX rebuilds the numbers into a native deck via exportPptx.
  */
 export function useResultExports({
   selectedModel,
@@ -120,7 +48,7 @@ export function useResultExports({
   interconnectOverride,
   result,
 }: UseResultExportsParams) {
-  const handleExportPDF = () => exportCalculatorPdf(selectedModel?.name)
+  const handleExportPDF = () => exportCalculatorPdf()
 
   const handleExportPptx = async (capacity: ExportPptxCapacity) => {
     if (!result || !selectedModel || !selectedGPU) return
@@ -163,9 +91,9 @@ interface UseSizingExportsParams {
   result: SizingResult | null
 }
 
-/** Sizing mode: the same PDF capture, and a one-slide sizing deck */
+/** Sizing mode: the same PDF export, and a one-slide sizing deck */
 export function useSizingExports(p: UseSizingExportsParams) {
-  const handleExportPDF = () => exportCalculatorPdf(p.selectedModel?.name)
+  const handleExportPDF = () => exportCalculatorPdf()
   const handleExportPptx = async () => {
     if (!p.result || !p.selectedModel || !p.selectedGPU) return
     try {
