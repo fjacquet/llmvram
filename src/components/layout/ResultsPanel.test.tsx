@@ -198,5 +198,7 @@ describe('ResultsPanel expected vs ceiling (spec P3, P4b)', () => {
     expect(recompute).toBeDefined()
     expect(recompute).toBe(ceiling)
     expect(recompute).not.toBe(headline)
+    // 2026-11-11, final review: the value is the ceiling, so the line says so
+    expect(line.textContent).toMatch(/vs recompute \S+ \S+ \(ceiling, /)
   })
 })

@@ -445,22 +445,26 @@ export function GuidePage() {
         </P>
 
         <SubHeading>Fit Indicator</SubHeading>
-        <P>A color-coded status bar showing GPU utilization:</P>
+        <P>
+          A color-coded status bar showing GPU utilization. Inference uses vLLM&apos;s default limit
+          of 90% of each GPU, marked on the bar:
+        </P>
         <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1 mb-3">
           <li>
             <strong className="text-green-600 dark:text-green-400">Green (0-80%)</strong> — Fits
             Comfortably. Enough headroom for spikes and OS overhead.
           </li>
           <li>
-            <strong className="text-yellow-600 dark:text-yellow-400">Yellow (80-95%)</strong> —
+            <strong className="text-yellow-600 dark:text-yellow-400">Yellow (80-90%)</strong> —
             Tight Fit. May work but close to the limit. Consider reducing batch size or sequence
             length.
           </li>
           <li>
-            <strong className="text-red-600 dark:text-red-400">Red (&gt;95%)</strong> — Does Not
-            Fit. The model exceeds available VRAM. Follow the recommendations below.
+            <strong className="text-red-600 dark:text-red-400">Red (&gt;90%)</strong> — Does Not
+            Fit. The total exceeds the 90% vLLM claims by default. Follow the recommendations below.
           </li>
         </ul>
+        <P>Training keeps its own tiers: Green up to 80%, Yellow 80-95%, Red above 95%.</P>
 
         <SubHeading>VRAM Breakdown</SubHeading>
         <P>
