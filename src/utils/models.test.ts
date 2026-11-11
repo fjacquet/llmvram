@@ -604,3 +604,52 @@ describe('Model Database Validation', () => {
     expect(hp('qwen-qwen3-235b-a22b', 'bf16')).toBeUndefined()
   })
 })
+
+// Publisher headquarters, from each publisher's own legal notice / filing (checked 2026-11-11).
+// The country is where the publisher is based, not where a model was trained.
+const PUBLISHER_COUNTRY: Record<string, string> = {
+  // https://legal.mistral.ai/legal-notice: registered office 15 rue des Halles, 75001 Paris
+  mistralai: 'FR',
+  // https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html: Hangzhou DeepSeek, registered in China
+  'deepseek-ai': 'CN',
+  // https://docs.z.ai/legal-agreement/privacy-policy: international service run by a Singapore entity,
+  // but the developer is Beijing Zhipu Huazhang Technology Co., Ltd. (Beijing). Group HQ taken as CN.
+  'zai-org': 'CN',
+  // https://openai.com/policies/eu-terms-of-use/: OpenAI OpCo, LLC, 1455 3rd Street, San Francisco
+  openai: 'US',
+  // https://abc.xyz/ (Alphabet 10-K cover): 1600 Amphitheatre Parkway, Mountain View, CA
+  google: 'US',
+  // https://www.kimi.com/user/agreement/userprivacy?version=v2: Beijing Moonshot Technology Co., Ltd.
+  // (some docs name a Singapore entity; the lab is Beijing-based)
+  moonshotai: 'CN',
+  // https://www.liquid.ai/press/liquid-ai-launches-leap-and-apollo-a-new-era-for-edge-ai-deployment-begins: 314 Main St, Cambridge, MA
+  LiquidAI: 'US',
+  // Meta Platforms 10-K cover: 1 Meta Way, Menlo Park, CA (https://www.sec.gov/Archives/edgar/data/1326801/000132680125000017/0001326801-25-000017-index.html)
+  'meta-llama': 'US',
+  // inclusionAI is Ant Group's lab; Ant Group, Hangzhou (https://www.businesswire.com/news/home/20260215551663/en/Ant-Group-Releases-Ling-2.5-1T-and-Ring-2.5-1T-Evolving-Its-Open-Source-AI-Model-Family, dateline Hangzhou)
+  inclusionAI: 'CN',
+  // MiniMax Group Inc. 2025 annual report (HKEX): PRC headquarters Xuhui District, Shanghai
+  // (registered office is the Cayman Islands; the operating headquarters is used)
+  MiniMaxAI: 'CN',
+  // NVIDIA 10-K cover: Santa Clara, CA (https://www.sec.gov/Archives/edgar/data/1045810/000104581014000030/nvda-2014x10k.htm)
+  nvidia: 'US',
+  // Qwen is Alibaba Cloud; Alibaba Group principal executive offices 969 West Wen Yi Road, Hangzhou
+  // (https://static.alibabagroup.com/reports/fy2022/ar/ebook/en/106/index.html)
+  Qwen: 'CN',
+}
+
+describe('Publisher country of origin', () => {
+  it('every model carries the country of its publisher', () => {
+    for (const m of models) {
+      const org = (m.hf_url ?? '').split('/')[3] ?? ''
+      expect(PUBLISHER_COUNTRY[org], `${m.id}: publisher ${org} not in map`).toBeDefined()
+      expect(m.origin_country, m.id).toBe(PUBLISHER_COUNTRY[org])
+    }
+  })
+
+  it('rejects a lowercase or long code', () => {
+    const base = models[0] as Model
+    expect(ModelSchema.safeParse({ ...base, origin_country: 'fr' }).success).toBe(false)
+    expect(ModelSchema.safeParse({ ...base, origin_country: 'FRA' }).success).toBe(false)
+  })
+})

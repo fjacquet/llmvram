@@ -58,7 +58,8 @@
         "repo": "unsloth/DeepSeek-R1-GGUF",
         "gib": 227.27
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "deepseek-r1-distill-llama-70b",
@@ -126,7 +127,8 @@
         "repo": "unsloth/DeepSeek-R1-Distill-Llama-70B-GGUF",
         "gib": 24.56
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "deepseek-r1-distill-qwen-32b",
@@ -186,7 +188,8 @@
         "repo": "unsloth/DeepSeek-R1-Distill-Qwen-32B-GGUF",
         "gib": 11.47
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "deepseek-v4-flash",
@@ -224,7 +227,8 @@
           "gib": 5.06
         }
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "deepseek-v4-pro",
@@ -254,7 +258,8 @@
           "gib": 5.84
         }
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "deepseek-ai-deepseek-v4.1-flash-1017",
@@ -292,7 +297,8 @@
           "gib": 3.84
         }
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "mistralai-devstral-2-123b",
@@ -360,7 +366,8 @@
         "repo": "unsloth/Devstral-2-123B-Instruct-2512-GGUF",
         "gib": 43.39
       }
-    }
+    },
+    "origin_country": "FR"
   },
   {
     "id": "zai-org-glm-4.7",
@@ -420,7 +427,8 @@
         "repo": "unsloth/GLM-4.7-GGUF",
         "gib": 122.15
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "zai-org-glm-4.7-flash",
@@ -509,7 +517,8 @@
         "repo": "unsloth/GLM-4.7-Flash-GGUF",
         "gib": 10.57
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "zai-org-glm-5.2",
@@ -574,7 +583,8 @@
         "repo": "unsloth/GLM-5.2-GGUF",
         "gib": 746.32
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "zai-org-glm-5.3",
@@ -631,7 +641,8 @@
         "repo": "unsloth/GLM-5.3-GGUF",
         "gib": 746.32
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "openai-gpt-oss-120b",
@@ -693,7 +704,8 @@
         "repo": "unsloth/gpt-oss-120b-GGUF",
         "gib": 58.27
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "openai-gpt-oss-20b",
@@ -755,7 +767,8 @@
         "repo": "unsloth/gpt-oss-20b-GGUF",
         "gib": 10.68
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "google-gemma-3-12b",
@@ -826,7 +839,8 @@
         "repo": "unsloth/gemma-3-12b-it-GGUF",
         "gib": 4.44
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "google-gemma-3-1b",
@@ -877,7 +891,8 @@
         "repo": "unsloth/gemma-3-1b-it-GGUF",
         "gib": 0.67
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "google-gemma-3-27b",
@@ -948,7 +963,8 @@
         "repo": "unsloth/gemma-3-27b-it-GGUF",
         "gib": 9.78
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "google-gemma-3-4b",
@@ -1015,7 +1031,8 @@
         "repo": "unsloth/gemma-3-4b-it-GGUF",
         "gib": 1.61
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "google-gemma-4-12b",
@@ -1082,7 +1099,8 @@
         "repo": "unsloth/gemma-4-12b-it-GGUF",
         "gib": 4.78
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "google-gemma-4-26b-a4b",
@@ -1140,7 +1158,8 @@
           "gib": 3.46
         }
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "google-gemma-4-31b",
@@ -1207,7 +1226,8 @@
         "repo": "unsloth/gemma-4-31B-it-GGUF",
         "gib": 12.3
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "moonshotai-kimi-k2-instruct",
@@ -1276,7 +1296,8 @@
         "repo": "unsloth/Kimi-K2-Instruct-GGUF",
         "gib": 347.55
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "moonshotai-kimi-k2-thinking",
@@ -1361,7 +1382,8 @@
         "repo": "unsloth/Kimi-K2-Thinking-GGUF",
         "gib": 348.43
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "moonshotai-kimi-k2.5",
@@ -1434,7 +1456,8 @@
         "repo": "unsloth/Kimi-K2.5-GGUF",
         "gib": 348.11
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "moonshotai-kimi-k2.6",
@@ -1475,7 +1498,8 @@
           "gib": 7.4
         }
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "moonshotai-kimi-k2.7-code",
@@ -1508,7 +1532,8 @@
         "repo": "nvidia/Kimi-K2.7-Code-NVFP4",
         "gib": 554.31
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "moonshotai-kimi-k3",
@@ -1554,7 +1579,8 @@
           "gib": 73.75
         }
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "moonshotai-kimi-k3.1-pro",
@@ -1596,7 +1622,8 @@
     "sparse_attention_topk": 2048,
     "sparse_indexer_bytes_per_token": 3168,
     "sparse_indexer_heads": 32,
-    "sparse_indexer_layers": 24
+    "sparse_indexer_layers": 24,
+    "origin_country": "CN"
   },
   {
     "id": "moonshotai-kimi-linear-48b-a3b",
@@ -1698,7 +1725,8 @@
         "repo": "bartowski/moonshotai_Kimi-Linear-48B-A3B-Instruct-GGUF",
         "gib": 16.33
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "liquidai-lfm2.5-2.6b",
@@ -1728,7 +1756,8 @@
         "repo": "vrfai/LFM2.5-2.6B-FP8",
         "gib": 2.76
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "meta-llama-llama-3.1-405b",
@@ -1760,7 +1789,8 @@
         "repo": "hugging-quants/Meta-Llama-3.1-405B-Instruct-GPTQ-INT4",
         "gib": 204.33
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "meta-llama-llama-3.1-70b",
@@ -1832,7 +1862,8 @@
         "repo": "bartowski/Meta-Llama-3.1-70B-Instruct-GGUF",
         "gib": 24.56
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "meta-llama-llama-3.1-8b",
@@ -1904,7 +1935,8 @@
         "repo": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
         "gib": 2.96
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "meta-llama-llama-3.3-70b",
@@ -1976,7 +2008,8 @@
         "repo": "unsloth/Llama-3.3-70B-Instruct-GGUF",
         "gib": 24.56
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "inclusionai-ling-3.0-flash",
@@ -2062,7 +2095,8 @@
         "repo": "bartowski/Ling-3.0-flash-GGUF",
         "gib": 42.75
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "inclusionai-ling-3.0-tiny",
@@ -2148,7 +2182,8 @@
         "repo": "bartowski/Ling-3.0-tiny-GGUF",
         "gib": 2.79
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "inclusionai-ling-3.1-flash",
@@ -2222,7 +2257,8 @@
         "repo": "bartowski/Ling-3.1-flash-1019-GGUF",
         "gib": 204.12
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "meta-llama-llama-4-maverick",
@@ -2312,7 +2348,8 @@
         "repo": "unsloth/Llama-4-Maverick-17B-128E-Instruct-GGUF",
         "gib": 135.64
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "meta-llama-llama-4-scout",
@@ -2410,7 +2447,8 @@
         "repo": "unsloth/Llama-4-Scout-17B-16E-Instruct-GGUF",
         "gib": 36.85
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "mistralai-magistral-small-2507",
@@ -2475,7 +2513,8 @@
         "repo": "unsloth/Magistral-Small-2507-GGUF",
         "gib": 8.28
       }
-    }
+    },
+    "origin_country": "FR"
   },
   {
     "id": "minimax-m2.1",
@@ -2559,7 +2598,8 @@
         "repo": "unsloth/MiniMax-M2.1-GGUF",
         "gib": 77.58
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "minimax-m2.5",
@@ -2643,7 +2683,8 @@
         "repo": "unsloth/MiniMax-M2.5-GGUF",
         "gib": 77.58
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "minimax-m2.7",
@@ -2691,7 +2732,8 @@
         "repo": "unsloth/MiniMax-M2.7-GGUF",
         "gib": 226.44
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "minimax-m3",
@@ -2751,7 +2793,8 @@
         "repo": "unsloth/MiniMax-M3-GGUF",
         "gib": 421.62
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "mistralai-ministral-3-14b-reasoning",
@@ -2820,7 +2863,8 @@
         "repo": "unsloth/Ministral-3-14B-Reasoning-2512-GGUF",
         "gib": 4.89
       }
-    }
+    },
+    "origin_country": "FR"
   },
   {
     "id": "mistralai-mistral-large-3-675b",
@@ -2889,7 +2933,8 @@
         "repo": "unsloth/Mistral-Large-3-675B-Instruct-2512-GGUF",
         "gib": 230.14
       }
-    }
+    },
+    "origin_country": "FR"
   },
   {
     "id": "mistralai-mistral-large-4-1t-a52b",
@@ -2926,7 +2971,8 @@
         "repo": "unsloth/Mistral-Large-4-1T-A52B-GGUF",
         "gib": 1038.56
       }
-    }
+    },
+    "origin_country": "FR"
   },
   {
     "id": "mistralai-mistral-medium-3.5-128b",
@@ -2998,7 +3044,8 @@
         "repo": "unsloth/Mistral-Medium-3.5-128B-GGUF",
         "gib": 43.39
       }
-    }
+    },
+    "origin_country": "FR"
   },
   {
     "id": "mistralai-mistral-small-4-119b",
@@ -3043,7 +3090,8 @@
         "repo": "unsloth/Mistral-Small-4-119B-2603-GGUF",
         "gib": 117.79
       }
-    }
+    },
+    "origin_country": "FR"
   },
   {
     "id": "nvidia-nemotron-3-nano-30b-a3b",
@@ -3068,7 +3116,8 @@
         "repo": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
         "gib": 58.82
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "nvidia-nemotron-3-nano-4b",
@@ -3090,7 +3139,8 @@
         "repo": "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16",
         "gib": 7.4
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "nvidia-nemotron-3-super-120b-a12b",
@@ -3115,7 +3165,8 @@
         "repo": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16",
         "gib": 230.25
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "nvidia-nemotron-3-ultra-550b-a55b",
@@ -3140,7 +3191,8 @@
         "repo": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16",
         "gib": 1044.06
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "nvidia-nemotron-3.5-lightning-30b-a3b",
@@ -3165,7 +3217,8 @@
         "repo": "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16",
         "gib": 61.31
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "nvidia-llama-3.1-nemotron-ultra-253b",
@@ -3226,7 +3279,8 @@
         "repo": "unsloth/Llama-3_1-Nemotron-Ultra-253B-v1-GGUF",
         "gib": 86.98
       }
-    }
+    },
+    "origin_country": "US"
   },
   {
     "id": "qwen-qwen3-235b-a22b",
@@ -3326,7 +3380,8 @@
         "repo": "unsloth/Qwen3-235B-A22B-GGUF",
         "gib": 79.81
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "qwen-qwen3.6-27b",
@@ -3392,7 +3447,8 @@
         "repo": "unsloth/Qwen3.6-27B-GGUF",
         "gib": 11.51
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "qwen-qwen3.6-35b-a3b",
@@ -3437,7 +3493,8 @@
         "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
         "gib": 34.37
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "qwen-qwen3.8-2.4t-a95b",
@@ -3482,7 +3539,8 @@
         "repo": "unsloth/Qwen3.8-2.4T-A95B-GGUF",
         "gib": 2421.67
       }
-    }
+    },
+    "origin_country": "CN"
   },
   {
     "id": "qwen-qwen3.8-27b",
@@ -3516,6 +3574,7 @@
         "repo": "unsloth/Qwen3.8-27B-GGUF",
         "gib": 27.05
       }
-    }
+    },
+    "origin_country": "CN"
   }
 ]

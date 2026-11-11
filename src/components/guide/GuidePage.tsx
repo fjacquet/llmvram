@@ -195,6 +195,11 @@ export function GuidePage() {
           your own architecture.
         </P>
         <P>
+          The two-letter code beside a model is its publisher&apos;s country (hover for the name).
+          The country is the publisher&apos;s headquarters. It does not say where a model was
+          trained or what data it saw, and it is not a measure of bias.
+        </P>
+        <P>
           <strong>Custom model fields:</strong> Name (required), Parameter count in billions
           (required), Hidden size, Number of layers, Number of attention heads. The calculator uses
           sensible defaults when optional fields are omitted.
