@@ -152,7 +152,8 @@ function decodeLayout(model: Model, multi: MultiGPUVRAMBreakdown | null | undefi
  * **TTFT (Time To First Token)** is modeled as a compute-bound prefill pass over the
  * prompt, plus one decode step. Prefill FLOPs have two terms: a linear
  * `2 * activeParams * T` term (same per-token cost as decode, precision-independent)
- * and a quadratic causal-attention term `2 * layers * T^2 * hidden`. Each is divided by
+ * and a causal-attention term `2 * layers * hidden * a * (2T - a)`, a = min(T, topk) (T^2
+ * without sparse attention). Each is divided by
  * its own rate times that precision's MFU (linear: the format's tensor core, attention:
  * 16-bit) to give prefill seconds; when the GPU exposes no FLOPS data,
  * TTFT falls back to the previous heuristic and the estimate is marked degraded.
@@ -384,18 +385,20 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   //    bandwidth-bound decode above. Two terms:
   //      linear:    2 * activeParams * T          (precision-independent FLOPs)
   //      attention: 2 * layers * T^2 * hidden      (1/2 * 4 * T^2 * D * L, causal)
-  //    Sparse attention (DSA) reads min(T, topk) keys per query, 2 * layers * T * min(T, topk)
-  //    * hidden (exact up to topk, linear beyond), and its indexer scores all T, causally.
+  //    Sparse attention (DSA): query t reads min(t, topk) keys, summing with a = min(T, topk) to
+  //    2 * layers * hidden * a * (2T - a) (T^2 up to topk, linear beyond); its indexer scores
+  //    all T, causally.
   //    Per request: a burst of B prompts takes B times the FLOPs on the same machine, so
   //    dividing by B leaves one prompt's FLOPs (ADR 0007). Across servers the pipeline
   //    fill (prefillScalingEfficiency) and N - 1 hops of the prompt are amortized the same way.
   const promptTokens = new Decimal(sequenceLength)
   const linearFLOPs = new Decimal(activeParams).mul(2e9).mul(promptTokens)
+  const attended = attendedTokens(model, sequenceLength)
   const attentionFLOPs = new Decimal(2)
     .mul(model.num_hidden_layers)
-    .mul(promptTokens)
-    .mul(attendedTokens(model, sequenceLength))
     .mul(model.hidden_size)
+    .mul(attended)
+    .mul(promptTokens.mul(2).sub(attended))
   const indexerFLOPs = indexerScoringFLOPs(model, sequenceLength).mul(promptTokens)
 
   // FLOP comparison only when no FLOPS data; otherwise compared by time below

@@ -1843,7 +1843,9 @@ describe('sparse attention (DSA): topk-bounded reads and FLOPs, indexer cache an
     expect(vram.total.toNumber()).toBeCloseTo(728.0819799804688, 9)
     expect(multi.perGPU.total.toNumber()).toBeCloseTo(112.51801040649414, 9)
     expect(perf.tokensPerSecond.toNumber()).toBeCloseTo(1059.9491923758633, 9)
-    expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(1.6391939203033423, 9)
+    // 2026-11-11, final review M1: 1.6391939203033423 -> 1.6714283140300226, attention now sums
+    // min(t, topk) per query instead of charging topk to every query (slower, the safe direction)
+    expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(1.6714283140300226, 9)
     expect(perf.prefillBottleneck).toBe('linear')
   })
 
@@ -1859,14 +1861,25 @@ describe('sparse attention (DSA): topk-bounded reads and FLOPs, indexer cache an
     expect(mem(sparse).sub(mem(glm)).toNumber()).toBeCloseTo((indexerBytes * T) / BYTES_PER_GB, 12)
   })
 
-  it('prefill attention FLOPs are 2 x L x T x topk x hidden beyond topk, linear in T', () => {
+  it('prefill attention FLOPs are 2 x L x H x topk x (2T - topk) beyond topk, affine in T', () => {
+    // 2026-11-11, final review M1: was 2 L T topk H, which charged every query topk keys. Query t
+    // attends min(t, topk), summing to topk (T - topk / 2); x 4 L H gives 2 L H a (2T - a).
     const T = 131072
-    // Same linear term; the attention term drops from 2 L T^2 H to 2 L T 2048 H at 16-bit
-    expect(prefill(glm, T) - prefill(sparse, T)).toBeCloseTo(
-      (2 * L * H * T * (T - 2048)) / (2250e12 * PREFILL_MFU.toNumber()),
+    const a = 2048
+    const rate = 2250e12 * PREFILL_MFU.toNumber()
+    // Same linear term; dense 2 L H T^2 minus sparse 2 L H a (2T - a) is 2 L H (T - a)^2
+    expect(prefill(glm, T) - prefill(sparse, T)).toBeCloseTo((2 * L * H * (T - a) ** 2) / rate, 9)
+    // Linear in T apart from the constant -2 L H a^2, which doubling T counts once, not twice
+    expect(prefill(sparse, 2 * T) - 2 * prefill(sparse, T)).toBeCloseTo(
+      (2 * L * H * a * a) / rate,
       9,
     )
-    expect(prefill(sparse, 2 * T)).toBeCloseTo(2 * prefill(sparse, T), 9)
+  })
+
+  it('prefill at T <= topk is unchanged by the M1 correction', () => {
+    // 2026-11-11, final review M1: captured from the GLM 5.2 row before the change
+    expect(prefill(scored, 1024)).toBeCloseTo(0.05281868592975012, 12)
+    expect(prefill(scored, 2048)).toBeCloseTo(0.10771168199060543, 12)
   })
 
   it('decode at 128k reads the KV of topk tokens plus the indexer over the full context', () => {
