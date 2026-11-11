@@ -428,6 +428,7 @@ export function resolveInterconnect(gpu: GPU, groupSize: number): InterconnectTy
   if (interconnect === 'nvlink-3') return 'nvlink-3'
   if (interconnect === 'nvlink-4') return 'nvlink-4'
   if (interconnect === 'nvlink-5') return 'nvlink-5'
+  if (interconnect === 'nvlink-6') return 'nvlink-6'
   if (interconnect === 'pcie-4') return 'pcie-4'
   if (interconnect === 'pcie-5') return 'pcie-5'
 

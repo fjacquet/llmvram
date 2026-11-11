@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking changes
+
+- GB300 NVL72 (`nvidia-gb300-nvl72`, id unchanged) is now 278 GB usable (NVIDIA's 20 TB / 72; SemiAnalysis InferenceX), not the 288 GB physical. A shared link that fit at 288 GB may now read "does not fit".
+- The Grace host-memory KV tier on GB200/GB300 NVL72 is 194 GB/s per GPU, was 225: the LPDDR5X share (14 TB/s / 36 Grace / 2) is lower than the C2C link share (ADR 0008).
+- fp8, nvfp4 and mxfp4 prefill and compute-bound decode now run at the tensor core vLLM uses for the format (ADR 0008): FP8 on Hopper, Blackwell, Rubin and AMD MI300/MI350; NVFP4 and MXFP4 on Blackwell and Rubin at the card's FP8 rate (no measured FP4 prefill efficiency exists yet); MXFP4 on MI350-series at FP8. The linear term runs at up to 2x the old rate, attention stays at FP16. Example: Llama 3.1 70B fp8 on 8x H100 SXM, 8192-token prompt: prefill 0.377 s -> 0.202 s. Formats that compute in 16-bit (fp16, bf16, int4, int8, nf4, GPTQ, AWQ, GGUF) are unchanged.
+- FP8 on H200 NVL (1670), MI300X and MI325X (2614) is the vendor sparse figure halved and rounded down.
+
+### Added
+
+- GPUs: GB200 NVL72 (186 GB), Vera Rubin NVL72 (preliminary, 278 GB estimated) and HGX Rubin NVL8 (preliminary, 250 GB); 32 GPUs in total.
+- NVLink 6 interconnect (3000 GB/s per GPU, scaling efficiency capped at 0.98).
+- Dense `fp8_tflops` and `fp4_tflops` GPU fields, present only where vLLM runs that precision natively.
+- ADR 0008: per-precision compute and usable rack memory.
+
+### Fixed
+
+- The prefill bottleneck label compares the time of the linear and attention terms, not their FLOPs, now that they run at different rates.
+
 ## [2.0.1] - 2026-09-27
 
 ### Changed

@@ -98,7 +98,7 @@ export function GuidePage() {
             define a custom model with your own parameter count and architecture details.
           </li>
           <li>
-            <strong>Pick a GPU</strong> — Choose from 29 GPUs across NVIDIA, AMD, and Apple Silicon,
+            <strong>Pick a GPU</strong> — Choose from 32 GPUs across NVIDIA, AMD, and Apple Silicon,
             or enter custom hardware specs.
           </li>
           <li>
@@ -209,11 +209,13 @@ export function GuidePage() {
         </P>
         <P>
           <strong>Key specs that affect calculations:</strong> VRAM determines fit/no-fit. Memory
-          bandwidth determines decode speed. FP16 TFLOPS (dense) determines prefill. The scale-up
-          link sets multi-GPU cost: NVSwitch baseboards connect 4 or 8 GPUs (HGX), an NVL72 rack up
-          to 72; NVLink bridges pair 2 PCIe cards (H100/A100 PCIe) or up to 4 (H200 NVL), and a
-          larger group crosses PCIe. Unified-memory parts (Apple Silicon, DGX Spark) have no
-          separate host memory.
+          bandwidth determines decode speed. Prefill runs on the tensor core the weight format uses
+          in vLLM (FP8 for fp8 checkpoints on Hopper, Blackwell, Rubin and AMD MI300+; NVFP4/MXFP4
+          at the card's FP8 rate on Blackwell and Rubin; 16-bit for everything else), with attention
+          at FP16. All figures are dense. The scale-up link sets multi-GPU cost: NVSwitch baseboards
+          connect 4 or 8 GPUs (HGX), an NVL72 rack up to 72; NVLink bridges pair 2 PCIe cards
+          (H100/A100 PCIe) or up to 4 (H200 NVL), and a larger group crosses PCIe. Unified-memory
+          parts (Apple Silicon, DGX Spark) have no separate host memory.
         </P>
         <P>
           Select &quot;Custom GPU...&quot; to specify any hardware with name, VRAM (required),
@@ -552,7 +554,8 @@ export function GuidePage() {
             off. NVMe offload stays available.
           </li>
           <li>
-            <strong>Grace host KV tier</strong> needs a Grace host (GB300 NVL72, DGX Station).
+            <strong>Grace host KV tier</strong> needs a Grace or Vera host (GB200 NVL72, GB300
+            NVL72, Vera Rubin NVL72, DGX Station).
           </li>
           <li>
             <strong>KV cache offload</strong> already keeps all KV off the GPU, so a KV tier is
@@ -758,8 +761,9 @@ export function GuidePage() {
             operations.
           </GlossaryTerm>
           <GlossaryTerm term="TFLOPS">
-            Tera floating-point operations per second. Measures GPU compute throughput. FP16 TFLOPS
-            is most relevant for LLM inference.
+            Tera floating-point operations per second. Measures GPU compute throughput. Prefill uses
+            the rate of the tensor core the weight format runs on (FP8, FP4 at the FP8 rate, or
+            16-bit), attention uses FP16; all figures are dense.
           </GlossaryTerm>
           <GlossaryTerm term="Tokens/sec">
             Decode speed — the rate at which new tokens are generated during inference. Primarily

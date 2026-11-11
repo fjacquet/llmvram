@@ -59,7 +59,7 @@ export function KVTierPanel() {
   const setKVTier = useUIStore((s) => s.setKVTier)
   const selectedGPU = useUIStore((s) => s.selectedGPU)
   const preset = kvTier.tier === 'none' ? null : KV_TIER_PRESETS[kvTier.tier]
-  // Grace-host bandwidth depends on which Grace GPU is selected (225 NVL72,
+  // Grace-host bandwidth depends on which Grace GPU is selected (194 NVL72,
   // 396 Desktop Superchip) — resolve it once and use it everywhere the
   // static KV_TIER_PRESETS figure would otherwise stand in for host-grace.
   const graceGBps = graceLinkGBps(selectedGPU?.id ?? '')

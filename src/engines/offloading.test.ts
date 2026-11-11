@@ -219,7 +219,7 @@ describe('hostLinkGBps', () => {
   })
 
   it('cpu-ram uses the exact Grace link for a Grace-host GPU', () => {
-    expect(hostLinkGBps('cpu-ram', 'nvidia-gb300-nvl72')).toBe(225)
+    expect(hostLinkGBps('cpu-ram', 'nvidia-gb300-nvl72')).toBe(194)
     expect(hostLinkGBps('cpu-ram', 'nvidia-gb300-desktop-252gb')).toBe(396)
   })
 

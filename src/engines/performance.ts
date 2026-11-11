@@ -1,6 +1,7 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
-import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU } from './constants'
+import { attentionComputeRate, linearComputeRate } from './compute'
+import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU_BY_PRECISION } from './constants'
 import { fabricHopSeconds } from './fabric'
 import {
   calculateMoEActiveParams,
@@ -117,7 +118,8 @@ function decodeLayout(model: Model, multi: MultiGPUVRAMBreakdown | null | undefi
  * - **Memory bandwidth** (typical for LLM inference): the step reads the weights once
  *   and every sequence's KV cache. Time = (weights + batch * KV) / bandwidth.
  * - **Compute throughput** (large batches, small models): ~2 FLOPs per active
- *   parameter plus attention over the context, per token. Time = batch * FLOPs / FLOPS.
+ *   parameter at the weight format's rate plus attention over the context at the 16-bit
+ *   rate (compute.ts), per token. Time = batch * FLOPs / FLOPS.
  * - **Multi-GPU**: each GPU reads and computes only its share; tensor parallelism
  *   adds two all-reduce latencies per layer, and pipeline stages overlap only as far
  *   as the batch fills them.
@@ -127,8 +129,9 @@ function decodeLayout(model: Model, multi: MultiGPUVRAMBreakdown | null | undefi
  * **TTFT (Time To First Token)** is modeled as a compute-bound prefill pass over the
  * prompt, plus one decode step. Prefill FLOPs have two terms: a linear
  * `2 * activeParams * T` term (same per-token cost as decode, precision-independent)
- * and a quadratic causal-attention term `2 * layers * T^2 * hidden`. Dividing by
- * `gpuFLOPS * PREFILL_MFU` gives prefill seconds; when the GPU exposes no FLOPS data,
+ * and a quadratic causal-attention term `2 * layers * T^2 * hidden`. Each is divided by
+ * its own rate times that precision's MFU (linear: the format's tensor core, attention:
+ * 16-bit) to give prefill seconds; when the GPU exposes no FLOPS data,
  * TTFT falls back to the previous heuristic and the estimate is marked degraded.
  *
  * @param params - Model, GPU, quantization, batch size, and prompt sequence length
@@ -237,27 +240,33 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   const bandwidthBytesPerSec = new Decimal(gpu.memory_bandwidth_gbps).mul(1e9)
   const memorySeconds = perGPUBytes.div(bandwidthBytesPerSec).add(offloadSecondsPerStep)
 
-  // 3. Compute per step. FLOPs are precision-independent: ~2 per active parameter
-  //    (batch-1 figure — each token computes only its own experts) plus causal
-  //    attention over the context, 4 * layers * context * hidden per token (the
-  //    per-token slope of the prefill attention term below). The machine's FLOPS
-  //    are shared by the batch: this is an aggregate ceiling, never multiplied by it.
-  const flopsPerToken = new Decimal(activeParams)
-    .mul(2e9)
-    .add(new Decimal(4).mul(model.num_hidden_layers).mul(sequenceLength).mul(model.hidden_size))
+  // 3. Compute per step. ~2 FLOPs per active parameter (batch-1 figure — each token
+  //    computes only its own experts) run on the tensor core the weight format uses;
+  //    causal attention over the context, 4 * layers * context * hidden per token (the
+  //    per-token slope of the prefill attention term below), runs at 16-bit (compute.ts).
+  //    The machine's FLOPS are shared by the batch: this is an aggregate ceiling, never
+  //    multiplied by it.
+  const linearRate = linearComputeRate(gpu, quantization)
+  const attentionRate = attentionComputeRate(gpu)
+  const linearFLOPsPerToken = new Decimal(activeParams).mul(2e9)
+  const attentionFLOPsPerToken = new Decimal(4)
+    .mul(model.num_hidden_layers)
+    .mul(sequenceLength)
+    .mul(model.hidden_size)
 
   // Handle missing/non-positive FLOPS: a GPU with no usable FLOPS figure (undefined,
   // zero, or negative — e.g. a user-entered custom-FLOPS value of 0) can never be
   // compute-bound; treat it the same as "no FLOPS data" rather than dividing by zero.
-  // Prefer FP16 FLOPS (more relevant for inference), fallback to FP32.
-  const decodeGpuTFLOPS = gpu.fp16_tflops ?? gpu.fp32_tflops ?? 0
-  const computeSeconds =
-    decodeGpuTFLOPS > 0
-      ? flopsPerToken
-          .mul(batchSize)
-          .div(layout.gpusPerStage * layout.stages)
-          .div(new Decimal(decodeGpuTFLOPS).mul(1e12))
-      : new Decimal(0)
+  // The 16-bit rate is the guard: the linear rate falls back to it, so it is > 0 too.
+  const hasFLOPS = attentionRate.tflops > 0
+  const computeSeconds = hasFLOPS
+    ? linearFLOPsPerToken
+        .div(linearRate.tflops)
+        .add(attentionFLOPsPerToken.div(attentionRate.tflops))
+        .div(1e12)
+        .mul(batchSize)
+        .div(layout.gpusPerStage * layout.stages)
+    : new Decimal(0)
 
   // 4. Roofline per stage, plus communication per layer: two all-reduces for tensor
   //    parallelism (after attention and after the MLP), one dispatch + combine
@@ -311,8 +320,9 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   }
 
   const memoryBoundTPS = new Decimal(batchSize).div(memorySeconds)
-  const computeBoundTPS =
-    decodeGpuTFLOPS > 0 ? new Decimal(batchSize).div(computeSeconds) : new Decimal(Infinity)
+  const computeBoundTPS = hasFLOPS
+    ? new Decimal(batchSize).div(computeSeconds)
+    : new Decimal(Infinity)
 
   // 5. Bottleneck analysis (5% tolerance to avoid flip-flopping at boundary)
   const tolerance = 0.95
@@ -348,7 +358,8 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     .mul(promptTokens.pow(2))
     .mul(model.hidden_size)
 
-  const prefillBottleneck: 'linear' | 'attention' = attentionFLOPs.greaterThan(linearFLOPs)
+  // FLOP comparison only when no FLOPS data; otherwise compared by time below
+  let prefillBottleneck: 'linear' | 'attention' = attentionFLOPs.greaterThan(linearFLOPs)
     ? 'attention'
     : 'linear'
 
@@ -364,18 +375,24 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
         .div(batchSize)
     : new Decimal(0)
 
-  // Same FLOPS figure and same guard as the decode roofline above — one source, so a
-  // change to the selection policy cannot desynchronise the two rooflines.
-  if (decodeGpuTFLOPS > 0) {
-    let effectiveFLOPS = new Decimal(decodeGpuTFLOPS).mul(1e12).mul(PREFILL_MFU)
-
+  // Same rates and same guard as the decode roofline above — one source (compute.ts), so
+  // a change to the selection policy cannot desynchronise the two rooflines. Each term
+  // runs at its own peak times that precision's MFU (spec D9).
+  if (hasFLOPS) {
+    let scale = new Decimal(1e12)
     if (multiGPUResult && multiGPUResult.numGPUs > 1) {
-      effectiveFLOPS = effectiveFLOPS
-        .mul(multiGPUResult.numGPUs)
-        .mul(multiGPUResult.prefillScalingEfficiency)
+      scale = scale.mul(multiGPUResult.numGPUs).mul(multiGPUResult.prefillScalingEfficiency)
     }
+    const linearFLOPS = scale
+      .mul(linearRate.tflops)
+      .mul(PREFILL_MFU_BY_PRECISION[linearRate.precision])
+    const attentionFLOPS = scale.mul(attentionRate.tflops).mul(PREFILL_MFU_BY_PRECISION.fp16)
 
-    prefillSeconds = linearFLOPs.add(attentionFLOPs).div(effectiveFLOPS).add(hopSeconds)
+    const linearSeconds = linearFLOPs.div(linearFLOPS)
+    const attentionSeconds = attentionFLOPs.div(attentionFLOPS)
+    // The terms run at different rates, so the label is about time, not FLOPs
+    prefillBottleneck = attentionSeconds.greaterThan(linearSeconds) ? 'attention' : 'linear'
+    prefillSeconds = linearSeconds.add(attentionSeconds).add(hopSeconds)
     timeToFirstToken = prefillSeconds.add(new Decimal(1).div(tokensPerSecond))
   } else {
     // No usable FLOPS data (missing, zero, or negative): prefill time is not

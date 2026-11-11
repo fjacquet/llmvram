@@ -91,10 +91,11 @@ describe('KVTierPanel', () => {
     expect(screen.getByRole('option', { name: /Grace/ })).toBeInTheDocument()
   })
 
-  it('shows the per-GPU bandwidth for the selected Grace GPU: 225 for NVL72, 396 for Desktop', () => {
+  it('shows the per-GPU bandwidth for the selected Grace GPU: 194 for NVL72, 396 for Desktop', () => {
     useUIStore.setState({ selectedGPU: findGPU('nvidia-gb300-nvl72') })
     const { rerender } = render(<KVTierPanel />)
-    expect(screen.getByRole('option', { name: /225 GB\/s per GPU/ })).toBeInTheDocument()
+    // 2026-11-10: 194 = min(C2C link, LPDDR5X 14 TB/s / 36 Grace / 2); was 225
+    expect(screen.getByRole('option', { name: /194 GB\/s per GPU/ })).toBeInTheDocument()
 
     useUIStore.setState({ selectedGPU: findGPU('nvidia-gb300-desktop-252gb') })
     rerender(<KVTierPanel />)

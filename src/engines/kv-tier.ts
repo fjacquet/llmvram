@@ -37,7 +37,7 @@ export const DEFAULT_KV_TIER: KVTierSettings = {
 /**
  * Per-GPU read bandwidth presets, GB/s. All estimates; basis in each comment.
  *
- * host-grace's gbpsPerGPU (225, the NVL72 figure) is a fallback only, used
+ * host-grace's gbpsPerGPU (194, the NVL72 figure) is a fallback only, used
  * when no GPU id is available to resolve the real per-GPU figure — see
  * graceLinkGBps, which callers should prefer whenever a GPU id is in hand.
  */
@@ -45,7 +45,7 @@ export const KV_TIER_PRESETS: Record<
   Exclude<KVTierType, 'none'>,
   { label: string; gbpsPerGPU: number }
 > = {
-  'host-grace': { label: 'Host memory (Grace NVLink-C2C)', gbpsPerGPU: 225 },
+  'host-grace': { label: 'Host memory (Grace/Vera NVLink-C2C)', gbpsPerGPU: 194 },
   // PCIe 5 x16 ~64 GB/s theoretical, ~50 practical.
   'host-pcie': { label: 'Host memory (PCIe 5)', gbpsPerGPU: 50 },
   // GB300 tray: 4 E1.S Gen5 drives for 4 GPUs (NVIDIA NVL72 reference architecture).
@@ -96,21 +96,33 @@ export function clampKVTier(s: KVTierSettings): KVTierSettings {
  * over NVLink-C2C, for the `host-grace` KV tier preset; null when the GPU has
  * no Grace host at all.
  *
- * NVIDIA quotes 900 GB/s bidirectional per Grace-GPU superchip link, i.e. 450
- * GB/s in one direction. GB300 NVL72 pairs 2 GPUs to each Grace CPU, sharing
- * that one-direction figure: 225 GB/s each (NVIDIA publishes no per-GPU
- * figure; estimate). The GB300 Desktop Superchip pairs 1 GPU to 1 Grace CPU,
+ * Each value is min(link share, host-memory share), one direction, per GPU.
+ *
+ * GB300 / GB200 NVL72: 2 GPUs per Grace CPU. NVIDIA quotes 900 GB/s bidirectional
+ * C2C per Grace, i.e. 450 one way, 225 per GPU. But the Grace LPDDR5X behind it
+ * is lower: NVIDIA's rack pages give 14 TB/s across 36 Grace (Gigabyte's
+ * GB200/GB300 NVL72 rack specs agree), 389 GB/s per Grace, 194 per GPU.
+ * Memory-bound. (Together AI and CUDO quote 18.4 TB/s = 36 x NVIDIA's "up to
+ * 512 GB/s" per superchip, which would leave the 225 link binding; the lower
+ * figure wins.)
+ *
+ * Vera Rubin NVL72: 1.8 TB/s C2C per superchip of 2 GPUs (NVIDIA Vera Rubin
+ * NVL72 page), 900 one way, 450 per GPU. Vera's LPDDR5X gives 1.2 TB/s per CPU
+ * (Tom's Hardware), 600 per GPU, so the link binds: 450.
+ *
+ * The GB300 Desktop Superchip pairs 1 GPU to 1 Grace CPU,
  * so the link itself isn't the bottleneck — the Grace LPDDR5X behind it is:
  * "DGX Station GB300: 900 GB/s NVLink-C2C, 496 GB LPDDR5X at 396 GB/s
  * (NVIDIA / Tom's Hardware); memory-bound."
  *
- * HGX B300 (`nvidia-gb300-288gb`) is an x86 host, not Grace, despite the
- * GB300 name. GB10 (`nvidia-gb10`) has no separate host tier: its Grace
+ * HGX B300 (`nvidia-gb300-288gb`) and HGX Rubin NVL8 are x86 hosts, not Grace,
+ * despite the names. GB10 (`nvidia-gb10`) has no separate host tier: its Grace
  * memory is already one unified pool shared with the GPU, not a second tier
  * to park KV cache into.
  */
 export function graceLinkGBps(gpuId: string): number | null {
-  if (gpuId === 'nvidia-gb300-nvl72') return 225
+  if (gpuId === 'nvidia-gb300-nvl72' || gpuId === 'nvidia-gb200-nvl72') return 194
+  if (gpuId === 'nvidia-vera-rubin-nvl72') return 450
   if (gpuId === 'nvidia-gb300-desktop-252gb') return 396
   return null
 }

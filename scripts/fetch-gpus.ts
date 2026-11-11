@@ -12,6 +12,10 @@ import { type GPU, validateGPUs } from '../src/utils/schemas'
  * - AMD MI325X: https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/product-briefs/instinct-mi325x-datasheet.pdf
  * - AMD MI350X/MI355X: https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/product-briefs/amd-instinct-mi350x-gpu-brochure.pdf
  * - Apple Silicon: Wikipedia and official Apple specs
+ * - NVIDIA racks: https://www.nvidia.com/en-us/data-center/gb200-nvl72/, .../gb300-nvl72/,
+ *   .../vera-rubin-nvl72/ and the HGX page https://www.nvidia.com/en-us/data-center/hgx/
+ * - Second sources (usable memory, dense FP8/FP4): https://inferencex.semianalysis.com/chips/
+ * - Every rack and FP8/FP4 figure with both sources: docs/gpu-specs-reference.md
  *
  * Update the GPUS array below with specs from official sources, then run:
  * npm run refresh:gpus
@@ -28,6 +32,7 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3',
     bus_width: 5120,
     fp16_tflops: 756, // Dense: the datasheet's 1,513 TF is with sparsity
+    fp8_tflops: 1513, // Dense: H100 datasheet 3,026 TF with sparsity / 2 (Flopper.io agrees)
     fp32_tflops: 51,
     tdp_watts: 350,
     interconnect: 'pcie-5',
@@ -45,6 +50,7 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3',
     bus_width: 5120,
     fp16_tflops: 989,
+    fp8_tflops: 1979, // Dense: NVIDIA H100 page 3,958 TF "with sparsity" / 2 (InferenceX: 1,979)
     fp32_tflops: 51,
     tdp_watts: 700,
     interconnect: 'nvlink-4',
@@ -64,6 +70,7 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3e',
     bus_width: 5120,
     fp16_tflops: 989,
+    fp8_tflops: 1979, // Dense: NVIDIA H200 page 3,958 TF "with sparsity" / 2 (Flopper.io agrees)
     fp32_tflops: 51,
     tdp_watts: 700,
     interconnect: 'nvlink-4',
@@ -84,6 +91,7 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3e',
     bus_width: 5120,
     fp16_tflops: 835,
+    fp8_tflops: 1670, // Dense: NVIDIA H200 page 3,341 TF "with sparsity" / 2, rounded down (Flopper.io: 3,341 sparse)
     fp32_tflops: 60,
     tdp_watts: 600,
     interconnect: 'pcie-5',
@@ -108,6 +116,10 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3e',
     bus_width: 8192,
     fp16_tflops: 2250,
+    // Dense, HGX page per 8 GPUs: FP8 72 PF sparse (dense = 1/2), FP4 144 | 72 PF
+    // sparse | dense. SemiAnalysis InferenceX B200: 4,500 / 9,000 dense.
+    fp8_tflops: 4500,
+    fp4_tflops: 9000,
     fp32_tflops: 90,
     tdp_watts: 1000,
     interconnect: 'nvlink-5',
@@ -128,7 +140,10 @@ const GPUS: GPU[] = [
   // NVL72: 72 Blackwell Ultra GPUs + 36 Grace CPUs in one NVLink domain, 130TB/s
   // of switch bandwidth, shipping as Dell PowerEdge XE9712. NVIDIA's GB300 NVL72
   // page lists 20 TB HBM3e and 360 PF FP16 "with sparsity" across 72 GPUs, so
-  // 288 GB and 2500 dense per GPU, at 1400 W liquid-cooled.
+  // 2500 dense per GPU, at 1400 W liquid-cooled. Memory is the usable figure, not
+  // the 288 GB stack size: 20 TB / 72 = 278, SemiAnalysis InferenceX 278 (CoreWeave
+  // lists 279; the lower wins). Rack FP8 720 PF sparse and FP4 1080 PF dense give
+  // 5000 / 15000 dense per GPU (InferenceX agrees).
   //
   // The HGX row keeps the original id so existing shared links resolve.
   {
@@ -140,6 +155,10 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3e',
     bus_width: 8192,
     fp16_tflops: 2250,
+    // Dense, HGX page per 8 GPUs: FP8 72 PF sparse (dense = 1/2), FP4 144 | 108 PF
+    // sparse | dense. SemiAnalysis InferenceX B300: 4,500 / 13,500 dense.
+    fp8_tflops: 4500,
+    fp4_tflops: 13500,
     fp32_tflops: 75,
     tdp_watts: 1100,
     interconnect: 'nvlink-5',
@@ -149,19 +168,93 @@ const GPUS: GPU[] = [
   },
   {
     id: 'nvidia-gb300-nvl72',
-    name: 'NVIDIA GB300 NVL72 (72-GPU rack) 288GB',
+    name: 'NVIDIA GB300 NVL72 (72-GPU rack) 278GB',
     manufacturer: 'nvidia',
-    vram_gb: 288,
+    vram_gb: 278,
     memory_bandwidth_gbps: 8000,
     memory_type: 'HBM3e',
     bus_width: 8192,
     fp16_tflops: 2500,
+    fp8_tflops: 5000,
+    fp4_tflops: 15000,
     fp32_tflops: 83,
     tdp_watts: 1400,
     interconnect: 'nvlink-5',
     max_gpus_per_node: 72,
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/gb300-nvl72/',
+  },
+  // GB200 NVL72: 72 Blackwell GPUs + 36 Grace CPUs, one NVLink 5 domain. NVIDIA's
+  // page: 13.4 TB HBM3e | 576 TB/s, FP16 360 PF / FP8 720 PF sparse, FP4 1440 | 720
+  // PF sparse | dense, FP32 5760 TF, all per 72 GPUs ("Dense is one-half sparse
+  // spec shown"). 186 GB is already the usable figure (CoreWeave, Together AI and
+  // SemiAnalysis InferenceX list 186; InferenceX also 2500 / 5000 / 10000 dense).
+  // No TDP: NVIDIA's page gives none.
+  {
+    id: 'nvidia-gb200-nvl72',
+    name: 'NVIDIA GB200 NVL72 (72-GPU rack) 186GB',
+    manufacturer: 'nvidia',
+    vram_gb: 186,
+    memory_bandwidth_gbps: 8000,
+    memory_type: 'HBM3e',
+    bus_width: 8192,
+    fp16_tflops: 2500,
+    fp8_tflops: 5000,
+    fp4_tflops: 10000,
+    fp32_tflops: 80,
+    interconnect: 'nvlink-5',
+    max_gpus_per_node: 72,
+    tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/gb200-nvl72/',
+  },
+  // Vera Rubin NVL72 (preliminary: Rubin specs moved once already, 22 TB/s HBM4
+  // and 3.6 TB/s NVLink announced, 19.2 and 3 on the current page). NVIDIA's page,
+  // per GPU: 288 GB HBM4 | 19.2 TB/s, NVLink 6 3 TB/s, FP16 4 PF, FP8 17.5 PF and
+  // NVFP4 training 35 PF all footnoted dense (the 50 PF "NVFP4 inference" is
+  // sparse, unused), FP32 130 TF. Meta's Prometheus post agrees on 19.2 TB/s,
+  // 1.26 EF FP8 and 2.52 EF FP4 training per rack; Tom's Hardware on 4 PF / 130 TF.
+  // Memory: no usable figure exists yet, so GB300's reserve ratio (278 / 288)
+  // applies: 278. No TDP or bus width: NVIDIA gives neither (0 = unknown).
+  {
+    id: 'nvidia-vera-rubin-nvl72',
+    name: 'NVIDIA Vera Rubin NVL72 (72-GPU rack, preliminary)',
+    manufacturer: 'nvidia',
+    vram_gb: 278,
+    memory_bandwidth_gbps: 19200,
+    memory_type: 'HBM4',
+    bus_width: 0,
+    fp16_tflops: 4000,
+    fp8_tflops: 17500,
+    fp4_tflops: 35000,
+    fp32_tflops: 130,
+    interconnect: 'nvlink-6',
+    max_gpus_per_node: 72,
+    tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/vera-rubin-nvl72/',
+  },
+  // HGX Rubin NVL8 (preliminary), x86 host, no Grace. One rule for every figure:
+  // the HGX page's system totals / 8. 2 TB HBM4 | 130 TB/s, NVLink switch 24 TB/s,
+  // FP16 32 PF, FP8 130 PF, NVFP4 training 270 PF (all footnoted dense), FP32 1040
+  // TF. The page's per-GPU 288 GB / 22 TB/s / 3.6 TB/s are higher and don't divide
+  // back from its own totals; the lower figure wins. ServeTheHome (2026-10-31)
+  // confirms the revision: 2.3 to 2.0 TB, 176 to 130 TB/s, FP8 140 to 130 PF, FP4
+  // training 280 to 270 PF, 250-252 GB usable per GPU. No TDP or bus width given.
+  {
+    id: 'nvidia-hgx-rubin-nvl8',
+    name: 'NVIDIA HGX Rubin NVL8 (8-GPU, preliminary)',
+    manufacturer: 'nvidia',
+    vram_gb: 250,
+    memory_bandwidth_gbps: 16250,
+    memory_type: 'HBM4',
+    bus_width: 0,
+    fp16_tflops: 4000,
+    fp8_tflops: 16250,
+    fp4_tflops: 33750,
+    fp32_tflops: 130,
+    interconnect: 'nvlink-6',
+    max_gpus_per_node: 8,
+    tier: 'datacenter',
+    spec_url: 'https://www.nvidia.com/en-us/data-center/hgx/',
   },
   {
     id: 'nvidia-a100-80gb-pcie',
@@ -305,6 +398,10 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3e',
     bus_width: 8192,
     fp16_tflops: 2500, // DGX Station page: 5 PF FP16 "with sparsity unless otherwise noted"
+    // DGX Station page: FP8 10 PF sparse, FP4 20 | 15 PF sparse | dense (the "153"
+    // there is 15 plus footnote 3, "without sparsity"). pi3g and Supermicro agree.
+    fp8_tflops: 5000,
+    fp4_tflops: 15000,
     interconnect: 'none', // one GPU; NVLink-C2C links it to the CPU, not to another GPU
     max_gpus_per_node: 1,
     tier: 'consumer',
@@ -343,6 +440,10 @@ const GPUS: GPU[] = [
     bus_width: 8192,
     // Dense FP16. AMD's headline 5.0 PFLOPS figure is with sparsity.
     fp16_tflops: 2516,
+    // Dense: AMD MI355X page FP8 5 PF, MXFP4 10.1 PF (no sparsity on FP4); Flopper.io
+    // and InferenceX list 5,033 / 10,066 dense.
+    fp8_tflops: 5033,
+    fp4_tflops: 10066,
     fp32_tflops: 157,
     tdp_watts: 1400,
     interconnect: 'infinity-fabric',
@@ -360,6 +461,10 @@ const GPUS: GPU[] = [
     // Same die and memory as MI355X; the ~9% throughput gap is clocks,
     // enabled by 1400 W liquid vs 1000 W air cooling.
     fp16_tflops: 2300,
+    // Dense: AMD MI350X page FP8 4.6 PF, MXFP4 9.2 PF; Flopper.io 4,614 / 9,227.5 dense
+    // (rounded down, matching the stored 2300 FP16).
+    fp8_tflops: 4600,
+    fp4_tflops: 9200,
     fp32_tflops: 144,
     tdp_watts: 1000,
     interconnect: 'infinity-fabric',
@@ -376,6 +481,7 @@ const GPUS: GPU[] = [
     bus_width: 8192,
     // Same CDNA 3 compute core as MI300X, more memory.
     fp16_tflops: 1307,
+    fp8_tflops: 2614, // Dense: AMD MI325X datasheet 2,614.9 TF (5,229.8 sparse), rounded down; InferenceX 2,615
     fp32_tflops: 163,
     tdp_watts: 1000,
     interconnect: 'infinity-fabric',
@@ -391,6 +497,7 @@ const GPUS: GPU[] = [
     memory_type: 'HBM3',
     bus_width: 8192,
     fp16_tflops: 1307,
+    fp8_tflops: 2614, // Dense: AMD MI300X page 2,614.9 TF (5,229.8 sparse), rounded down; InferenceX 2,615
     fp32_tflops: 163,
     tdp_watts: 750,
     interconnect: 'infinity-fabric',

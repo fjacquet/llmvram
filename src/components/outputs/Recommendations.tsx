@@ -180,7 +180,7 @@ export function Recommendations({
       // no longer the free variable — node count is. Without this the panel says
       // "Need N GB more VRAM. Try:" and then lists nothing, since the "upgrade
       // GPU" recommendation below only fires under 80 GB and says nothing to
-      // someone already on a 288 GB part.
+      // someone already on the largest-memory part.
       const nodesNeeded = Math.ceil(rawNeeded / gpu.max_gpus_per_node)
       recommendations.push({
         title: 'Add more servers',

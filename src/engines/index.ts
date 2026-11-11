@@ -5,6 +5,14 @@
  * Engines are pure functions designed for testability and Web Worker offloading.
  */
 
+// Compute rate per weight format
+export {
+  attentionComputeRate,
+  type ComputePrecision,
+  type ComputeRate,
+  linearComputeRate,
+} from './compute'
+
 // Constants
 export {
   BYTES_PER_PARAMETER,

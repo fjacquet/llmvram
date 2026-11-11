@@ -36,7 +36,7 @@ export function offloadWeightFraction(config: OffloadingConfig, totalLayers?: nu
  *
  * - 'nvme': local NVMe (KV_TIER_PRESETS['local-nvme'], 12 GB/s).
  * - 'cpu-ram': the exact Grace NVLink-C2C figure for this GPU when it has one
- *   (graceLinkGBps: 225 NVL72, 396 Desktop Superchip), else generic PCIe 5
+ *   (graceLinkGBps: 194 NVL72, 396 Desktop Superchip), else generic PCIe 5
  *   (KV_TIER_PRESETS['host-pcie'], 50 GB/s).
  */
 export function hostLinkGBps(target: OffloadTarget, gpuId: string): number {

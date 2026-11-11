@@ -6,11 +6,14 @@
  * These are NON-Worker tests (Workers don't work in jsdom environment).
  */
 
+import gpusData from '@data/gpus.json'
 import type { GPU, Model } from '@utils/schemas'
+import { validateGPUs } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { FABRIC_SPECS } from './fabric'
 import { calculateInferenceVRAM } from './inference'
+import { calculateMultiGPUVRAM } from './multi-gpu'
 import { calculateMultiNodeVRAM } from './multi-node'
 import { estimatePerformance } from './performance'
 
@@ -429,5 +432,39 @@ describe('multi-node end to end', () => {
 
     expect(twoNodes.totalPerGPU.lessThan(oneNode.totalPerGPU)).toBe(true)
     expect(twoNodes.utilizationPercent.lessThan(oneNode.utilizationPercent)).toBe(true)
+  })
+})
+
+describe('GB300 NVL72 at 278 GB usable (ADR 0008)', () => {
+  it('a config that fit at 288 GB now reads "does not fit", without throwing', () => {
+    // A shared link saved before 2026-11-10 restores the same GPU id at 278 GB (20 TB / 72).
+    // 405B int4 at 131072 context, batch 1, one GPU: 279.42 GB, between 278 and 288.
+    // intent: a total between 278 and 288 GB; if this fails after an overhead change, re-pick the context length, don't loosen the assertions
+    const gb300 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-gb300-nvl72')
+    if (!gb300) throw new Error('nvidia-gb300-nvl72 missing from gpus.json')
+    expect(gb300.vram_gb).toBe(278)
+
+    const params = {
+      model: llama405b,
+      quantization: 'int4' as const,
+      sequenceLength: 131072,
+      batchSize: 1,
+    }
+    const run = (vramGB: number) => {
+      const single = calculateInferenceVRAM(params)
+      const multi = calculateMultiGPUVRAM(single, llama405b, vramGB, 1, 'tensor-parallel', gb300)
+      const perf = estimatePerformance({ ...params, gpu: { ...gb300, vram_gb: vramGB } })
+      return { multi, perf }
+    }
+
+    expect(() => run(gb300.vram_gb)).not.toThrow()
+    const now = run(gb300.vram_gb)
+    const before = run(288)
+    // The UI verdict is totalPerGPU > vram_gb: it flips from fits to does not fit
+    expect(before.multi.totalPerGPU.lessThan(288)).toBe(true)
+    expect(now.multi.totalPerGPU.greaterThan(gb300.vram_gb)).toBe(true)
+    expect(before.multi.utilizationPercent.lessThan(100)).toBe(true)
+    expect(now.multi.utilizationPercent.greaterThan(100)).toBe(true)
+    expect(now.perf.tokensPerSecond.toNumber()).toBeGreaterThan(0)
   })
 })

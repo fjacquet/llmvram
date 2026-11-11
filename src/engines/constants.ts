@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js'
+import type { ComputePrecision } from './compute'
 import type {
   InterconnectSpec,
   InterconnectType,
@@ -253,6 +254,16 @@ export const INTERCONNECT_SPECS: Record<InterconnectType, InterconnectSpec> = {
     tpScalingEfficiency: 0.97, // 1800 GB/s — near-linear scaling
     allreduceLatencyUs: NVLINK_ALLREDUCE_LATENCY_US,
   },
+  'nvlink-6': {
+    type: 'nvlink-6',
+    // 216 TB/s / 72 per NVIDIA's Vera Rubin NVL72 page, the same convention as nvlink-5 (130 / 72).
+    // https://www.nvidia.com/en-us/data-center/vera-rubin-nvl72/
+    // The slope would give 1.007, capped at 0.98. Derived, not measured.
+    bandwidthGBps: 3000,
+    recommendedMaxTPDegree: 8,
+    tpScalingEfficiency: 0.98,
+    allreduceLatencyUs: NVLINK_ALLREDUCE_LATENCY_US,
+  },
   'infinity-fabric': {
     type: 'infinity-fabric',
     bandwidthGBps: 1075,
@@ -468,6 +479,7 @@ export const INTERCONNECT_LABELS: Partial<Record<string, string>> = {
   'nvlink-3': 'NVLink 3 — 600 GB/s',
   'nvlink-4': 'NVLink 4 — 900 GB/s',
   'nvlink-5': 'NVLink 5 — 1800 GB/s',
+  'nvlink-6': 'NVLink 6 — 3000 GB/s',
   'infinity-fabric': 'Infinity Fabric — 1075 GB/s',
   'pcie-5': 'PCIe 5 — 128 GB/s',
   'pcie-4': 'PCIe 4 — 64 GB/s',
@@ -482,6 +494,22 @@ export const INTERCONNECT_LABELS: Partial<Record<string, string>> = {
  * literature reports 40-60% MFU for prefill against 1-5% for batch-1 decode.
  * 0.45 sits inside that range.
  *
- * Used as: prefillSeconds = prefillFLOPs / (gpuFLOPS * PREFILL_MFU)
+ * Prefill now uses PREFILL_MFU_BY_PRECISION: linearFLOPs / (linearRate * MFU[precision])
+ * + attentionFLOPs / (rate16 * MFU.fp16). See src/engines/compute.ts.
  */
 export const PREFILL_MFU = new Decimal(0.45)
+
+/**
+ * Prefill MFU per compute precision (spec D9), against that precision's dense peak
+ *
+ * No measurement isolating prefill at FP8 or FP4 on the same basis as the FP16 figure was
+ * found (2026-11-10; MLPerf offline and InferenceX are mostly decode). So, per D9:
+ * - fp8 keeps 0.45 on the FP8 peak: vLLM's FP8 W8A8 path is mature.
+ * - fp4 is never selected: `linearComputeRate` computes FP4 formats at the card's FP8 rate.
+ *   Do not pair this entry with an FP4 peak without a sourced value.
+ */
+export const PREFILL_MFU_BY_PRECISION: Record<ComputePrecision, Decimal> = {
+  fp16: PREFILL_MFU,
+  fp8: new Decimal(0.45),
+  fp4: new Decimal(0.45),
+}
