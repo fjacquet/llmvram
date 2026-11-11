@@ -35,7 +35,7 @@ read at most `topk` KV positions per token, not the whole context.
 
   | Phase   | n   | min   | p5    | p10   | p25   | median |
   | ------- | --- | ----- | ----- | ----- | ----- | ------ |
-  | Decode  | 512 | 0.126 | 0.271 | 0.315 | 0.380 | 0.470  |
+  | Decode  | 512 | 0.126 | 0.270 | 0.315 | 0.380 | 0.470  |
   | Prefill | 62  | 0.101 | 0.143 | 0.239 | 0.344 | 0.469  |
 
 - **D3 Which points count.** Every point is accepted or rejected in the
