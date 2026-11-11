@@ -25,7 +25,7 @@ read at most `topk` KV positions per token, not the whole context.
 - **D1 Two figures.** The ceiling is today's roofline, unchanged. Expected is
   the ceiling scaled by a measured efficiency. Expected tok/s = ceiling x 0.47.
   Expected TTFT and prefill = ceiling / 0.469, about 2.13x longer. Rack counts
-  in the next piece use expected. ADR 0005's UI freeze is lifted for this second
+  in the next piece were planned on expected; ADR 0010 sets them by memory instead. ADR 0005's UI freeze is lifted for this second
   figure only. No new inputs.
 - **D2 Constants.** (Decode is now banded by load, ADR 0010; the flat 0.47 below is the overall median, kept for bands up to 32.) `DECODE_EFFICIENCY_BANDS` 0.47 up to batch 32, the median of n=512 accepted vLLM
   points. `PREFILL_EFFICIENCY` 0.469, the median of n=62. The statistic is the

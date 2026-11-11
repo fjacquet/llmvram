@@ -215,10 +215,19 @@ export function Recommendations({
     // falling through to the "upgrade GPU" recommendation below instead of
     // suggesting a configuration the UI has no way to build.
     // Past every size one server forms, fill it with its largest valid degree
-    const gpusNeeded =
-      advisedGPUs(1) ?? (countByMemory > maxGPUsFor(gpu) ? (validDegrees.at(-1) ?? null) : null)
+    const fullServer = validDegrees.at(-1) ?? 1
+    const overServer = advisedGPUs(1) === null && countByMemory > maxGPUsFor(gpu)
+    const gpusNeeded = advisedGPUs(1)
 
-    if (gpusNeeded !== null && gpusNeeded > 1) {
+    if (overServer && fullServer > 1) {
+      // Never advise fewer GPUs than memory needs: one server is not enough
+      const servers = Math.ceil(countByMemory / fullServer)
+      recommendations.push({
+        title: 'Add more servers',
+        description: `Needs about ${countByMemory} GPUs by memory, more than one server holds. Try ${servers} servers of ${fullServer}x ${gpu.name} (${servers * fullServer} GPUs total), or use Sizing mode`,
+        impact: `Would distribute ${totalGB.toFixed(1)} GB across ${servers * fullServer} GPUs (~${(totalGB / (servers * fullServer)).toFixed(1)} GB per GPU), with pipeline parallelism between servers`,
+      })
+    } else if (gpusNeeded !== null && gpusNeeded > 1) {
       recommendations.push({
         title: 'Use multiple GPUs',
         description: `Use ${gpusNeeded}x ${gpu.name} with tensor parallelism`,

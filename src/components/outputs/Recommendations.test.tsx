@@ -342,6 +342,36 @@ describe('Recommendations', () => {
     })
   })
 
+  it('past one server, advises more servers, never a full server alone (re-review M1)', () => {
+    // 2026-11-11, sizing re-review: was "Use 8x" for a model needing ~12 GPUs by memory,
+    // which under-provisions; one server is not enough, so the advice names servers
+    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+    const model = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-405b')
+    if (!h100 || !model) throw new Error('fixture missing from data')
+    const vram = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 8192,
+      batchSize: 1,
+    })
+    render(
+      <Recommendations
+        gpu={h100}
+        model={model}
+        breakdown={vram}
+        currentQuantization="fp16"
+        currentSequenceLength={8192}
+        numGPUs={1}
+        multiGPUBreakdown={null}
+      />,
+    )
+    expect(screen.getByText('Add more servers')).toBeInTheDocument()
+    const text = screen.getByText(/more than one server holds/).textContent ?? ''
+    const servers = Number(text.match(/Try (\d+) servers of 8x/)?.[1])
+    expect(servers).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByText(/^Use 8x/)).not.toBeInTheDocument()
+  })
+
   describe('never advises a TP degree vLLM refuses (final review M1)', () => {
     // 2026-11-11, sizing final review M1: was "Use 6x" (the raw memory count) when no valid
     // degree inside one server reaches it; GLM 4.7 Flash accepts only 1, 2, 4 and 5 here.
