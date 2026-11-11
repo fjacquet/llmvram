@@ -59,7 +59,7 @@ Plus custom GPU input for any hardware.
 
 ## Model Database
 
-55 curated models including Gemma 4, Qwen3.8 / Qwen3.6, LLaMA 3.1 / 3.3 / Llama 4, DeepSeek V4 / R1, GLM 5.2 / 4.7, Kimi K3 / K2.x / Linear, Ling 3.0, Mistral Large 4 / 3 / Medium 3.5, MiniMax M2.x / M3, Nemotron 3 / 3.5, LFM2.5, GPT OSS, and more. Plus custom model input.
+59 curated models including Gemma 4, Qwen3.8 / Qwen3.6, LLaMA 3.1 / 3.3 / Llama 4, DeepSeek V4 / V4.1 / R1, GLM 5.3 / 5.2 / 4.7, Kimi K3.1 Pro / K3 / K2.x / Linear, Ling 3.1 / 3.0, Mistral Large 4 / 3 / Medium 3.5, MiniMax M2.x / M3, Nemotron 3 / 3.5, LFM2.5, GPT OSS, and more. Plus custom model input.
 
 ## Quick Start
 

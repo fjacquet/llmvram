@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Roster refresh (55 → 59 models), each with measured weights where official checkpoints exist and KV values confirmed by vLLM source plus the model card:
+  - GLM 5.3 (DSA, 753.3B, bf16/fp8/awq/nvfp4/GGUF refs);
+  - Kimi K3.1 Pro (2.8T, DSA over K3's hybrid layout, mxfp4/nvfp4 refs);
+  - DeepSeek V4.1 Flash-1017 (763.2B including 196B Engram tables, mxfp4/nvfp4 refs; sparse reads not modelled, KV charged in full, which overstates memory);
+  - Ling 3.1 Flash-1019 (572.1B including the MTP layer, 63 KDA + 9 MLA layers, fp8 and GGUF refs).
+  - Skipped because vLLM main has no in-tree model class or the KV layout has no second source: GLM 5.3 Flash, ERNIE 5.5 Flash Base, LongCat 2.5. They return when vLLM supports them.
+- Publisher country of origin shown as an ISO code (hover for the country name) in the model selector. It is the publisher's headquarters, not where a model was trained, and not a measure of bias.
+- ADR 0011: vLLM is the reference engine.
 - Sizing mode: racks or servers for a model and N simultaneous users, with replica split, idle GPUs and expected speed beside its ceiling; optional KV storage tier (the assumption drives the count and is shown in the UI and PPTX). In comparison and exports. ADR 0010. Sizing sizes activations at the real batch (counts can rise: Llama 3.3 70B int4 on RTX 4090, 4k, 100 users is 2 servers, was 1), runs the KV tier rules (host-grace resets to none on a GPU without a Grace host), keeps the fabric in shared links, notes `--max-num-seqs` above 256 decoding sequences, and Recommendations never advise a TP degree vLLM refuses.
 - Mistral Large 4 1T-A52B (1053.2B total, 52.3B active, MLA, KV 36,288) with measured fp8, nvfp4 and GGUF weights; pending upstream vLLM support (PR #64534). 55 models in total.
 - Sparse attention (DSA): model fields `sparse_attention_topk`, `sparse_indexer_bytes_per_token`, `sparse_indexer_heads`, `sparse_indexer_layers`, for GLM 5.2 and Mistral Large 4. Prefill main attention is 2·L·H·a·(2T − a) FLOPs, a = min(T, topk): query t attends min(t, topk) keys.

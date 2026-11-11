@@ -95,7 +95,7 @@ export function GuidePage() {
         <SectionHeading id="quick-start">Quick Start</SectionHeading>
         <ol className="list-decimal list-inside text-sm text-gray-700 dark:text-gray-300 space-y-2 mb-4">
           <li>
-            <strong>Pick a model</strong> — Search or scroll the curated list of 54 models, or
+            <strong>Pick a model</strong> — Search or scroll the curated list of 59 models, or
             define a custom model with your own parameter count and architecture details.
           </li>
           <li>
@@ -189,7 +189,7 @@ export function GuidePage() {
         <SectionHeading id="model-config">Model Configuration</SectionHeading>
         <SubHeading>Model Selector</SubHeading>
         <P>
-          A searchable dropdown with 54 curated models (LLaMA, Mistral, Qwen, DeepSeek, etc.). Each
+          A searchable dropdown with 59 curated models (LLaMA, Mistral, Qwen, DeepSeek, etc.). Each
           entry shows the parameter count in billions and a &quot;MoE&quot; badge for
           Mixture-of-Experts models. Select &quot;Custom model...&quot; at the bottom to specify
           your own architecture.

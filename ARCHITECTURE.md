@@ -89,7 +89,7 @@ src/
 │   └── calculation.worker.ts   # Offloads engine calculations to background thread
 ├── data/                       # Static databases
 │   ├── gpus.json               # 32 curated GPUs (NVIDIA, AMD, Apple Silicon) + spec_url
-│   └── models.json             # 54 curated models (sorted alphabetically by name) + context_length, license, hf_url
+│   └── models.json             # 59 curated models (sorted alphabetically by name) + context_length, license, hf_url
 └── test/                       # Test infrastructure
     └── setup.ts                # @testing-library/jest-dom + cleanup
 scripts/
@@ -406,7 +406,7 @@ Main Thread                    Worker Thread
 | `src/engines/quantization.ts`          | 22 quantization formats                   |
 | `src/engines/multi-gpu.ts`             | Multi-GPU distribution                    |
 | `src/utils/schemas.ts`                 | Zod schemas (type source of truth)        |
-| `src/data/models.json`                 | 54 curated models (alphabetically sorted) |
+| `src/data/models.json`                 | 59 curated models (alphabetically sorted) |
 | `src/data/gpus.json`                   | 28 curated GPUs                           |
 | `src/store/urlSerializer.ts`           | URL hash state persistence                |
 | `src/workers/calculation.worker.ts`    | Background calculation thread             |
