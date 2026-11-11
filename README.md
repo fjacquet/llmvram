@@ -13,6 +13,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
 
 ## Features
 
+> **Reference engine: vLLM.** Memory (90% utilisation, KV layout, tensor-parallel degrees) and the measured efficiencies follow vLLM. Other engines (TensorRT-LLM, SGLang, llama.cpp) will differ; treat their figures as indicative. See [ADR 0011](docs/adr/0011-vllm-reference-engine.md).
 - **VRAM Estimation**: Model weights, KV cache, activations, and framework overhead
 - **24 Quantization Formats**: FP32, FP16, BF16, FP8, MXFP4, INT8, INT4, NF4, GPTQ, AWQ, GGUF Q2-Q8, NVFP4/6
 - **Measured weights**: weight sizes come from published checkpoints per format where one exists, and the results say whether a figure is measured or estimated
@@ -58,7 +59,7 @@ Plus custom GPU input for any hardware.
 
 ## Model Database
 
-55 curated models including Gemma 4, Qwen3.8 / Qwen3.6, LLaMA 3.1 / 3.3 / Llama 4, DeepSeek V4 / R1, GLM 5.2 / 4.7, Kimi K3 / K2.x / Linear, Ling 3.0, Mistral Large 4 / 3 / Medium 3.5, MiniMax M2.x / M3, Nemotron 3 / 3.5, LFM2.5, GPT OSS, and more. Plus custom model input.
+59 curated models including Gemma 4, Qwen3.8 / Qwen3.6, LLaMA 3.1 / 3.3 / Llama 4, DeepSeek V4 / V4.1 / R1, GLM 5.3 / 5.2 / 4.7, Kimi K3.1 Pro / K3 / K2.x / Linear, Ling 3.1 / 3.0, Mistral Large 4 / 3 / Medium 3.5, MiniMax M2.x / M3, Nemotron 3 / 3.5, LFM2.5, GPT OSS, and more. Plus custom model input.
 
 ## Quick Start
 

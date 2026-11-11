@@ -95,7 +95,7 @@ export function GuidePage() {
         <SectionHeading id="quick-start">Quick Start</SectionHeading>
         <ol className="list-decimal list-inside text-sm text-gray-700 dark:text-gray-300 space-y-2 mb-4">
           <li>
-            <strong>Pick a model</strong> — Search or scroll the curated list of 54 models, or
+            <strong>Pick a model</strong> — Search or scroll the curated list of 59 models, or
             define a custom model with your own parameter count and architecture details.
           </li>
           <li>
@@ -108,6 +108,12 @@ export function GuidePage() {
             recommendations.
           </li>
         </ol>
+        <P>
+          <strong>Reference engine: vLLM.</strong> Memory (90% utilisation, KV layout, the
+          tensor-parallel degrees offered) and the measured efficiencies follow vLLM. Other engines
+          such as TensorRT-LLM, SGLang or llama.cpp will differ, so read their figures as
+          indicative.
+        </P>
 
         {/* What's new in 2.0 */}
         <SectionHeading id="whats-new">What&apos;s new in 2.0</SectionHeading>
@@ -183,10 +189,15 @@ export function GuidePage() {
         <SectionHeading id="model-config">Model Configuration</SectionHeading>
         <SubHeading>Model Selector</SubHeading>
         <P>
-          A searchable dropdown with 54 curated models (LLaMA, Mistral, Qwen, DeepSeek, etc.). Each
+          A searchable dropdown with 59 curated models (LLaMA, Mistral, Qwen, DeepSeek, etc.). Each
           entry shows the parameter count in billions and a &quot;MoE&quot; badge for
           Mixture-of-Experts models. Select &quot;Custom model...&quot; at the bottom to specify
           your own architecture.
+        </P>
+        <P>
+          The two-letter code beside a model is its publisher&apos;s country (hover for the name).
+          The country is the publisher&apos;s headquarters. It does not say where a model was
+          trained or what data it saw, and it is not a measure of bias.
         </P>
         <P>
           <strong>Custom model fields:</strong> Name (required), Parameter count in billions

@@ -9,6 +9,7 @@ import {
 } from '@headlessui/react'
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid'
 import { useUIStore } from '@store/uiStore'
+import { countryName } from '@utils/country'
 import { validateModels } from '@utils/schemas'
 import { useState } from 'react'
 import { type CustomModelInput, createCustomModel, type Model } from '@/types/model'
@@ -58,6 +59,21 @@ export function ModelSelector() {
     setCustomLayers('')
     setCustomHeads('')
     setShowCustomForm(false)
+  }
+
+  function originBadge(code: string | undefined, className: string) {
+    if (!code) return null
+    return (
+      <span
+        data-testid="origin-country"
+        title={countryName(code)}
+        aria-label={countryName(code)}
+        role="img"
+        className={`text-xs font-medium ${className}`}
+      >
+        {code}
+      </span>
+    )
   }
 
   function formatCtx(tokens: number): string {
@@ -131,6 +147,10 @@ export function ModelSelector() {
                             {model.name}
                           </span>
                           <div className="flex items-center gap-2 ml-2 shrink-0">
+                            {originBadge(
+                              model.origin_country,
+                              active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400',
+                            )}
                             {model.architecture === 'moe' && (
                               <span
                                 className={`text-xs px-1 rounded ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
@@ -193,6 +213,7 @@ export function ModelSelector() {
           <div className="flex items-center gap-3">
             {selectedModel.context_length && <span>{formatCtx(selectedModel.context_length)}</span>}
             {selectedModel.license && <span className="uppercase">{selectedModel.license}</span>}
+            {originBadge(selectedModel.origin_country, '')}
           </div>
           {selectedModel.hf_url && (
             <a

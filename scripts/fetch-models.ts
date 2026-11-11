@@ -48,13 +48,16 @@ const MODEL_IDS = [
 
   // DeepSeek V4
   'deepseek-ai/DeepSeek-V4-Flash-0731',
+  'deepseek-ai/DeepSeek-V4.1-Flash-1017',
   'deepseek-ai/DeepSeek-V4-Pro-0813',
 
   // GLM (Z.ai)
   'zai-org/GLM-5.2',
+  'zai-org/GLM-5.3',
 
   // Kimi (Moonshot)
   'moonshotai/Kimi-K3',
+  'moonshotai/Kimi-K3.1-Pro',
   'moonshotai/Kimi-K2.6',
   'moonshotai/Kimi-K2.7-Code',
   'moonshotai/Kimi-K2-Thinking',
@@ -63,6 +66,7 @@ const MODEL_IDS = [
   // Ling (inclusionAI)
   'inclusionAI/Ling-3.0-flash',
   'inclusionAI/Ling-3.0-tiny',
+  'inclusionAI/Ling-3.1-flash-1019',
 
   // Mistral
   'mistralai/Mistral-Large-4-1T-A52B',

@@ -172,15 +172,30 @@ describe('Model Database Validation', () => {
       // "~2% of a BF16 GQA8 baseline" matches (2.2%). Sliding part in EXOTIC_SLIDING.
       'deepseek-v4-flash': 3440, // 21x128 + 20x4 + 21x32
       'deepseek-v4-pro': 4924, // 30x128 + 31x4 + 30x32
+      // V4.1 CSA2 (vLLM vllm/models/deepseek_v41/attention.py): only kv_source_layer_ids [2, 8, 14,
+      // 20] own a compressed cache (get_kv_cache_spec returns None elsewhere), at 512 / ratio:
+      // ratio 2 owners 2, 8, 14 = 3 x 256, ratio 1 owner 20 = 512; each owner also holds an indexer
+      // key of index_head_dim 128 / ratio = 3 x 64 + 128. Second source: the card's "890 bytes per
+      // token" = 1280 main x 0.5625 (FP4 + one E4M3 scale per 16) + 320 indexer x 0.53 (MXFP4 68/128)
+      'deepseek-ai-deepseek-v4.1-flash-1017': 1600, // 768 + 512 + 320
       'moonshotai-kimi-k2-thinking': 35136,
       'moonshotai-kimi-k2-instruct': 35136,
       'moonshotai-kimi-k2.5': 35136,
       'moonshotai-kimi-k2.6': 35136, // MLA: 61 layers x (kv_lora_rank 512 + qk_rope 64)
       'moonshotai-kimi-k2.7-code': 35136, // MLA: 61 x 576
       'moonshotai-kimi-k3': 13824, // MLA: 24 of 93 layers x 576 (69 KDA layers cache-free)
+      // Same layout as K3, with the 24 full-attention layers now DSA. HF config: kv_lora_rank 512
+      // + qk_rope_head_dim 64 on the 24 linear_attn_config.full_attn_layers (= dsa_layers);
+      // vLLM vllm/models/kimi_k3/common/dsa_cache.py packed_dsa_block_size charges
+      // num_dsa = len(full_attn_layers) layers of MLA pages (indexer cache is extra, see SPARSE)
+      'moonshotai-kimi-k3.1-pro': 13824,
       'moonshotai-kimi-linear-48b-a3b': 4032,
       'inclusionai-ling-3.0-flash': 4032, // MLA: 7 of 42 layers x 576
       'inclusionai-ling-3.0-tiny': 3456, // MLA: 6 of 24 layers x 576
+      // MLA: 9 of 72 layers x 576. vLLM bailing_moe_v3.py _is_kda_layer: (layer_idx + 1) % 8 == 0 is
+      // MLA (cache = kv_lora_rank 512 + qk_rope_head_dim 64); card: "63 KDA + 9 Gated MLA (7:1)";
+      // config.json g_proj only on layers 7, 15, ..., 71
+      'inclusionai-ling-3.1-flash-1019': 5184,
       'liquidai-lfm2.5-2.6b': 8192, // GQA: 8 of 30 layers x (8 kv heads x 64 head_dim x 2)
       'qwen-qwen3.8-27b': 32768, // GQA: 16 of 64 layers x (4 kv heads x 256 head_dim x 2)
       'qwen-qwen3.8-2.4t-a95b': 47104, // GQA: 23 of 92 layers x 2048
@@ -190,6 +205,9 @@ describe('Model Database Validation', () => {
       'zai-org-glm-4.7': 188416, // 92 x 8 kv x head_dim 128 (not hidden/heads) x 2
       'zai-org-glm-4.7-flash': 27072, // MLA: 47 x 576
       'zai-org-glm-5.2': 44928, // MLA: 78 x 576 (DSA indexer, ~3%, not included)
+      // Same shape as GLM 5.2: HF config kv_lora_rank 512 + qk_rope_head_dim 64 on 78 layers;
+      // vLLM deepseek_v32 (GlmMoeDsaForCausalLM) MLA cache is kv_lora_rank + rope per token
+      'zai-org-glm-5.3': 44928,
       'minimax-m3': 68736, // 60 x 4 kv x 128 x 2 + 128-dim indexer key on 57 sparse layers
       'minimax-m2.1': 126976,
       'minimax-m2.5': 126976,
@@ -245,6 +263,9 @@ describe('Model Database Validation', () => {
     const EXOTIC_SLIDING: Record<string, [number, number]> = {
       'deepseek-v4-flash': [22016, 128], // all 43 layers keep a 128-token window, 512 each
       'deepseek-v4-pro': [31232, 128], // 61 x 512
+      // 40 backbone layers, each builds its own DeepseekV4SWACache (attention.py swa_cache_layer),
+      // config sliding_window 128, head_dim 512. Bounded replay changes persistence, not memory
+      'deepseek-ai-deepseek-v4.1-flash-1017': [20480, 128],
       'google-gemma-3-1b': [11264, 512], // 22 local x 1 kv x 256 x 2
       'google-gemma-3-4b': [59392, 1024], // 29 local x 4 kv x 256 x 2
       'google-gemma-3-12b': [163840, 1024], // 40 local x 8 kv x 256 x 2
@@ -275,6 +296,7 @@ describe('Model Database Validation', () => {
       'deepseek-r1',
       'inclusionai-ling-3.0-flash',
       'inclusionai-ling-3.0-tiny',
+      'inclusionai-ling-3.1-flash-1019',
       'mistralai-mistral-large-3-675b',
       'mistralai-mistral-large-4-1t-a52b',
       'mistralai-mistral-small-4-119b',
@@ -284,9 +306,11 @@ describe('Model Database Validation', () => {
       'moonshotai-kimi-k2.6',
       'moonshotai-kimi-k2.7-code',
       'moonshotai-kimi-k3',
+      'moonshotai-kimi-k3.1-pro',
       'moonshotai-kimi-linear-48b-a3b',
       'zai-org-glm-4.7-flash',
       'zai-org-glm-5.2',
+      'zai-org-glm-5.3',
     ]
     const actual = modelsData
       .filter((m) => 'use_mla' in m && m.use_mla)
@@ -308,11 +332,21 @@ describe('Model Database Validation', () => {
       'qwen-qwen3.6-35b-a3b': 64389120, // 30 layers, 32 v-heads
       'qwen-qwen3.8-27b': 153944064, // 48 layers, 48 v-heads
       'qwen-qwen3.8-2.4t-a95b': 587292672, // 69 layers, 128 v-heads
-      // KDA: conv q,k,v 3 x heads x 128 x 3, recurrent heads x 128 x 128, all bf16
-      'moonshotai-kimi-k3': 232316928, // 69 KDA layers, 96 heads
-      'moonshotai-kimi-linear-48b-a3b': 22446080, // 20 layers, 32 heads
-      'inclusionai-ling-3.0-flash': 39280640, // 35 of 42 (layer_group_size 6), 32 heads; single source
-      'inclusionai-ling-3.0-tiny': 10100736, // 18 of 24 (layer_group_size 4), 16 heads; single source
+      // 2026-11-11: recurrent state re-pinned to fp32 (vLLM kda_state_dtype auto; model classes never override).
+      // KDA: conv q,k,v 3 x heads x 128 x 3 bf16, recurrent heads x 128 x 128 fp32 (kda_state_dtype auto)
+      'moonshotai-kimi-k3': 449372160, // 69 x (221184 conv + 6291456 fp32 recurrent), 96 heads
+      // K3.1 Pro linear_attn_config (kda_layers, head_dim 128, 96 heads) is identical to K3's
+      // (config.json diff has no linear_attn_config change); vLLM kimi_k3 KDA state shape
+      'moonshotai-kimi-k3.1-pro': 449372160,
+      'moonshotai-kimi-linear-48b-a3b': 43417600, // 20 x (73728 + 2097152), 20 layers, 32 heads
+      'inclusionai-ling-3.0-flash': 75980800, // 35 x (73728 + 2097152): 35 of 42 (layer_group_size 6), 32 heads; single source
+      'inclusionai-ling-3.0-tiny': 19537920, // 18 x (36864 + 1048576): 18 of 24 (layer_group_size 4), 16 heads; single source
+      // KDA: 63 of 72 layers. vLLM kda_state_shape (64 heads x 128, conv kernel 4 -> 3 columns):
+      // conv 3 x 8192 x 3 bf16 + recurrent 64 x 128 x 128 fp32 (kda_state_dtype, mamba_ssm_cache_dtype
+      // auto) = 147456 + 4194304 per layer. HF modeling_bailing_moe_v3.py: q/k/v conv1d states plus
+      // chunk_kda recurrent state, same layer split. fp32 recurrent is charged (same for K3 above):
+      // bailing_moe_v3.py get_state_dtype never passes mamba_ssm_cache_dtype, so auto = fp32
+      'inclusionai-ling-3.1-flash-1019': 273530880,
       // mamba2: conv (heads*head_dim + 2*8*128) x 3 bf16, recurrent heads x head_dim x 128 fp32
       'nvidia-nemotron-3-nano-30b-a3b': 49082368, // 23 mamba layers
       'nvidia-nemotron-3-nano-4b': 83801088, // 21 layers, 96 x 80
@@ -347,10 +381,19 @@ describe('Model Database Validation', () => {
     // over that figure would under-read; full reads are the safe direction.
     const SPARSE: Record<string, [number, number, number, number]> = {
       'zai-org-glm-5.2': [2048, 21 * 132, 32, 21],
+      // GLM 5.3 config is identical to 5.2 (index_topk 2048, index_n_heads 32, 21 of 78
+      // indexer_types 'full'); vLLM deepseek_v32 indexer cache is head_dim 128 + 128 / 128 x 4
+      // = 132 uint8 bytes per token, built only where the layer is not 'shared'
+      'zai-org-glm-5.3': [2048, 21 * 132, 32, 21],
       // Mistral Large 4: 44 of 72 indexer_types 'full' (params.json dsa.sharing). vLLM PR #64534
       // MistralIndexerCache is the same 132-byte uint8 layout, built only where has_indexer; the
       // 9 KV-sharing layers are all 'full', so they keep their own indexer cache
       'mistralai-mistral-large-4-1t-a52b': [2048, 44 * 132, 32, 44],
+      // Kimi K3.1 Pro: HF text_config.dsa_config index_topk 2048, index_num_heads 32,
+      // index_head_dim 128, dsa_layers = the 24 full_attn_layers, index_topk_freq 1 (no sharing;
+      // vLLM kimi_k3 nvidia/dsa.py rejects freq != 1). vLLM kimi_k3/common/dsa_cache.py
+      // indexer_cache_entry_bytes: head_dim + 4 = 132 B per token per layer (fp8 default)
+      'moonshotai-kimi-k3.1-pro': [2048, 24 * 132, 32, 24],
     }
     const actual = Object.fromEntries(
       models
@@ -382,6 +425,25 @@ describe('Model Database Validation', () => {
     expect(flash?.active_parameters_billion).toBe(13)
     expect(pro?.num_parameters_billion).toBe(1600)
     expect(pro?.active_parameters_billion).toBe(49)
+  })
+
+  it('stores DeepSeek V4.1 Flash at the V4.1-Flash card figures', () => {
+    // Engram (196B) is charged in HBM although vLLM offloads it to host by default: safe direction
+    // (the split counts Engram as routed experts).
+    // card (deepseek-ai/DeepSeek-V4.1-Flash, same config as -1017): 552B backbone + 196B Engram,
+    // HF safetensors total 763.2B; activated 8B prefill / 16B decode (the decode figure is stored)
+    const m = modelsData.find((x) => x.id === 'deepseek-ai-deepseek-v4.1-flash-1017')
+    expect(m?.num_parameters_billion).toBe(763.2)
+    expect(m?.active_parameters_billion).toBe(16)
+  })
+
+  it('stores Ling 3.1 Flash at the card figures', () => {
+    // card: 560B total / 25B active; HF safetensors total 572.1B (8.17B of it is the MTP layer 72).
+    // Stored total is the safetensors figure so measured bytes per parameter stay exact.
+    const m = modelsData.find((x) => x.id === 'inclusionai-ling-3.1-flash-1019')
+    expect(m?.num_parameters_billion).toBe(572.1)
+    expect(m?.active_parameters_billion).toBe(25)
+    expect(m?.context_length).toBe(262144) // config max_position_embeddings (card says 1M)
   })
 
   it('stores the context lengths the model cards and configs state', () => {
@@ -536,7 +598,61 @@ describe('Model Database Validation', () => {
       models.find((m) => m.id === id)?.weight_refs?.[f as keyof NonNullable<Model['weight_refs']>]
         ?.high_precision
     expect(hp('moonshotai-kimi-k3', 'mxfp4')).toEqual({ params_b: 57.191, gib: 106.55 })
+    expect(hp('moonshotai-kimi-k3.1-pro', 'mxfp4')).toEqual({ params_b: 57.37, gib: 106.88 })
+    expect(hp('deepseek-ai-deepseek-v4.1-flash-1017', 'mxfp4')).toEqual({
+      params_b: 2.019,
+      gib: 3.84,
+    })
     expect(hp('deepseek-r1', 'fp8')).toEqual({ params_b: 3.919, gib: 7.3 })
     expect(hp('qwen-qwen3-235b-a22b', 'bf16')).toBeUndefined()
+  })
+})
+
+// Publisher headquarters, from each publisher's own legal notice / filing (checked 2026-11-11).
+// The country is where the publisher is based, not where a model was trained.
+const PUBLISHER_COUNTRY: Record<string, string> = {
+  // https://legal.mistral.ai/legal-notice: registered office 15 rue des Halles, 75001 Paris
+  mistralai: 'FR',
+  // https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html: Hangzhou DeepSeek, registered in China
+  'deepseek-ai': 'CN',
+  // https://docs.z.ai/legal-agreement/privacy-policy: international service run by a Singapore entity,
+  // but the developer is Beijing Zhipu Huazhang Technology Co., Ltd. (Beijing). Group HQ taken as CN.
+  'zai-org': 'CN',
+  // https://openai.com/policies/eu-terms-of-use/: OpenAI OpCo, LLC, 1455 3rd Street, San Francisco
+  openai: 'US',
+  // https://abc.xyz/ (Alphabet 10-K cover): 1600 Amphitheatre Parkway, Mountain View, CA
+  google: 'US',
+  // https://www.kimi.com/user/agreement/userprivacy?version=v2: Beijing Moonshot Technology Co., Ltd.
+  // (some docs name a Singapore entity; the lab is Beijing-based)
+  moonshotai: 'CN',
+  // https://www.liquid.ai/press/liquid-ai-launches-leap-and-apollo-a-new-era-for-edge-ai-deployment-begins: 314 Main St, Cambridge, MA
+  LiquidAI: 'US',
+  // Meta Platforms 10-K cover: 1 Meta Way, Menlo Park, CA (https://www.sec.gov/Archives/edgar/data/1326801/000132680125000017/0001326801-25-000017-index.html)
+  'meta-llama': 'US',
+  // inclusionAI is Ant Group's lab; Ant Group, Hangzhou (https://www.businesswire.com/news/home/20260215551663/en/Ant-Group-Releases-Ling-2.5-1T-and-Ring-2.5-1T-Evolving-Its-Open-Source-AI-Model-Family, dateline Hangzhou)
+  inclusionAI: 'CN',
+  // MiniMax Group Inc. 2025 annual report (HKEX): PRC headquarters Xuhui District, Shanghai
+  // (registered office is the Cayman Islands; the operating headquarters is used)
+  MiniMaxAI: 'CN',
+  // NVIDIA 10-K cover: Santa Clara, CA (https://www.sec.gov/Archives/edgar/data/1045810/000104581014000030/nvda-2014x10k.htm)
+  nvidia: 'US',
+  // Qwen is Alibaba Cloud; Alibaba Group principal executive offices 969 West Wen Yi Road, Hangzhou
+  // (https://static.alibabagroup.com/reports/fy2022/ar/ebook/en/106/index.html)
+  Qwen: 'CN',
+}
+
+describe('Publisher country of origin', () => {
+  it('every model carries the country of its publisher', () => {
+    for (const m of models) {
+      const org = (m.hf_url ?? '').split('/')[3] ?? ''
+      expect(PUBLISHER_COUNTRY[org], `${m.id}: publisher ${org} not in map`).toBeDefined()
+      expect(m.origin_country, m.id).toBe(PUBLISHER_COUNTRY[org])
+    }
+  })
+
+  it('rejects a lowercase or long code', () => {
+    const base = models[0] as Model
+    expect(ModelSchema.safeParse({ ...base, origin_country: 'fr' }).success).toBe(false)
+    expect(ModelSchema.safeParse({ ...base, origin_country: 'FRA' }).success).toBe(false)
   })
 })

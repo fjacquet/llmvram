@@ -218,6 +218,11 @@ const ModelFields = z.object({
   context_length: z.number().int().positive().optional(),
   license: z.string().optional(),
   hf_url: z.string().url().optional(),
+  // Publisher headquarters (ISO 3166-1 alpha-2); display only, unset for custom models.
+  origin_country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .optional(),
 })
 
 export const ModelSchema = ModelFields.refine(
