@@ -1,24 +1,69 @@
-import type { PerformanceEstimate } from '@engines/types'
+import gpusData from '@data/gpus.json'
+import modelsData from '@data/models.json'
+import { estimatePerformance } from '@engines/performance'
 import { render, screen } from '@testing-library/react'
-import Decimal from 'decimal.js'
+import { formatDuration } from '@utils/formatDuration'
+import { validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 import { PerformanceSection } from './PerformanceSection'
 
-const performance: PerformanceEstimate = {
-  tokensPerSecond: new Decimal(100),
-  timeToFirstToken: new Decimal(0.5),
-  prefillSeconds: new Decimal(0.2),
-  prefillBottleneck: 'linear',
-  prefillEstimateDegraded: false,
-  isComputeBound: false,
-  isMemoryBound: true,
-  bottleneck: 'memory',
-}
+const model = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-70b')
+const gpu = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+if (!model || !gpu) throw new Error('fixture not found')
+// 2026-11-11: built from the real engine (Task 6 added `expected`; the hand literal went stale)
+const performance = estimatePerformance({
+  model,
+  gpu,
+  quantization: 'fp8',
+  sequenceLength: 4096,
+  batchSize: 1,
+})
 
 describe('PerformanceSection', () => {
   it('renders the aggregate metrics', () => {
     render(<PerformanceSection performance={performance} concurrentUsers={1} batchSize={1} />)
-    expect(screen.getByText('100.0 tokens/sec')).toBeInTheDocument()
+    expect(
+      screen.getByText(`${performance.expected.tokensPerSecond.toFixed(1)} tokens/sec`),
+    ).toBeInTheDocument()
+  })
+
+  it('headlines expected decode, TTFT and prefill with each ceiling beside it (spec P3)', () => {
+    render(<PerformanceSection performance={performance} concurrentUsers={1} batchSize={1} />)
+    const { expected } = performance
+    if (!expected.prefillSeconds || !performance.prefillSeconds) throw new Error('no prefill')
+    const pairs = [
+      [
+        `${expected.tokensPerSecond.toFixed(1)} tokens/sec`,
+        `${performance.tokensPerSecond.toFixed(1)} tokens/sec`,
+      ],
+      [formatDuration(expected.timeToFirstToken), formatDuration(performance.timeToFirstToken)],
+      [formatDuration(expected.prefillSeconds), formatDuration(performance.prefillSeconds)],
+    ]
+    for (const [headline, ceiling] of pairs) {
+      expect(headline).not.toBe(ceiling)
+      expect(screen.getByText(headline ?? '')).toBeInTheDocument()
+      expect(screen.getByText(`Theoretical ceiling: ${ceiling}`)).toBeInTheDocument()
+    }
+  })
+
+  it('derives per-user speed and TTFT from the expected figures (spec P2)', () => {
+    render(<PerformanceSection performance={performance} concurrentUsers={4} batchSize={2} />)
+    const { expected } = performance
+    expect(
+      screen.getByText(`${expected.tokensPerSecond.div(4).toFixed(1)} tok/s`),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        `Theoretical ceiling: ${performance.tokensPerSecond.div(4).toFixed(1)} tok/s`,
+      ),
+    ).toBeInTheDocument()
+    // 4 users served 2 at a time: two waves
+    expect(screen.getByText(formatDuration(expected.timeToFirstToken.mul(2)))).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        `Theoretical ceiling: ${formatDuration(performance.timeToFirstToken.mul(2))}`,
+      ),
+    ).toBeInTheDocument()
   })
 
   it('shows a queueing warning when batch size is below concurrent users', () => {

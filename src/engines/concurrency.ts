@@ -68,3 +68,8 @@ export function maxConcurrentSessions(params: {
   const perSession = kvPerGPUGB / Math.max(1, concurrentUsers)
   return Math.max(0, Math.floor((gpuVramGB * GPU_MEMORY_UTILIZATION - fixed) / perSession))
 }
+
+/** The one inference fit rule: vLLM claims GPU_MEMORY_UTILIZATION of the device, no more. */
+export function fitsInference(totalGB: number, vramGB: number): boolean {
+  return totalGB <= vramGB * GPU_MEMORY_UTILIZATION
+}

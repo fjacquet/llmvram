@@ -9,8 +9,9 @@ import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownCha
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
 import { VerdictBlock } from '@components/outputs/VerdictBlock'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
-import { maxConcurrentSessions } from '@engines/concurrency'
+import { fitsInference, maxConcurrentSessions } from '@engines/concurrency'
 import { softWarnings } from '@engines/config-rules'
+import { GPU_MEMORY_UTILIZATION } from '@engines/constants'
 import { DECIMAL_GB_PER_GIB, kvTierSummary } from '@engines/kv-tier'
 import { defaultHostCapacityGB, roundOffloadSlowdown } from '@engines/offloading'
 import { weightSource } from '@engines/quantization'
@@ -221,13 +222,16 @@ export function ResultsPanel() {
   let deviceDoesNotFit = false
   if (result.multiGPU) {
     // Multi-GPU: check if per-GPU total exceeds GPU capacity
-    deviceDoesNotFit = result.multiGPU.totalPerGPU.greaterThan(selectedGPU.vram_gb)
+    deviceDoesNotFit = !fitsInference(result.multiGPU.totalPerGPU.toNumber(), selectedGPU.vram_gb)
   } else if (result.offloading) {
     // Offloading only: check if on-device total exceeds GPU capacity
-    deviceDoesNotFit = result.offloading.onDevice.total.greaterThan(selectedGPU.vram_gb)
+    deviceDoesNotFit = !fitsInference(
+      result.offloading.onDevice.total.toNumber(),
+      selectedGPU.vram_gb,
+    )
   } else {
     // Single GPU, no offloading: check if total exceeds GPU capacity
-    deviceDoesNotFit = result.vram.total.greaterThan(selectedGPU.vram_gb)
+    deviceDoesNotFit = !fitsInference(result.vram.total.toNumber(), selectedGPU.vram_gb)
   }
 
   // Host capacity: the offloaded memory (converted GiB -> decimal GB) must fit
@@ -313,8 +317,10 @@ export function ResultsPanel() {
         kvCache: result.vram.kvCache.toNumber(),
         activations: result.vram.activations.toNumber(),
         frameworkOverhead: result.vram.frameworkOverhead.toNumber(),
-        tokensPerSecond: result.performance.tokensPerSecond.toNumber(),
-        timeToFirstToken: result.performance.timeToFirstToken.mul(1000).toNumber(),
+        tokensPerSecond: result.performance.expected.tokensPerSecond.toNumber(),
+        timeToFirstToken: result.performance.expected.timeToFirstToken.mul(1000).toNumber(),
+        ceilingTokensPerSecond: result.performance.tokensPerSecond.toNumber(),
+        ceilingTimeToFirstToken: result.performance.timeToFirstToken.mul(1000).toNumber(),
         bottleneck: result.performance.bottleneck,
         fits: !doesNotFit,
         perGPUTotal: result.multiGPU?.totalPerGPU.toNumber() ?? null,
@@ -461,9 +467,14 @@ export function ResultsPanel() {
       totalVRAM={result.multiGPU.totalPerGPU}
       availableVRAM={selectedGPU.vram_gb}
       numGPUs={result.multiGPU.numGPUs}
+      limitPercent={GPU_MEMORY_UTILIZATION * 100}
     />
   ) : (
-    <FitIndicator totalVRAM={displayBreakdown.total} availableVRAM={selectedGPU.vram_gb} />
+    <FitIndicator
+      totalVRAM={displayBreakdown.total}
+      availableVRAM={selectedGPU.vram_gb}
+      limitPercent={GPU_MEMORY_UTILIZATION * 100}
+    />
   )
 
   return (
@@ -646,7 +657,8 @@ export function ResultsPanel() {
               <MultiGPUBreakdownChart
                 breakdown={result.multiGPU}
                 gpuVRAM={selectedGPU.vram_gb}
-                effectiveTokPerSec={result.performance.tokensPerSecond.toNumber()}
+                effectiveTokPerSec={result.performance.expected.tokensPerSecond.toNumber()}
+                ceilingTokPerSec={result.performance.tokensPerSecond.toNumber()}
               />
             )}
 

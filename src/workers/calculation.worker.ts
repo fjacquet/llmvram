@@ -81,6 +81,11 @@ interface CalculationSuccessResponse {
       isMemoryBound: boolean
       bottleneck: 'compute' | 'memory' | 'balanced'
       offloadSlowdown: number | null
+      expected: {
+        tokensPerSecond: string
+        timeToFirstToken: string
+        prefillSeconds: string | null
+      }
     }
     offloading: {
       onDevice: {
@@ -269,6 +274,11 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
             isMemoryBound: performance.isMemoryBound,
             bottleneck: performance.bottleneck,
             offloadSlowdown: performance.offloadSlowdown,
+            expected: {
+              tokensPerSecond: performance.expected.tokensPerSecond.toString(),
+              timeToFirstToken: performance.expected.timeToFirstToken.toString(),
+              prefillSeconds: performance.expected.prefillSeconds?.toString() ?? null,
+            },
           },
           offloading: offloadingResult
             ? {

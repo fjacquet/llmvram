@@ -1,10 +1,14 @@
+import { fitsInference } from '@engines/concurrency'
+import { GPU_MEMORY_UTILIZATION } from '@engines/constants'
 import type { MultiGPUVRAMBreakdown } from '@engines/types'
 
 interface MultiGPUBreakdownChartProps {
   breakdown: MultiGPUVRAMBreakdown
   gpuVRAM: number
-  /** Effective tokens/sec after multi-GPU scaling (optional, shown in summary) */
+  /** Expected tokens/sec across the GPUs (optional, shown in summary) */
   effectiveTokPerSec?: number
+  /** Theoretical ceiling tokens/sec, shown beside the expected figure (spec P3) */
+  ceilingTokPerSec?: number
 }
 
 const COLORS = {
@@ -52,6 +56,7 @@ export function MultiGPUBreakdownChart({
   breakdown,
   gpuVRAM,
   effectiveTokPerSec,
+  ceilingTokPerSec,
 }: MultiGPUBreakdownChartProps) {
   const segmentValues: Record<(typeof BAR_KEYS)[number], number> = {
     'Model Weights': breakdown.perGPU.modelWeights.toNumber(),
@@ -62,7 +67,11 @@ export function MultiGPUBreakdownChart({
   }
 
   const totalPerGPU = breakdown.totalPerGPU.toNumber()
+  // Inference only (ResultsPanel): colours and headroom follow the verdict's 90% rule;
+  // the widths renormalize only once the total exceeds the card itself.
+  const overLimit = gpuVRAM > 0 && !fitsInference(totalPerGPU, gpuVRAM)
   const overCapacity = gpuVRAM > 0 && totalPerGPU > gpuVRAM
+  const limitGB = gpuVRAM * GPU_MEMORY_UTILIZATION
   const utilizationPercent = gpuVRAM > 0 ? (totalPerGPU / gpuVRAM) * 100 : 0
 
   // Under capacity, each segment's width is a percent of gpuVRAM (capacity),
@@ -73,7 +82,7 @@ export function MultiGPUBreakdownChart({
   const widthPercent = (value: number): number => (widthBasis > 0 ? (value / widthBasis) * 100 : 0)
 
   const totalGPUs = breakdown.numGPUs
-  const headroom = gpuVRAM - totalPerGPU
+  const headroom = limitGB - totalPerGPU
 
   return (
     <div className="space-y-4">
@@ -93,7 +102,7 @@ export function MultiGPUBreakdownChart({
             container stays a plain div (no role/aria-label) so the per-segment
             role="img" elements below remain reachable — role="img" has
             presentational children, so a label here would shadow theirs. */}
-        <div className="h-6 w-full overflow-hidden rounded-md bg-gray-200 dark:bg-gray-700">
+        <div className="relative h-6 w-full overflow-hidden rounded-md bg-gray-200 dark:bg-gray-700">
           <div className="flex h-full">
             {BAR_KEYS.map((key) => (
               <div
@@ -102,25 +111,32 @@ export function MultiGPUBreakdownChart({
                 className="h-full transition-all duration-300"
                 style={{
                   width: `${widthPercent(segmentValues[key])}%`,
-                  backgroundColor: overCapacity ? OVER_CAPACITY_COLOR : COLORS[key],
+                  backgroundColor: overLimit ? OVER_CAPACITY_COLOR : COLORS[key],
                 }}
                 title={`${key}: ${segmentValues[key].toFixed(2)} GB`}
                 aria-label={`${key}: ${segmentValues[key].toFixed(2)} GB`}
               />
             ))}
           </div>
+          <div
+            data-testid="limit-marker"
+            aria-hidden="true"
+            className="absolute inset-y-0 w-0.5 bg-gray-900 dark:bg-white"
+            style={{ left: `${widthPercent(limitGB)}%` }}
+            title={`vLLM limit: ${Math.round(GPU_MEMORY_UTILIZATION * 100)}% of the GPU`}
+          />
         </div>
 
         <p
           className={
-            overCapacity
+            overLimit
               ? 'text-xs font-medium text-red-600 dark:text-red-400'
               : 'text-xs text-gray-500 dark:text-gray-400'
           }
         >
-          {overCapacity
-            ? `${Math.abs(headroom).toFixed(1)} GB over`
-            : `${headroom.toFixed(1)} GB headroom`}
+          {overLimit
+            ? `${Math.abs(headroom).toFixed(1)} GB over the 90% limit`
+            : `${headroom.toFixed(1)} GB headroom to the 90% limit`}
         </p>
       </div>
 
@@ -130,7 +146,7 @@ export function MultiGPUBreakdownChart({
       <BarChartLegend
         keys={BAR_KEYS}
         colors={
-          overCapacity ? Object.fromEntries(BAR_KEYS.map((k) => [k, OVER_CAPACITY_COLOR])) : COLORS
+          overLimit ? Object.fromEntries(BAR_KEYS.map((k) => [k, OVER_CAPACITY_COLOR])) : COLORS
         }
       />
 
@@ -165,8 +181,12 @@ export function MultiGPUBreakdownChart({
         {effectiveTokPerSec !== undefined && breakdown.numGPUs > 1 && (
           <p>
             <span className="font-medium">Effective throughput:</span> ~
-            {effectiveTokPerSec.toFixed(0)} tok/s ({breakdown.numGPUs}× GPUs ×{' '}
-            {Math.round(breakdown.scalingEfficiency * 100)}% efficiency)
+            {effectiveTokPerSec.toFixed(0)} tok/s across {breakdown.numGPUs} GPUs
+          </p>
+        )}
+        {ceilingTokPerSec !== undefined && breakdown.numGPUs > 1 && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Theoretical ceiling: ~{ceilingTokPerSec.toFixed(0)} tok/s
           </p>
         )}
       </div>

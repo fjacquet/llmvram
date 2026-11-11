@@ -17,7 +17,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
 - **24 Quantization Formats**: FP32, FP16, BF16, FP8, MXFP4, INT8, INT4, NF4, GPTQ, AWQ, GGUF Q2-Q8, NVFP4/6
 - **Measured weights**: weight sizes come from published checkpoints per format where one exists, and the results say whether a figure is measured or estimated
 - **KV Cache Quantization**: Independent from weight quantization (FP16, FP8, INT8, INT4)
-- **Concurrent Users**: Size KV cache for 1–65,536 simultaneous sessions; shows per-user tok/s and TTFT, and the maximum sessions that fit at the chosen context
+- **Concurrent Users**: Size KV cache for 1–65,536 simultaneous sessions; shows per-user tok/s and TTFT (expected speed from measured vLLM efficiency, with the theoretical ceiling beside it), and the maximum sessions that fit at the chosen context
 - **KV Storage Tier**: Park idle sessions on host memory, NVMe or network storage; shows sessions held, resume vs recompute and tier traffic
 - **Long Context**: Sequence lengths up to 1,048,576 tokens (and beyond for models with a larger
   native context, up to 10,485,760), with a native-context marker and a warning — never a clamp —
@@ -57,7 +57,7 @@ Plus custom GPU input for any hardware.
 
 ## Model Database
 
-54 curated models including Gemma 4, Qwen3.8 / Qwen3.6, LLaMA 3.1 / 3.3 / Llama 4, DeepSeek V4 / R1, GLM 5.2 / 4.7, Kimi K3 / K2.x / Linear, Ling 3.0, Mistral Large 3 / Medium 3.5, MiniMax M2.x / M3, Nemotron 3 / 3.5, LFM2.5, GPT OSS, and more. Plus custom model input.
+55 curated models including Gemma 4, Qwen3.8 / Qwen3.6, LLaMA 3.1 / 3.3 / Llama 4, DeepSeek V4 / R1, GLM 5.2 / 4.7, Kimi K3 / K2.x / Linear, Ling 3.0, Mistral Large 4 / 3 / Medium 3.5, MiniMax M2.x / M3, Nemotron 3 / 3.5, LFM2.5, GPT OSS, and more. Plus custom model input.
 
 ## Quick Start
 

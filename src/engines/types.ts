@@ -58,7 +58,7 @@ export interface PerformanceEstimate {
   timeToFirstToken: Decimal
   /** Prompt-processing time in seconds; null when the GPU has no FLOPS data */
   prefillSeconds: Decimal | null
-  /** Which prefill term dominates: the linear 2*N*T term or the quadratic attention term */
+  /** Which prefill term dominates: linear 2*N*T or attention 2*L*H*a*(2T-a), a = min(T, topk) */
   prefillBottleneck: 'linear' | 'attention'
   /** True when TTFT fell back to the pre-prefill-model heuristic for lack of FLOPS data */
   prefillEstimateDegraded: boolean
@@ -74,6 +74,15 @@ export interface PerformanceEstimate {
    * instead of HBM. Null when no offloading is configured.
    */
   offloadSlowdown: number | null
+  /**
+   * What vLLM is expected to deliver: tok/s = ceiling x DECODE_EFFICIENCY, TTFT and prefill =
+   * ceiling / PREFILL_EFFICIENCY (spec P2). Every other field above is the theoretical ceiling.
+   */
+  expected: {
+    tokensPerSecond: Decimal
+    timeToFirstToken: Decimal
+    prefillSeconds: Decimal | null
+  }
 }
 
 /**

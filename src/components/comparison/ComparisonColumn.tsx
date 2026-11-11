@@ -310,10 +310,16 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
             value={`${snapshot.results.tokensPerSecond.toFixed(1)} tok/s`}
             isDifferent={diffMap.tokensPerSecond}
           />
+          <p className="text-right text-xs text-gray-500 dark:text-gray-400">
+            Theoretical ceiling: {snapshot.results.ceilingTokensPerSecond.toFixed(1)} tok/s
+          </p>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>TTFT:</span>
             <span>{formatDurationMs(snapshot.results.timeToFirstToken)}</span>
           </div>
+          <p className="text-right text-xs text-gray-500 dark:text-gray-400">
+            Theoretical ceiling: {formatDurationMs(snapshot.results.ceilingTimeToFirstToken)}
+          </p>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>Bottleneck:</span>
             <span className="capitalize">{snapshot.results.bottleneck}</span>

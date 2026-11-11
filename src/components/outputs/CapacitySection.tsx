@@ -64,7 +64,7 @@ export function CapacitySection({
           <p className="text-xs text-gray-600 dark:text-gray-400">
             Resume {formatDuration(new Decimal(tierSummary.resumeSeconds))}
             {prefillSeconds &&
-              ` vs recompute ${formatDuration(prefillSeconds)} (${
+              ` vs recompute ${formatDuration(prefillSeconds)} (ceiling, ${
                 tierSummary.resumeFaster ? 'resume is faster' : 'recompute is faster'
               })`}
           </p>

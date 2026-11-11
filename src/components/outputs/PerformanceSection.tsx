@@ -35,7 +35,10 @@ export function PerformanceSection({
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Decode Speed</p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white">
-            {performance.tokensPerSecond.toFixed(1)} tokens/sec
+            {performance.expected.tokensPerSecond.toFixed(1)} tokens/sec
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Theoretical ceiling: {performance.tokensPerSecond.toFixed(1)} tokens/sec
           </p>
         </div>
         <div>
@@ -43,7 +46,10 @@ export function PerformanceSection({
             {firstTokenLabel(batchSize)}
           </p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white">
-            {formatDuration(performance.timeToFirstToken)}
+            {formatDuration(performance.expected.timeToFirstToken)}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Theoretical ceiling: {formatDuration(performance.timeToFirstToken)}
           </p>
           {performance.prefillEstimateDegraded && (
             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -72,8 +78,15 @@ export function PerformanceSection({
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Prompt Processing</p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white">
-            {performance.prefillSeconds ? formatDuration(performance.prefillSeconds) : 'n/a'}
+            {performance.expected.prefillSeconds
+              ? formatDuration(performance.expected.prefillSeconds)
+              : 'n/a'}
           </p>
+          {performance.prefillSeconds && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Theoretical ceiling: {formatDuration(performance.prefillSeconds)}
+            </p>
+          )}
           {performance.prefillSeconds && (
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {performance.prefillBottleneck === 'attention'
@@ -96,6 +109,14 @@ export function PerformanceSection({
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Per-user speed</p>
               <p className="text-base font-semibold text-gray-900 dark:text-white">
+                {perUserTokensPerSecond(
+                  performance.expected.tokensPerSecond,
+                  concurrentUsers,
+                ).toFixed(1)}{' '}
+                tok/s
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Theoretical ceiling:{' '}
                 {perUserTokensPerSecond(performance.tokensPerSecond, concurrentUsers).toFixed(1)}{' '}
                 tok/s
               </p>
@@ -103,6 +124,16 @@ export function PerformanceSection({
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Per-user TTFT (est.)</p>
               <p className="text-base font-semibold text-gray-900 dark:text-white">
+                {formatDuration(
+                  perUserTimeToFirstToken(
+                    performance.expected.timeToFirstToken,
+                    concurrentUsers,
+                    batchSize,
+                  ),
+                )}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Theoretical ceiling:{' '}
                 {formatDuration(
                   perUserTimeToFirstToken(performance.timeToFirstToken, concurrentUsers, batchSize),
                 )}

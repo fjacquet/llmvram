@@ -109,7 +109,10 @@ export function weightFiles(
   if (tag) {
     const re = new RegExp(`(^|[-_./])${tag}(\\.gguf$|-\\d+-of-|/)`, 'i')
     const hits = files.filter(
-      (f) => f.path.endsWith('.gguf') && !/mmproj|draft|UD-|IQ\d/i.test(f.path) && re.test(f.path),
+      (f) =>
+        f.path.endsWith('.gguf') &&
+        !/mmproj|draft|dspark|UD-|IQ\d/i.test(f.path) &&
+        re.test(f.path),
     )
     // One file set = one name once the shard index is removed, keeping the shard total: two
     // complete re-packs of the same weights under different totals (e.g. -of-53 vs -of-56)
@@ -193,7 +196,7 @@ export function pickReference(format: QuantizationFormat, candidates: string[]):
   if (GGUF_TAGS[format]) return find(/^unsloth\/.*GGUF$/i, /^bartowski\/.*GGUF$/i)
   switch (format) {
     case 'nvfp4':
-      return find(/^nvidia\/.*NVFP4/i, /NVFP4/i)
+      return find(/^nvidia\/.*NVFP4/i, /^(?!.*GGUF).*NVFP4/i)
     case 'fp8':
       // Exclude mixed-precision repos (e.g. "...-NVFP4-FP8") that quantize most weights to
       // NVFP4 and only activations/attention to FP8 — their bytes/param belongs under nvfp4.

@@ -1,11 +1,12 @@
 import gpusData from '@data/gpus.json'
+import modelsData from '@data/models.json'
 import { FABRIC_SPECS } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { applyInterconnectOverride } from '@engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '@engines/multi-node'
-import type { PerformanceEstimate } from '@engines/types'
-import { type GPU, type Model, validateGPUs } from '@utils/schemas'
-import Decimal from 'decimal.js'
+import { estimatePerformance } from '@engines/performance'
+import { formatDuration } from '@utils/formatDuration'
+import { type GPU, type Model, validateGPUs, validateModels } from '@utils/schemas'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // pptxgenjs drives real browser/Node file I/O (pptx.writeFile) and canvas-ish
@@ -112,16 +113,17 @@ const gpu: GPU = {
   max_gpus_per_node: 8,
 }
 
-const performance: PerformanceEstimate = {
-  tokensPerSecond: new Decimal(42),
-  timeToFirstToken: new Decimal(0.5),
-  prefillSeconds: new Decimal(0.2),
-  prefillBottleneck: 'linear',
-  prefillEstimateDegraded: false,
-  isComputeBound: false,
-  isMemoryBound: true,
-  bottleneck: 'memory',
-}
+const realModel = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-70b')
+const realGpu = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+if (!realModel || !realGpu) throw new Error('fixture not found')
+// 2026-11-11: built from the real engine (Task 6 added `expected`; the hand literal went stale)
+const performance = estimatePerformance({
+  model: realModel,
+  gpu: realGpu,
+  quantization: 'fp16',
+  sequenceLength: 4096,
+  batchSize: 1,
+})
 
 function tableRows(index: number): [string, string][] {
   const call = tables[index]?.rows as Array<Array<{ text?: string; options?: unknown }>> | undefined
@@ -409,6 +411,47 @@ describe('exportPptx', () => {
     expect(perfRows).toContainEqual(['Max concurrent sessions (at 4,096 tokens)', '42'])
     expect(perfRows).toContainEqual(['Sessions held with KV tier', '100'])
     expect(perfRows).toContainEqual(['Weights', 'measured from meta-llama/Llama-3.1-70B'])
+  })
+
+  it('reports expected decode, first-token and prefill with the ceiling beside each (spec P3)', async () => {
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 4096,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      concurrentUsers: 1,
+      offload: null,
+    })
+
+    const { expected } = performance
+    if (!expected.prefillSeconds || !performance.prefillSeconds) throw new Error('no prefill')
+    const decode = `${expected.tokensPerSecond.toFixed(1)} tokens/sec (ceiling ${performance.tokensPerSecond.toFixed(1)})`
+    const ttft = `${formatDuration(expected.timeToFirstToken)} (ceiling ${formatDuration(performance.timeToFirstToken)})`
+    const prefill = `${formatDuration(expected.prefillSeconds)} (ceiling ${formatDuration(performance.prefillSeconds)})`
+    const perfRows = tableRows(2)
+    expect(perfRows).toContainEqual(['Decode Speed', decode])
+    expect(perfRows).toContainEqual(['Time to first token', ttft])
+    expect(perfRows).toContainEqual(['Prompt Processing', `${prefill} — weight-dominated (linear)`])
+    // the metric boxes headline the same figures
+    const boxText = texts.map((t) => t.text)
+    expect(boxText).toContain(
+      `${expected.tokensPerSecond.toFixed(1)} tok/s (ceiling ${performance.tokensPerSecond.toFixed(1)})`,
+    )
+    expect(boxText).toContain(ttft)
+    expect(boxText).toContain(prefill)
   })
 
   it('omits capacity rows when not provided, and labels weights estimated when null', async () => {

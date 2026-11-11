@@ -95,6 +95,17 @@ describe('weightFiles', () => {
     expect(picked !== 'ambiguous' && totalGiB(picked)).toBe(3)
   })
 
+  it('skips a speculative-decoding draft head shipped under the same tag', () => {
+    // unsloth/Mistral-Large-4-1T-A52B-GGUF (2026-11-11) ships dspark-...-Q8_0.gguf (DSpark draft)
+    const files = [
+      { path: 'Q8_0/Model-Q8_0-00001-of-00002.gguf', size: 15 * GiB },
+      { path: 'Q8_0/Model-Q8_0-00002-of-00002.gguf', size: 15 * GiB },
+      { path: 'dspark-Model-Q8_0.gguf', size: 2 * GiB },
+    ]
+    const picked = weightFiles(files, 'gguf-q8_0')
+    expect(picked !== 'ambiguous' && totalGiB(picked)).toBe(30)
+  })
+
   it('sums split GGUF shards of one set', () => {
     const files = [
       { path: 'Q4_K_M/Model-Q4_K_M-00001-of-00002.gguf', size: 20 * GiB },
@@ -235,6 +246,12 @@ describe('reference selection', () => {
       'other/Model-X-FP8',
     )
     expect(pickReference('fp8', ['someone/Model-X-NVFP4-FP8'])).toBeNull()
+  })
+
+  it('never picks a GGUF repo for the nvfp4 slot', () => {
+    // ggml-org/Mistral-Large-4-1T-A52B-NVFP4-GGUF out-downloads the vendor safetensors (2026-11-11)
+    const repos = ['ggml-org/Model-X-NVFP4-GGUF', 'mistralai/Model-X-NVFP4']
+    expect(pickReference('nvfp4', repos)).toBe('mistralai/Model-X-NVFP4')
   })
 
   it('matches derivatives of the same model only', () => {

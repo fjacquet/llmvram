@@ -1,4 +1,5 @@
 import {
+  fitsInference,
   maxConcurrentSessions,
   perUserTimeToFirstToken,
   perUserTokensPerSecond,
@@ -184,5 +185,12 @@ describe('maxConcurrentSessions through the engines', () => {
     expect(sessions('expert-parallel', 8192) ?? 0).toBeGreaterThan(
       sessions('expert-parallel', 131072) ?? 0,
     )
+  })
+})
+
+describe('fitsInference', () => {
+  it('fits up to vLLM gpu_memory_utilization (278 x 0.9 = 250.2)', () => {
+    expect(fitsInference(250, 278)).toBe(true)
+    expect(fitsInference(251, 278)).toBe(false)
   })
 })

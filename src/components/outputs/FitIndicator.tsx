@@ -1,3 +1,4 @@
+import { fitsInference } from '@engines/concurrency'
 import type Decimal from 'decimal.js'
 import type { ReactElement } from 'react'
 
@@ -6,6 +7,8 @@ interface FitIndicatorProps {
   availableVRAM: number
   /** When > 1, labels show "X GPUs × Y GB = Z GB" instead of plain "Y GB" */
   numGPUs?: number
+  /** Inference passes vLLM's 90; tiers become <= limit-10 comfortable, <= limit tight. Training omits it. */
+  limitPercent?: number
 }
 
 interface StatusTier {
@@ -18,7 +21,12 @@ interface StatusTier {
   icon: ReactElement
 }
 
-export function FitIndicator({ totalVRAM, availableVRAM, numGPUs }: FitIndicatorProps) {
+export function FitIndicator({
+  totalVRAM,
+  availableVRAM,
+  numGPUs,
+  limitPercent,
+}: FitIndicatorProps) {
   const percentage = totalVRAM.div(availableVRAM).mul(100).toNumber()
 
   // Status icons as inline SVG
@@ -55,7 +63,7 @@ export function FitIndicator({ totalVRAM, availableVRAM, numGPUs }: FitIndicator
 
   // Determine status tier
   const getStatusTier = (): StatusTier => {
-    if (percentage <= 80) {
+    if (percentage <= (limitPercent === undefined ? 80 : limitPercent - 10)) {
       return {
         label: 'Fits Comfortably',
         bgLight: 'bg-green-50',
@@ -66,7 +74,12 @@ export function FitIndicator({ totalVRAM, availableVRAM, numGPUs }: FitIndicator
         icon: CheckIcon,
       }
     }
-    if (percentage <= 95) {
+    // Inference: the verdict's own rule (fitsInference); training: total <= 95% of the card
+    const fits =
+      limitPercent === undefined
+        ? percentage <= 95
+        : fitsInference(totalVRAM.toNumber(), availableVRAM)
+    if (fits) {
       return {
         label: 'Tight Fit',
         bgLight: 'bg-yellow-50',
@@ -120,12 +133,21 @@ export function FitIndicator({ totalVRAM, availableVRAM, numGPUs }: FitIndicator
         </div>
 
         {/* Progress bar */}
-        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div className="relative h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
           <div
             className={`h-full ${status.bar} transition-all duration-300`}
             style={{ width: `${Math.min(percentage, 100)}%` }}
             aria-hidden="true"
           />
+          {limitPercent !== undefined && (
+            <div
+              data-testid="limit-marker"
+              aria-hidden="true"
+              className="absolute inset-y-0 w-0.5 bg-gray-900 dark:bg-white"
+              style={{ left: `${limitPercent}%` }}
+              title={`vLLM limit: ${Math.round(limitPercent)}% of the GPU`}
+            />
+          )}
         </div>
       </div>
     </output>

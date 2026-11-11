@@ -1,7 +1,14 @@
-import type { Model } from '@utils/schemas'
+import modelsData from '@data/models.json'
+import { type Model, ModelSchema, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
-import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
+import {
+  attendedTokens,
+  calculateDecodeKVReadVRAM,
+  calculateKVCacheVRAM,
+  calculateLinearStateVRAM,
+  calculateSparseIndexerVRAM,
+} from './kv-cache'
 
 // Test fixtures - inline model definitions for test isolation
 const llama70bGQA: Model = {
@@ -362,5 +369,93 @@ describe('calculateKVCacheVRAM - linear-attention state', () => {
         .mul(1024 ** 3)
         .toNumber(),
     ).toBeCloseTo(4 * 153944064, 0)
+  })
+})
+
+describe('sparse attention (DSA) indexer cache and reads', () => {
+  const row = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-5.2')
+  if (!row) throw new Error('zai-org-glm-5.2 missing from models.json')
+  // 2026-11-11: sparse attention (DSA). The real row now carries the fields; the dense baseline
+  // strips them. vLLM's indexer cache is uint8, index_head_dim 128 plus 4 scale bytes = 132 bytes
+  // per token per indexer layer, 21 layers (sources in models.test.ts).
+  const {
+    sparse_attention_topk: _topk,
+    sparse_indexer_bytes_per_token: _bytes,
+    sparse_indexer_heads: _heads,
+    sparse_indexer_layers: _layers,
+    ...glm
+  } = row
+  const sparse: Model = {
+    ...glm,
+    sparse_attention_topk: 2048,
+    sparse_indexer_bytes_per_token: 21 * 132,
+  }
+  const kv = (model: Model, sequenceLength: number, kvPrecision: 'fp16' | 'fp8' = 'fp8') =>
+    calculateKVCacheVRAM({ model, sequenceLength, batchSize: 1, kvPrecision })
+  const read = (model: Model, sequenceLength: number) =>
+    calculateDecodeKVReadVRAM({ model, sequenceLength, batchSize: 1, kvPrecision: 'fp8' })
+
+  it('attendedTokens is min(context, topk), or the context without sparse fields', () => {
+    expect(attendedTokens(sparse, 1024)).toBe(1024)
+    expect(attendedTokens(sparse, 131072)).toBe(2048)
+    expect(attendedTokens(glm, 131072)).toBe(131072)
+  })
+
+  it('indexer cache is bytes x context x sessions, 0 without the fields', () => {
+    expect(
+      calculateSparseIndexerVRAM(sparse, 131072, 3)
+        .mul(1024 ** 3)
+        .toNumber(),
+    ).toBe(21 * 132 * 131072 * 3)
+    expect(calculateSparseIndexerVRAM(glm, 131072, 3).toNumber()).toBe(0)
+  })
+
+  it('memory stores every token plus the indexer cache, whatever the KV precision', () => {
+    const indexer = calculateSparseIndexerVRAM(sparse, 131072, 1)
+    expect(kv(sparse, 131072).sub(kv(glm, 131072)).toNumber()).toBeCloseTo(indexer.toNumber(), 12)
+    expect(
+      kv(sparse, 131072, 'fp16')
+        .sub(kv(glm, 131072, 'fp16'))
+        .toNumber(),
+    ).toBeCloseTo(indexer.toNumber(), 12)
+  })
+
+  it('decode reads the KV of topk tokens plus the indexer over the full context at 128k', () => {
+    const expected = kv(glm, 2048).add(new Decimal(21 * 132 * 131072).div(1024 ** 3))
+    expect(read(sparse, 131072).toNumber()).toBeCloseTo(expected.toNumber(), 12)
+  })
+
+  it('Mistral Large 4 decode at 128k reads the KV of topk tokens plus its full indexer cache', () => {
+    // 2026-11-11, final review M6 (spec success criterion): the real row, 44 indexer layers
+    const ml4 = validateModels(modelsData).find((m) => m.id === 'mistralai-mistral-large-4-1t-a52b')
+    if (!ml4) throw new Error('mistralai-mistral-large-4-1t-a52b missing from models.json')
+    const {
+      sparse_attention_topk: _k,
+      sparse_indexer_bytes_per_token: _b,
+      sparse_indexer_heads: _h,
+      sparse_indexer_layers: _l,
+      ...dense
+    } = ml4
+    const expected = kv(dense, 2048).add(new Decimal(44 * 132 * 131072).div(1024 ** 3))
+    expect(read(ml4, 131072).toNumber()).toBeCloseTo(expected.toNumber(), 12)
+    expect(read(ml4, 131072).toNumber()).toBeLessThan(kv(ml4, 131072).toNumber())
+  })
+
+  it('decode reads equal memory below topk, and the full KV without sparse fields', () => {
+    expect(read(sparse, 1024).toNumber()).toBeCloseTo(kv(sparse, 1024).toNumber(), 12)
+    expect(read(glm, 131072).toNumber()).toBeCloseTo(kv(glm, 131072).toNumber(), 12)
+  })
+
+  it('schema sets topk and indexer bytes together, heads and layers together and with topk', () => {
+    expect(ModelSchema.safeParse(sparse).success).toBe(true)
+    expect(ModelSchema.safeParse({ ...glm, sparse_attention_topk: 2048 }).success).toBe(false)
+    expect(ModelSchema.safeParse({ ...glm, sparse_indexer_bytes_per_token: 2772 }).success).toBe(
+      false,
+    )
+    const scored = { ...sparse, sparse_indexer_heads: 32, sparse_indexer_layers: 21 }
+    expect(ModelSchema.safeParse(scored).success).toBe(true)
+    expect(ModelSchema.safeParse({ ...sparse, sparse_indexer_heads: 32 }).success).toBe(false)
+    const { sparse_attention_topk, sparse_indexer_bytes_per_token, ...noTopk } = scored
+    expect(ModelSchema.safeParse(noTopk).success).toBe(false)
   })
 })

@@ -45,9 +45,64 @@ export function calculateKVCacheVRAM(params: {
   kvPrecision: KVCachePrecision
 }): Decimal {
   const { model, sequenceLength, batchSize, kvPrecision } = params
-  return fullAttentionKV(model, sequenceLength, batchSize, kvPrecision)
+  return sessionKV(model, sequenceLength, sequenceLength, batchSize, kvPrecision)
+}
+
+/**
+ * KV bytes one decode step reads, in GB: as calculateKVCacheVRAM, except that sparse attention
+ * reads the full-attention KV of only attendedTokens(context) tokens. The indexer still reads
+ * its cache over the whole context, and sliding / linear layers are not sparse.
+ */
+export function calculateDecodeKVReadVRAM(params: {
+  model: Model
+  sequenceLength: number
+  batchSize: number
+  kvPrecision: KVCachePrecision
+}): Decimal {
+  const { model, sequenceLength, batchSize, kvPrecision } = params
+  const attended = attendedTokens(model, sequenceLength)
+  return sessionKV(model, attended, sequenceLength, batchSize, kvPrecision)
+}
+
+function sessionKV(
+  model: Model,
+  attended: number,
+  sequenceLength: number,
+  batchSize: number,
+  kvPrecision: KVCachePrecision,
+): Decimal {
+  return fullAttentionKV(model, attended, batchSize, kvPrecision)
     .add(slidingWindowKV(model, sequenceLength, batchSize, kvPrecision))
     .add(calculateLinearStateVRAM(model, batchSize))
+    .add(calculateSparseIndexerVRAM(model, sequenceLength, batchSize))
+}
+
+/** Tokens the main attention reads per query: min(context, topk) under sparse attention (DSA) */
+export function attendedTokens(model: Model, contextTokens: number): number {
+  return model.sparse_attention_topk
+    ? Math.min(contextTokens, model.sparse_attention_topk)
+    : contextTokens
+}
+
+/**
+ * Sparse-attention indexer cache (DSA): every token is indexed, so it grows with the full
+ * context. Raw bytes: vLLM stores it uint8 (FP8 + scales) whatever the KV precision.
+ * shortcut: it rides inside the KV total, so TP splits it by kvCacheTPShards; vLLM replicates
+ * it (max_tp_shards=1), which matches only while kvCacheTPShards is 1 (MLA or one KV head, true
+ * of every DSA model so far). Split it out if a DSA model shards its KV.
+ *
+ * @returns GB for `sessions` sessions
+ */
+export function calculateSparseIndexerVRAM(
+  model: Model,
+  sequenceLength: number,
+  sessions: number,
+): Decimal {
+  if (!model.sparse_indexer_bytes_per_token) return new Decimal(0)
+  return new Decimal(model.sparse_indexer_bytes_per_token)
+    .mul(sequenceLength)
+    .mul(sessions)
+    .div(BYTES_PER_GB)
 }
 
 /**

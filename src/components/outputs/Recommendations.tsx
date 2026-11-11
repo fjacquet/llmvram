@@ -1,4 +1,5 @@
-import { NCCL_BUFFER_PER_GPU_GB } from '@engines/constants'
+import { fitsInference } from '@engines/concurrency'
+import { GPU_MEMORY_UTILIZATION, NCCL_BUFFER_PER_GPU_GB } from '@engines/constants'
 import type {
   InferenceVRAMBreakdown,
   MultiGPUVRAMBreakdown,
@@ -33,7 +34,7 @@ export function Recommendations({
 }: RecommendationsProps) {
   const offloadingEnabled = useUIStore((s) => s.offloadingEnabled)
 
-  const deficit = breakdown.total.minus(gpu.vram_gb).toNumber()
+  const deficit = breakdown.total.minus(gpu.vram_gb * GPU_MEMORY_UTILIZATION).toNumber()
 
   // If model fits, don't show recommendations
   if (deficit <= 0) {
@@ -152,13 +153,19 @@ export function Recommendations({
   // GPUs needed by memory alone. Each GPU holds its own framework context and NCCL
   // buffers, so those come off every GPU's capacity; the rest of the total shards.
   // Interconnect efficiency costs throughput, not memory, and plays no part here.
+  // Capacity is vLLM's GPU_MEMORY_UTILIZATION share, the same limit as fitsInference.
   const frameworkGB = breakdown.frameworkOverhead.toNumber()
   const shardableGB = totalGB - frameworkGB
-  const usablePerGPU = gpu.vram_gb - frameworkGB - NCCL_BUFFER_PER_GPU_GB.toNumber()
+  const usablePerGPU =
+    gpu.vram_gb * GPU_MEMORY_UTILIZATION - frameworkGB - NCCL_BUFFER_PER_GPU_GB.toNumber()
   const gpusByMemory = Math.ceil(shardableGB / usablePerGPU)
 
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
-  if (numGPUs > 1 && multiGPUBreakdown && multiGPUBreakdown.totalPerGPU.greaterThan(gpu.vram_gb)) {
+  if (
+    numGPUs > 1 &&
+    multiGPUBreakdown &&
+    !fitsInference(multiGPUBreakdown.totalPerGPU.toNumber(), gpu.vram_gb)
+  ) {
     // numGPUs here is the CLUSTER TOTAL (ResultsPanel passes multiGPU.numGPUs),
     // so the ceiling is the whole cluster's, not one node's: max_gpus_per_node
     // GPUs in each of the nodes already configured. Clamping to the per-node
@@ -211,11 +218,11 @@ export function Recommendations({
   const vramGB = gpu.vram_gb
   let upgradeRecommendation = ''
 
-  if (vramGB < 24 && totalGB <= 32) {
+  if (vramGB < 24 && fitsInference(totalGB, 32)) {
     upgradeRecommendation = 'RTX 4090 (24 GB) or RTX 5090 (32 GB)'
-  } else if (vramGB < 48 && totalGB <= 48) {
+  } else if (vramGB < 48 && fitsInference(totalGB, 48)) {
     upgradeRecommendation = 'A6000 (48 GB)'
-  } else if (vramGB < 80 && totalGB <= 80) {
+  } else if (vramGB < 80 && fitsInference(totalGB, 80)) {
     upgradeRecommendation = 'A100 or H100 (80 GB)'
   }
 

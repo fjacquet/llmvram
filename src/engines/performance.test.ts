@@ -4,7 +4,13 @@ import type { GPU, Model } from '@utils/schemas'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
-import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU } from './constants'
+import {
+  BYTES_PER_GB,
+  DECODE_EFFICIENCY,
+  INTERCONNECT_SPECS,
+  PREFILL_EFFICIENCY,
+  PREFILL_MFU,
+} from './constants'
 import { effectiveFraction, FABRIC_SPECS, fabricHopSeconds, interNodeGBps } from './fabric'
 import {
   calculateInferenceVRAM,
@@ -1765,5 +1771,233 @@ describe('estimatePerformance - compute rate per weight format (spec D5, D9)', (
     const secondsPerToken = (2 * 8e9) / 4500e12 + (4 * 32 * 128 * 4096) / 2250e12
     expect(perf.bottleneck).toBe('compute')
     expect(perf.tokensPerSecond.toNumber() * secondsPerToken).toBeCloseTo(1, 9)
+  })
+})
+
+describe('sparse attention (DSA): topk-bounded reads and FLOPs, indexer cache and scoring', () => {
+  const row = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-5.2')
+  const b200 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-b200-192gb')
+  if (!row || !b200) throw new Error('fixture rows missing')
+  // 2026-11-11: sparse attention (DSA). The real row now carries the fields; the dense baseline
+  // strips them so every comparison below keeps its meaning. 132 bytes per token per indexer
+  // layer x 21 layers, 32 heads: the values in models.json (sources in models.test.ts).
+  const {
+    sparse_attention_topk: _topk,
+    sparse_indexer_bytes_per_token: _bytes,
+    sparse_indexer_heads: _heads,
+    sparse_indexer_layers: _layers,
+    ...glm
+  } = row
+  const indexerBytes = 21 * 132
+  const sparse: Model = {
+    ...glm,
+    sparse_attention_topk: 2048,
+    sparse_indexer_bytes_per_token: indexerBytes,
+  }
+  const scored: Model = { ...sparse, sparse_indexer_heads: 32, sparse_indexer_layers: 21 }
+  const L = glm.num_hidden_layers
+  const H = glm.hidden_size
+  const run = (model: Model, sequenceLength: number, gpu: GPU = b200, batchSize = 1) =>
+    estimatePerformance({ model, gpu, quantization: 'fp8', sequenceLength, batchSize })
+  const prefill = (model: Model, T: number) => run(model, T).prefillSeconds?.toNumber() ?? 0
+  const stepSeconds = (model: Model, T: number, gpu: GPU = b200) =>
+    1 / run(model, T, gpu).tokensPerSecond.toNumber()
+
+  // GLM 5.2 fp8, 128k, batch 4, TP8 on B200
+  const headline = (model: Model) => {
+    const vram = calculateInferenceVRAM({
+      model,
+      quantization: 'fp8',
+      sequenceLength: 131072,
+      batchSize: 4,
+      kvQuantization: 'fp8',
+    })
+    const multi = calculateMultiGPUVRAM(vram, model, 180, 8, 'tensor-parallel', b200, 'fp8')
+    const perf = estimatePerformance({
+      model,
+      gpu: b200,
+      quantization: 'fp8',
+      sequenceLength: 131072,
+      batchSize: 4,
+      kvQuantization: 'fp8',
+      multiGPUResult: multi,
+    })
+    return { vram, multi, perf }
+  }
+
+  it('a model without sparse fields is unchanged (Review Focus 1)', () => {
+    // Captured before the change
+    const { vram, multi, perf } = headline(glm)
+    expect(vram.total.toNumber()).toBeCloseTo(726.7284643554688, 9)
+    expect(multi.perGPU.total.toNumber()).toBeCloseTo(111.16449478149414, 9)
+    expect(perf.tokensPerSecond.toNumber()).toBeCloseTo(616.2858022675886, 9)
+    expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(2.949875593429219, 9)
+    expect(perf.prefillBottleneck).toBe('attention')
+  })
+
+  it('the GLM 5.2 row is the scored fixture: faster at 128k, more memory', () => {
+    // 2026-11-11: sparse attention (DSA)
+    expect(row).toEqual(scored)
+    const { vram, multi, perf } = headline(row)
+    // Dense: 726.73 GiB, 111.16 per GPU, 616.29 tok/s, prefill 2.950 s attention-bound
+    expect(vram.total.toNumber()).toBeCloseTo(728.0819799804688, 9)
+    expect(multi.perGPU.total.toNumber()).toBeCloseTo(112.51801040649414, 9)
+    expect(perf.tokensPerSecond.toNumber()).toBeCloseTo(1059.9491923758633, 9)
+    // 2026-11-11, final review M1: 1.6391939203033423 -> 1.6714283140300226, attention now sums
+    // min(t, topk) per query instead of charging topk to every query (slower, the safe direction)
+    expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(1.6714283140300226, 9)
+    expect(perf.prefillBottleneck).toBe('linear')
+  })
+
+  it('below topk equals full attention except the indexer cache in memory and reads (RF 2)', () => {
+    const T = 1024
+    expect(prefill(sparse, T)).toBeCloseTo(prefill(glm, T), 9)
+    expect(stepSeconds(sparse, T) - stepSeconds(glm, T)).toBeCloseTo(
+      (indexerBytes * T) / (b200.memory_bandwidth_gbps * 1e9),
+      12,
+    )
+    const mem = (model: Model) =>
+      calculateInferenceVRAM({ model, quantization: 'fp8', sequenceLength: T, batchSize: 1 }).total
+    expect(mem(sparse).sub(mem(glm)).toNumber()).toBeCloseTo((indexerBytes * T) / BYTES_PER_GB, 12)
+  })
+
+  it('prefill attention FLOPs are 2 x L x H x topk x (2T - topk) beyond topk, affine in T', () => {
+    // 2026-11-11, final review M1: was 2 L T topk H, which charged every query topk keys. Query t
+    // attends min(t, topk), summing to topk (T - topk / 2); x 4 L H gives 2 L H a (2T - a).
+    const T = 131072
+    const a = 2048
+    const rate = 2250e12 * PREFILL_MFU.toNumber()
+    // Same linear term; dense 2 L H T^2 minus sparse 2 L H a (2T - a) is 2 L H (T - a)^2
+    expect(prefill(glm, T) - prefill(sparse, T)).toBeCloseTo((2 * L * H * (T - a) ** 2) / rate, 9)
+    // Linear in T apart from the constant -2 L H a^2, which doubling T counts once, not twice
+    expect(prefill(sparse, 2 * T) - 2 * prefill(sparse, T)).toBeCloseTo(
+      (2 * L * H * a * a) / rate,
+      9,
+    )
+  })
+
+  it('prefill at T <= topk is unchanged by the M1 correction', () => {
+    // 2026-11-11, final review M1: captured from the GLM 5.2 row before the change
+    expect(prefill(scored, 1024)).toBeCloseTo(0.05281868592975012, 12)
+    expect(prefill(scored, 2048)).toBeCloseTo(0.10771168199060543, 12)
+  })
+
+  it('decode at 128k reads the KV of topk tokens plus the indexer over the full context', () => {
+    expect(stepSeconds(sparse, 131072) - stepSeconds(glm, 2048)).toBeCloseTo(
+      (indexerBytes * 131072) / (b200.memory_bandwidth_gbps * 1e9),
+      12,
+    )
+  })
+
+  it('indexer scoring: 2 x context x heads x 128 per layer in decode, at the FP8 rate', () => {
+    const T = 131072
+    const fast = { ...b200, memory_bandwidth_gbps: 1e12 } // compute-bound decode
+    expect(stepSeconds(scored, T, fast) - stepSeconds(sparse, T, fast)).toBeCloseTo(
+      (2 * T * 32 * 128 * 21) / 4500e12,
+      12,
+    )
+  })
+
+  it('indexer scoring in prefill: T^2 x heads x 128 per layer at FP8, on the attention side', () => {
+    const T = 131072
+    expect(prefill(scored, T) - prefill(sparse, T)).toBeCloseTo(
+      (21 * 32 * 128 * T * T) / (4500e12 * PREFILL_MFU.toNumber()),
+      9,
+    )
+    // At 2M tokens the indexer outweighs the linear term; the label counts it as attention
+    expect(run(sparse, 16 * T).prefillBottleneck).toBe('linear')
+    expect(run(scored, 16 * T).prefillBottleneck).toBe('attention')
+  })
+
+  it('tensor parallelism does not split the indexer (vLLM replicates it on every rank)', () => {
+    const T = 131072
+    const perf = (model: Model) => {
+      const vram = calculateInferenceVRAM({
+        model,
+        quantization: 'fp8',
+        sequenceLength: T,
+        batchSize: 1,
+      })
+      const multi = calculateMultiGPUVRAM(vram, model, 180, 8, 'tensor-parallel', b200, 'fp8')
+      return {
+        multi,
+        p: estimatePerformance({
+          model,
+          gpu: b200,
+          quantization: 'fp8',
+          sequenceLength: T,
+          batchSize: 1,
+          multiGPUResult: multi,
+        }),
+      }
+    }
+    const a = perf(scored)
+    const b = perf(sparse)
+    const extra = (a.p.prefillSeconds?.toNumber() ?? 0) - (b.p.prefillSeconds?.toNumber() ?? 0)
+    expect(extra).toBeCloseTo(
+      (21 * 32 * 128 * T * T) /
+        (4500e12 * PREFILL_MFU.toNumber() * a.multi.prefillScalingEfficiency),
+      9,
+    )
+  })
+})
+
+describe('expected figures: ceiling x measured vLLM efficiency (spec P1, P2)', () => {
+  const model = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.3-70b')
+  const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+  if (!model || !h100) throw new Error('fixture rows missing')
+  const base = { model, gpu: h100, quantization: 'fp8' as const, kvQuantization: 'fp8' as const }
+
+  it('both efficiencies lie in (0, 1]', () => {
+    for (const e of [DECODE_EFFICIENCY, PREFILL_EFFICIENCY]) {
+      expect(e.greaterThan(0)).toBe(true)
+      expect(e.lessThanOrEqualTo(1)).toBe(true)
+    }
+  })
+
+  it('expected tok/s = ceiling x DECODE_EFFICIENCY; TTFT and prefill = ceiling / PREFILL_EFFICIENCY', () => {
+    const p = estimatePerformance({ ...base, batchSize: 8, sequenceLength: 8192 })
+    expect(p.expected.tokensPerSecond.equals(p.tokensPerSecond.mul(DECODE_EFFICIENCY))).toBe(true)
+    expect(p.expected.timeToFirstToken.equals(p.timeToFirstToken.div(PREFILL_EFFICIENCY))).toBe(
+      true,
+    )
+    expect(p.prefillSeconds).not.toBeNull()
+    expect(p.expected.prefillSeconds?.equals(p.prefillSeconds?.div(PREFILL_EFFICIENCY) ?? 0)).toBe(
+      true,
+    )
+  })
+
+  it('expected prefill is null when the ceiling is (no FLOPS data)', () => {
+    const p = estimatePerformance({
+      ...base,
+      gpu: { ...h100, fp16_tflops: undefined, fp32_tflops: undefined },
+      batchSize: 1,
+      sequenceLength: 4096,
+    })
+    expect(p.prefillSeconds).toBeNull()
+    expect(p.expected.prefillSeconds).toBeNull()
+    expect(p.expected.timeToFirstToken.equals(p.timeToFirstToken.div(PREFILL_EFFICIENCY))).toBe(
+      true,
+    )
+  })
+
+  it('expected is never faster than the ceiling', () => {
+    const tp4 = calculateMultiGPUVRAM(
+      calculateInferenceVRAM({ ...base, batchSize: 32, sequenceLength: 32768 }),
+      model,
+      h100.vram_gb,
+      4,
+      'tensor-parallel',
+      h100,
+      'fp8',
+    )
+    for (const p of [
+      estimatePerformance({ ...base, batchSize: 1, sequenceLength: 2048 }),
+      estimatePerformance({ ...base, batchSize: 32, sequenceLength: 32768, multiGPUResult: tp4 }),
+    ]) {
+      expect(p.expected.tokensPerSecond.lessThanOrEqualTo(p.tokensPerSecond)).toBe(true)
+      expect(p.expected.timeToFirstToken.greaterThanOrEqualTo(p.timeToFirstToken)).toBe(true)
+      expect(p.expected.prefillSeconds?.greaterThanOrEqualTo(p.prefillSeconds ?? 0)).toBe(true)
+    }
   })
 })

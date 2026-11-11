@@ -1,5 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
+import { estimatePerformance } from '@engines/performance'
 import { act, renderHook } from '@testing-library/react'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
@@ -86,17 +87,14 @@ describe('useResultExports: PPTX interconnect override', () => {
   const one = new Decimal(1)
   const fakeResult = {
     vram: { modelWeights: one, kvCache: one, activations: one, frameworkOverhead: one, total: one },
-    performance: {
-      tokensPerSecond: one,
-      timeToFirstToken: one,
-      prefillSeconds: null,
-      prefillBottleneck: 'linear' as const,
-      prefillEstimateDegraded: false,
-      isComputeBound: false,
-      isMemoryBound: true,
-      bottleneck: 'memory' as const,
-      offloadSlowdown: null,
-    },
+    // 2026-11-11: built from the real engine (Task 6 added `expected`; the hand literal went stale)
+    performance: estimatePerformance({
+      model,
+      gpu: bridgedGpu,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    }),
     offloading: null,
     multiGPU: null,
     interconnectWarning: null,

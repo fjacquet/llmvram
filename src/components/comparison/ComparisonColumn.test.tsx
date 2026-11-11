@@ -11,6 +11,7 @@ import { ComparisonColumn } from './ComparisonColumn'
 const makeSnapshot = (
   id: string,
   overrides: Partial<ConfigSnapshot['config']> = {},
+  results: Partial<ConfigSnapshot['results']> = {},
 ): ConfigSnapshot => ({
   id,
   label: `Config ${id}`,
@@ -40,12 +41,15 @@ const makeSnapshot = (
     kvCache: 1.25,
     activations: 0.75,
     frameworkOverhead: 1,
-    tokensPerSecond: 45,
-    timeToFirstToken: 22,
+    tokensPerSecond: 21.2,
+    timeToFirstToken: 47,
+    ceilingTokensPerSecond: 45,
+    ceilingTimeToFirstToken: 22,
     bottleneck: 'memory',
     fits: true,
     perGPUTotal: null,
     utilizationPercent: null,
+    ...results,
   },
 })
 
@@ -109,5 +113,28 @@ describe('ComparisonColumn', () => {
     const row = screen.getByText('GPUs').closest('div')
     expect(row).not.toBeNull()
     expect(row?.className).not.toMatch(/bg-amber-50/)
+  })
+
+  it('headlines expected speed and TTFT with the theoretical ceiling beside each (spec P3)', () => {
+    const snapshot = makeSnapshot('a')
+    render(<ComparisonColumn snapshot={snapshot} allSnapshots={[snapshot]} onRemove={() => {}} />)
+    expect(screen.getByText('21.2 tok/s')).toBeInTheDocument()
+    expect(screen.getByText('Theoretical ceiling: 45.0 tok/s')).toBeInTheDocument()
+    expect(screen.getByText('47.0 ms')).toBeInTheDocument()
+    expect(screen.getByText('Theoretical ceiling: 22.0 ms')).toBeInTheDocument()
+  })
+
+  it('diffs performance on the expected figure, not the ceiling', () => {
+    const a = makeSnapshot('a')
+    const sameExpected = makeSnapshot('b', {}, { ceilingTokensPerSecond: 99 })
+    const { unmount } = render(
+      <ComparisonColumn snapshot={a} allSnapshots={[a, sameExpected]} onRemove={() => {}} />,
+    )
+    expect(screen.getByText('Performance').closest('div')?.className).not.toMatch(/bg-amber-50/)
+    unmount()
+
+    const otherExpected = makeSnapshot('c', {}, { tokensPerSecond: 30 })
+    render(<ComparisonColumn snapshot={a} allSnapshots={[a, otherExpected]} onRemove={() => {}} />)
+    expect(screen.getByText('Performance').closest('div')?.className).toMatch(/bg-amber-50/)
   })
 })

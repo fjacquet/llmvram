@@ -33,8 +33,10 @@ export interface ConfigSnapshot {
     kvCache: number // GB
     activations: number // GB
     frameworkOverhead: number // GB
-    tokensPerSecond: number
-    timeToFirstToken: number // ms — producers must multiply the engine's seconds by 1000
+    tokensPerSecond: number // expected (spec P3)
+    timeToFirstToken: number // expected, ms — producers must multiply the engine's seconds by 1000
+    ceilingTokensPerSecond: number
+    ceilingTimeToFirstToken: number // ms
     bottleneck: string // 'compute' | 'memory' | 'balanced'
     fits: boolean // Whether model fits on GPU(s)
     // Multi-GPU (if applicable)

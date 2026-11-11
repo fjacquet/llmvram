@@ -1,3 +1,4 @@
+import { InfoTip } from '@components/common/InfoTip'
 import type { PerformanceEstimate } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
 import { firstTokenLabel } from '@utils/perfLabels'
@@ -25,9 +26,15 @@ export function VerdictBlock({
       {fit}
       <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <div>
-          <dt className="text-sm text-gray-500 dark:text-gray-400 mb-1">Decode speed</dt>
+          <dt className="text-sm text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">
+            Decode speed
+            <InfoTip text="Expected = theoretical ceiling × measured vLLM efficiency (median of published runs; sources: ADR 0009)" />
+          </dt>
           <dd className="text-lg font-semibold text-gray-900 dark:text-white">
-            {performance.tokensPerSecond.toFixed(1)} tokens/sec
+            {performance.expected.tokensPerSecond.toFixed(1)} tokens/sec
+          </dd>
+          <dd className="text-xs text-gray-500 dark:text-gray-400">
+            Theoretical ceiling: {performance.tokensPerSecond.toFixed(1)} tokens/sec
           </dd>
         </div>
         <div>
@@ -35,7 +42,10 @@ export function VerdictBlock({
             {firstTokenLabel(batchSize)}
           </dt>
           <dd className="text-lg font-semibold text-gray-900 dark:text-white">
-            {formatDuration(performance.timeToFirstToken)}
+            {formatDuration(performance.expected.timeToFirstToken)}
+          </dd>
+          <dd className="text-xs text-gray-500 dark:text-gray-400">
+            Theoretical ceiling: {formatDuration(performance.timeToFirstToken)}
           </dd>
         </div>
         <div>

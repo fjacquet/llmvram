@@ -513,3 +513,37 @@ export const PREFILL_MFU_BY_PRECISION: Record<ComputePrecision, Decimal> = {
   fp8: new Decimal(0.45),
   fp4: new Decimal(0.45),
 }
+
+/**
+ * Decode efficiency: measured vLLM decode speed / the roofline's (spec P1). Expected tok/s =
+ * ceiling x this. Measured mean ITL against engine ITL (batch / tok/s) at the measured mean
+ * context. Median of 512 accepted vLLM points (user decision 2026-11-11; the spec's earlier
+ * 'pessimistic end' rule was replaced). Median = sorted value at index floor(0.5 (n - 1)).
+ * Distribution: min 0.126, p10 0.315, median 0.470.
+ *
+ * Sources: SemiAnalysis InferenceX (https://inferencex.semianalysis.com/api/v1/benchmarks),
+ * gpt-oss-120b MXFP4 and Llama 3.3 70B FP8 / NVFP4 / MXFP4 on H100, H200, B200, MI300X, MI325X
+ * and MI355X, vLLM 0.10.1-0.22.0, ISL 1024 (496 points); AMD ROCm vLLM 0.11.2, MI300X TP8, Llama
+ * 3.1 70B / 405B FP8 offline latency
+ * (https://www.amd.com/en/developer/resources/rocm-hub/dev-ai/performance-results.html, 16
+ * points). The spread follows TP degree, model size and vendor stack, not GPU generation, so
+ * one global figure (spec P1). Every point, with its run URL, acceptance and method:
+ * docs/calibration/2026-11-11-vllm-efficiency-points.md.
+ */
+export const DECODE_EFFICIENCY = new Decimal(0.47)
+
+/**
+ * Prefill efficiency: the roofline's prefill seconds / measured vLLM TTFT (spec P1). Expected
+ * TTFT and prefill = ceiling / this. Engine prefill of the mean prompt (x closed-loop queueing
+ * 0.9 + 0.1 (c + 1) / 2) against mean TTFT; rows whose engine prefill is under 50 ms are
+ * rejected (fixed request latency dominates). Median of 62 accepted vLLM points (user decision
+ * 2026-11-11; the spec's earlier 'pessimistic end' rule was replaced). Median = sorted value at
+ * index floor(0.5 (n - 1)). Distribution: min 0.101, p10 0.239, median 0.469.
+ *
+ * Sources: SemiAnalysis InferenceX (https://inferencex.semianalysis.com/api/v1/benchmarks),
+ * gpt-oss-120b MXFP4 and Llama 3.3 70B FP8 / NVFP4 / MXFP4 on H100, H200, B200, MI300X, MI325X
+ * and MI355X, vLLM 0.10.1-0.22.0, concurrency <= 4. Every point, with its run URL, acceptance
+ * and method (including why the queueing factor departs from a full burst):
+ * docs/calibration/2026-11-11-vllm-efficiency-points.md.
+ */
+export const PREFILL_EFFICIENCY = new Decimal(0.469)
