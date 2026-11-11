@@ -30,8 +30,9 @@ read at most `topk` KV positions per token, not the whole context.
 - **D2 Constants.** `DECODE_EFFICIENCY` 0.47, the median of n=512 accepted vLLM
   points. `PREFILL_EFFICIENCY` 0.469, the median of n=62. The statistic is the
   median. The user chose it on 2026-11-11, replacing "pessimistic end": the
-  minimum (0.126 decode, 0.101 prefill) is driven by outliers and was 8-18x
-  harsh against the median for decode. Spread, for the record:
+  minimum (0.126 decode, 0.101 prefill) is driven by outliers and would cut the
+  ceiling about 8× (decode) and 10× (prefill), against about 2× at the median.
+  Spread, for the record:
 
   | Phase   | n   | min   | p5    | p10   | p25   | median |
   | ------- | --- | ----- | ----- | ----- | ----- | ------ |
