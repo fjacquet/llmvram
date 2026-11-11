@@ -2624,6 +2624,7 @@
     "hf_url": "https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512",
     "active_parameters_billion": 41,
     "use_mla": true,
+    "kv_cache_elements_per_token": 35136,
     "weight_refs": {
       "fp8": {
         "repo": "mistralai/Mistral-Large-3-675B-Instruct-2512",
@@ -2927,6 +2928,7 @@
     "context_length": 131072,
     "license": "other",
     "hf_url": "https://huggingface.co/nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",
+    "kv_cache_elements_per_token": 131072,
     "weight_refs": {
       "bf16": {
         "repo": "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",

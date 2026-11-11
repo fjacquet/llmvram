@@ -194,9 +194,14 @@ describe('Model Database Validation', () => {
       'minimax-m2.1': 126976,
       'minimax-m2.5': 126976,
       'minimax-m2.7': 126976,
+      // MLA: 61 x (kv_lora_rank 512 + qk_rope 64), params.json; vLLM MLA cache layout (audit M1)
+      'mistralai-mistral-large-3-675b': 35136,
       'mistralai-mistral-small-4-119b': 11520, // MLA: 36 x (kv_lora_rank 256 + rope 64)
       'mistralai-magistral-small-2507': 81920, // 40 x 8 kv x head_dim 128 (not 160) x 2
       'mistralai-ministral-3-14b-reasoning': 81920, // same shape as Magistral
+      // 64 attention layers of 162 (block_configs minus no_op/replace_with_linear) x 2 x 8 kv
+      // (128 / n_heads_in_group 16) x head_dim 128; vLLM nemotron_nas allocates KV only there (M2)
+      'nvidia-llama-3.1-nemotron-ultra-253b': 131072,
       'nvidia-nemotron-3-nano-4b': 8192,
       'nvidia-nemotron-3-nano-30b-a3b': 3072,
       'nvidia-nemotron-3.5-lightning-30b-a3b': 3072,
