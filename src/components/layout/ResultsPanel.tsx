@@ -4,6 +4,7 @@ import { MemoryBreakdownTable } from '@components/outputs/MemoryBreakdownTable'
 import { MultiGPUBreakdownChart } from '@components/outputs/MultiGPUBreakdownChart'
 import { PerformanceSection } from '@components/outputs/PerformanceSection'
 import { Recommendations } from '@components/outputs/Recommendations'
+import { SizingResults } from '@components/outputs/SizingResults'
 import { SoftWarnings } from '@components/outputs/SoftWarnings'
 import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownChart'
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
@@ -12,13 +13,15 @@ import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
 import { fitsInference, maxConcurrentSessions } from '@engines/concurrency'
 import { softWarnings } from '@engines/config-rules'
 import { GPU_MEMORY_UTILIZATION } from '@engines/constants'
+import { resolveFabricSpec } from '@engines/fabric'
 import { DECIMAL_GB_PER_GIB, kvTierSummary } from '@engines/kv-tier'
 import { defaultHostCapacityGB, roundOffloadSlowdown } from '@engines/offloading'
 import { weightSource } from '@engines/quantization'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
-import { useResultExports } from '@hooks/useResultExports'
+import { useResultExports, useSizingExports } from '@hooks/useResultExports'
+import { useSizingCalculation } from '@hooks/useSizingCalculation'
 import { useTrainingCalculation } from '@hooks/useTrainingCalculation'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
@@ -34,6 +37,134 @@ import { toast } from 'sonner'
  * Supports multi-GPU and offloading configurations.
  */
 export function ResultsPanel() {
+  const mode = useUIStore((s) => s.mode)
+  return mode === 'sizing' ? <SizingPanel /> : <InferenceTrainingPanel />
+}
+
+/** Sizing mode: its own hook, so the inference calculation does not run alongside it */
+function SizingPanel() {
+  const selectedGPU = useUIStore((s) => s.selectedGPU)
+  const selectedModel = useUIStore((s) => s.selectedModel)
+  const quantization = useUIStore((s) => s.quantization)
+  const kvQuantization = useUIStore((s) => s.kvQuantization)
+  const sequenceLength = useUIStore((s) => s.sequenceLength)
+  const users = useUIStore((s) => s.concurrentUsers)
+  const interNodeFabric = useUIStore((s) => s.interNodeFabric)
+  const customFabric = useUIStore((s) => s.customFabric)
+  const { snapshots, addSnapshot } = useComparisonStore()
+  const { result, isCalculating, error } = useSizingCalculation()
+  const { handleExportPDF, handleExportPptx } = useSizingExports({
+    selectedModel,
+    selectedGPU,
+    quantization,
+    sequenceLength,
+    users,
+    kvQuantization,
+    fabricLabel: resolveFabricSpec(interNodeFabric, customFabric).label,
+    result,
+  })
+
+  useEffect(() => {
+    if (error) toast.error(error)
+  }, [error])
+
+  if (!selectedModel || !selectedGPU) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center text-lg font-medium text-gray-500 dark:text-gray-400">
+        Select a model and GPU to size a deployment
+      </div>
+    )
+  }
+  if (isCalculating || !result) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="h-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+      </div>
+    )
+  }
+
+  const c = result.chosen
+  const saveToComparison = () => {
+    if (!c) return
+    addSnapshot({
+      label: `${selectedModel.name} / ${selectedGPU.name} / ${quantization.toUpperCase()}`,
+      config: {
+        modelName: selectedModel.name,
+        modelId: selectedModel.id,
+        gpuName: selectedGPU.name,
+        gpuId: selectedGPU.id,
+        gpuVramGb: selectedGPU.vram_gb,
+        quantization,
+        sequenceLength,
+        batchSize: c.decodeBatch,
+        kvQuantization,
+        numGPUs: c.tp,
+        numNodes: c.nodes,
+        interNodeFabric,
+        shardingStrategy: 'tensor-parallel',
+        offloadingEnabled: false,
+        offloadTarget: 'cpu-ram',
+        offloadPercentage: 0,
+      },
+      // Per-replica figures: a sizing has no single-GPU breakdown, so the component rows stay 0
+      results: {
+        totalVRAM: c.totalPerGPUGB * c.gpusPerReplica,
+        modelWeights: 0,
+        kvCache: 0,
+        activations: 0,
+        frameworkOverhead: 0,
+        tokensPerSecond: c.perUserTokensPerSecond.toNumber(),
+        timeToFirstToken: c.timeToFirstToken.mul(1000).toNumber(),
+        ceilingTokensPerSecond: c.perUserCeilingTokensPerSecond.toNumber(),
+        ceilingTimeToFirstToken: c.ceilingTimeToFirstToken.mul(1000).toNumber(),
+        bottleneck: 'balanced',
+        fits: true,
+        perGPUTotal: c.totalPerGPUGB,
+        utilizationPercent: (c.totalPerGPUGB / selectedGPU.vram_gb) * 100,
+        sizing: {
+          unit: result.unit,
+          units: result.units,
+          replicas: result.replicas,
+          tp: c.tp,
+          nodes: c.nodes,
+          sessionsPerReplica: c.sessionsPerReplica,
+          tier: c.tierUsed === 'none' ? null : c.tierUsed,
+          users,
+          activeShare: c.activeShare,
+        },
+      },
+    })
+    toast.success('Configuration saved to comparison')
+  }
+
+  const BTN =
+    'text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+  return (
+    <div className="space-y-3">
+      {c && (
+        <div className="flex items-center justify-end gap-2">
+          <button type="button" onClick={handleExportPDF} className={BTN}>
+            Export PDF
+          </button>
+          <button type="button" onClick={handleExportPptx} className={BTN}>
+            Export PPTX
+          </button>
+          <button
+            type="button"
+            onClick={saveToComparison}
+            disabled={snapshots.length >= 3}
+            className={BTN}
+          >
+            {snapshots.length >= 3 ? 'Max 3 saved' : 'Save to Compare'}
+          </button>
+        </div>
+      )}
+      <SizingResults result={result} gpu={selectedGPU} />
+    </div>
+  )
+}
+
+function InferenceTrainingPanel() {
   // Read all selections from store
   const {
     mode,
@@ -582,6 +713,7 @@ export function ResultsPanel() {
         {deviceDoesNotFit && (
           <Recommendations
             gpu={selectedGPU}
+            model={selectedModel}
             breakdown={result.vram}
             currentQuantization={quantization}
             currentSequenceLength={sequenceLength}

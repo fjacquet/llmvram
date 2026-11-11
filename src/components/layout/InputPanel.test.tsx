@@ -84,6 +84,62 @@ describe('InputPanel composition', () => {
   })
 })
 
+describe('InputPanel in sizing mode', () => {
+  const sizing = (gpuId: string) =>
+    useUIStore.setState({
+      ...DEFAULT_UI_CONFIG,
+      mode: 'sizing',
+      selectedModel: model('zai-org-glm-5.2'),
+      selectedGPU: gpu(gpuId),
+      pendingNotice: null,
+    })
+
+  it('hides what the solver chooses and shows the sizing inputs (server GPU)', () => {
+    sizing('nvidia-h100-80gb-sxm')
+    const { container } = render(<InputPanel />)
+    for (const id of [
+      'model-selector',
+      'quantization-picker',
+      'gpu-selector',
+      'sequence-length',
+      'concurrent-users',
+      'kv-quantization-picker',
+      'inter-node-fabric',
+      'kv-tier',
+    ]) {
+      expect(field(container, id), id).toBeInTheDocument()
+    }
+    for (const id of ['gpu-count', 'node-count', 'batch-size']) {
+      expect(field(container, id), id).toBeNull()
+    }
+    expect(screen.queryByText('Intra-server sharding strategy')).toBeNull()
+    expect(screen.queryByText('Offloading Configuration')).toBeNull()
+    expect(screen.queryByText('Training Configuration')).toBeNull()
+  })
+
+  it('hides GPUs per replica even when a ZeRO preset was kept from Training', () => {
+    sizing('nvidia-h100-80gb-sxm')
+    useUIStore.setState({ frameworkPreset: 'deepspeed-zero2' })
+    const { container } = render(<InputPanel />)
+    expect(field(container, 'gpu-count')).toBeNull()
+  })
+
+  it('shows no fabric for a rack GPU, and labels the tier capacity per rack', () => {
+    sizing('nvidia-gb300-nvl72')
+    useUIStore.setState({ kvTier: { ...DEFAULT_UI_CONFIG.kvTier, tier: 'host-grace' } })
+    const { container } = render(<InputPanel />)
+    expect(field(container, 'inter-node-fabric')).toBeNull()
+    expect(screen.getByLabelText('Tier capacity per rack (TB)')).toBeInTheDocument()
+  })
+
+  it('labels the tier capacity per server for a server GPU', () => {
+    sizing('nvidia-h100-80gb-sxm')
+    useUIStore.setState({ kvTier: { ...DEFAULT_UI_CONFIG.kvTier, tier: 'host-pcie' } })
+    render(<InputPanel />)
+    expect(screen.getByLabelText('Tier capacity per server (TB)')).toBeInTheDocument()
+  })
+})
+
 describe('InputPanel layout (ADR 0005)', () => {
   beforeEach(() => {
     useUIStore.setState({

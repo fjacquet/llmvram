@@ -1,6 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
-import { DECODE_EFFICIENCY, PREFILL_EFFICIENCY } from '@engines/constants'
+import { decodeEfficiency, PREFILL_EFFICIENCY } from '@engines/constants'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -176,7 +176,7 @@ describe('ResultsPanel expected vs ceiling (spec P3, P4b)', () => {
     const results = useComparisonStore.getState().snapshots[0]?.results
     if (!results) throw new Error('no snapshot saved')
     expect(results.tokensPerSecond).toBeCloseTo(
-      results.ceilingTokensPerSecond * DECODE_EFFICIENCY.toNumber(),
+      results.ceilingTokensPerSecond * decodeEfficiency(DEFAULT_UI_CONFIG.batchSize).toNumber(),
       6,
     )
     expect(results.timeToFirstToken).toBeCloseTo(
@@ -200,5 +200,38 @@ describe('ResultsPanel expected vs ceiling (spec P3, P4b)', () => {
     expect(recompute).not.toBe(headline)
     // 2026-11-11, final review: the value is the ceiling, so the line says so
     expect(line.textContent).toMatch(/vs recompute \S+ \S+ \(ceiling, /)
+  })
+})
+
+describe('ResultsPanel in sizing mode', () => {
+  beforeEach(() => {
+    useComparisonStore.setState({ snapshots: [] })
+    useUIStore.setState({
+      ...DEFAULT_UI_CONFIG,
+      mode: 'sizing',
+      selectedModel: model('meta-llama-llama-3.1-70b'),
+      selectedGPU: gpu('nvidia-gb300-nvl72'),
+      quantization: 'fp8',
+      concurrentUsers: 500,
+      pendingNotice: null,
+    })
+  })
+
+  it('Save to Compare stores the sizing answer', async () => {
+    render(<ResultsPanel />)
+    await screen.findByTestId('sizing-replicas')
+    fireEvent.click(screen.getByRole('button', { name: /Save to Compare/ }))
+    const snap = useComparisonStore.getState().snapshots[0]
+    const replicas = Number(screen.getByTestId('sizing-replicas').textContent)
+    expect(snap?.results.sizing).toMatchObject({ unit: 'rack', replicas, nodes: 1, tier: null })
+    expect(snap?.results.sizing?.units).toBeGreaterThan(0)
+    expect(snap?.results.sizing?.tp).toBe(snap?.config.numGPUs)
+  })
+
+  it('offers the PDF and PPTX exports', async () => {
+    render(<ResultsPanel />)
+    await screen.findByTestId('sizing-replicas')
+    expect(screen.getByRole('button', { name: 'Export PDF' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export PPTX' })).toBeInTheDocument()
   })
 })

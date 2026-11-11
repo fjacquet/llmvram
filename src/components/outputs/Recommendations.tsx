@@ -1,4 +1,5 @@
 import { fitsInference } from '@engines/concurrency'
+import { validTPDegrees } from '@engines/config-rules'
 import { GPU_MEMORY_UTILIZATION, NCCL_BUFFER_PER_GPU_GB } from '@engines/constants'
 import type {
   InferenceVRAMBreakdown,
@@ -6,11 +7,13 @@ import type {
   QuantizationFormat,
 } from '@engines/types'
 import { useUIStore } from '@store/uiStore'
-import { clampGPUCount } from '@utils/gpuLimits'
+import { maxGPUsFor } from '@utils/gpuLimits'
 import type { GPU } from '@/types/gpu'
+import type { Model } from '@/types/model'
 
 interface RecommendationsProps {
   gpu: GPU
+  model: Model
   breakdown: InferenceVRAMBreakdown
   currentQuantization: QuantizationFormat
   currentSequenceLength: number
@@ -26,6 +29,7 @@ interface Recommendation {
 
 export function Recommendations({
   gpu,
+  model,
   breakdown,
   currentQuantization,
   currentSequenceLength,
@@ -158,7 +162,14 @@ export function Recommendations({
   const shardableGB = totalGB - frameworkGB
   const usablePerGPU =
     gpu.vram_gb * GPU_MEMORY_UTILIZATION - frameworkGB - NCCL_BUFFER_PER_GPU_GB.toNumber()
-  const gpusByMemory = Math.ceil(shardableGB / usablePerGPU)
+  const countByMemory = Math.ceil(shardableGB / usablePerGPU)
+  // Advise only degrees vLLM accepts (heads and KV heads divide), per server; null when no
+  // valid degree reaches the count, and the advice is then withheld (never a refused degree).
+  const validDegrees = validTPDegrees(model, maxGPUsFor(gpu))
+  const advisedGPUs = (nodes: number) => {
+    const degree = validDegrees.find((t) => t >= Math.ceil(countByMemory / nodes))
+    return degree === undefined ? null : degree * nodes
+  }
 
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
   if (
@@ -172,17 +183,18 @@ export function Recommendations({
     // bound instead would advise cutting a 32-GPU cluster down to 8.
     const numNodes = multiGPUBreakdown.numNodes || 1
     const clusterCeiling = gpu.max_gpus_per_node * numNodes
-    const rawNeeded = Math.max(1, gpusByMemory)
-    const gpusNeeded = Math.min(rawNeeded, clusterCeiling)
+    const advised = advisedGPUs(numNodes)
+    const rawNeeded = Math.max(1, advised ?? countByMemory)
+    const gpusNeeded = advised ?? 0
 
-    if (gpusNeeded > numGPUs) {
+    if (advised !== null && gpusNeeded > numGPUs) {
       // Room left inside the nodes already configured.
       recommendations.push({
         title: 'Add more GPUs',
         description: `Current ${numGPUs}x still exceeds capacity. Try ${gpusNeeded}x ${gpu.name} with tensor parallelism`,
         impact: `Would distribute ${totalGB.toFixed(1)} GB across ${gpusNeeded} GPUs (~${(totalGB / gpusNeeded).toFixed(1)} GB per GPU)`,
       })
-    } else if (rawNeeded > clusterCeiling) {
+    } else if (advised === null && rawNeeded > clusterCeiling) {
       // Every node is full and the model still does not fit, so GPUs per node is
       // no longer the free variable — node count is. Without this the panel says
       // "Need N GB more VRAM. Try:" and then lists nothing, since the "upgrade
@@ -202,9 +214,20 @@ export function Recommendations({
     // gpusNeeded > 1 is false and this recommendation is silently suppressed —
     // falling through to the "upgrade GPU" recommendation below instead of
     // suggesting a configuration the UI has no way to build.
-    const gpusNeeded = clampGPUCount(gpusByMemory, gpu)
+    // Past every size one server forms, fill it with its largest valid degree
+    const fullServer = validDegrees.at(-1) ?? 1
+    const overServer = advisedGPUs(1) === null && countByMemory > maxGPUsFor(gpu)
+    const gpusNeeded = advisedGPUs(1)
 
-    if (gpusNeeded > 1) {
+    if (overServer && fullServer > 1) {
+      // Never advise fewer GPUs than memory needs: one server is not enough
+      const servers = Math.ceil(countByMemory / fullServer)
+      recommendations.push({
+        title: 'Add more servers',
+        description: `Needs about ${countByMemory} GPUs by memory, more than one server holds. Try ${servers} servers of ${fullServer}x ${gpu.name} (${servers * fullServer} GPUs total), or use Sizing mode`,
+        impact: `Would distribute ${totalGB.toFixed(1)} GB across ${servers * fullServer} GPUs (~${(totalGB / (servers * fullServer)).toFixed(1)} GB per GPU), with pipeline parallelism between servers`,
+      })
+    } else if (gpusNeeded !== null && gpusNeeded > 1) {
       recommendations.push({
         title: 'Use multiple GPUs',
         description: `Use ${gpusNeeded}x ${gpu.name} with tensor parallelism`,

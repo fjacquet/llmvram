@@ -210,9 +210,15 @@ One decode step produces one token for each of `batchSize` sequences:
 - **Step:** `max(memory, compute) + 2 × layers / stages × allreduceLatencyUs` (tensor parallelism only; NVLink 11 µs, Infinity Fabric 20 µs, PCIe 25 µs estimate).
 - **Tokens/sec:** `batch / step × B / (B + stages − 1) × interNodeDecodeEfficiency`. A decode token cannot be split into micro-batches, so pipeline parallelism gives no speedup at batch 1.
 - **TTFT:** linear FLOPs (`2 × active × T`) / (linearRate × MFU[precision]) + attention FLOPs (`2 × layers × T² × hidden`) / (16-bit rate × MFU.fp16), both over `numGPUs × prefillScalingEfficiency` (`src/engines/compute.ts`), plus one decode step.
-- **Expected vs ceiling (ADR 0009):** the figures above are the ceiling. Expected tok/s = ceiling x `DECODE_EFFICIENCY` (0.47); expected TTFT / prefill = ceiling / `PREFILL_EFFICIENCY` (0.469).
+- **Expected vs ceiling (ADR 0009):** the figures above are the ceiling. Expected tok/s = ceiling x `decodeEfficiency(batch)` (bands 0.47 / 0.425 / 0.25, ADR 0010); expected TTFT / prefill = ceiling / `PREFILL_EFFICIENCY` (0.469).
 - **Sparse attention:** decode reads min(ctx, topk) KV plus the full indexer cache; prefill attention FLOPs are 2·L·H·a·(2T − a), a = min(T, topk) (query t attends min(t, topk) keys), plus indexer scoring at FP8.
 - 5% tolerance for bottleneck classification.
+
+### Sizing (`sizing.ts`)
+
+- `sizeDeployment` composes the engines above (ADR 0010): candidates are `validTPDegrees`, fit at 1 session via `fitsInference`, sessions from `maxConcurrentSessions` capped at users, speed at batch = sessions with `decodeEfficiency(batch)`. Tie-break: units, total GPUs, replica size. Idle GPUs are reported.
+- KV tier: open sessions from `kvTierSummary.sessionsHeld`; decode batch = min(hot, ceil(open x activeShare)) only when parked; `capacityTB` is per unit.
+- Rack GPUs (`isRackGPU`) are Sizing-only.
 
 ### Concurrency (`concurrency.ts`)
 

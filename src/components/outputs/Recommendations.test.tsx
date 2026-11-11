@@ -1,6 +1,7 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import { fitsInference } from '@engines/concurrency'
+import { isValidTPDegree } from '@engines/config-rules'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { calculateMultiGPUVRAM } from '@engines/multi-gpu'
 import type { InferenceVRAMBreakdown } from '@engines/types'
@@ -30,6 +31,9 @@ vi.mock('@store/uiStore', () => ({ useUIStore }))
 
 // Import after mock setup
 import { Recommendations } from './Recommendations'
+
+const anyModel = validateModels(modelsData)[0]
+if (!anyModel) throw new Error('models.json is empty')
 
 function gpu(overrides: Partial<GPU>): GPU {
   return {
@@ -66,6 +70,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={appleGPU}
+        model={anyModel}
         breakdown={breakdown(900)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -87,6 +92,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={gb10Like}
+        model={anyModel}
         breakdown={breakdown(100)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -111,6 +117,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={eightWay}
+        model={anyModel}
         breakdown={breakdown(500)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -144,6 +151,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={eightWay}
+        model={anyModel}
         breakdown={breakdown(500)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -175,6 +183,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={eightWay}
+        model={anyModel}
         breakdown={breakdown(500)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -209,6 +218,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={bigPart}
+        model={anyModel}
         breakdown={breakdown(12000)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -244,6 +254,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={pcie}
+        model={anyModel}
         breakdown={breakdown(130)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -260,6 +271,7 @@ describe('Recommendations', () => {
     const { container } = render(
       <Recommendations
         gpu={gpu({ vram_gb: 80, max_gpus_per_node: 8 })}
+        model={anyModel}
         breakdown={breakdown(76)}
         currentQuantization="fp16"
         currentSequenceLength={4096}
@@ -275,6 +287,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={gpu({ vram_gb: 16, max_gpus_per_node: 1 })}
+        model={anyModel}
         breakdown={breakdown(30)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -301,6 +314,7 @@ describe('Recommendations', () => {
       render(
         <Recommendations
           gpu={h100}
+          model={model}
           breakdown={vram}
           currentQuantization="fp16"
           currentSequenceLength={sequenceLength}
@@ -311,17 +325,93 @@ describe('Recommendations', () => {
       const text = screen.getByText(/with tensor parallelism/).textContent ?? ''
       const n = Number(text.match(/Use (\d+)x/)?.[1])
       const multi = calculateMultiGPUVRAM(vram, model, 80, n, 'tensor-parallel', h100, 'fp16')
+      expect(isValidTPDegree(model, n)).toBe(true)
       return { n, perGPU: multi.totalPerGPU.toNumber() }
     }
 
     it('DeepSeek R1 Distill 70B fp16, 32k, H100 80 GB', () => {
-      const { perGPU } = advise('deepseek-r1-distill-llama-70b', 32768)
+      const { n, perGPU } = advise('deepseek-r1-distill-llama-70b', 32768)
+      // 2026-11-11, sizing T3: was 3 (memory count), now 4 because 64 heads are not divisible by 3
+      expect(n).toBe(4)
       expect(fitsInference(perGPU, 80)).toBe(true)
     })
 
     it('Devstral 2 123B fp16, 8k, H100 80 GB', () => {
       const { perGPU } = advise('mistralai-devstral-2-123b', 8192)
       expect(fitsInference(perGPU, 80)).toBe(true)
+    })
+  })
+
+  it('past one server, advises more servers, never a full server alone (re-review M1)', () => {
+    // 2026-11-11, sizing re-review: was "Use 8x" for a model needing ~12 GPUs by memory,
+    // which under-provisions; one server is not enough, so the advice names servers
+    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+    const model = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-405b')
+    if (!h100 || !model) throw new Error('fixture missing from data')
+    const vram = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 8192,
+      batchSize: 1,
+    })
+    render(
+      <Recommendations
+        gpu={h100}
+        model={model}
+        breakdown={vram}
+        currentQuantization="fp16"
+        currentSequenceLength={8192}
+        numGPUs={1}
+        multiGPUBreakdown={null}
+      />,
+    )
+    expect(screen.getByText('Add more servers')).toBeInTheDocument()
+    const text = screen.getByText(/more than one server holds/).textContent ?? ''
+    const servers = Number(text.match(/Try (\d+) servers of 8x/)?.[1])
+    expect(servers).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByText(/^Use 8x/)).not.toBeInTheDocument()
+  })
+
+  describe('never advises a TP degree vLLM refuses (final review M1)', () => {
+    // 2026-11-11, sizing final review M1: was "Use 6x" (the raw memory count) when no valid
+    // degree inside one server reaches it; GLM 4.7 Flash accepts only 1, 2, 4 and 5 here.
+    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+    const flash = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-4.7-flash')
+    if (!h100 || !flash) throw new Error('fixture not found')
+
+    it.each([6, 7, 8])('single GPU, memory count %i: no "Use Nx" advice', (count) => {
+      // total sized so ceil((total - framework) / (72 - framework - 0.25)) lands on `count`
+      const total = (count - 0.5) * 64
+      render(
+        <Recommendations
+          gpu={h100}
+          model={flash}
+          breakdown={breakdown(total)}
+          currentQuantization="fp16"
+          currentSequenceLength={2048}
+          numGPUs={1}
+          multiGPUBreakdown={null}
+        />,
+      )
+      expect(screen.queryByText(new RegExp(`Use ${count}x`))).not.toBeInTheDocument()
+      expect(screen.queryByText(/Use [3678]x/)).not.toBeInTheDocument()
+    })
+
+    it('already multi-GPU: never advises 6x either', () => {
+      const vram = breakdown(6 * 64)
+      const multi = calculateMultiGPUVRAM(vram, flash, 80, 2, 'tensor-parallel', h100, 'fp16')
+      render(
+        <Recommendations
+          gpu={h100}
+          model={flash}
+          breakdown={vram}
+          currentQuantization="fp16"
+          currentSequenceLength={2048}
+          numGPUs={2}
+          multiGPUBreakdown={multi}
+        />,
+      )
+      expect(screen.queryByText(/Try [3678]x/)).not.toBeInTheDocument()
     })
   })
 })

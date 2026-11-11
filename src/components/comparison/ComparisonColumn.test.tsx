@@ -137,4 +137,74 @@ describe('ComparisonColumn', () => {
     render(<ComparisonColumn snapshot={a} allSnapshots={[a, otherExpected]} onRemove={() => {}} />)
     expect(screen.getByText('Performance').closest('div')?.className).toMatch(/bg-amber-50/)
   })
+
+  it('shows Units and Replica for a sizing snapshot, with the KV tier name', () => {
+    const snapshot = makeSnapshot(
+      'a',
+      {},
+      {
+        sizing: {
+          unit: 'rack',
+          units: 3,
+          replicas: 20,
+          tp: 8,
+          nodes: 1,
+          sessionsPerReplica: 100,
+          users: 2000,
+          activeShare: 0.25,
+          tier: 'host-pcie',
+        },
+      },
+    )
+    render(<ComparisonColumn snapshot={snapshot} allSnapshots={[snapshot]} onRemove={() => {}} />)
+    expect(screen.getByText('Units').nextElementSibling).toHaveTextContent('3 racks')
+    expect(screen.getByText('Replica').nextElementSibling).toHaveTextContent('TP 8 × 1')
+    expect(screen.getByText('KV tier')).toBeInTheDocument()
+    expect(screen.getByText('Users').nextElementSibling).toHaveTextContent('2,000')
+  })
+
+  it('leaves Units and Replica blank for an inference snapshot', () => {
+    const snapshot = makeSnapshot('a')
+    render(<ComparisonColumn snapshot={snapshot} allSnapshots={[snapshot]} onRemove={() => {}} />)
+    expect(screen.getByText('Units').nextElementSibling).toHaveTextContent('—')
+    expect(screen.getByText('Replica').nextElementSibling).toHaveTextContent('—')
+    expect(screen.queryByText('KV tier')).not.toBeInTheDocument()
+  })
+
+  const sizingResults = {
+    sizing: {
+      unit: 'rack' as const,
+      units: 3,
+      replicas: 20,
+      tp: 8,
+      nodes: 1,
+      sessionsPerReplica: 100,
+      users: 2000,
+      activeShare: 0.25,
+      tier: null,
+    },
+    modelWeights: 0,
+    kvCache: 0,
+    activations: 0,
+  }
+
+  it('a sizing snapshot shows dashes for the component rows, never 0.00 GB', () => {
+    const snapshot = makeSnapshot('a', {}, sizingResults)
+    render(<ComparisonColumn snapshot={snapshot} allSnapshots={[snapshot]} onRemove={() => {}} />)
+    for (const label of ['Weights:', 'KV Cache:', 'Activations:']) {
+      expect(screen.getByText(label).nextElementSibling).toHaveTextContent('—')
+    }
+    expect(screen.queryByText('0.00 GB')).not.toBeInTheDocument()
+    expect(screen.getByText('Total VRAM (per replica)')).toBeInTheDocument()
+  })
+
+  it('labels sizing speed per user and never diffs it against an inference snapshot', () => {
+    const sizing = makeSnapshot('a', {}, { ...sizingResults, tokensPerSecond: 99 })
+    const inference = makeSnapshot('b')
+    render(
+      <ComparisonColumn snapshot={sizing} allSnapshots={[sizing, inference]} onRemove={() => {}} />,
+    )
+    expect(screen.getByText('Per-user TTFT:')).toBeInTheDocument()
+    expect(screen.getByText('Per-user speed').closest('div')?.className).not.toMatch(/bg-amber-50/)
+  })
 })

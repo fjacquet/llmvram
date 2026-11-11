@@ -1,3 +1,4 @@
+import { KV_TIER_PRESETS } from '@engines/kv-tier'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { formatDurationMs } from '@utils/formatDuration'
@@ -47,6 +48,7 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
   // Compute diff map: which fields differ from other snapshots
   const diffMap = useMemo(() => {
     const others = allSnapshots.filter((s) => s.id !== snapshot.id)
+    const sameKind = (s: ConfigSnapshot) => !s.results.sizing === !snapshot.results.sizing
     if (others.length === 0) {
       // Only one snapshot, nothing to compare
       return {
@@ -67,6 +69,7 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
         totalVRAM: false,
         fits: false,
         tokensPerSecond: false,
+        sizing: false,
       }
     }
 
@@ -97,13 +100,22 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
       offloadPercentage: others.some(
         (s) => s.config.offloadPercentage !== snapshot.config.offloadPercentage,
       ),
-      totalVRAM: others.some((s) => s.results.totalVRAM !== snapshot.results.totalVRAM),
+      // Sizing and inference figures mean different things (per replica / per user vs whole
+      // deployment), so they are only diffed against the same kind of snapshot
+      totalVRAM: others.some(
+        (s) => sameKind(s) && s.results.totalVRAM !== snapshot.results.totalVRAM,
+      ),
       fits: others.some((s) => s.results.fits !== snapshot.results.fits),
       tokensPerSecond: others.some(
-        (s) => s.results.tokensPerSecond !== snapshot.results.tokensPerSecond,
+        (s) => sameKind(s) && s.results.tokensPerSecond !== snapshot.results.tokensPerSecond,
+      ),
+      sizing: others.some(
+        (s) => JSON.stringify(s.results.sizing) !== JSON.stringify(snapshot.results.sizing),
       ),
     }
   }, [snapshot, allSnapshots])
+
+  const { sizing } = snapshot.results
 
   // Calculate effective utilization (per-GPU if multi-GPU)
   const effectiveVRAM =
@@ -234,25 +246,51 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
         )}
       </div>
 
+      {/* Sizing rows: blank for inference snapshots so the columns stay aligned */}
+      <div className="space-y-1">
+        <Field
+          label="Units"
+          value={sizing ? `${sizing.units} ${sizing.unit}${sizing.units === 1 ? '' : 's'}` : '—'}
+          isDifferent={diffMap.sizing}
+        />
+        <Field
+          label="Replica"
+          value={sizing ? `TP ${sizing.tp} × ${sizing.nodes}` : '—'}
+          isDifferent={diffMap.sizing}
+        />
+        <Field
+          label="Users"
+          value={sizing ? sizing.users.toLocaleString('en-US') : '—'}
+          isDifferent={diffMap.sizing}
+        />
+        {sizing?.tier && (
+          <Field
+            label="KV tier"
+            value={KV_TIER_PRESETS[sizing.tier].label}
+            isDifferent={diffMap.sizing}
+          />
+        )}
+      </div>
+
       {/* VRAM section */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-2">
         <Field
-          label="Total VRAM"
+          label={sizing ? 'Total VRAM (per replica)' : 'Total VRAM'}
           value={`${snapshot.results.totalVRAM.toFixed(2)} GB`}
           isDifferent={diffMap.totalVRAM}
         />
         <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
           <div className="flex justify-between">
             <span>Weights:</span>
-            <span>{snapshot.results.modelWeights.toFixed(2)} GB</span>
+            <span>{sizing ? '—' : `${snapshot.results.modelWeights.toFixed(2)} GB`}</span>
           </div>
           <div className="flex justify-between">
             <span>KV Cache:</span>
-            <span>{snapshot.results.kvCache.toFixed(2)} GB</span>
+            <span>{sizing ? '—' : `${snapshot.results.kvCache.toFixed(2)} GB`}</span>
           </div>
           <div className="flex justify-between">
             <span>Activations:</span>
-            <span>{snapshot.results.activations.toFixed(2)} GB</span>
+            <span>{sizing ? '—' : `${snapshot.results.activations.toFixed(2)} GB`}</span>
           </div>
         </div>
 
@@ -306,7 +344,7 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
       <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
         <div className="text-sm space-y-1">
           <Field
-            label="Performance"
+            label={sizing ? 'Per-user speed' : 'Performance'}
             value={`${snapshot.results.tokensPerSecond.toFixed(1)} tok/s`}
             isDifferent={diffMap.tokensPerSecond}
           />
@@ -314,7 +352,7 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
             Theoretical ceiling: {snapshot.results.ceilingTokensPerSecond.toFixed(1)} tok/s
           </p>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>TTFT:</span>
+            <span>{sizing ? 'Per-user TTFT:' : 'TTFT:'}</span>
             <span>{formatDurationMs(snapshot.results.timeToFirstToken)}</span>
           </div>
           <p className="text-right text-xs text-gray-500 dark:text-gray-400">

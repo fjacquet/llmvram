@@ -1,6 +1,8 @@
+import type { GPU, Model } from '@utils/schemas'
 import { MAX_SEQUENCE_LENGTH, QUANTIZATION_FORMATS } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 import { z } from 'zod'
+import type { KVTierSettings, KVTierType } from './kv-tier'
 
 /**
  * All supported quantization formats for model weights
@@ -75,7 +77,7 @@ export interface PerformanceEstimate {
    */
   offloadSlowdown: number | null
   /**
-   * What vLLM is expected to deliver: tok/s = ceiling x DECODE_EFFICIENCY, TTFT and prefill =
+   * What vLLM is expected to deliver: tok/s = ceiling x decodeEfficiency(batch), TTFT and prefill =
    * ceiling / PREFILL_EFFICIENCY (spec P2). Every other field above is the theoretical ceiling.
    */
   expected: {
@@ -476,4 +478,61 @@ export interface ZeROResult {
   numGPUs: number
   /** ZeRO stage applied */
   zeroStage: import('./frameworks').ZeROStage
+}
+
+/** What one sizing answer is counted in: a server (<= 8 GPUs) or a rack (NVL72) */
+export type SizingUnit = 'server' | 'rack'
+
+export interface SizingInput {
+  model: Model
+  gpu: GPU
+  quantization: QuantizationFormat
+  kvQuantization: KVCachePrecision
+  sequenceLength: number
+  users: number
+  fabric: FabricSpec
+  kvTier: KVTierSettings
+}
+
+/** One replica shape (tp GPUs per server across `nodes` pipeline stages), evaluated */
+export interface ReplicaCandidate {
+  tp: number
+  nodes: number
+  /** tp * nodes */
+  gpusPerReplica: number
+  /** Open sessions: HBM-resident plus parked in the KV tier; >= 1 when it fits, capped at users */
+  sessionsPerReplica: number
+  /** Sessions whose KV sits in HBM (memory-bound, capped at users) */
+  hotSessions: number
+  /** Sessions decoding at once: min(hot, ceil(open x activeShare)) */
+  decodeBatch: number
+  /** The active share the solver used (clamped), not the raw store value */
+  activeShare: number
+  /** Tier that raised the open count; null when none or when it was overloaded */
+  tierUsed: KVTierType | null
+  /** The tier could not sustain the churn, so the HBM count applies */
+  tierOverloaded: boolean
+  /** Resume time of one parked session; null when no tier is used */
+  resumeSeconds: number | null
+  /** Ceiling prefill of one parked session, the alternative to resuming it; null when no tier is used */
+  recomputeSeconds: number | null
+  perUserTokensPerSecond: Decimal
+  perUserCeilingTokensPerSecond: Decimal
+  timeToFirstToken: Decimal
+  ceilingTimeToFirstToken: Decimal
+  totalPerGPUGB: number
+}
+
+export interface SizingResult {
+  fits: boolean
+  unit: SizingUnit
+  /** Racks or servers; 0 when nothing fits */
+  units: number
+  replicas: number
+  /** 0 for a replica spanning several servers */
+  replicasPerUnit: number
+  idleGPUsPerUnit: number
+  chosen: ReplicaCandidate | null
+  /** Set when !fits: the candidate nearest to fitting */
+  closest: { candidate: ReplicaCandidate; lackingGB: number } | null
 }

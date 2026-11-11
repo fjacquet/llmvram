@@ -4,6 +4,7 @@ const SECTIONS = [
   { id: 'quick-start', label: 'Quick Start' },
   { id: 'whats-new', label: "What's new in 2.0" },
   { id: 'mode-toggle', label: 'Mode Toggle' },
+  { id: 'sizing', label: 'Sizing' },
   { id: 'model-config', label: 'Model Configuration' },
   { id: 'gpu-selection', label: 'GPU Selection' },
   { id: 'hardware-config', label: 'Hardware Configuration' },
@@ -155,6 +156,27 @@ export function GuidePage() {
           <strong>Inference mode</strong> estimates VRAM for running a model: weights + KV cache +
           activations + framework overhead. <strong>Fine-tuning mode</strong> adds optimizer states,
           gradients, and activation memory required for training.
+        </P>
+
+        {/* Sizing */}
+        <SectionHeading id="sizing">Sizing</SectionHeading>
+        <P>
+          <strong>Sizing</strong> mode answers the reverse question: how many servers or racks serve
+          N users at once? You give the model, format, context length, users and GPU; the solver
+          chooses the rest.
+        </P>
+        <P>
+          It tries every tensor-parallel degree vLLM accepts for the model (and, for 8-GPU servers,
+          replicas that span several servers), keeps those that fit in 90% of GPU memory, and counts
+          how many sessions one replica holds at your context length. Replicas are ceil(users ÷
+          sessions), packed into servers or NVL72 racks, and the layout with the fewest units wins.
+        </P>
+        <P>
+          Counts are set by memory (90% vLLM limit); the speed shown is expected, with the
+          theoretical ceiling beside it. With a KV storage tier selected, a replica also holds
+          parked sessions beyond what fits in HBM. The card then states the share of sessions
+          assumed to decode at once, because that assumption can cut the unit count several times
+          over. NVL72 rack GPUs are available in Sizing only.
         </P>
 
         {/* Model Configuration */}

@@ -6,7 +6,8 @@ import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import {
   BYTES_PER_GB,
-  DECODE_EFFICIENCY,
+  DECODE_EFFICIENCY_BANDS,
+  decodeEfficiency,
   INTERCONNECT_SPECS,
   PREFILL_EFFICIENCY,
   PREFILL_MFU,
@@ -1840,9 +1841,14 @@ describe('sparse attention (DSA): topk-bounded reads and FLOPs, indexer cache an
     expect(row).toEqual(scored)
     const { vram, multi, perf } = headline(row)
     // Dense: 726.73 GiB, 111.16 per GPU, 616.29 tok/s, prefill 2.950 s attention-bound
-    expect(vram.total.toNumber()).toBeCloseTo(728.0819799804688, 9)
-    expect(multi.perGPU.total.toNumber()).toBeCloseTo(112.51801040649414, 9)
-    expect(perf.tokensPerSecond.toNumber()).toBeCloseTo(1059.9491923758633, 9)
+    // 2026-11-11, sizing T1: 728.0819799804688 -> 731.1288549804688 because the FP8 KV of a DSA
+    // model is vLLM's fp8_ds_mla, 656 B per token per layer instead of 576
+    expect(vram.total.toNumber()).toBeCloseTo(731.1288549804688, 9)
+    // 2026-11-11, sizing T1: 112.51801040649414 -> 115.56488540649414, same fp8_ds_mla reason
+    expect(multi.perGPU.total.toNumber()).toBeCloseTo(115.56488540649414, 9)
+    // 2026-11-11, sizing T1: 1059.9491923758633 -> 1058.157514529771, same fp8_ds_mla reason
+    // (decode reads 656/576 more KV bytes per step)
+    expect(perf.tokensPerSecond.toNumber()).toBeCloseTo(1058.157514529771, 9)
     // 2026-11-11, final review M1: 1.6391939203033423 -> 1.6714283140300226, attention now sums
     // min(t, topk) per query instead of charging topk to every query (slower, the safe direction)
     expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(1.6714283140300226, 9)
@@ -1949,15 +1955,28 @@ describe('expected figures: ceiling x measured vLLM efficiency (spec P1, P2)', (
   const base = { model, gpu: h100, quantization: 'fp8' as const, kvQuantization: 'fp8' as const }
 
   it('both efficiencies lie in (0, 1]', () => {
-    for (const e of [DECODE_EFFICIENCY, PREFILL_EFFICIENCY]) {
+    for (const e of [
+      ...DECODE_EFFICIENCY_BANDS.map((b) => new Decimal(b.efficiency)),
+      PREFILL_EFFICIENCY,
+    ]) {
       expect(e.greaterThan(0)).toBe(true)
       expect(e.lessThanOrEqualTo(1)).toBe(true)
     }
   })
 
-  it('expected tok/s = ceiling x DECODE_EFFICIENCY; TTFT and prefill = ceiling / PREFILL_EFFICIENCY', () => {
+  it('decodeEfficiency steps at the band edges (2026-11-11, sizing T2)', () => {
+    const at = (b: number) => decodeEfficiency(b).toNumber()
+    expect([at(1), at(32), at(33), at(128), at(129)]).toEqual([0.47, 0.47, 0.425, 0.425, 0.25])
+  })
+
+  it('expected tok/s at batch 64 = ceiling x 0.425', () => {
+    const p = estimatePerformance({ ...base, batchSize: 64, sequenceLength: 8192 })
+    expect(p.expected.tokensPerSecond.equals(p.tokensPerSecond.mul(0.425))).toBe(true)
+  })
+
+  it('expected tok/s = ceiling x decodeEfficiency(8); TTFT and prefill = ceiling / PREFILL_EFFICIENCY', () => {
     const p = estimatePerformance({ ...base, batchSize: 8, sequenceLength: 8192 })
-    expect(p.expected.tokensPerSecond.equals(p.tokensPerSecond.mul(DECODE_EFFICIENCY))).toBe(true)
+    expect(p.expected.tokensPerSecond.equals(p.tokensPerSecond.mul(decodeEfficiency(8)))).toBe(true)
     expect(p.expected.timeToFirstToken.equals(p.timeToFirstToken.div(PREFILL_EFFICIENCY))).toBe(
       true,
     )

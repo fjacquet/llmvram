@@ -12,7 +12,7 @@ export {
   type ComputeRate,
   linearComputeRate,
 } from './compute'
-
+export { isRackGPU } from './config-rules'
 // Constants
 export {
   BYTES_PER_PARAMETER,
@@ -21,10 +21,8 @@ export {
   OPTIMIZER_STATE_BYTES,
   TRAINING_FRAMEWORK_OVERHEAD_GB,
 } from './constants'
-
 // DeepSpeed ZeRO engine
 export { calculateCPUOffloadMemory, calculateZeROMemoryPerGPU } from './deepspeed'
-
 // Scale-out fabric
 export {
   effectiveFraction,
@@ -37,7 +35,6 @@ export {
   prefillPipelineFill,
   resolveFabricSpec,
 } from './fabric'
-
 // Framework presets
 export {
   type CPUOffloadConfig,
@@ -46,10 +43,8 @@ export {
   type FrameworkPresetConfig,
   type ZeROStage,
 } from './frameworks'
-
 // Inference engine
 export { calculateInferenceVRAM } from './inference'
-
 // KV cache engine
 export { calculateKVCacheVRAM } from './kv-cache'
 // LoRA/QLoRA training engine
@@ -60,19 +55,18 @@ export {
 } from './lora'
 // Multi-node engine
 export { calculateMultiNodeVRAM } from './multi-node'
-
 // Optimization engine
 export {
   applyFlashAttention,
   applyGradientCheckpointing,
   calculateEffectiveBatchSize,
 } from './optimizations'
-
 // Performance engine
 export { estimatePerformance } from './performance'
-
 // Quantization engine
 export { calculateModelWeightVRAM, getBytesPerParameter } from './quantization'
+// Sizing solver
+export { evaluateReplica, replicaCandidates, sizeDeployment } from './sizing'
 
 // Training engine
 export {
@@ -93,6 +87,10 @@ export type {
   OptimizerType,
   PerformanceEstimate,
   QuantizationFormat,
+  ReplicaCandidate,
+  SizingInput,
+  SizingResult,
+  SizingUnit,
   TrainingOptimizationConfig,
   TrainingPrecision,
   TrainingVRAMBreakdown,

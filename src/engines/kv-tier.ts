@@ -129,9 +129,8 @@ export function graceLinkGBps(gpuId: string): number | null {
 
 /**
  * @param gpuId Resolves the exact host-grace figure (graceLinkGBps) when the
- *   tier is `host-grace` and no custom bandwidth is set; falls back to the
- *   generic KV_TIER_PRESETS figure if the id doesn't match a Grace GPU
- *   (shouldn't happen in practice — config-rules R3 keeps the two in sync).
+ *   tier is `host-grace` and no custom bandwidth is set; null when the GPU has
+ *   no Grace link. The generic KV_TIER_PRESETS figure is only for a null id.
  */
 export function tierBandwidthGBps(
   settings: KVTierSettings,
@@ -139,9 +138,10 @@ export function tierBandwidthGBps(
 ): number | null {
   if (settings.tier === 'none') return null
   if (settings.tier === 'host-grace') {
-    return (
-      settings.customGBps ?? graceLinkGBps(gpuId ?? '') ?? KV_TIER_PRESETS['host-grace'].gbpsPerGPU
-    )
+    if (settings.customGBps !== null) return settings.customGBps
+    // a known GPU without a Grace link has no host-grace tier; the preset is only for no id
+    if (gpuId !== null) return graceLinkGBps(gpuId)
+    return KV_TIER_PRESETS['host-grace'].gbpsPerGPU
   }
   return settings.customGBps ?? KV_TIER_PRESETS[settings.tier].gbpsPerGPU
 }

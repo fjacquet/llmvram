@@ -390,6 +390,9 @@ describe('sparse attention (DSA) indexer cache and reads', () => {
     sparse_attention_topk: 2048,
     sparse_indexer_bytes_per_token: 21 * 132,
   }
+  // 2026-11-11, sizing T1: the DSA `sparse` copy now stores FP8 KV as fp8_ds_mla (656 B per 576
+  // elements); the dense copies stripped of the sparse fields keep 1 B, so scale them by this.
+  const dsa = new Decimal(656).div(576)
   const kv = (model: Model, sequenceLength: number, kvPrecision: 'fp16' | 'fp8' = 'fp8') =>
     calculateKVCacheVRAM({ model, sequenceLength, batchSize: 1, kvPrecision })
   const read = (model: Model, sequenceLength: number) =>
@@ -412,7 +415,10 @@ describe('sparse attention (DSA) indexer cache and reads', () => {
 
   it('memory stores every token plus the indexer cache, whatever the KV precision', () => {
     const indexer = calculateSparseIndexerVRAM(sparse, 131072, 1)
-    expect(kv(sparse, 131072).sub(kv(glm, 131072)).toNumber()).toBeCloseTo(indexer.toNumber(), 12)
+    expect(kv(sparse, 131072).sub(kv(glm, 131072).mul(dsa)).toNumber()).toBeCloseTo(
+      indexer.toNumber(),
+      12,
+    )
     expect(
       kv(sparse, 131072, 'fp16')
         .sub(kv(glm, 131072, 'fp16'))
@@ -421,7 +427,9 @@ describe('sparse attention (DSA) indexer cache and reads', () => {
   })
 
   it('decode reads the KV of topk tokens plus the indexer over the full context at 128k', () => {
-    const expected = kv(glm, 2048).add(new Decimal(21 * 132 * 131072).div(1024 ** 3))
+    const expected = kv(glm, 2048)
+      .mul(dsa)
+      .add(new Decimal(21 * 132 * 131072).div(1024 ** 3))
     expect(read(sparse, 131072).toNumber()).toBeCloseTo(expected.toNumber(), 12)
   })
 
@@ -436,7 +444,9 @@ describe('sparse attention (DSA) indexer cache and reads', () => {
       sparse_indexer_layers: _l,
       ...dense
     } = ml4
-    const expected = kv(dense, 2048).add(new Decimal(44 * 132 * 131072).div(1024 ** 3))
+    const expected = kv(dense, 2048)
+      .mul(dsa)
+      .add(new Decimal(44 * 132 * 131072).div(1024 ** 3))
     expect(read(ml4, 131072).toNumber()).toBeCloseTo(expected.toNumber(), 12)
     expect(read(ml4, 131072).toNumber()).toBeLessThan(kv(ml4, 131072).toNumber())
   })
@@ -457,5 +467,43 @@ describe('sparse attention (DSA) indexer cache and reads', () => {
     expect(ModelSchema.safeParse({ ...sparse, sparse_indexer_heads: 32 }).success).toBe(false)
     const { sparse_attention_topk, sparse_indexer_bytes_per_token, ...noTopk } = scored
     expect(ModelSchema.safeParse(noTopk).success).toBe(false)
+  })
+})
+
+describe('FP8 KV on DSA models (vLLM fp8_ds_mla, 656 B per token per layer)', () => {
+  const models = validateModels(modelsData)
+  const byId = (id: string) => {
+    const m = models.find((x) => x.id === id)
+    if (!m) throw new Error(`${id} missing from models.json`)
+    return m
+  }
+  const gb = (model: Model, kvPrecision: 'fp16' | 'fp8') =>
+    calculateKVCacheVRAM({ model, sequenceLength: 1024, batchSize: 1, kvPrecision })
+
+  it('Mistral Large 4 (DSA) at FP8 charges 656/576 of the 1-byte figure', () => {
+    const ml4 = byId('mistralai-mistral-large-4-1t-a52b')
+    const expected = new Decimal(ml4.kv_cache_elements_per_token ?? 0)
+      .div(576)
+      .mul(656)
+      .mul(1024)
+      .div(1024 ** 3)
+      .add(calculateSparseIndexerVRAM(ml4, 1024, 1)) // indexer cache is unaffected by KV precision
+    expect(gb(ml4, 'fp8').toNumber()).toBeCloseTo(expected.toNumber(), 12)
+  })
+
+  it('leaves FP16 unchanged', () => {
+    const ml4 = byId('mistralai-mistral-large-4-1t-a52b')
+    const expected = new Decimal(ml4.kv_cache_elements_per_token ?? 0)
+      .mul(1024)
+      .mul(2)
+      .div(1024 ** 3)
+      .add(calculateSparseIndexerVRAM(ml4, 1024, 1))
+    expect(gb(ml4, 'fp16').toNumber()).toBeCloseTo(expected.toNumber(), 12)
+  })
+
+  it('leaves non-DSA MLA (DeepSeek R1) at 1 byte per element', () => {
+    const r1 = byId('deepseek-r1')
+    const expected = new Decimal(r1.kv_cache_elements_per_token ?? 0).mul(1024).div(1024 ** 3)
+    expect(gb(r1, 'fp8').toNumber()).toBeCloseTo(expected.toNumber(), 12)
   })
 })

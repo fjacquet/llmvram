@@ -1,3 +1,4 @@
+import type { ConfigMode } from '@engines/config-rules'
 import type { FrameworkPreset } from '@engines/frameworks'
 import { DEFAULT_KV_TIER, KV_TIER_TYPES, type KVTierSettings } from '@engines/kv-tier'
 import type {
@@ -115,7 +116,7 @@ export const URLStateSchema = z.object({
   // with a "Shared link adjusted" notice, like every other rule-corrected field.
   hc: z.number().optional(),
   // Mode (only present if training; absence = inference for backward compat)
-  m: z.enum(['inference', 'training']).optional(),
+  m: z.enum(['inference', 'training', 'sizing']).optional(),
   // Training parameters (only present when mode=training)
   tm: z.enum(['full', 'lora', 'qlora']).optional(), // trainingMethod
   to: z.enum(['adamw', 'sgd-momentum', 'adamw-8bit', 'adafactor']).optional(), // optimizer
@@ -175,7 +176,7 @@ export function serializeToURL(state: {
   offloadLayers: number
   kvCacheOffload: boolean
   offloadHostCapacityGB: number | null
-  mode: 'inference' | 'training'
+  mode: ConfigMode
   trainingMethod: FineTuningMethod
   optimizer: OptimizerType
   trainingPrecision: TrainingPrecision
@@ -244,10 +245,10 @@ export function serializeToURL(state: {
         }
       : {}),
 
-    // Multi-node (only when actually multi-node, to keep single-node links short)
-    ...(state.numNodes > 1
+    // Multi-node, or Sizing (it packs multi-server replicas): else links stay short
+    ...(state.numNodes > 1 || state.mode === 'sizing'
       ? {
-          nn: state.numNodes,
+          ...(state.numNodes > 1 ? { nn: state.numNodes } : {}),
           fab: state.interNodeFabric,
           ...(state.interNodeFabric === 'custom' && state.customFabric
             ? { fabc: state.customFabric }
@@ -269,6 +270,7 @@ export function serializeToURL(state: {
       : {}),
 
     // Training state (only if mode is training)
+    ...(state.mode === 'sizing' ? { m: state.mode } : {}),
     ...(state.mode === 'training'
       ? {
           m: state.mode,

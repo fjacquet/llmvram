@@ -14,6 +14,7 @@ import { QuantizationPicker } from '@components/inputs/QuantizationPicker'
 import { SequenceLengthInput } from '@components/inputs/SequenceLengthInput'
 import { ShardingStrategySelector } from '@components/inputs/ShardingStrategySelector'
 import { TrainingPanel } from '@components/inputs/TrainingPanel'
+import { isRackGPU } from '@engines/config-rules'
 import { FRAMEWORK_PRESETS } from '@engines/frameworks'
 import { useUIStore } from '@store/uiStore'
 import { useEffect, useRef, useState } from 'react'
@@ -29,10 +30,14 @@ export function InputPanel() {
   const mode = useUIStore((s) => s.mode)
   const frameworkPreset = useUIStore((s) => s.frameworkPreset)
   const resetAdvancedSettings = useUIStore((s) => s.resetAdvancedSettings)
-  const isInference = mode === 'inference'
+  const isSizing = mode === 'sizing'
+  // Sizing shares the inference inputs; the solver chooses GPU counts, strategy, batch and offloading
+  const isInference = mode !== 'training'
   // In training, more than one GPU only matters with a DeepSpeed ZeRO preset
   const showGPUCount =
-    selectedGPU !== null && (isInference || FRAMEWORK_PRESETS[frameworkPreset].zeroStage !== null)
+    selectedGPU !== null &&
+    (mode === 'inference' ||
+      (mode === 'training' && FRAMEWORK_PRESETS[frameworkPreset].zeroStage !== null))
 
   // Derived selector: re-renders only when the count itself changes, not on every
   // store write (UIState extends UIConfig, so countAdvancedChanges' shape typechecks).
@@ -59,7 +64,7 @@ export function InputPanel() {
           <GPUSelector />
           {showGPUCount && <GPUCountSelector />}
           {/* Multi-node is inference-only (multi-node training is a spec Non-Goal) */}
-          {selectedGPU && isInference && <NodeCountSelector />}
+          {selectedGPU && mode === 'inference' && <NodeCountSelector />}
           <SequenceLengthInput />
           {isInference && <ConcurrentUsersInput />}
         </section>
@@ -99,14 +104,17 @@ export function InputPanel() {
             >
               Reset advanced settings
             </button>
-            <BatchSizeInput />
+            {!isSizing && <BatchSizeInput />}
             {isInference && (
               <>
                 <KVQuantizationPicker />
-                {selectedGPU && <ShardingStrategySelector />}
-                <InterNodeFabricSelector />
-                <InterconnectSelector />
-                {selectedGPU && <OffloadingPanel />}
+                {selectedGPU && !isSizing && <ShardingStrategySelector />}
+                {/* Racks never span servers, so only server GPUs have a fabric to choose */}
+                {(!isSizing || (selectedGPU && !isRackGPU(selectedGPU))) && (
+                  <InterNodeFabricSelector />
+                )}
+                {!isSizing && <InterconnectSelector />}
+                {selectedGPU && !isSizing && <OffloadingPanel />}
                 {selectedGPU && <KVTierPanel />}
               </>
             )}

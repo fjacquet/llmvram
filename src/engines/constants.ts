@@ -515,22 +515,38 @@ export const PREFILL_MFU_BY_PRECISION: Record<ComputePrecision, Decimal> = {
 }
 
 /**
- * Decode efficiency: measured vLLM decode speed / the roofline's (spec P1). Expected tok/s =
- * ceiling x this. Measured mean ITL against engine ITL (batch / tok/s) at the measured mean
- * context. Median of 512 accepted vLLM points (user decision 2026-11-11; the spec's earlier
- * 'pessimistic end' rule was replaced). Median = sorted value at index floor(0.5 (n - 1)).
- * Distribution: min 0.126, p10 0.315, median 0.470.
+ * Decode efficiency by concurrency band (ADR 0010): measured vLLM decode speed / the roofline's
+ * (spec P1). Expected tok/s = ceiling x decodeEfficiency(batch). Measured mean ITL against
+ * engine ITL (batch / tok/s) at the measured mean context. Each band is the median of its
+ * accepted points (user decision 2026-11-11): 1 0.62 (n=3), 2-8 0.485 (n=209), 9-32 0.472
+ * (n=192), 33-128 0.423 (n=107), above 128 0.252 (n=1, provisional), 512 in all (recounted from the
+ * calibration doc table, 2026-11-11 final review). Bands up to 32 (n=404) keep the overall median
+ * 0.47; the published constants 0.47 / 0.425 / 0.25 are the user's decision.
+ * Median = sorted value at index floor(0.5 (n - 1)).
  *
  * Sources: SemiAnalysis InferenceX (https://inferencex.semianalysis.com/api/v1/benchmarks),
  * gpt-oss-120b MXFP4 and Llama 3.3 70B FP8 / NVFP4 / MXFP4 on H100, H200, B200, MI300X, MI325X
  * and MI355X, vLLM 0.10.1-0.22.0, ISL 1024 (496 points); AMD ROCm vLLM 0.11.2, MI300X TP8, Llama
  * 3.1 70B / 405B FP8 offline latency
  * (https://www.amd.com/en/developer/resources/rocm-hub/dev-ai/performance-results.html, 16
- * points). The spread follows TP degree, model size and vendor stack, not GPU generation, so
- * one global figure (spec P1). Every point, with its run URL, acceptance and method:
+ * points). Every point, with its run URL, acceptance and method:
  * docs/calibration/2026-11-11-vllm-efficiency-points.md.
  */
-export const DECODE_EFFICIENCY = new Decimal(0.47)
+export const DECODE_EFFICIENCY_BANDS: readonly {
+  maxBatch: number
+  efficiency: number
+  n: number
+  provisional?: true
+}[] = [
+  { maxBatch: 32, efficiency: 0.47, n: 404 },
+  { maxBatch: 128, efficiency: 0.425, n: 107 },
+  { maxBatch: Number.POSITIVE_INFINITY, efficiency: 0.25, n: 1, provisional: true },
+]
+
+export function decodeEfficiency(batchSize: number): Decimal {
+  const band = DECODE_EFFICIENCY_BANDS.find((b) => batchSize <= b.maxBatch)
+  return new Decimal(band?.efficiency ?? 0.25)
+}
 
 /**
  * Prefill efficiency: the roofline's prefill seconds / measured vLLM TTFT (spec P1). Expected

@@ -884,3 +884,52 @@ describe('200GbE fabric links', () => {
     expect(decoded?.fab).toBe('ethernet-200g')
   })
 })
+
+describe('sizing mode links (2026-11-11, sizing T5)', () => {
+  const link = (json: Record<string, unknown>) =>
+    deserializeFromURL(
+      compressToEncodedURIComponent(
+        JSON.stringify({
+          q: 'fp16',
+          sl: 4096,
+          bs: 1,
+          kvq: 'fp16',
+          ng: 1,
+          ss: 'tensor-parallel',
+          ...json,
+        }),
+      ),
+    )
+  const lookups = {
+    findModel: () => realModel('meta-llama-llama-3.1-70b'),
+    findGPU: () => realGPU('nvidia-gb300-nvl72'),
+  }
+
+  it('accepts m: sizing and restores it as the mode', () => {
+    const decoded = link({ m: 'sizing', modelId: 'x', gpuId: 'nvidia-gb300-nvl72' })
+    expect(decoded?.m).toBe('sizing')
+    if (!decoded) throw new Error('expected the link to parse')
+    expect(urlStateToConfig(decoded, lookups).patch.mode).toBe('sizing')
+  })
+
+  it('round-trips sizing through serializeToURL with no training parameters', () => {
+    const decoded = deserializeFromURL(serializeToURL({ ...baseState, mode: 'sizing' }))
+    expect(decoded?.m).toBe('sizing')
+    expect(decoded?.tm).toBeUndefined()
+    expect(decoded?.lr).toBeUndefined()
+  })
+
+  // 2026-11-11, sizing final review I3: a Sizing link dropped the fabric because only
+  // numNodes > 1 wrote it; Sizing packs multi-server replicas, so the fabric is an input.
+  it('round-trips a non-default fabric in sizing mode at one node', () => {
+    const decoded = deserializeFromURL(
+      serializeToURL({
+        ...baseState,
+        mode: 'sizing',
+        selectedGPU: realGPU('nvidia-h100-80gb-sxm'),
+        interNodeFabric: 'ethernet-1600g',
+      }),
+    )
+    expect(decoded?.fab).toBe('ethernet-1600g')
+  })
+})

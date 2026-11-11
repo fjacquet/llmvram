@@ -9,6 +9,7 @@ import {
   buildNotice,
   type Correction,
   DEFAULT_RULE_CONFIG,
+  gpuAllowed,
   isValidTPDegree,
   MAX_NORMALIZE_PASSES,
   normalizeConfig,
@@ -647,7 +648,10 @@ const HOSTILE: { name: string; config: RuleConfig; model: Model | null; gpu: GPU
     model: L70,
     gpu: UNIFIED_M3,
   },
-  { name: 'NaN count', config: cfg({ numGPUs: Number.NaN }), model: L70, gpu: NVL72 },
+  // 2026-11-11, sizing T5: was gpu NVL72. A rack GPU in inference now flips to sizing (R15),
+  // which hides numGPUs, so R1 fixing the NaN depends on running before R15 and the order
+  // test would fail. The NaN clamp is pinned on a server GPU instead.
+  { name: 'NaN count', config: cfg({ numGPUs: Number.NaN }), model: L70, gpu: H100 },
   {
     name: 'a billion GPUs (R14 must stay bounded in any rule order)',
     config: cfg({ numGPUs: 1e9 }),
@@ -817,8 +821,10 @@ describe('allowedOptions', () => {
     const pairs: [Model, GPU][] = [
       [L70, H100],
       [KIMI_K3, H100],
-      [GEMMA_1B, NVL72],
-      [DSR1, NVL72],
+      // 2026-11-11, sizing T5: were NVL72 pairs. Racks are sizing-only (R15), and R14 and R3
+      // do not run there; the TP-degree and tier checks use server GPUs now.
+      [GEMMA_1B, H100],
+      [DSR1, H100],
       [L8, UNIFIED_M3],
     ]
     for (const [model, gpu] of pairs) {
@@ -967,5 +973,122 @@ describe('buildNotice', () => {
       { model: L70, gpu: H100, config: cfg() },
     )
     expect(notice?.lines).toEqual(['second snap', 'clamp'])
+  })
+})
+
+describe('sizing mode (2026-11-11, sizing T5)', () => {
+  const ids = (r: { corrections: Correction[] }) => [
+    ...new Set(r.corrections.map((c) => `${c.rule}:${c.field}`)),
+  ]
+
+  it('every rule declares an explicit, non-empty mode list', () => {
+    for (const rule of RULES) {
+      expect(rule.modes.length, rule.id).toBeGreaterThan(0)
+      for (const m of rule.modes) expect(['inference', 'training', 'sizing']).toContain(m)
+    }
+  })
+
+  it('the rules for fields Sizing hides do not run there', () => {
+    const hostile = cfg({
+      mode: 'sizing',
+      numGPUs: 999,
+      numNodes: 12,
+      batchSize: 0,
+      shardingStrategy: 'expert-parallel',
+      offloadLayers: 500,
+      offloadPercentage: 150,
+      offloadingEnabled: true,
+      kvCacheOffload: true,
+      offloadHostCapacityGB: -1,
+      interconnectOverride: 'bogus',
+      // 2026-11-11, sizing final review C1: was a hostile kvTier (activeShare 5) left alone
+      // here, now a valid tier, because the KV tier is live in Sizing and R4 corrects it.
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'network' },
+    })
+    const result = normalizeConfig(hostile, L70, H100)
+    expect(result.corrections).toEqual([])
+    expect(result.config).toEqual(hostile)
+  })
+
+  it('runs the KV tier rules in Sizing: R3 and R4', () => {
+    const r3 = normalizeConfig(
+      cfg({ mode: 'sizing', kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace' } }),
+      L70,
+      H100,
+    )
+    expect(r3.config.kvTier.tier).toBe('none')
+    expect(ids(r3)).toContain('R3:kvTier')
+    const r4 = normalizeConfig(
+      cfg({ mode: 'sizing', kvTier: { ...DEFAULT_KV_TIER, tier: 'network', activeShare: 5 } }),
+      L70,
+      H100,
+    )
+    expect(r4.config.kvTier.activeShare).toBe(1)
+  })
+
+  it('allowedOptions ignores the hidden offloading flags in Sizing', () => {
+    const flags = {
+      offloadingEnabled: true,
+      kvCacheOffload: true,
+      frameworkPreset: 'none' as const,
+    }
+    expect(
+      allowedOptions({ mode: 'sizing', shardingStrategy: 'tensor-parallel', ...flags }, L70, H100)
+        .kvTiers,
+    ).toContain('network')
+    expect(
+      allowedOptions(
+        { mode: 'inference', shardingStrategy: 'tensor-parallel', ...flags },
+        L70,
+        H100,
+      ).kvTiers,
+    ).toEqual(['none'])
+  })
+
+  it('runs the rules for the fields Sizing shows: users and context', () => {
+    const result = normalizeConfig(
+      cfg({ mode: 'sizing', concurrentUsers: 999999, sequenceLength: 100 }),
+      L70,
+      H100,
+    )
+    expect(result.config).toMatchObject({
+      concurrentUsers: MAX_CONCURRENT_USERS,
+      sequenceLength: 512,
+    })
+    expect(ids(result)).toEqual(['R10:concurrentUsers', 'R10:sequenceLength'])
+  })
+
+  it.each(['inference', 'training'] as const)(
+    'R15: a rack GPU in %s restores as sizing, correction subject mode',
+    (mode) => {
+      const result = normalizeConfig(cfg({ mode }), L70, NVL72)
+      expect(result.config.mode).toBe('sizing')
+      const fix = ruleFixes(result, 'R15')
+      expect(fix).toHaveLength(1)
+      expect(fix[0]).toMatchObject({ field: 'mode', to: 'sizing', subject: 'mode' })
+      expect(result.passes).toBeLessThanOrEqual(MAX_NORMALIZE_PASSES)
+    },
+  )
+
+  it('R15 leaves server GPUs alone, and sizing keeps a rack GPU', () => {
+    expect(normalizeConfig(cfg(), L70, H100).corrections).toEqual([])
+    expect(normalizeConfig(cfg({ mode: 'sizing' }), L70, NVL72).corrections).toEqual([])
+  })
+
+  it('gpuAllowed: rack GPUs only in sizing', () => {
+    expect(gpuAllowed('inference', NVL72)).toBe(false)
+    expect(gpuAllowed('training', NVL72)).toBe(false)
+    expect(gpuAllowed('sizing', NVL72)).toBe(true)
+    expect(gpuAllowed('inference', H100)).toBe(true)
+  })
+
+  it('titles a sizing correction "Adjusted for sizing mode"', () => {
+    const result = normalizeConfig(cfg(), L70, NVL72)
+    const notice = buildNotice(result.corrections, 'setting', {
+      model: L70,
+      gpu: NVL72,
+      config: result.config,
+    })
+    expect(notice?.title).toBe('Adjusted for sizing mode')
   })
 })

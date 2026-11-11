@@ -19,6 +19,9 @@
     "scripts/**/*.ts",
     "src/utils/schemas.ts",
     "src/engines/types.ts",
-    "src/engines/frameworks.ts"
+    "src/engines/frameworks.ts",
+    "src/engines/kv-tier.ts",
+    "src/engines/constants.ts",
+    "src/engines/compute.ts"
   ]
 }

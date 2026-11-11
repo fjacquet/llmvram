@@ -19,11 +19,12 @@ import type { OffloadTarget, ShardingStrategy } from './types'
  * Every input dependency lives in RULES. normalizeConfig applies the rules live in
  * the current mode until nothing changes, so a field that is hidden as inert is
  * never corrected. Every correction is a constant or a clamp toward model/GPU data,
- * which no rule writes, so the loop converges in at most 3 passes in any rule order.
+ * which no rule writes, so the loop converges in at most 3 passes. Order independence holds within
+ * a mode; R15 (rack GPU -> sizing) must run before the mode-gated rules.
  * Engine throws stay as a backstop only.
  */
 
-export type ConfigMode = 'inference' | 'training'
+export type ConfigMode = 'inference' | 'training' | 'sizing'
 
 /** The store fields the rules read or write */
 export interface RuleConfig {
@@ -110,6 +111,7 @@ export type RuleId =
   | 'R10'
   | 'R12'
   | 'R14'
+  | 'R15'
 
 /** What the correction was adjusted for; picks the notice title for a plain setting change */
 export type CorrectionSubject = 'gpu' | 'model' | 'mode' | 'preset' | 'offload' | 'range'
@@ -136,7 +138,12 @@ export interface Rule {
   check: (config: RuleConfig, ctx: RuleContext) => Correction[]
 }
 
-const BOTH: readonly ConfigMode[] = ['inference', 'training']
+// Sizing hides numGPUs, numNodes, sharding, batch size, offloading and the interconnect
+// override, so only the rules for fields it shows run there. It shows the KV tier, so the
+// tier rules (R3, R4, the kvTier half of R6) run there too (2026-11-11).
+const ALL_MODES: readonly ConfigMode[] = ['inference', 'training', 'sizing']
+const INFERENCE_SIZING: readonly ConfigMode[] = ['inference', 'sizing']
+const NOT_SIZING: readonly ConfigMode[] = ['inference', 'training']
 const INFERENCE: readonly ConfigMode[] = ['inference']
 const TRAINING: readonly ConfigMode[] = ['training']
 
@@ -213,12 +220,15 @@ type RangeBound = { field: keyof typeof RANGE_LABELS; min: number; max: number }
 // batchSize and sequenceLength render in both; loraRank and gradientAccumulationSteps
 // only render in training (TrainingPanel) — loraRank has no widget at all yet, but it
 // only ever feeds a training calculation (useTrainingCalculation), never inference's.
-const RANGE_BOUNDS_INFERENCE: RangeBound[] = [
-  { field: 'numNodes', min: 1, max: 8 },
+const RANGE_BOUNDS_INFERENCE: RangeBound[] = [{ field: 'numNodes', min: 1, max: 8 }]
+// Sizing reuses concurrentUsers (users) and sequenceLength (context)
+const RANGE_BOUNDS_USERS: RangeBound[] = [
   { field: 'concurrentUsers', min: 1, max: MAX_CONCURRENT_USERS },
 ]
-const RANGE_BOUNDS_BOTH: RangeBound[] = [
+const RANGE_BOUNDS_BATCH: RangeBound[] = [
   { field: 'batchSize', min: 1, max: Number.MAX_SAFE_INTEGER },
+]
+const RANGE_BOUNDS_CONTEXT: RangeBound[] = [
   { field: 'sequenceLength', min: 512, max: MAX_SEQUENCE_LENGTH },
 ]
 const RANGE_BOUNDS_TRAINING: RangeBound[] = [
@@ -247,12 +257,32 @@ function rangeCheck(bounds: readonly RangeBound[]): Rule['check'] {
 
 /**
  * The hard rules. Order is the dependency order (R1 and R2 before R14, R7 before R8),
- * but normalizeConfig loops to a fixpoint, so any order gives the same result.
+ * but normalizeConfig loops to a fixpoint, so order does not matter within a mode.
+ * R15 (rack GPU -> sizing) must run before the mode-gated rules.
  */
 export const RULES: readonly Rule[] = [
   {
+    id: 'R15',
+    // Rack GPUs are sized, never configured: a rack GPU outside Sizing (a shared link)
+    // restores in Sizing. Runs first so the mode-gated rules see the final mode.
+    modes: NOT_SIZING,
+    check: (c, { gpu }) =>
+      gpu && isRackGPU(gpu)
+        ? [
+            fix(
+              'R15',
+              'mode',
+              c.mode,
+              'sizing',
+              'mode',
+              `Switched to Sizing: ${gpu.name} is sized as a rack, not configured.`,
+            ),
+          ]
+        : [],
+  },
+  {
     id: 'R1',
-    modes: BOTH,
+    modes: NOT_SIZING,
     check: (c, { gpu }) => {
       // In training, numGPUs is hidden (InputPanel's showGPUCount) unless a ZeRO
       // preset is selected: no widget shows it, so it must not be corrected.
@@ -296,7 +326,7 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R3',
-    modes: INFERENCE,
+    modes: INFERENCE_SIZING,
     check: (c, { gpu }) =>
       c.kvTier.tier === 'host-grace' && graceLinkGBps(gpu?.id ?? '') === null
         ? [
@@ -313,7 +343,7 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R4',
-    modes: INFERENCE,
+    modes: INFERENCE_SIZING,
     check: (c) => {
       const out: Correction[] = []
       const tier = clampKVTier(c.kvTier)
@@ -330,7 +360,8 @@ export const RULES: readonly Rule[] = [
         )
       }
       const hc = c.offloadHostCapacityGB
-      if (hc !== null && !(Number.isFinite(hc) && hc > 0)) {
+      // host capacity belongs to offloading, hidden (inert) in Sizing
+      if (c.mode !== 'sizing' && hc !== null && !(Number.isFinite(hc) && hc > 0)) {
         out.push(
           fix(
             'R4',
@@ -370,11 +401,12 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R6',
-    modes: INFERENCE,
+    modes: INFERENCE_SIZING,
     check: (c, { gpu }) => {
       if (gpu?.unified_memory !== true) return []
       const out: Correction[] = []
-      if (c.offloadingEnabled && c.offloadTarget === 'cpu-ram') {
+      // offloading is hidden (inert) in Sizing
+      if (c.mode === 'inference' && c.offloadingEnabled && c.offloadTarget === 'cpu-ram') {
         out.push(
           fix(
             'R6',
@@ -500,8 +532,18 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R10',
-    modes: BOTH,
-    check: rangeCheck(RANGE_BOUNDS_BOTH),
+    modes: INFERENCE_SIZING,
+    check: rangeCheck(RANGE_BOUNDS_USERS),
+  },
+  {
+    id: 'R10',
+    modes: NOT_SIZING,
+    check: rangeCheck(RANGE_BOUNDS_BATCH),
+  },
+  {
+    id: 'R10',
+    modes: ALL_MODES,
+    check: rangeCheck(RANGE_BOUNDS_CONTEXT),
   },
   {
     id: 'R10',
@@ -590,6 +632,16 @@ export function normalizeConfig<C extends RuleConfig>(
   throw new Error(`normalizeConfig did not reach a fixpoint in ${MAX_NORMALIZE_PASSES} passes`)
 }
 
+/** A GPU sold as a rack (NVL72) rather than an 8-way server */
+export function isRackGPU(gpu: GPU): boolean {
+  return gpu.max_gpus_per_node > 8
+}
+
+/** Rack GPUs are selectable in Sizing only (R15); the selector lists what this allows */
+export function gpuAllowed(mode: ConfigMode, gpu: GPU): boolean {
+  return mode === 'sizing' || !isRackGPU(gpu)
+}
+
 export type AllowedOptionsInput = Pick<
   RuleConfig,
   'mode' | 'shardingStrategy' | 'offloadingEnabled' | 'kvCacheOffload' | 'frameworkPreset'
@@ -626,14 +678,15 @@ export function allowedOptions(
   if (model && splitMoEParams(model)) strategies.push('expert-parallel')
 
   const unified = gpu?.unified_memory === true
-  const kvTiers: KVTierType[] =
-    input.offloadingEnabled && input.kvCacheOffload
-      ? ['none']
-      : KV_TIER_TYPES.filter((tier) => {
-          if (tier === 'host-grace') return !unified && graceLinkGBps(gpu?.id ?? '') !== null
-          if (tier === 'host-pcie') return !unified
-          return true
-        })
+  // Sizing hides offloading, so a stale flag must not empty the tier list
+  const offloadsKV = input.mode !== 'sizing' && input.offloadingEnabled && input.kvCacheOffload
+  const kvTiers: KVTierType[] = offloadsKV
+    ? ['none']
+    : KV_TIER_TYPES.filter((tier) => {
+        if (tier === 'host-grace') return !unified && graceLinkGBps(gpu?.id ?? '') !== null
+        if (tier === 'host-pcie') return !unified
+        return true
+      })
 
   const variants = gpu && gpu.max_gpus_per_node > 1 ? (gpu.interconnect_options ?? []) : []
 
@@ -709,6 +762,12 @@ export interface NoticeContext {
   config: RuleConfig
 }
 
+const MODE_LABELS: Record<ConfigMode, string> = {
+  inference: 'inference',
+  training: 'fine-tuning',
+  sizing: 'sizing',
+}
+
 function subjectTitle(subject: CorrectionSubject, ctx: NoticeContext): string {
   switch (subject) {
     case 'gpu':
@@ -716,7 +775,7 @@ function subjectTitle(subject: CorrectionSubject, ctx: NoticeContext): string {
     case 'model':
       return `Adjusted for ${ctx.model?.name ?? 'the selected model'}`
     case 'mode':
-      return `Adjusted for ${ctx.config.mode === 'training' ? 'fine-tuning' : 'inference'} mode`
+      return `Adjusted for ${MODE_LABELS[ctx.config.mode]} mode`
     case 'preset':
       return `Adjusted for ${FRAMEWORK_PRESETS[ctx.config.frameworkPreset].name}`
     case 'offload':

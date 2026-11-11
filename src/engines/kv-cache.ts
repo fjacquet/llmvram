@@ -135,6 +135,24 @@ function slidingWindowKV(
     .div(BYTES_PER_GB)
 }
 
+/**
+ * vLLM stores an FP8 KV cache of a DSA model (dsa_config; here `sparse_attention_topk`) as
+ * `fp8_ds_mla`: 512 FP8 + 4 float32 scales + 64 BF16 RoPE = 656 B per token per layer, not 576.
+ * Source: vllm/v1/attention/backends/mla/flashmla_sparse.py (header note, main 2026-11-11) and
+ * vllm/model_executor/models/config.py (verify_and_update_config maps fp8 -> "fp8_ds_mla" when
+ * dsa_config is set). Other MLA models at FP8 keep a plain 1 B per element. On SM10x with no
+ * explicit backend vLLM may pick per-tensor fp8 (576 B) instead; we charge 656, the safe side.
+ */
+const MLA_FP8_DS_KV_BYTES_PER_ELEMENT_FACTOR = new Decimal(656).div(576)
+
+/** Bytes per cached element: the precision's bytes, 656/576 of that for a DSA model at FP8. */
+function kvElementBytes(model: Model, kvPrecision: KVCachePrecision): Decimal {
+  const bytes = KV_PRECISION_BYTES[kvPrecision]
+  return model.use_mla && model.sparse_attention_topk && kvPrecision === 'fp8'
+    ? bytes.mul(MLA_FP8_DS_KV_BYTES_PER_ELEMENT_FACTOR)
+    : bytes
+}
+
 function fullAttentionKV(
   model: Model,
   sequenceLength: number,
@@ -149,7 +167,7 @@ function fullAttentionKV(
     return new Decimal(model.kv_cache_elements_per_token)
       .mul(sequenceLength)
       .mul(batchSize)
-      .mul(KV_PRECISION_BYTES[kvPrecision])
+      .mul(kvElementBytes(model, kvPrecision))
       .div(BYTES_PER_GB)
   }
 

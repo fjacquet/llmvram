@@ -1,4 +1,5 @@
-import type { FabricType } from '@engines/types'
+import type { KVTierType } from '@engines/kv-tier'
+import type { FabricType, SizingUnit } from '@engines/types'
 import { create } from 'zustand'
 
 export interface ConfigSnapshot {
@@ -42,6 +43,20 @@ export interface ConfigSnapshot {
     // Multi-GPU (if applicable)
     perGPUTotal: number | null // Per-GPU VRAM if multi-GPU
     utilizationPercent: number | null
+    /** Sizing mode only: the answer in racks or servers. Absent for inference snapshots. */
+    sizing?: {
+      unit: SizingUnit
+      units: number
+      replicas: number
+      tp: number
+      nodes: number
+      sessionsPerReplica: number
+      users: number
+      /** The share the solver used (clamped), not the raw store value */
+      activeShare: number
+      /** KV storage tier the open-session count relied on; null when none */
+      tier: Exclude<KVTierType, 'none'> | null
+    }
   }
 }
 
