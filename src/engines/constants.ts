@@ -516,49 +516,34 @@ export const PREFILL_MFU_BY_PRECISION: Record<ComputePrecision, Decimal> = {
 
 /**
  * Decode efficiency: measured vLLM decode speed / the roofline's (spec P1). Expected tok/s =
- * ceiling x this. Pessimistic end (minimum) of 512 accepted points, measured mean ITL against
- * engine ITL (batch / tok/s) at the measured mean context.
+ * ceiling x this. Measured mean ITL against engine ITL (batch / tok/s) at the measured mean
+ * context. Median of 512 accepted vLLM points (user decision 2026-11-11; the spec's earlier
+ * 'pessimistic end' rule was replaced). Median = sorted value at index floor(0.5 (n - 1)).
+ * Distribution: min 0.126, p10 0.315, median 0.470.
  *
- * Binding point: SemiAnalysis InferenceX, vllm/vllm-openai-rocm:v0.22.0 (2026-05-30),
- * gpt-oss-120b MXFP4, MI325X, TP1, concurrency 4, 1024/1024 random (range 0.8): mean ITL
- * 13.76 ms, engine 1.74 ms, ratio 0.126
- * (https://github.com/SemiAnalysisAI/InferenceX/actions/runs/26696264378). Its neighbours
- * agree: same card and image at TP1 c8 0.188, TP2 c4 0.222.
- *
- * Accepted groups, min / median (n):
- * - InferenceX gpt-oss-120b MXFP4, vLLM 0.15.1-0.22.0, TP1-8, conc 1-256, ISL 1024:
- *   B200 0.324 / 0.518 (38), H100 0.297 / 0.471 (30), H200 0.288 / 0.391 (32),
- *   MI300X 0.252 / 0.362 (32), MI325X 0.126 / 0.289 (32), MI355X 0.279 / 0.512 (22).
- * - InferenceX Llama 3.3 70B, vLLM 0.10.2 / ROCm vLLM 0.10.1 (InferenceX commit 9596d23),
- *   FP8 KV, TP1-8, conc 4-64, ISL 1024: FP8 on B200 0.249 / 0.508 (40), H100 0.324 / 0.506
- *   (30), H200 0.316 / 0.528 (40), MI300X 0.299 / 0.525 (40), MI325X 0.340 / 0.542 (40),
- *   MI355X 0.308 / 0.524 (40); NVFP4 B200 0.192 / 0.414 (40); MXFP4 MI355X 0.233 / 0.372 (40).
- * - AMD ROCm performance results, vLLM 0.11.2, MI300X TP8, FP8 + FP8 KV, offline latency at
- *   128 in / 2048 out, batch 1-128 (https://www.amd.com/en/developer/resources/rocm-hub/dev-ai/performance-results.html):
- *   Llama 3.1 70B 0.242-0.629, Llama 3.1 405B 0.261-0.620 (16 points).
- *
- * The spread follows TP degree, model size and vendor stack, not GPU generation, so one global
- * figure (spec P1). Every point with its source is in the task-6 calibration report.
+ * Sources: SemiAnalysis InferenceX (https://inferencex.semianalysis.com/api/v1/benchmarks),
+ * gpt-oss-120b MXFP4 and Llama 3.3 70B FP8 / NVFP4 / MXFP4 on H100, H200, B200, MI300X, MI325X
+ * and MI355X, vLLM 0.10.1-0.22.0, ISL 1024 (496 points); AMD ROCm vLLM 0.11.2, MI300X TP8, Llama
+ * 3.1 70B / 405B FP8 offline latency
+ * (https://www.amd.com/en/developer/resources/rocm-hub/dev-ai/performance-results.html, 16
+ * points). The spread follows TP degree, model size and vendor stack, not GPU generation, so
+ * one global figure (spec P1). Every point, with its run URL, acceptance and method:
+ * docs/calibration/2026-11-11-vllm-efficiency-points.md.
  */
-export const DECODE_EFFICIENCY = new Decimal(0.126)
+export const DECODE_EFFICIENCY = new Decimal(0.47)
 
 /**
  * Prefill efficiency: the roofline's prefill seconds / measured vLLM TTFT (spec P1). Expected
- * TTFT and prefill = ceiling / this. Pessimistic end (minimum) of 53 accepted points: 8192-token
- * prompts at each configuration's lowest concurrency (c1 for one, c4 otherwise: the opening
- * burst of 4 prompts is in the mean), mean TTFT against engine prefill of the mean prompt.
+ * TTFT and prefill = ceiling / this. Engine prefill of the mean prompt (x closed-loop queueing
+ * 0.9 + 0.1 (c + 1) / 2) against mean TTFT; rows whose engine prefill is under 50 ms are
+ * rejected (fixed request latency dominates). Median of 62 accepted vLLM points (user decision
+ * 2026-11-11; the spec's earlier 'pessimistic end' rule was replaced). Median = sorted value at
+ * index floor(0.5 (n - 1)). Distribution: min 0.101, p10 0.239, median 0.469.
  *
- * Binding point: SemiAnalysis InferenceX, vllm/vllm-openai-rocm:v0.22.0 (2026-06-05),
- * gpt-oss-120b MXFP4, MI355X, TP8, concurrency 4, 8192/1024 random (range 0.8): mean TTFT
- * 104.7 ms (median 94.9), engine prefill 5.8 ms, ratio 0.055
- * (https://github.com/SemiAnalysisAI/InferenceX/actions/runs/26998598877). Neighbours agree:
- * B200 TP8 0.065, MI355X TP4 0.075. These points are dominated by a ~80-100 ms fixed request
- * latency that a ratio cannot express, so long prompts on large models come out pessimistic.
- *
- * Accepted groups, min / median (n): gpt-oss-120b MXFP4 on B200 0.065 / 0.194 (4), H100 0.172 /
- * 0.299 (3), H200 0.184 / 0.345 (4), MI300X 0.102 / 0.183 (4), MI325X 0.130 / 0.159 (4), MI355X
- * 0.055 / 0.075 (3); Llama 3.3 70B FP8 on B200 0.287 / 0.553 (4), H100 0.600 / 0.797 (3), H200
- * 0.596 / 0.879 (4), MI300X 0.274 / 0.387 (4), MI325X 0.269 / 0.338 (4), MI355X 0.248 / 0.358 (4);
- * NVFP4 B200 0.313 / 0.712 (4); MXFP4 MI355X 0.088 / 0.137 (4).
+ * Sources: SemiAnalysis InferenceX (https://inferencex.semianalysis.com/api/v1/benchmarks),
+ * gpt-oss-120b MXFP4 and Llama 3.3 70B FP8 / NVFP4 / MXFP4 on H100, H200, B200, MI300X, MI325X
+ * and MI355X, vLLM 0.10.1-0.22.0, concurrency <= 4. Every point, with its run URL, acceptance
+ * and method (including why the queueing factor departs from a full burst):
+ * docs/calibration/2026-11-11-vllm-efficiency-points.md.
  */
-export const PREFILL_EFFICIENCY = new Decimal(0.055)
+export const PREFILL_EFFICIENCY = new Decimal(0.469)

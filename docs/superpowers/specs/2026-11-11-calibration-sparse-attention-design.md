@@ -46,7 +46,7 @@ Rules for a data point:
   must be stated or derivable. A point missing any of these is listed as rejected, with the reason.
 - Compute the ratio with the engine at the matched configuration, as the audit did (`npx tsx`
   script, not committed).
-- **The ratio applied is the pessimistic end** (lowest efficiency) of the accepted points.
+- **The ratio applied is the median** of the accepted points (user decision 2026-11-11, replacing "the pessimistic end"; points in `docs/calibration/2026-11-11-vllm-efficiency-points.md`).
 - The audit's points are candidates: the lhl gist (vLLM 0.6.6, GPU unstated, so likely rejected),
   the Dell B200 TTFT point, and TensorRT-LLM (not vLLM: report it, don't use it).
 
