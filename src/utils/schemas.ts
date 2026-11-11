@@ -84,6 +84,14 @@ export const GPUSchema = z.object({
    */
   max_gpus_per_node: z.number().int().positive(),
 
+  /**
+   * Smallest machine this part is sold as: an HGX/OAM baseboard is one integrated 8-GPU
+   * unit, so Inference and Training offer only this count (config-rules R1). Absent on
+   * PCIe cards and workstation parts, which run 1..max_gpus_per_node. Must not exceed
+   * max_gpus_per_node.
+   */
+  min_gpus_per_node: z.number().int().positive().optional(),
+
   // Performance (optional for inference speed estimation)
   fp16_tflops: z.number().positive().optional(),
   fp32_tflops: z.number().positive().optional(),

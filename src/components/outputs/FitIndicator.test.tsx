@@ -78,4 +78,15 @@ describe('FitIndicator', () => {
     expect(screen.getByText('Using 76.00 GB of 80 GB')).toBeInTheDocument()
     expect(screen.queryByTestId('limit-marker')).not.toBeInTheDocument()
   })
+
+  it('states the machine total across the GPUs', () => {
+    render(<FitIndicator totalVRAM={new Decimal(150)} availableVRAM={262.5} numGPUs={8} />)
+    expect(screen.getByText('total 1.2 TB of 2.1 TB across 8 GPUs')).toBeInTheDocument()
+    expect(screen.getByText(/Using 150.00 GB per GPU of 262.5 GB \(8 GPUs\)/)).toBeInTheDocument()
+  })
+
+  it('shows no machine total for a single GPU', () => {
+    render(<FitIndicator totalVRAM={new Decimal(40)} availableVRAM={80} numGPUs={1} />)
+    expect(screen.queryByTestId('fit-machine-total')).toBeNull()
+  })
 })

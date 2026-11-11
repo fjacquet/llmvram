@@ -1,4 +1,4 @@
-import { maxGPUsFor } from '@utils/gpuLimits'
+import { maxGPUsFor, minGPUsFor } from '@utils/gpuLimits'
 import { type GPU, MAX_SEQUENCE_LENGTH, type Model } from '@utils/schemas'
 import { INTERCONNECT_LABELS, MAX_CONCURRENT_USERS } from './constants'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from './frameworks'
@@ -290,19 +290,24 @@ export const RULES: readonly Rule[] = [
         return []
       }
       const max = maxGPUsFor(gpu)
-      const n = clampInt(c.numGPUs, 1, max)
+      const min = minGPUsFor(gpu)
+      const n = clampInt(c.numGPUs, min, max)
       if (n === c.numGPUs) return []
       const tooMany = c.numGPUs > max
+      // An HGX/OAM baseboard is one integrated machine: no 1/2/4-GPU replicas on it
+      const tooFew = min > 1 && c.numGPUs < min
       return [
         fix(
           'R1',
           'numGPUs',
           c.numGPUs,
           n,
-          tooMany ? 'gpu' : 'range',
+          tooMany || tooFew ? 'gpu' : 'range',
           tooMany
             ? `GPU count set to ${n}: ${gpuName(gpu)} supports at most ${max} per server.`
-            : `GPU count set to ${n}: outside the allowed range.`,
+            : tooFew
+              ? `GPU count set to ${n}: ${gpuName(gpu)} is one ${n}-GPU machine, it cannot be split.`
+              : `GPU count set to ${n}: outside the allowed range.`,
         ),
       ]
     },
@@ -574,6 +579,8 @@ export const RULES: readonly Rule[] = [
     check: (c, { model, gpu }) => {
       if (c.shardingStrategy !== 'tensor-parallel' || !model) return []
       if (isValidTPDegree(model, c.numGPUs)) return []
+      // A locked machine count wins over R14 (it would cycle with R1); W9 warns instead
+      if (minGPUsFor(gpu) > 1) return []
       // Bounded by the GPU so a hostile count (1e9) never loops, whatever the rule order
       const degrees = validTPDegrees(model, Math.min(Math.floor(c.numGPUs), maxGPUsFor(gpu)))
       const t = degrees[degrees.length - 1] ?? 1
@@ -695,10 +702,13 @@ export function allowedOptions(
   gpu: GPU | null,
 ): AllowedOptions {
   const max = maxGPUsFor(gpu)
+  const min = minGPUsFor(gpu)
   const gpuCounts =
-    input.mode === 'inference' && input.shardingStrategy === 'tensor-parallel' && model
-      ? validTPDegrees(model, max)
-      : Array.from({ length: max }, (_, i) => i + 1)
+    min > 1
+      ? Array.from({ length: max - min + 1 }, (_, i) => min + i)
+      : input.mode === 'inference' && input.shardingStrategy === 'tensor-parallel' && model
+        ? validTPDegrees(model, max)
+        : Array.from({ length: max }, (_, i) => i + 1)
 
   const strategies: ShardingStrategy[] = ['tensor-parallel', 'pipeline-parallel']
   if (model && splitMoEParams(model)) strategies.push('expert-parallel')
@@ -726,7 +736,7 @@ export function allowedOptions(
   }
 }
 
-export type SoftWarningId = 'W3' | 'W6' | 'W8'
+export type SoftWarningId = 'W3' | 'W6' | 'W8' | 'W9'
 
 /** A soft rule: shown inline, the value is kept (spec Section 1). W1/W2/W4/W5 live where they already render. */
 export interface SoftWarning {
@@ -748,6 +758,18 @@ export function softWarnings(
       message: isDGX
         ? 'Small clusters: DGX Spark up to 4 units over 200 GbE, DGX Station up to 2; use the 200GbE fabric preset.'
         : `Small clusters: ${gpu.name} servers are joined over the network, one GPU per server; prefill and decode pay a network hop per server.`,
+    })
+  }
+  // A locked machine (R1) keeps its count even when tensor parallel refuses it (R14 stands down)
+  if (
+    model &&
+    config.shardingStrategy === 'tensor-parallel' &&
+    minGPUsFor(gpu) > 1 &&
+    !isValidTPDegree(model, config.numGPUs)
+  ) {
+    out.push({
+      id: 'W9',
+      message: `vLLM can't run tensor parallel over ${config.numGPUs} GPUs for ${model.name} (${model.num_attention_heads} attention heads). ${gpuName(gpu)} is one ${config.numGPUs}-GPU machine: use pipeline parallel.`,
     })
   }
   const stages =

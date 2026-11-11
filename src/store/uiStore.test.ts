@@ -59,7 +59,7 @@ function findModel(id: string): Model {
 
 const L70 = findModel('meta-llama-llama-3.1-70b')
 const DSR1 = findModel('deepseek-r1')
-const H100 = findGPU('nvidia-h100-80gb-sxm')
+const H100 = findGPU('nvidia-h100-80gb-pcie')
 const NVL72 = findGPU('nvidia-gb300-nvl72')
 const UNIFIED_M3 = findGPU('apple-m3-ultra')
 
@@ -78,7 +78,7 @@ describe('uiStore: host-grace KV tier guard', () => {
   it('URL restore order (GPU first, then tier): falls back to none for a non-Grace GPU', async () => {
     const { useUIStore } = await import('@store/uiStore')
     // useURLSync restores the GPU, then the tier, from the same hash.
-    useUIStore.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-sxm'))
+    useUIStore.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-pcie'))
     useUIStore.getState().setKVTier({ tier: 'host-grace' })
     expect(useUIStore.getState().kvTier.tier).toBe('none')
   })
@@ -107,7 +107,7 @@ describe('uiStore: host-grace KV tier guard', () => {
     const { useUIStore } = await import('@store/uiStore')
     useUIStore.getState().setSelectedGPU(findGPU('nvidia-gb300-nvl72'))
     useUIStore.getState().setKVTier({ tier: 'host-grace' })
-    useUIStore.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-sxm'))
+    useUIStore.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-pcie'))
     expect(useUIStore.getState().mode).toBe('sizing')
     expect(useUIStore.getState().selectedGPU?.id).toBe('nvidia-gb300-nvl72')
     expect(useUIStore.getState().kvTier.tier).toBe('host-grace')
@@ -490,6 +490,25 @@ describe('uiStore: shared-link restore is one normalized action', () => {
     expect(state.batchSize).toBe(1)
     expect(state.pendingNotice?.title).toBe('Shared link adjusted')
     expect(state.pendingNotice?.lines).toHaveLength(4)
+  })
+
+  it('a link with 2 GPUs on an HGX baseboard restores as the 8-GPU machine, adjusted', async () => {
+    const state = await restore({
+      ...base,
+      modelId: L70.id,
+      gpuId: findGPU('nvidia-h100-80gb-sxm').id,
+      ng: 2,
+    })
+    expect(state.numGPUs).toBe(8)
+    expect(state.pendingNotice?.title).toBe('Shared link adjusted')
+    expect(state.pendingNotice?.lines.join(' ')).toMatch(/8-GPU machine/)
+  })
+
+  it('selecting a baseboard from 1 GPU sets 8 with an "Adjusted for" notice', async () => {
+    const store = await freshStore()
+    store.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-sxm'))
+    expect(store.getState().numGPUs).toBe(8)
+    expect(store.getState().pendingNotice?.title).toBe('Adjusted for NVIDIA H100 80GB SXM')
   })
 
   it('clamps non-integer and negative counts', async () => {

@@ -24,6 +24,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
   native context, up to 10,485,760), with a native-context marker and a warning — never a clamp —
   when the requested length exceeds it
 - **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink 6/5/4/3 and NVLink bridges, Infinity Fabric, PCIe 5/4)
+  HGX/OAM baseboards (H100/H200 SXM, B200, HGX B300, Rubin NVL8, A100 SXM, MI300X-MI355X) are one 8-GPU machine, not splittable; results state per-GPU and machine-total capacity
 - **Multi-Node Scaling**: Configure GPUs per server and server count, with a selectable scale-out
   fabric (1.6TbE / 800GbE SONiC RoCEv2, InfiniBand XDR/NDR, 400GbE, 100GbE, or a custom port speed).
   Tensor parallelism runs inside each server; pipeline parallelism runs across servers

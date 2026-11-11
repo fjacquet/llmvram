@@ -27,7 +27,7 @@ import { DEFAULT_UI_CONFIG, useUIStore } from '@store/uiStore'
 import { useConfigNotices } from './useConfigNotices'
 
 const L70 = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-70b') ?? null
-const H100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm') ?? null
+const H100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-pcie') ?? null
 
 describe('useConfigNotices', () => {
   beforeEach(() => {

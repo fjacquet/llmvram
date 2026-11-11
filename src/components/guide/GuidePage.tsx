@@ -268,7 +268,10 @@ export function GuidePage() {
           in one node. Under tensor parallelism only degrees vLLM accepts are offered (they divide
           the attention heads; most models allow 1, 2, 4 and 8). With several servers the summary
           reads &quot;8 GPUs per server × 2 servers per replica, tensor parallel&quot;. An 8-GPU
-          server running four 2-GPU replicas is sized as one 2-GPU replica. In fine-tuning mode
+          server running four 2-GPU replicas is sized as one 2-GPU replica. An HGX or OAM
+          baseboard (H100/H200 SXM, B200, HGX B300, HGX Rubin, A100 SXM, MI300X to MI355X) is one
+          integrated 8-GPU machine: the count is fixed at 8 and shown as &quot;8 GPUs (full
+          machine)&quot;. PCIe cards and workstation parts stay free. In fine-tuning mode
           (with a DeepSpeed ZeRO preset) the same control is labelled &quot;Number of GPUs&quot;.
         </P>
 
@@ -587,6 +590,11 @@ export function GuidePage() {
           <li>
             <strong>GPU count above what the part forms in one server</strong> is capped (8 on an
             HGX baseboard, 72 on an NVL72 rack, 1 on a DGX Spark or a Mac).
+          </li>
+          <li>
+            <strong>GPU count below the machine</strong>: an HGX/OAM baseboard is always 8 GPUs, so
+            a smaller count is raised to 8. Where vLLM cannot split a model eight ways (GLM 4.7
+            Flash, Gemma 3 1B), the 8 stays and a warning suggests pipeline parallel.
           </li>
           <li>
             <strong>Tensor-parallel degree vLLM cannot run</strong>: the GPU count must divide the

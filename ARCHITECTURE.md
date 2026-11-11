@@ -51,7 +51,7 @@ src/
 │   │   ├── SequenceLengthInput.tsx     # Log-scale slider (512-131K)
 │   │   ├── BatchSizeInput.tsx          # Batch size (1-64)
 │   │   ├── ConcurrentUsersInput.tsx    # Concurrent users (1-65,536) for KV cache sizing
-│   │   ├── GPUCountSelector.tsx        # Number of GPUs, bounded by the selected GPU's max_gpus_per_node (1-72)
+│   │   ├── GPUCountSelector.tsx        # Number of GPUs, bounded by the selected GPU's max_gpus_per_node (1-72); locked to min_gpus_per_node (8) on HGX/OAM baseboards
 │   │   ├── ShardingStrategySelector.tsx # Tensor/pipeline parallelism
 │   │   └── OffloadingPanel.tsx         # CPU/NVMe offloading controls
 │   ├── outputs/                # Result displays

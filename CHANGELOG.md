@@ -24,7 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rack GPUs (more than 8 per server, e.g. NVL72) are selectable only in Sizing. Training on NVL72 is no longer offered, and a shared link with a rack GPU in Inference or Training restores as Sizing.
 - Sizing now lists rack GPUs only (GB200, GB300, Vera Rubin NVL72); use Inference for discrete servers. A shared link with a server GPU in Sizing restores with the default rack GPU (GB300 NVL72), shown as "Shared link adjusted".
 
+- HGX/OAM baseboards are one 8-GPU machine: Inference and Training no longer offer 1, 2 or 4-GPU replicas on H100/H200 SXM, B200, HGX B300, HGX Rubin NVL8, A100 SXM and MI300X/MI325X/MI350X/MI355X (`min_gpus_per_node`, 8). A shared link with fewer GPUs restores with 8, shown as "Shared link adjusted"; the fit is now judged per 8 GPUs. PCIe cards and workstation parts (H100 PCIe, H200 NVL, A100 PCIe, L40S, RTX) are unchanged. Models whose heads do not divide by 8 (GLM 4.7 Flash, Gemma 3 1B) keep 8 GPUs with a pipeline-parallel warning.
+
 ### Added
+
+- Results state capacity per GPU and across the machine ("total 1.2 TB of 2.1 TB across 8 GPUs") in the fit gauge, the multi-GPU bar and the PPTX export.
 
 - GPU selector labels memory, bandwidth and TFLOPS as per GPU, and shows the machine total for multi-GPU machines (8 x 262 GB = 2.1 TB). Machine names read "(8 GPUs, 262GB each)"; ids unchanged.
 - Roster refresh (55 → 59 models), each with measured weights where official checkpoints exist and KV values confirmed by vLLM source plus the model card:

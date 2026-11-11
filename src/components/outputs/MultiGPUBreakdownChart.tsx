@@ -1,6 +1,7 @@
 import { fitsInference } from '@engines/concurrency'
 import { GPU_MEMORY_UTILIZATION } from '@engines/constants'
 import type { MultiGPUVRAMBreakdown } from '@engines/types'
+import { totalCapacityLine } from '@utils/formatCapacity'
 
 interface MultiGPUBreakdownChartProps {
   breakdown: MultiGPUVRAMBreakdown
@@ -96,6 +97,11 @@ export function MultiGPUBreakdownChart({
             Per GPU — {totalPerGPU.toFixed(1)} / {gpuVRAM} GB — {Math.round(utilizationPercent)}%
             used
           </span>
+          {totalGPUs > 1 && (
+            <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+              {totalCapacityLine(totalPerGPU, gpuVRAM, totalGPUs)}
+            </span>
+          )}
         </div>
 
         {/* The header line above is already the visible+accessible summary; this

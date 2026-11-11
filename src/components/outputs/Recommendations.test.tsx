@@ -300,8 +300,8 @@ describe('Recommendations', () => {
   describe('advised GPU count passes the inference fit rule (final review I1)', () => {
     // 2026-11-11: sized at 100% of the card, the advice landed between 90% and 100% and the
     // verdict then read "Does Not Fit" on the very configuration it advised
-    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
-    if (!h100) throw new Error('nvidia-h100-80gb-sxm missing from gpus.json')
+    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-pcie')
+    if (!h100) throw new Error('nvidia-h100-80gb-pcie missing from gpus.json')
     const advise = (modelId: string, sequenceLength: number) => {
       const model = validateModels(modelsData).find((m) => m.id === modelId)
       if (!model) throw new Error(`${modelId} missing from models.json`)
@@ -345,7 +345,7 @@ describe('Recommendations', () => {
   it('past one server, advises more servers, never a full server alone (re-review M1)', () => {
     // 2026-11-11, sizing re-review: was "Use 8x" for a model needing ~12 GPUs by memory,
     // which under-provisions; one server is not enough, so the advice names servers
-    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-pcie')
     const model = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-405b')
     if (!h100 || !model) throw new Error('fixture missing from data')
     const vram = calculateInferenceVRAM({
@@ -372,10 +372,33 @@ describe('Recommendations', () => {
     expect(screen.queryByText(/^Use 8x/)).not.toBeInTheDocument()
   })
 
+  it('on an HGX baseboard advises whole 8-GPU servers, never a sub-machine count', () => {
+    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+    const flash = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-4.7-flash')
+    if (!h100 || !flash) throw new Error('fixture not found')
+    render(
+      <Recommendations
+        gpu={h100}
+        model={flash}
+        breakdown={breakdown(1300)}
+        currentQuantization="fp16"
+        currentSequenceLength={2048}
+        numGPUs={8}
+        multiGPUBreakdown={
+          { totalPerGPU: new Decimal(160), numGPUs: 8, numNodes: 1, gpusPerNode: 8 } as never
+        }
+      />,
+    )
+    expect(screen.getByText('Add more servers')).toBeInTheDocument()
+    const text = screen.getByText(/Try \d+ servers/).textContent ?? ''
+    expect(Number(text.match(/\((\d+) GPUs total\)/)?.[1]) % 8).toBe(0)
+    expect(screen.queryByText(/Add more GPUs|Use multiple GPUs/)).not.toBeInTheDocument()
+  })
+
   describe('never advises a TP degree vLLM refuses (final review M1)', () => {
     // 2026-11-11, sizing final review M1: was "Use 6x" (the raw memory count) when no valid
     // degree inside one server reaches it; GLM 4.7 Flash accepts only 1, 2, 4 and 5 here.
-    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-pcie')
     const flash = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-4.7-flash')
     if (!h100 || !flash) throw new Error('fixture not found')
 

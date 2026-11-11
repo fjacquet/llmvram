@@ -7,7 +7,7 @@ import type {
   QuantizationFormat,
 } from '@engines/types'
 import { useUIStore } from '@store/uiStore'
-import { maxGPUsFor } from '@utils/gpuLimits'
+import { maxGPUsFor, minGPUsFor } from '@utils/gpuLimits'
 import type { GPU } from '@/types/gpu'
 import type { Model } from '@/types/model'
 
@@ -165,7 +165,9 @@ export function Recommendations({
   const countByMemory = Math.ceil(shardableGB / usablePerGPU)
   // Advise only degrees vLLM accepts (heads and KV heads divide), per server; null when no
   // valid degree reaches the count, and the advice is then withheld (never a refused degree).
-  const validDegrees = validTPDegrees(model, maxGPUsFor(gpu))
+  // An HGX/OAM baseboard is one integrated machine: the only per-server count is the full one
+  const validDegrees =
+    minGPUsFor(gpu) > 1 ? [maxGPUsFor(gpu)] : validTPDegrees(model, maxGPUsFor(gpu))
   const advisedGPUs = (nodes: number) => {
     const degree = validDegrees.find((t) => t >= Math.ceil(countByMemory / nodes))
     return degree === undefined ? null : degree * nodes

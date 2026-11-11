@@ -40,7 +40,7 @@ describe('GPUCountSelector', () => {
     useUIStore.setState({
       numGPUs: 1,
       numNodes: 1,
-      selectedGPU: gpu('nvidia-h100-80gb-sxm'),
+      selectedGPU: gpu('nvidia-h100-80gb-pcie'),
       selectedModel: null,
       mode: 'inference',
       shardingStrategy: 'tensor-parallel',
@@ -110,5 +110,21 @@ describe('GPUCountSelector', () => {
     expect(
       screen.getByText('8 GPUs per replica (in one server), expert parallel'),
     ).toBeInTheDocument()
+  })
+
+  it('shows a locked "8 GPUs (full machine)" instead of a slider on an HGX baseboard', () => {
+    for (const mode of ['inference', 'training']) {
+      useUIStore.setState({
+        numGPUs: 8,
+        selectedGPU: gpu('nvidia-h100-80gb-sxm'),
+        selectedModel: model('meta-llama-llama-3.1-70b'),
+        mode,
+        frameworkPreset: 'deepspeed-zero2',
+      })
+      const { unmount } = render(<GPUCountSelector />)
+      expect(screen.getByText('8 GPUs (full machine)')).toBeInTheDocument()
+      expect(screen.queryByRole('slider')).toBeNull()
+      unmount()
+    }
   })
 })

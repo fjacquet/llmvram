@@ -10,6 +10,7 @@ import {
 } from '@headlessui/react'
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid'
 import { useUIStore } from '@store/uiStore'
+import { formatCapacity } from '@utils/formatCapacity'
 import { validateGPUs } from '@utils/schemas'
 import { useMemo, useState } from 'react'
 import { type CustomGPUInput, createCustomGPU, type GPU } from '@/types/gpu'
@@ -21,9 +22,7 @@ const gpus = validateGPUs(gpusData)
 export function machineTotal(gpu: GPU): string | null {
   const n = gpu.max_gpus_per_node
   if (n <= 1) return null
-  const gb = n * gpu.vram_gb
-  const total = gb >= 1000 ? `${(gb / 1000).toFixed(1)} TB` : `${Math.round(gb)} GB`
-  return `${n} x ${gpu.vram_gb} GB = ${total}`
+  return `${n} x ${gpu.vram_gb} GB = ${formatCapacity(n * gpu.vram_gb)}`
 }
 
 export function GPUSelector() {

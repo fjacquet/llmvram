@@ -1,6 +1,6 @@
 import type { SoftWarning } from '@engines/config-rules'
 
-/** Soft rules (W3, W6, W8): shown inline, never corrected (spec Section 1) */
+/** Soft rules (W3, W6, W8, W9): shown inline, never corrected (spec Section 1) */
 export function SoftWarnings({ warnings }: { warnings: SoftWarning[] }) {
   if (warnings.length === 0) return null
   return (

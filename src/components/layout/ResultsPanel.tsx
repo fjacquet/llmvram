@@ -519,7 +519,11 @@ function InferenceTrainingPanel() {
             </h2>
             <div className="space-y-6">
               {/* Fit Indicator */}
-              <FitIndicator totalVRAM={trainingVRAMForFit} availableVRAM={selectedGPU.vram_gb} />
+              <FitIndicator
+                totalVRAM={trainingVRAMForFit}
+                availableVRAM={selectedGPU.vram_gb}
+                numGPUs={zeroResult && !cpuOffload ? zeroResult.numGPUs : undefined}
+              />
 
               {/* Training method badge */}
               <div className="flex items-center gap-2">

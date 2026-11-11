@@ -8,6 +8,7 @@ import type {
   PerformanceEstimate,
   SizingResult,
 } from '@engines/types'
+import { formatCapacity, totalCapacityLine } from '@utils/formatCapacity'
 import { formatDuration } from '@utils/formatDuration'
 import { firstTokenLabel } from '@utils/perfLabels'
 import type { GPU, Model } from '@utils/schemas'
@@ -199,7 +200,12 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     ['Parameters', `${model.num_parameters_billion}B`],
     ['Context Length', `${contextK} tokens`],
     ['GPU', gpu.name],
-    ['GPU VRAM', `${gpu.vram_gb} GB`],
+    [
+      'GPU VRAM',
+      numGPUs > 1
+        ? `${gpu.vram_gb} GB per GPU, ${formatCapacity(gpu.vram_gb * numGPUs)} across ${numGPUs} GPUs`
+        : `${gpu.vram_gb} GB`,
+    ],
     [
       'GPUs per replica',
       numNodes > 1
@@ -420,7 +426,11 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
         // larger of the two and the bar spans the axis.
         valAxisMaxVal: Math.max(gpu.vram_gb, multiGPU.totalPerGPU.toNumber()),
         showTitle: true,
-        title: `Per GPU — ${gbStr(multiGPU.totalPerGPU)} / ${gpu.vram_gb} GB capacity`,
+        title: `Per GPU — ${gbStr(multiGPU.totalPerGPU)} / ${gpu.vram_gb} GB capacity${
+          multiGPU.numGPUs > 1
+            ? ` (${totalCapacityLine(multiGPU.totalPerGPU.toNumber(), gpu.vram_gb, multiGPU.numGPUs)})`
+            : ''
+        }`,
       },
     )
 
@@ -440,7 +450,9 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
         { text: 'Per-GPU Total: ', options: { bold: true } },
         { text: `${gbStr(multiGPU.totalPerGPU)}  ` },
         { text: 'GPU Capacity: ', options: { bold: true } },
-        { text: `${gpu.vram_gb} GB  ` },
+        {
+          text: `${gpu.vram_gb} GB${multiGPU.numGPUs > 1 ? ` per GPU, ${formatCapacity(gpu.vram_gb * multiGPU.numGPUs)} across ${multiGPU.numGPUs}` : ''}  `,
+        },
         { text: 'Utilization: ', options: { bold: true } },
         { text: `${multiGPU.utilizationPercent.toFixed(1)}%  ` },
         { text: 'Interconnect BW: ', options: { bold: true } },
