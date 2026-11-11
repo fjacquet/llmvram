@@ -135,8 +135,8 @@ export function MultiGPUBreakdownChart({
           }
         >
           {overLimit
-            ? `${Math.abs(headroom).toFixed(1)} GB over`
-            : `${headroom.toFixed(1)} GB headroom`}
+            ? `${Math.abs(headroom).toFixed(1)} GB over the 90% limit`
+            : `${headroom.toFixed(1)} GB headroom to the 90% limit`}
         </p>
       </div>
 

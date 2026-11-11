@@ -110,7 +110,9 @@ describe('MultiGPUBreakdownChart', () => {
 
     render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
 
-    expect(screen.getByText(`${headroom.toFixed(1)} GB headroom`)).toBeInTheDocument()
+    expect(
+      screen.getByText(`${headroom.toFixed(1)} GB headroom to the 90% limit`),
+    ).toBeInTheDocument()
     expect(screen.queryByText(/GB over/)).not.toBeInTheDocument()
   })
 
@@ -126,7 +128,7 @@ describe('MultiGPUBreakdownChart', () => {
 
     render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
 
-    expect(screen.getByText(`${overAmount.toFixed(1)} GB over`)).toBeInTheDocument()
+    expect(screen.getByText(`${overAmount.toFixed(1)} GB over the 90% limit`)).toBeInTheDocument()
     expect(screen.queryByText(/GB headroom/)).not.toBeInTheDocument()
 
     // Segment widths still sum to 100% (saturated), not the (>100%) raw utilization.
@@ -249,7 +251,7 @@ describe('MultiGPUBreakdownChart', () => {
     render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
 
     const over = gpuVRAM - gpuVRAM * GPU_MEMORY_UTILIZATION
-    expect(screen.getByText(`${over.toFixed(1)} GB over`)).toBeInTheDocument()
+    expect(screen.getByText(`${over.toFixed(1)} GB over the 90% limit`)).toBeInTheDocument()
     expect(screen.queryByText(/GB headroom/)).not.toBeInTheDocument()
   })
 
@@ -263,7 +265,7 @@ describe('MultiGPUBreakdownChart', () => {
     render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={gpuVRAM} />)
 
     const over = totalPerGPU - gpuVRAM * GPU_MEMORY_UTILIZATION
-    expect(screen.getByText(`${over.toFixed(1)} GB over`)).toBeInTheDocument()
+    expect(screen.getByText(`${over.toFixed(1)} GB over the 90% limit`)).toBeInTheDocument()
     expect(screen.queryByText(/GB headroom/)).not.toBeInTheDocument()
     let widthSum = 0
     for (const el of screen.getAllByRole('img')) {
