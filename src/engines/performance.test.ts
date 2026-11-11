@@ -1840,9 +1840,14 @@ describe('sparse attention (DSA): topk-bounded reads and FLOPs, indexer cache an
     expect(row).toEqual(scored)
     const { vram, multi, perf } = headline(row)
     // Dense: 726.73 GiB, 111.16 per GPU, 616.29 tok/s, prefill 2.950 s attention-bound
-    expect(vram.total.toNumber()).toBeCloseTo(728.0819799804688, 9)
-    expect(multi.perGPU.total.toNumber()).toBeCloseTo(112.51801040649414, 9)
-    expect(perf.tokensPerSecond.toNumber()).toBeCloseTo(1059.9491923758633, 9)
+    // 2026-11-11, sizing T1: 728.0819799804688 -> 731.1288549804688 because the FP8 KV of a DSA
+    // model is vLLM's fp8_ds_mla, 656 B per token per layer instead of 576
+    expect(vram.total.toNumber()).toBeCloseTo(731.1288549804688, 9)
+    // 2026-11-11, sizing T1: 112.51801040649414 -> 115.56488540649414, same fp8_ds_mla reason
+    expect(multi.perGPU.total.toNumber()).toBeCloseTo(115.56488540649414, 9)
+    // 2026-11-11, sizing T1: 1059.9491923758633 -> 1058.157514529771, same fp8_ds_mla reason
+    // (decode reads 656/576 more KV bytes per step)
+    expect(perf.tokensPerSecond.toNumber()).toBeCloseTo(1058.157514529771, 9)
     // 2026-11-11, final review M1: 1.6391939203033423 -> 1.6714283140300226, attention now sums
     // min(t, topk) per query instead of charging topk to every query (slower, the safe direction)
     expect(perf.prefillSeconds?.toNumber()).toBeCloseTo(1.6714283140300226, 9)
