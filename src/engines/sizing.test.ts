@@ -3,9 +3,11 @@ import modelsData from '@data/models.json'
 import type { GPU, Model } from '@utils/schemas'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
+import { maxConcurrentSessions } from './concurrency'
 import { validTPDegrees } from './config-rules'
 import { resolveFabricSpec } from './fabric'
-import { DEFAULT_KV_TIER } from './kv-tier'
+import { calculateInferenceVRAM } from './inference'
+import { DEFAULT_KV_TIER, kvTierSummary } from './kv-tier'
 import { estimatePerformance } from './performance'
 import { evaluateReplica, isRackGPU, replicaCandidates, sizeDeployment } from './sizing'
 import type { SizingInput } from './types'
@@ -209,13 +211,69 @@ describe('KV storage tier', () => {
     expect(r.units).toBeLessThanOrEqual(base.units)
   })
 
-  it('open sessions equal kvTierSummary sessionsHeld (uncapped case)', () => {
-    const inp = { ...tiered('host-grace'), users: 100000 }
-    const c = sizeDeployment(inp).chosen
-    if (!c) throw new Error('no chosen')
-    const hot = sizeDeployment({ ...inp, kvTier: DEFAULT_KV_TIER }).chosen?.hotSessions
-    expect(hot).toBe(c.hotSessions)
-    expect(c.sessionsPerReplica).toBe(Math.floor(c.hotSessions / 0.25))
+  // Mirrors evaluateReplica's one-session inputs for tp 1 on one GPU (multi null)
+  const summaryFor = (inp: SizingInput, capacityTB: number | null) => {
+    const single = calculateInferenceVRAM({
+      model: inp.model,
+      quantization: inp.quantization,
+      sequenceLength: inp.sequenceLength,
+      batchSize: 1,
+      kvQuantization: inp.kvQuantization,
+      concurrentUsers: 1,
+    })
+    const hotMax = maxConcurrentSessions({
+      totalPerGPUGB: single.total.toNumber(),
+      kvPerGPUGB: single.kvCache.toNumber(),
+      concurrentUsers: 1,
+      gpuVramGB: inp.gpu.vram_gb,
+    })
+    return kvTierSummary({
+      settings: { ...inp.kvTier, capacityTB },
+      maxHotSessions: hotMax ?? 0,
+      perGPUKVGB: single.kvCache.toNumber(),
+      totalKVGB: single.kvCache.toNumber(),
+      concurrentUsers: 1,
+      multi: { strategy: 'tensor-parallel', gpusPerNode: 1, numNodes: 1, numGPUs: 1 },
+      recomputeSeconds: null,
+      gpuId: inp.gpu.id,
+    })
+  }
+  const pcie = (users: number, capacityTB: number | null = null): SizingInput => ({
+    ...input(llama8b, h100, users),
+    kvTier: { ...DEFAULT_KV_TIER, tier: 'host-pcie', capacityTB },
+  })
+
+  it('open sessions = min(users, kvTierSummary sessionsHeld)', () => {
+    const inp = pcie(100000)
+    expect(evaluateReplica(inp, 1, 1).sessionsPerReplica).toBe(
+      Math.min(100000, summaryFor(inp, null)?.sessionsHeld ?? 0),
+    )
+  })
+
+  it('capacityTB is per unit: a tp 1 replica on HGX gets 1/8', () => {
+    const inp = pcie(100000, 0.08)
+    const c = evaluateReplica(inp, 1, 1)
+    const perReplica = summaryFor(inp, 0.08 / 8)?.sessionsHeld
+    const perServer = summaryFor(inp, 0.08)?.sessionsHeld
+    expect(perReplica).toBeLessThan(perServer ?? 0)
+    expect(c.sessionsPerReplica).toBe(perReplica)
+    const scaled = sizeDeployment(inp)
+    const unscaled = sizeDeployment({ ...inp, kvTier: { ...inp.kvTier, capacityTB: 0.08 * 8 } })
+    expect(scaled.units).toBeGreaterThanOrEqual(unscaled.units)
+  })
+
+  it('nothing parked: speed equals tier none', () => {
+    const t = evaluateReplica(pcie(20), 1, 1)
+    const n = evaluateReplica(input(llama8b, h100, 20), 1, 1)
+    expect(t.tierUsed).toBeNull()
+    expect(t.decodeBatch).toBe(t.sessionsPerReplica)
+    expect(t.perUserTokensPerSecond.toNumber()).toBe(n.perUserTokensPerSecond.toNumber())
+  })
+
+  it('a tier never needs more units than none (TP may change)', () => {
+    expect(sizeDeployment(pcie(1000)).units).toBeLessThanOrEqual(
+      sizeDeployment(input(llama8b, h100, 1000)).units,
+    )
   })
 
   it('overloaded tier falls back to the HBM count', () => {

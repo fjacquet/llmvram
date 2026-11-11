@@ -72,7 +72,14 @@ export function evaluateReplica(
   const hot = Math.max(1, Math.min(users, memorySessions ?? users))
   const fits = fitsInference(totalPerGPUGB, gpu.vram_gb) && (memorySessions ?? 1) >= 1
 
-  const settings = clampKVTier(input.kvTier)
+  const clamped = clampKVTier(input.kvTier)
+  // capacityTB is per unit (server or rack): a replica gets its share; a multi-server replica
+  // is credited one server (conservative)
+  const replicasPerUnit = nodes === 1 ? Math.floor(gpu.max_gpus_per_node / tp) : 1
+  const settings = {
+    ...clamped,
+    capacityTB: clamped.capacityTB === null ? null : clamped.capacityTB / replicasPerUnit,
+  }
   const tier =
     memorySessions === null
       ? null
@@ -102,8 +109,10 @@ export function evaluateReplica(
           gpuId: gpu.id,
         })
   // An overloaded tier cannot sustain the churn: keep the HBM-only count
-  const used = tier && !tier.overloaded ? tier : null
-  const open = used ? Math.max(hot, Math.min(users, used.sessionsHeld)) : hot
+  const held = tier && !tier.overloaded ? Math.min(users, tier.sessionsHeld) : hot
+  // Nothing parked (open <= hot): every open session decodes, no active-share discount
+  const used = held > hot ? tier : null
+  const open = used ? held : hot
   const sessions = used ? Math.min(hot, Math.ceil(open * settings.activeShare)) : hot
 
   const real = perGPUBreakdown(input, tp, nodes, sessions)
