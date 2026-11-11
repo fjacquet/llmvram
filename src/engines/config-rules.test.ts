@@ -699,11 +699,12 @@ describe('normalizeConfig: properties', () => {
 })
 
 describe('R14: valid tensor-parallel degrees from models.json', () => {
-  it('allows {1,2,4,8} up to 8 GPUs for every model except three', () => {
+  it('allows {1,2,4,8} up to 8 GPUs for every model except four', () => {
     const special: Record<string, number[]> = {
       'google-gemma-3-1b': [1, 2, 4],
       'zai-org-glm-4.7-flash': [1, 2, 4, 5],
       'moonshotai-kimi-k3': [1, 2, 3, 4, 6, 8],
+      'moonshotai-kimi-k3.1-pro': [1, 2, 3, 4, 6, 8], // same 96 heads as K3
     }
     for (const m of models) {
       expect(validTPDegrees(m, 8), m.id).toEqual(special[m.id] ?? [1, 2, 4, 8])

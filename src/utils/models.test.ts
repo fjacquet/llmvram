@@ -178,6 +178,11 @@ describe('Model Database Validation', () => {
       'moonshotai-kimi-k2.6': 35136, // MLA: 61 layers x (kv_lora_rank 512 + qk_rope 64)
       'moonshotai-kimi-k2.7-code': 35136, // MLA: 61 x 576
       'moonshotai-kimi-k3': 13824, // MLA: 24 of 93 layers x 576 (69 KDA layers cache-free)
+      // Same layout as K3, with the 24 full-attention layers now DSA. HF config: kv_lora_rank 512
+      // + qk_rope_head_dim 64 on the 24 linear_attn_config.full_attn_layers (= dsa_layers);
+      // vLLM vllm/models/kimi_k3/common/dsa_cache.py packed_dsa_block_size charges
+      // num_dsa = len(full_attn_layers) layers of MLA pages (indexer cache is extra, see SPARSE)
+      'moonshotai-kimi-k3.1-pro': 13824,
       'moonshotai-kimi-linear-48b-a3b': 4032,
       'inclusionai-ling-3.0-flash': 4032, // MLA: 7 of 42 layers x 576
       'inclusionai-ling-3.0-tiny': 3456, // MLA: 6 of 24 layers x 576
@@ -287,6 +292,7 @@ describe('Model Database Validation', () => {
       'moonshotai-kimi-k2.6',
       'moonshotai-kimi-k2.7-code',
       'moonshotai-kimi-k3',
+      'moonshotai-kimi-k3.1-pro',
       'moonshotai-kimi-linear-48b-a3b',
       'zai-org-glm-4.7-flash',
       'zai-org-glm-5.2',
@@ -314,6 +320,9 @@ describe('Model Database Validation', () => {
       'qwen-qwen3.8-2.4t-a95b': 587292672, // 69 layers, 128 v-heads
       // KDA: conv q,k,v 3 x heads x 128 x 3, recurrent heads x 128 x 128, all bf16
       'moonshotai-kimi-k3': 232316928, // 69 KDA layers, 96 heads
+      // K3.1 Pro linear_attn_config (kda_layers, head_dim 128, 96 heads) is identical to K3's
+      // (config.json diff has no linear_attn_config change); vLLM kimi_k3 KDA state shape
+      'moonshotai-kimi-k3.1-pro': 232316928,
       'moonshotai-kimi-linear-48b-a3b': 22446080, // 20 layers, 32 heads
       'inclusionai-ling-3.0-flash': 39280640, // 35 of 42 (layer_group_size 6), 32 heads; single source
       'inclusionai-ling-3.0-tiny': 10100736, // 18 of 24 (layer_group_size 4), 16 heads; single source
@@ -359,6 +368,11 @@ describe('Model Database Validation', () => {
       // MistralIndexerCache is the same 132-byte uint8 layout, built only where has_indexer; the
       // 9 KV-sharing layers are all 'full', so they keep their own indexer cache
       'mistralai-mistral-large-4-1t-a52b': [2048, 44 * 132, 32, 44],
+      // Kimi K3.1 Pro: HF text_config.dsa_config index_topk 2048, index_num_heads 32,
+      // index_head_dim 128, dsa_layers = the 24 full_attn_layers, index_topk_freq 1 (no sharing;
+      // vLLM kimi_k3 nvidia/dsa.py rejects freq != 1). vLLM kimi_k3/common/dsa_cache.py
+      // indexer_cache_entry_bytes: head_dim + 4 = 132 B per token per layer (fp8 default)
+      'moonshotai-kimi-k3.1-pro': [2048, 24 * 132, 32, 24],
     }
     const actual = Object.fromEntries(
       models
@@ -544,6 +558,7 @@ describe('Model Database Validation', () => {
       models.find((m) => m.id === id)?.weight_refs?.[f as keyof NonNullable<Model['weight_refs']>]
         ?.high_precision
     expect(hp('moonshotai-kimi-k3', 'mxfp4')).toEqual({ params_b: 57.191, gib: 106.55 })
+    expect(hp('moonshotai-kimi-k3.1-pro', 'mxfp4')).toEqual({ params_b: 57.37, gib: 106.88 })
     expect(hp('deepseek-r1', 'fp8')).toEqual({ params_b: 3.919, gib: 7.3 })
     expect(hp('qwen-qwen3-235b-a22b', 'bf16')).toBeUndefined()
   })

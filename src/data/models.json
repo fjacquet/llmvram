@@ -1519,6 +1519,48 @@
     }
   },
   {
+    "id": "moonshotai-kimi-k3.1-pro",
+    "name": "Kimi K3.1 Pro",
+    "architecture": "moe",
+    "num_parameters_billion": 2780.1,
+    "hidden_size": 7168,
+    "num_hidden_layers": 93,
+    "num_attention_heads": 96,
+    "num_kv_heads": 96,
+    "intermediate_size": 33792,
+    "num_experts": 896,
+    "num_experts_per_token": 16,
+    "context_length": 1048576,
+    "license": "Kimi K3.1 Pro License",
+    "hf_url": "https://huggingface.co/moonshotai/Kimi-K3.1-Pro",
+    "kv_cache_elements_per_token": 13824,
+    "linear_state_bytes_per_session": 232316928,
+    "use_mla": true,
+    "active_parameters_billion": 104,
+    "weight_refs": {
+      "mxfp4": {
+        "repo": "moonshotai/Kimi-K3.1-Pro",
+        "gib": 1454.07,
+        "high_precision": {
+          "params_b": 57.37,
+          "gib": 106.88
+        }
+      },
+      "nvfp4": {
+        "repo": "nvidia/Kimi-K3.1-Pro-NVFP4",
+        "gib": 1494.89,
+        "high_precision": {
+          "params_b": 14.716,
+          "gib": 27.43
+        }
+      }
+    },
+    "sparse_attention_topk": 2048,
+    "sparse_indexer_bytes_per_token": 3168,
+    "sparse_indexer_heads": 32,
+    "sparse_indexer_layers": 24
+  },
+  {
     "id": "moonshotai-kimi-linear-48b-a3b",
     "name": "Kimi Linear 48B A3B",
     "architecture": "moe",
