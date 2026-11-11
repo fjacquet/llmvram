@@ -1,4 +1,5 @@
 import { fitsInference } from '@engines/concurrency'
+import { validTPDegrees } from '@engines/config-rules'
 import { GPU_MEMORY_UTILIZATION, NCCL_BUFFER_PER_GPU_GB } from '@engines/constants'
 import type {
   InferenceVRAMBreakdown,
@@ -6,11 +7,13 @@ import type {
   QuantizationFormat,
 } from '@engines/types'
 import { useUIStore } from '@store/uiStore'
-import { clampGPUCount } from '@utils/gpuLimits'
+import { clampGPUCount, maxGPUsFor } from '@utils/gpuLimits'
 import type { GPU } from '@/types/gpu'
+import type { Model } from '@/types/model'
 
 interface RecommendationsProps {
   gpu: GPU
+  model?: Model
   breakdown: InferenceVRAMBreakdown
   currentQuantization: QuantizationFormat
   currentSequenceLength: number
@@ -26,6 +29,7 @@ interface Recommendation {
 
 export function Recommendations({
   gpu,
+  model,
   breakdown,
   currentQuantization,
   currentSequenceLength,
@@ -158,7 +162,12 @@ export function Recommendations({
   const shardableGB = totalGB - frameworkGB
   const usablePerGPU =
     gpu.vram_gb * GPU_MEMORY_UTILIZATION - frameworkGB - NCCL_BUFFER_PER_GPU_GB.toNumber()
-  const gpusByMemory = Math.ceil(shardableGB / usablePerGPU)
+  const countByMemory = Math.ceil(shardableGB / usablePerGPU)
+  // Advise only degrees vLLM accepts (heads and KV heads divide); past every valid
+  // degree the count stays raw and the exceeds-one-server paths take over.
+  const gpusByMemory =
+    (model && validTPDegrees(model, maxGPUsFor(gpu)).find((t) => t >= countByMemory)) ||
+    countByMemory
 
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
   if (

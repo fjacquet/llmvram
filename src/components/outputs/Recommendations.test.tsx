@@ -1,6 +1,7 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import { fitsInference } from '@engines/concurrency'
+import { isValidTPDegree } from '@engines/config-rules'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { calculateMultiGPUVRAM } from '@engines/multi-gpu'
 import type { InferenceVRAMBreakdown } from '@engines/types'
@@ -301,6 +302,7 @@ describe('Recommendations', () => {
       render(
         <Recommendations
           gpu={h100}
+          model={model}
           breakdown={vram}
           currentQuantization="fp16"
           currentSequenceLength={sequenceLength}
@@ -311,6 +313,7 @@ describe('Recommendations', () => {
       const text = screen.getByText(/with tensor parallelism/).textContent ?? ''
       const n = Number(text.match(/Use (\d+)x/)?.[1])
       const multi = calculateMultiGPUVRAM(vram, model, 80, n, 'tensor-parallel', h100, 'fp16')
+      expect(isValidTPDegree(model, n)).toBe(true)
       return { n, perGPU: multi.totalPerGPU.toNumber() }
     }
 

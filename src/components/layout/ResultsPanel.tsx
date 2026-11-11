@@ -582,6 +582,7 @@ export function ResultsPanel() {
         {deviceDoesNotFit && (
           <Recommendations
             gpu={selectedGPU}
+            model={selectedModel}
             breakdown={result.vram}
             currentQuantization={quantization}
             currentSequenceLength={sequenceLength}
