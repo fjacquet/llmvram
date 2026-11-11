@@ -7,7 +7,7 @@ import type {
   QuantizationFormat,
 } from '@engines/types'
 import { useUIStore } from '@store/uiStore'
-import { clampGPUCount, maxGPUsFor } from '@utils/gpuLimits'
+import { maxGPUsFor } from '@utils/gpuLimits'
 import type { GPU } from '@/types/gpu'
 import type { Model } from '@/types/model'
 
@@ -163,10 +163,13 @@ export function Recommendations({
   const usablePerGPU =
     gpu.vram_gb * GPU_MEMORY_UTILIZATION - frameworkGB - NCCL_BUFFER_PER_GPU_GB.toNumber()
   const countByMemory = Math.ceil(shardableGB / usablePerGPU)
-  // Advise only degrees vLLM accepts (heads and KV heads divide); past every valid
-  // degree the count stays raw and the exceeds-one-server paths take over.
-  const gpusByMemory =
-    validTPDegrees(model, maxGPUsFor(gpu)).find((t) => t >= countByMemory) || countByMemory
+  // Advise only degrees vLLM accepts (heads and KV heads divide), per server; null when no
+  // valid degree reaches the count, and the advice is then withheld (never a refused degree).
+  const validDegrees = validTPDegrees(model, maxGPUsFor(gpu))
+  const advisedGPUs = (nodes: number) => {
+    const degree = validDegrees.find((t) => t >= Math.ceil(countByMemory / nodes))
+    return degree === undefined ? null : degree * nodes
+  }
 
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
   if (
@@ -180,17 +183,18 @@ export function Recommendations({
     // bound instead would advise cutting a 32-GPU cluster down to 8.
     const numNodes = multiGPUBreakdown.numNodes || 1
     const clusterCeiling = gpu.max_gpus_per_node * numNodes
-    const rawNeeded = Math.max(1, gpusByMemory)
-    const gpusNeeded = Math.min(rawNeeded, clusterCeiling)
+    const advised = advisedGPUs(numNodes)
+    const rawNeeded = Math.max(1, advised ?? countByMemory)
+    const gpusNeeded = advised ?? 0
 
-    if (gpusNeeded > numGPUs) {
+    if (advised !== null && gpusNeeded > numGPUs) {
       // Room left inside the nodes already configured.
       recommendations.push({
         title: 'Add more GPUs',
         description: `Current ${numGPUs}x still exceeds capacity. Try ${gpusNeeded}x ${gpu.name} with tensor parallelism`,
         impact: `Would distribute ${totalGB.toFixed(1)} GB across ${gpusNeeded} GPUs (~${(totalGB / gpusNeeded).toFixed(1)} GB per GPU)`,
       })
-    } else if (rawNeeded > clusterCeiling) {
+    } else if (advised === null && rawNeeded > clusterCeiling) {
       // Every node is full and the model still does not fit, so GPUs per node is
       // no longer the free variable — node count is. Without this the panel says
       // "Need N GB more VRAM. Try:" and then lists nothing, since the "upgrade
@@ -210,9 +214,11 @@ export function Recommendations({
     // gpusNeeded > 1 is false and this recommendation is silently suppressed —
     // falling through to the "upgrade GPU" recommendation below instead of
     // suggesting a configuration the UI has no way to build.
-    const gpusNeeded = clampGPUCount(gpusByMemory, gpu)
+    // Past every size one server forms, fill it with its largest valid degree
+    const gpusNeeded =
+      advisedGPUs(1) ?? (countByMemory > maxGPUsFor(gpu) ? (validDegrees.at(-1) ?? null) : null)
 
-    if (gpusNeeded > 1) {
+    if (gpusNeeded !== null && gpusNeeded > 1) {
       recommendations.push({
         title: 'Use multiple GPUs',
         description: `Use ${gpusNeeded}x ${gpu.name} with tensor parallelism`,

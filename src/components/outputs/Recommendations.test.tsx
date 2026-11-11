@@ -341,4 +341,47 @@ describe('Recommendations', () => {
       expect(fitsInference(perGPU, 80)).toBe(true)
     })
   })
+
+  describe('never advises a TP degree vLLM refuses (final review M1)', () => {
+    // 2026-11-11, sizing final review M1: was "Use 6x" (the raw memory count) when no valid
+    // degree inside one server reaches it; GLM 4.7 Flash accepts only 1, 2, 4 and 5 here.
+    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+    const flash = validateModels(modelsData).find((m) => m.id === 'zai-org-glm-4.7-flash')
+    if (!h100 || !flash) throw new Error('fixture not found')
+
+    it.each([6, 7, 8])('single GPU, memory count %i: no "Use Nx" advice', (count) => {
+      // total sized so ceil((total - framework) / (72 - framework - 0.25)) lands on `count`
+      const total = (count - 0.5) * 64
+      render(
+        <Recommendations
+          gpu={h100}
+          model={flash}
+          breakdown={breakdown(total)}
+          currentQuantization="fp16"
+          currentSequenceLength={2048}
+          numGPUs={1}
+          multiGPUBreakdown={null}
+        />,
+      )
+      expect(screen.queryByText(new RegExp(`Use ${count}x`))).not.toBeInTheDocument()
+      expect(screen.queryByText(/Use [3678]x/)).not.toBeInTheDocument()
+    })
+
+    it('already multi-GPU: never advises 6x either', () => {
+      const vram = breakdown(6 * 64)
+      const multi = calculateMultiGPUVRAM(vram, flash, 80, 2, 'tensor-parallel', h100, 'fp16')
+      render(
+        <Recommendations
+          gpu={h100}
+          model={flash}
+          breakdown={vram}
+          currentQuantization="fp16"
+          currentSequenceLength={2048}
+          numGPUs={2}
+          multiGPUBreakdown={multi}
+        />,
+      )
+      expect(screen.queryByText(/Try [3678]x/)).not.toBeInTheDocument()
+    })
+  })
 })
