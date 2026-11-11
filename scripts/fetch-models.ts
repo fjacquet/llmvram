@@ -65,6 +65,7 @@ const MODEL_IDS = [
   'inclusionAI/Ling-3.0-tiny',
 
   // Mistral
+  'mistralai/Mistral-Large-4-1T-A52B',
   'mistralai/Mistral-Medium-3.5-128B',
 
   // MiniMax

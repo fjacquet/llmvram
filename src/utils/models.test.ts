@@ -196,6 +196,10 @@ describe('Model Database Validation', () => {
       'minimax-m2.7': 126976,
       // MLA: 61 x (kv_lora_rank 512 + qk_rope 64), params.json; vLLM MLA cache layout (audit M1)
       'mistralai-mistral-large-3-675b': 35136,
+      // MLA: 63 of 72 layers x (kv_lora_rank 512 + rope 64); the 9 layers whose kv_source_layers
+      // entry is 35 (39, 43, ..., 71) reuse its cache. vLLM PR #64534 (28a4495) skips their
+      // cache spec and keeps 576 on NoPE layers; HF kv_sharing_modes agrees on 63 owners
+      'mistralai-mistral-large-4-1t-a52b': 36288,
       'mistralai-mistral-small-4-119b': 11520, // MLA: 36 x (kv_lora_rank 256 + rope 64)
       'mistralai-magistral-small-2507': 81920, // 40 x 8 kv x head_dim 128 (not 160) x 2
       'mistralai-ministral-3-14b-reasoning': 81920, // same shape as Magistral
@@ -271,6 +275,7 @@ describe('Model Database Validation', () => {
       'inclusionai-ling-3.0-flash',
       'inclusionai-ling-3.0-tiny',
       'mistralai-mistral-large-3-675b',
+      'mistralai-mistral-large-4-1t-a52b',
       'mistralai-mistral-small-4-119b',
       'moonshotai-kimi-k2-instruct',
       'moonshotai-kimi-k2-thinking',
@@ -341,6 +346,10 @@ describe('Model Database Validation', () => {
     // over that figure would under-read; full reads are the safe direction.
     const SPARSE: Record<string, [number, number, number, number]> = {
       'zai-org-glm-5.2': [2048, 21 * 132, 32, 21],
+      // Mistral Large 4: 44 of 72 indexer_types 'full' (params.json dsa.sharing). vLLM PR #64534
+      // MistralIndexerCache is the same 132-byte uint8 layout, built only where has_indexer; the
+      // 9 KV-sharing layers are all 'full', so they keep their own indexer cache
+      'mistralai-mistral-large-4-1t-a52b': [2048, 44 * 132, 32, 44],
     }
     const actual = Object.fromEntries(
       models
@@ -375,6 +384,7 @@ describe('Model Database Validation', () => {
       'mistralai-ministral-3-14b-reasoning': 262144, // card: 256k
       'mistralai-devstral-2-123b': 262144, // card: 256k
       'minimax-m2.1': 196608, // config max_position_embeddings
+      'mistralai-mistral-large-4-1t-a52b': 1048576, // config max_position_embeddings, card: 1M
     }
     for (const [id, ctx] of Object.entries(CONTEXT)) {
       expect(modelsData.find((m) => m.id === id)?.context_length, id).toBe(ctx)
@@ -388,6 +398,18 @@ describe('Model Database Validation', () => {
     expect(
       modelsData.find((m) => m.id === 'moonshotai-kimi-k2-thinking')?.num_parameters_billion,
     ).toBe(1026)
+  })
+
+  it('stores Mistral Large 4 at its checkpoint shape and measured refs', () => {
+    const ml4 = models.find((m) => m.id === 'mistralai-mistral-large-4-1t-a52b')
+    // config.json text_config: 128 routed experts, top-4 (1 shared expert lands in the base)
+    expect(ml4?.num_experts).toBe(128)
+    expect(ml4?.num_experts_per_token).toBe(4)
+    // Safetensors headers, scales excluded: text 1049.36 + vision 1.70 + DSpark draft 2.10;
+    // active = 20.18 base + 1029.18 routed x 4/128 (card: 52B with embeddings)
+    expect(ml4?.num_parameters_billion).toBe(1053.2)
+    expect(ml4?.active_parameters_billion).toBe(52.3)
+    expect(Object.keys(ml4?.weight_refs ?? {})).toEqual(expect.arrayContaining(['fp8', 'nvfp4']))
   })
 
   it('stores the corrected Nemotron Ultra layer count (108, not 128)', () => {
