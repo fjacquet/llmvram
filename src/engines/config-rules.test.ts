@@ -16,6 +16,7 @@ import {
   RULES,
   type RuleConfig,
   type RuleId,
+  rackGPUCorrection,
   softWarnings,
   validTPDegrees,
 } from './config-rules'
@@ -39,7 +40,7 @@ const L8 = findModel('meta-llama-llama-3.1-8b') // 32 layers
 const DSR1 = findModel('deepseek-r1') // MoE
 const KIMI_K3 = findModel('moonshotai-kimi-k3') // 96 heads, 96 KV heads
 const GEMMA_1B = findModel('google-gemma-3-1b') // 4 heads, 1 KV head
-const H100 = findGPU('nvidia-h100-80gb-sxm') // max 8
+const H100 = findGPU('nvidia-h100-80gb-pcie') // max 8, free count (the SXM baseboard is locked to 8)
 const NVL72 = findGPU('nvidia-gb300-nvl72') // max 72, Grace host
 const M3 = findGPU('apple-m3-ultra') // max 1
 const UNIFIED_M3 = M3 // unified_memory comes from gpus.json since Task 3a
@@ -1076,11 +1077,31 @@ describe('sizing mode (2026-11-11, sizing T5)', () => {
     expect(normalizeConfig(cfg({ mode: 'sizing' }), L70, NVL72).corrections).toEqual([])
   })
 
-  it('gpuAllowed: rack GPUs only in sizing', () => {
+  it('gpuAllowed: machines split by mode, rack GPUs in sizing and servers elsewhere', () => {
     expect(gpuAllowed('inference', NVL72)).toBe(false)
     expect(gpuAllowed('training', NVL72)).toBe(false)
     expect(gpuAllowed('sizing', NVL72)).toBe(true)
     expect(gpuAllowed('inference', H100)).toBe(true)
+    expect(gpuAllowed('training', H100)).toBe(true)
+    expect(gpuAllowed('sizing', H100)).toBe(false)
+  })
+
+  it('rackGPUCorrection: a server GPU in sizing becomes the first rack GPU, once', () => {
+    const fix = rackGPUCorrection('sizing', H100, gpus)
+    expect(fix?.gpu.id).toBe('nvidia-gb300-nvl72')
+    expect(fix?.correction.message).toContain('Sizing lists rack GPUs only')
+    // converged: no further correction, and no R15 bounce (the mode stays sizing)
+    expect(fix && rackGPUCorrection('sizing', fix.gpu, gpus)).toBeNull()
+    expect(normalizeConfig(cfg({ mode: 'sizing' }), L70, fix?.gpu ?? null).config.mode).toBe(
+      'sizing',
+    )
+  })
+
+  it('rackGPUCorrection: inert outside sizing, with no GPU, or with a rack GPU', () => {
+    expect(rackGPUCorrection('inference', H100, gpus)).toBeNull()
+    expect(rackGPUCorrection('training', H100, gpus)).toBeNull()
+    expect(rackGPUCorrection('sizing', null, gpus)).toBeNull()
+    expect(rackGPUCorrection('sizing', NVL72, gpus)).toBeNull()
   })
 
   it('titles a sizing correction "Adjusted for sizing mode"', () => {
@@ -1091,5 +1112,47 @@ describe('sizing mode (2026-11-11, sizing T5)', () => {
       config: result.config,
     })
     expect(notice?.title).toBe('Adjusted for sizing mode')
+  })
+})
+
+describe('machine unit (min_gpus_per_node)', () => {
+  const B300 = findGPU('nvidia-gb300-288gb')
+  const H100PCIE = findGPU('nvidia-h100-80gb-pcie')
+  const cfg = (o: Partial<RuleConfig>): RuleConfig => ({ ...DEFAULT_RULE_CONFIG, ...o })
+
+  it('R1 raises a sub-machine count to 8 on a baseboard and says why', () => {
+    const { config, corrections } = normalizeConfig(cfg({ numGPUs: 2 }), L70, B300)
+    expect(config.numGPUs).toBe(8)
+    expect(corrections[0]?.rule).toBe('R1')
+    expect(corrections[0]?.subject).toBe('gpu')
+    expect(corrections[0]?.message).toContain('8-GPU machine')
+  })
+
+  it('leaves PCIe cards free', () => {
+    expect(normalizeConfig(cfg({ numGPUs: 2 }), L70, H100PCIE).config.numGPUs).toBe(2)
+  })
+
+  it('applies in training with ZeRO, stays inert without', () => {
+    const zero = cfg({ mode: 'training', numGPUs: 1, frameworkPreset: 'deepspeed-zero2' })
+    expect(normalizeConfig(zero, L70, B300).config.numGPUs).toBe(8)
+    const plain = cfg({ mode: 'training', numGPUs: 1 })
+    expect(normalizeConfig(plain, L70, B300).config.numGPUs).toBe(1)
+  })
+
+  it('offers only the machine count, even when TP would refuse it', () => {
+    const input = { ...DEFAULT_RULE_CONFIG }
+    expect(allowedOptions(input, L70, B300).gpuCounts).toEqual([8])
+    const gemma = findModel('google-gemma-3-1b')
+    expect(isValidTPDegree(gemma, 8)).toBe(false)
+    expect(allowedOptions(input, gemma, B300).gpuCounts).toEqual([8])
+  })
+
+  it('R14 does not fight the lock: a refused TP degree converges and warns (W9)', () => {
+    const gemma = findModel('google-gemma-3-1b')
+    const { config, corrections } = normalizeConfig(cfg({ numGPUs: 8 }), gemma, B300)
+    expect(config.numGPUs).toBe(8)
+    expect(corrections.filter((c) => c.rule === 'R14')).toEqual([])
+    expect(softWarnings(config, gemma, B300).map((w) => w.id)).toContain('W9')
+    expect(softWarnings(config, L70, B300).map((w) => w.id)).not.toContain('W9')
   })
 })

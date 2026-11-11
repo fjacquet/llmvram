@@ -11,6 +11,11 @@ export function maxGPUsFor(gpu: GPU | null): number {
   return gpu?.max_gpus_per_node ?? MAX_GPUS_PER_NODE
 }
 
+/** The machine unit of an integrated baseboard (HGX/OAM: 8), 1 for every free-count part */
+export function minGPUsFor(gpu: GPU | null): number {
+  return gpu?.min_gpus_per_node ?? 1
+}
+
 /**
  * Clamp a GPU count to what the selected GPU can form (GPU.max_gpus_per_node).
  *

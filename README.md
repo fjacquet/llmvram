@@ -24,6 +24,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
   native context, up to 10,485,760), with a native-context marker and a warning — never a clamp —
   when the requested length exceeds it
 - **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink 6/5/4/3 and NVLink bridges, Infinity Fabric, PCIe 5/4)
+  HGX/OAM baseboards (H100/H200 SXM, B200, HGX B300, Rubin NVL8, A100 SXM, MI300X-MI355X) are one 8-GPU machine, not splittable; results state per-GPU and machine-total capacity
 - **Multi-Node Scaling**: Configure GPUs per server and server count, with a selectable scale-out
   fabric (1.6TbE / 800GbE SONiC RoCEv2, InfiniBand XDR/NDR, 400GbE, 100GbE, or a custom port speed).
   Tensor parallelism runs inside each server; pipeline parallelism runs across servers
@@ -33,7 +34,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
   every session's KV cache) and, on multiple GPUs, all-reduce latency and pipeline fill;
   prompt-processing time and time-to-first-token modelled from prefill FLOPs (linear weight term
   plus quadratic attention term), bottleneck analysis (roofline model)
-- **Sizing mode**: given a model and N simultaneous users, how many racks or servers (NVL72 racks can be chosen in Sizing only), the replica split, idle GPUs, and expected speed beside its ceiling; an optional KV storage tier can cut the count and the assumption is shown
+- **Sizing mode**: given a model and N simultaneous users, how many NVL72 racks (Sizing lists rack GPUs only; use Inference for discrete servers), the replica split, idle GPUs, and expected speed beside its ceiling; an optional KV storage tier can cut the count and the assumption is shown
 - **Configuration Comparison**: Save and diff up to 3 configurations side-by-side
 - **URL Sharing**: LZ-String compressed state in URL hash for shareable links
 - **MoE Architecture**: Correct handling of total vs active parameters

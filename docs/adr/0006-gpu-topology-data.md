@@ -44,6 +44,20 @@ a per-card audit (one vendor source per card) found:
 Numbers change for H100/A100 PCIe (TP-8 decode up to -26%), A100 SXM, GB10,
 L40S and RTX 6000 Ada TTFT; shipped as v2.0.0 with a breaking-changes list.
 
+## Amendment 2026-11-11: baseboards are one machine
+
+An HGX/OAM baseboard is an integrated 8-GPU unit: 1/8 of it cannot be activated.
+`min_gpus_per_node` (optional, 8) marks exactly the SXM/OAM baseboards (H100 SXM,
+H200 SXM, B200, HGX B300, HGX Rubin NVL8, A100 SXM, MI300X/MI325X/MI350X/MI355X).
+Config-rules R1 raises `numGPUs` to it and `allowedOptions` offers only that count in
+Inference and Training (Training only where the count is shown, i.e. with a ZeRO
+preset). It wins over R14: where tensor parallel refuses 8 (heads % 8 != 0: GLM 4.7
+Flash, Gemma 3 1B) the count stays 8 and soft warning W9 points to pipeline parallel,
+because R14 and R1 would otherwise cycle. PCIe cards and workstation parts keep
+1..`max_gpus_per_node`; racks (72) remain Sizing-only. Breaking: shared links with fewer
+GPUs on these parts are corrected ("Shared link adjusted"). Sizing (ADR 0010) is
+unchanged: it lists racks only.
+
 ## Sources
 
 - NVIDIA HGX AI Factory reference architecture, components:

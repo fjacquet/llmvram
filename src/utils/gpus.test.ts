@@ -124,6 +124,30 @@ describe('GPU Database Validation', () => {
     }
   })
 
+  it('locks exactly the HGX/OAM baseboards to the 8-GPU machine', () => {
+    const result = validateGPUs(gpusData)
+    const locked = result.filter((g) => g.min_gpus_per_node !== undefined).map((g) => g.id)
+    expect(locked.sort()).toEqual(
+      [
+        'amd-mi300x',
+        'amd-mi325x',
+        'amd-mi350x',
+        'amd-mi355x',
+        'nvidia-a100-80gb-sxm',
+        'nvidia-b200-192gb',
+        'nvidia-gb300-288gb',
+        'nvidia-h100-80gb-sxm',
+        'nvidia-h200-141gb',
+        'nvidia-hgx-rubin-nvl8',
+      ].sort(),
+    )
+    for (const gpu of result) {
+      if (gpu.min_gpus_per_node === undefined) continue
+      expect(gpu.min_gpus_per_node).toBe(8)
+      expect(gpu.min_gpus_per_node).toBeLessThanOrEqual(gpu.max_gpus_per_node)
+    }
+  })
+
   it('bounds every Apple Silicon row at a single GPU', () => {
     const result = validateGPUs(gpusData)
     const apple = result.filter((g) => g.tier === 'apple-silicon')

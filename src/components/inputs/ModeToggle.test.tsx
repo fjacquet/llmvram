@@ -31,7 +31,7 @@ describe('ModeToggle (2026-11-11, sizing T5)', () => {
   })
 
   it.each([
-    ['Sizing', 'sizing', 'Size servers or racks for N simultaneous users'],
+    ['Sizing', 'sizing', 'Size NVL72 racks for N simultaneous users'],
     ['Training', 'training', 'Calculate VRAM for training/fine-tuning'],
   ])('choosing %s sets the mode and its description', (label, mode, description) => {
     render(<ModeToggle />)

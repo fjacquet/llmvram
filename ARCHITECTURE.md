@@ -51,7 +51,7 @@ src/
 │   │   ├── SequenceLengthInput.tsx     # Log-scale slider (512-131K)
 │   │   ├── BatchSizeInput.tsx          # Batch size (1-64)
 │   │   ├── ConcurrentUsersInput.tsx    # Concurrent users (1-65,536) for KV cache sizing
-│   │   ├── GPUCountSelector.tsx        # Number of GPUs, bounded by the selected GPU's max_gpus_per_node (1-72)
+│   │   ├── GPUCountSelector.tsx        # Number of GPUs, bounded by the selected GPU's max_gpus_per_node (1-72); locked to min_gpus_per_node (8) on HGX/OAM baseboards
 │   │   ├── ShardingStrategySelector.tsx # Tensor/pipeline parallelism
 │   │   └── OffloadingPanel.tsx         # CPU/NVMe offloading controls
 │   ├── outputs/                # Result displays
@@ -218,7 +218,7 @@ One decode step produces one token for each of `batchSize` sequences:
 
 - `sizeDeployment` composes the engines above (ADR 0010): candidates are `validTPDegrees`, fit at 1 session via `fitsInference`, sessions from `maxConcurrentSessions` capped at users, speed at batch = sessions with `decodeEfficiency(batch)`. Tie-break: units, total GPUs, replica size. Idle GPUs are reported.
 - KV tier: open sessions from `kvTierSummary.sessionsHeld`; decode batch = min(hot, ceil(open x activeShare)) only when parked; `capacityTB` is per unit.
-- Rack GPUs (`isRackGPU`) are Sizing-only.
+- Machines are split by mode: Sizing lists rack GPUs only (`isRackGPU`), Inference and Training list discrete servers only (`gpuAllowed`). `rackGPUCorrection` swaps a server GPU in Sizing for the first rack GPU. The solver keeps its server branch, unreachable from the UI.
 
 ### Concurrency (`concurrency.ts`)
 

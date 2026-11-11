@@ -10,12 +10,20 @@ import {
 } from '@headlessui/react'
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid'
 import { useUIStore } from '@store/uiStore'
+import { formatCapacity } from '@utils/formatCapacity'
 import { validateGPUs } from '@utils/schemas'
 import { useMemo, useState } from 'react'
 import { type CustomGPUInput, createCustomGPU, type GPU } from '@/types/gpu'
 
 // Validate GPUs data at module load
 const gpus = validateGPUs(gpusData)
+
+/** Machine total for a multi-GPU box, e.g. "8 x 262 GB = 2.1 TB"; null for single-GPU cards. */
+export function machineTotal(gpu: GPU): string | null {
+  const n = gpu.max_gpus_per_node
+  if (n <= 1) return null
+  return `${n} x ${gpu.vram_gb} GB = ${formatCapacity(n * gpu.vram_gb)}`
+}
 
 export function GPUSelector() {
   const { selectedGPU, setSelectedGPU, mode } = useUIStore()
@@ -30,7 +38,7 @@ export function GPUSelector() {
 
   // Filter and group GPUs
   const filteredGPUs = useMemo(() => {
-    // Rack GPUs are selectable in Sizing only (R15)
+    // Machines split by mode: rack GPUs in Sizing only, discrete servers elsewhere
     const offered = gpus.filter((gpu) => gpuAllowed(mode, gpu))
     const filtered =
       query === ''
@@ -85,6 +93,51 @@ export function GPUSelector() {
     }
   }
 
+  const renderGPUOption = (gpu: GPU) => (
+    <ComboboxOption
+      key={gpu.id}
+      value={gpu}
+      className={({ active }) =>
+        `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
+          active ? 'bg-blue-600 text-white' : 'text-gray-900 dark:text-gray-100'
+        }`
+      }
+    >
+      {({ selected, active }) => {
+        const muted = active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'
+        const total = machineTotal(gpu)
+        return (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-x-2">
+              <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
+                {gpu.name}
+              </span>
+              <div className="flex flex-wrap items-center gap-2 shrink-0 ml-2">
+                <span className={`text-xs ${muted}`}>{gpu.vram_gb} GB per GPU</span>
+                <span className={`text-xs ${muted}`}>{gpu.memory_bandwidth_gbps} GB/s per GPU</span>
+                <span
+                  className={`text-xs px-1.5 py-0.5 rounded ${active ? 'bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'}`}
+                >
+                  {getTierBadge(gpu.tier)}
+                </span>
+              </div>
+            </div>
+            {total && <div className={`text-xs ${muted}`}>{total}</div>}
+            {selected && (
+              <span
+                className={`absolute inset-y-0 left-0 flex items-center pl-3 ${
+                  active ? 'text-white' : 'text-blue-600'
+                }`}
+              >
+                <CheckIcon className="h-5 w-5" aria-hidden="true" />
+              </span>
+            )}
+          </>
+        )
+      }}
+    </ComboboxOption>
+  )
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-1">
@@ -94,7 +147,7 @@ export function GPUSelector() {
         >
           GPU
         </label>
-        <InfoTip text="Choose your target GPU or define custom hardware specs. VRAM capacity determines whether the model fits. Memory bandwidth affects inference speed." />
+        <InfoTip text="Choose your target GPU or define custom hardware specs. VRAM capacity determines whether the model fits. Memory bandwidth affects inference speed. Memory, bandwidth and TFLOPS are per GPU; multi-GPU machines also show the machine total." />
       </div>
 
       <Combobox
@@ -141,55 +194,7 @@ export function GPUSelector() {
                     <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-100 dark:bg-gray-900">
                       NVIDIA
                     </div>
-                    {filteredGPUs.nvidia.map((gpu) => (
-                      <ComboboxOption
-                        key={gpu.id}
-                        value={gpu}
-                        className={({ active }) =>
-                          `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
-                            active ? 'bg-blue-600 text-white' : 'text-gray-900 dark:text-gray-100'
-                          }`
-                        }
-                      >
-                        {({ selected, active }) => (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <span
-                                className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}
-                              >
-                                {gpu.name}
-                              </span>
-                              <div className="flex items-center gap-2 shrink-0 ml-2">
-                                <span
-                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
-                                >
-                                  {gpu.vram_gb} GB
-                                </span>
-                                <span
-                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
-                                >
-                                  {gpu.memory_bandwidth_gbps} GB/s
-                                </span>
-                                <span
-                                  className={`text-xs px-1.5 py-0.5 rounded ${active ? 'bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'}`}
-                                >
-                                  {getTierBadge(gpu.tier)}
-                                </span>
-                              </div>
-                            </div>
-                            {selected && (
-                              <span
-                                className={`absolute inset-y-0 left-0 flex items-center pl-3 ${
-                                  active ? 'text-white' : 'text-blue-600'
-                                }`}
-                              >
-                                <CheckIcon className="h-5 w-5" aria-hidden="true" />
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </ComboboxOption>
-                    ))}
+                    {filteredGPUs.nvidia.map(renderGPUOption)}
                   </>
                 )}
 
@@ -199,55 +204,7 @@ export function GPUSelector() {
                     <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-100 dark:bg-gray-900 mt-1">
                       AMD
                     </div>
-                    {filteredGPUs.amd.map((gpu) => (
-                      <ComboboxOption
-                        key={gpu.id}
-                        value={gpu}
-                        className={({ active }) =>
-                          `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
-                            active ? 'bg-blue-600 text-white' : 'text-gray-900 dark:text-gray-100'
-                          }`
-                        }
-                      >
-                        {({ selected, active }) => (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <span
-                                className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}
-                              >
-                                {gpu.name}
-                              </span>
-                              <div className="flex items-center gap-2 shrink-0 ml-2">
-                                <span
-                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
-                                >
-                                  {gpu.vram_gb} GB
-                                </span>
-                                <span
-                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
-                                >
-                                  {gpu.memory_bandwidth_gbps} GB/s
-                                </span>
-                                <span
-                                  className={`text-xs px-1.5 py-0.5 rounded ${active ? 'bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'}`}
-                                >
-                                  {getTierBadge(gpu.tier)}
-                                </span>
-                              </div>
-                            </div>
-                            {selected && (
-                              <span
-                                className={`absolute inset-y-0 left-0 flex items-center pl-3 ${
-                                  active ? 'text-white' : 'text-blue-600'
-                                }`}
-                              >
-                                <CheckIcon className="h-5 w-5" aria-hidden="true" />
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </ComboboxOption>
-                    ))}
+                    {filteredGPUs.amd.map(renderGPUOption)}
                   </>
                 )}
 
@@ -257,55 +214,7 @@ export function GPUSelector() {
                     <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-100 dark:bg-gray-900 mt-1">
                       Apple
                     </div>
-                    {filteredGPUs.apple.map((gpu) => (
-                      <ComboboxOption
-                        key={gpu.id}
-                        value={gpu}
-                        className={({ active }) =>
-                          `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
-                            active ? 'bg-blue-600 text-white' : 'text-gray-900 dark:text-gray-100'
-                          }`
-                        }
-                      >
-                        {({ selected, active }) => (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <span
-                                className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}
-                              >
-                                {gpu.name}
-                              </span>
-                              <div className="flex items-center gap-2 shrink-0 ml-2">
-                                <span
-                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
-                                >
-                                  {gpu.vram_gb} GB
-                                </span>
-                                <span
-                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
-                                >
-                                  {gpu.memory_bandwidth_gbps} GB/s
-                                </span>
-                                <span
-                                  className={`text-xs px-1.5 py-0.5 rounded ${active ? 'bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'}`}
-                                >
-                                  {getTierBadge(gpu.tier)}
-                                </span>
-                              </div>
-                            </div>
-                            {selected && (
-                              <span
-                                className={`absolute inset-y-0 left-0 flex items-center pl-3 ${
-                                  active ? 'text-white' : 'text-blue-600'
-                                }`}
-                              >
-                                <CheckIcon className="h-5 w-5" aria-hidden="true" />
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </ComboboxOption>
-                    ))}
+                    {filteredGPUs.apple.map(renderGPUOption)}
                   </>
                 )}
 
@@ -315,55 +224,7 @@ export function GPUSelector() {
                     <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-100 dark:bg-gray-900 mt-1">
                       Intel
                     </div>
-                    {filteredGPUs.intel.map((gpu) => (
-                      <ComboboxOption
-                        key={gpu.id}
-                        value={gpu}
-                        className={({ active }) =>
-                          `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
-                            active ? 'bg-blue-600 text-white' : 'text-gray-900 dark:text-gray-100'
-                          }`
-                        }
-                      >
-                        {({ selected, active }) => (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <span
-                                className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}
-                              >
-                                {gpu.name}
-                              </span>
-                              <div className="flex items-center gap-2 shrink-0 ml-2">
-                                <span
-                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
-                                >
-                                  {gpu.vram_gb} GB
-                                </span>
-                                <span
-                                  className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
-                                >
-                                  {gpu.memory_bandwidth_gbps} GB/s
-                                </span>
-                                <span
-                                  className={`text-xs px-1.5 py-0.5 rounded ${active ? 'bg-blue-700' : 'bg-gray-200 dark:bg-gray-700'}`}
-                                >
-                                  {getTierBadge(gpu.tier)}
-                                </span>
-                              </div>
-                            </div>
-                            {selected && (
-                              <span
-                                className={`absolute inset-y-0 left-0 flex items-center pl-3 ${
-                                  active ? 'text-white' : 'text-blue-600'
-                                }`}
-                              >
-                                <CheckIcon className="h-5 w-5" aria-hidden="true" />
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </ComboboxOption>
-                    ))}
+                    {filteredGPUs.intel.map(renderGPUOption)}
                   </>
                 )}
 
@@ -392,9 +253,11 @@ export function GPUSelector() {
       {selectedGPU && (
         <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 px-1">
           <div className="flex items-center gap-3">
-            <span>{selectedGPU.memory_bandwidth_gbps} GB/s</span>
+            <span>{selectedGPU.vram_gb} GB per GPU</span>
+            <span>{selectedGPU.memory_bandwidth_gbps} GB/s per GPU</span>
             <span>{selectedGPU.memory_type}</span>
-            {selectedGPU.fp16_tflops && <span>{selectedGPU.fp16_tflops} TFLOPS</span>}
+            {selectedGPU.fp16_tflops && <span>{selectedGPU.fp16_tflops} TFLOPS per GPU</span>}
+            {machineTotal(selectedGPU) && <span>{machineTotal(selectedGPU)}</span>}
             {selectedGPU.tdp_watts && <span>{selectedGPU.tdp_watts}W TDP</span>}
           </div>
           {selectedGPU.spec_url && (

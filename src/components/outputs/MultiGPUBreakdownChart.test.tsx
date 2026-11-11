@@ -50,6 +50,15 @@ const singleGPU = calculateInferenceVRAM({
 })
 
 describe('MultiGPUBreakdownChart', () => {
+  it('states the machine total next to the per-GPU share', () => {
+    const breakdown = calculateMultiGPUVRAM(singleGPU, model, 80, 8, 'tensor-parallel', gpu)
+    render(<MultiGPUBreakdownChart breakdown={breakdown} gpuVRAM={80} />)
+    const per = breakdown.totalPerGPU.toNumber()
+    expect(
+      screen.getByText(`total ${Math.round(per * 8)} GB of 640 GB across 8 GPUs`),
+    ).toBeInTheDocument()
+  })
+
   it('sums segment widths to the utilization percent when under capacity', () => {
     // 4-way tensor parallel on an 80GB H100 — comfortably under capacity.
     const breakdown = calculateMultiGPUVRAM(singleGPU, model, 80, 4, 'tensor-parallel', gpu)

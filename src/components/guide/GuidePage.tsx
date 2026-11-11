@@ -167,22 +167,23 @@ export function GuidePage() {
         {/* Sizing */}
         <SectionHeading id="sizing">Sizing</SectionHeading>
         <P>
-          <strong>Sizing</strong> mode answers the reverse question: how many servers or racks serve
-          N users at once? You give the model, format, context length, users and GPU; the solver
+          <strong>Sizing</strong> mode answers the reverse question: how many NVL72 racks serve N
+          users at once? You give the model, format, context length, users and GPU; the solver
           chooses the rest.
         </P>
         <P>
-          It tries every tensor-parallel degree vLLM accepts for the model (and, for 8-GPU servers,
-          replicas that span several servers), keeps those that fit in 90% of GPU memory, and counts
-          how many sessions one replica holds at your context length. Replicas are ceil(users ÷
-          sessions), packed into servers or NVL72 racks, and the layout with the fewest units wins.
+          It tries every tensor-parallel degree vLLM accepts for the model , keeps those that fit in
+          90% of GPU memory, and counts how many sessions one replica holds at your context length.
+          Replicas are ceil(users ÷ sessions), packed into NVL72 racks, and the layout with the
+          fewest units wins.
         </P>
         <P>
           Counts are set by memory (90% vLLM limit); the speed shown is expected, with the
           theoretical ceiling beside it. With a KV storage tier selected, a replica also holds
           parked sessions beyond what fits in HBM. The card then states the share of sessions
           assumed to decode at once, because that assumption can cut the unit count several times
-          over. NVL72 rack GPUs are available in Sizing only.
+          over. Sizing lists rack GPUs only (GB200, GB300, Vera Rubin NVL72); use Inference for
+          discrete servers (HGX, MI355X, cards).
         </P>
 
         {/* Model Configuration */}
@@ -238,7 +239,9 @@ export function GuidePage() {
         <SectionHeading id="gpu-selection">GPU Selection</SectionHeading>
         <P>
           A searchable dropdown grouped by manufacturer (NVIDIA, AMD, Apple). Each GPU shows its
-          VRAM capacity and tier badge (DC = Datacenter, Consumer, Apple).
+          VRAM capacity and tier badge (DC = Datacenter, Consumer, Apple). Memory, bandwidth and
+          TFLOPS in the list are per GPU; multi-GPU machines also show the machine total (for
+          example 8 x 262 GB = 2.1 TB).
         </P>
         <P>
           <strong>Key specs that affect calculations:</strong> VRAM determines fit/no-fit. Memory
@@ -265,8 +268,11 @@ export function GuidePage() {
           in one node. Under tensor parallelism only degrees vLLM accepts are offered (they divide
           the attention heads; most models allow 1, 2, 4 and 8). With several servers the summary
           reads &quot;8 GPUs per server × 2 servers per replica, tensor parallel&quot;. An 8-GPU
-          server running four 2-GPU replicas is sized as one 2-GPU replica. In fine-tuning mode
-          (with a DeepSpeed ZeRO preset) the same control is labelled &quot;Number of GPUs&quot;.
+          server running four 2-GPU replicas is sized as one 2-GPU replica. An HGX or OAM baseboard
+          (H100/H200 SXM, B200, HGX B300, HGX Rubin, A100 SXM, MI300X to MI355X) is one integrated
+          8-GPU machine: the count is fixed at 8 and shown as &quot;8 GPUs (full machine)&quot;.
+          PCIe cards and workstation parts stay free. In fine-tuning mode (with a DeepSpeed ZeRO
+          preset) the same control is labelled &quot;Number of GPUs&quot;.
         </P>
 
         <SubHeading>Sharding Strategy</SubHeading>
@@ -584,6 +590,11 @@ export function GuidePage() {
           <li>
             <strong>GPU count above what the part forms in one server</strong> is capped (8 on an
             HGX baseboard, 72 on an NVL72 rack, 1 on a DGX Spark or a Mac).
+          </li>
+          <li>
+            <strong>GPU count below the machine</strong>: an HGX/OAM baseboard is always 8 GPUs, so
+            a smaller count is raised to 8. Where vLLM cannot split a model eight ways (GLM 4.7
+            Flash, Gemma 3 1B), the 8 stays and a warning suggests pipeline parallel.
           </li>
           <li>
             <strong>Tensor-parallel degree vLLM cannot run</strong>: the GPU count must divide the

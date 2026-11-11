@@ -195,6 +195,10 @@ describe('exportPptx', () => {
     expect(configRows).toContainEqual(['GPUs per replica', '8 per server × 4 servers (32 total)'])
     expect(configRows.some(([label]) => label === 'Number of GPUs')).toBe(false)
     expect(configRows).toContainEqual(['Servers', '4'])
+    expect(configRows).toContainEqual([
+      'GPU VRAM',
+      `${gpu.vram_gb} GB per GPU, ${gpu.vram_gb * 32 >= 1000 ? `${((gpu.vram_gb * 32) / 1000).toFixed(1)} TB` : `${gpu.vram_gb * 32} GB`} across 32 GPUs`,
+    ])
 
     // Slide 3's bar chart is a single stacked bar (one category, five series) —
     // every GPU is identical, so N repeated bars carried no information. The

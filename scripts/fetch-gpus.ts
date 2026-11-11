@@ -55,6 +55,7 @@ const GPUS: GPU[] = [
     tdp_watts: 700,
     interconnect: 'nvlink-4',
     max_gpus_per_node: 8,
+    min_gpus_per_node: 8, // integrated baseboard: 8 is the minimal unit
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/h100/',
   },
@@ -75,6 +76,7 @@ const GPUS: GPU[] = [
     tdp_watts: 700,
     interconnect: 'nvlink-4',
     max_gpus_per_node: 8,
+    min_gpus_per_node: 8, // integrated baseboard: 8 is the minimal unit
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/h200/',
   },
@@ -124,6 +126,7 @@ const GPUS: GPU[] = [
     tdp_watts: 1000,
     interconnect: 'nvlink-5',
     max_gpus_per_node: 8,
+    min_gpus_per_node: 8, // integrated baseboard: 8 is the minimal unit
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/b200/',
   },
@@ -148,7 +151,7 @@ const GPUS: GPU[] = [
   // The HGX row keeps the original id so existing shared links resolve.
   {
     id: 'nvidia-gb300-288gb',
-    name: 'NVIDIA HGX B300 (8-GPU) 262GB',
+    name: 'NVIDIA HGX B300 (8 GPUs, 262GB each)',
     manufacturer: 'nvidia',
     vram_gb: 262.5,
     memory_bandwidth_gbps: 8000,
@@ -163,12 +166,13 @@ const GPUS: GPU[] = [
     tdp_watts: 1100,
     interconnect: 'nvlink-5',
     max_gpus_per_node: 8,
+    min_gpus_per_node: 8, // integrated baseboard: 8 is the minimal unit
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/hgx/',
   },
   {
     id: 'nvidia-gb300-nvl72',
-    name: 'NVIDIA GB300 NVL72 (72-GPU rack) 278GB',
+    name: 'NVIDIA GB300 NVL72 (72 GPUs, 278GB each)',
     manufacturer: 'nvidia',
     vram_gb: 278,
     memory_bandwidth_gbps: 8000,
@@ -192,7 +196,7 @@ const GPUS: GPU[] = [
   // No TDP: NVIDIA's page gives none.
   {
     id: 'nvidia-gb200-nvl72',
-    name: 'NVIDIA GB200 NVL72 (72-GPU rack) 186GB',
+    name: 'NVIDIA GB200 NVL72 (72 GPUs, 186GB each)',
     manufacturer: 'nvidia',
     vram_gb: 186,
     memory_bandwidth_gbps: 8000,
@@ -217,7 +221,7 @@ const GPUS: GPU[] = [
   // applies: 278. No TDP or bus width: NVIDIA gives neither (0 = unknown).
   {
     id: 'nvidia-vera-rubin-nvl72',
-    name: 'NVIDIA Vera Rubin NVL72 (72-GPU rack, preliminary)',
+    name: 'NVIDIA Vera Rubin NVL72 (72 GPUs, preliminary)',
     manufacturer: 'nvidia',
     vram_gb: 278,
     memory_bandwidth_gbps: 19200,
@@ -241,7 +245,7 @@ const GPUS: GPU[] = [
   // training 280 to 270 PF, 250-252 GB usable per GPU. No TDP or bus width given.
   {
     id: 'nvidia-hgx-rubin-nvl8',
-    name: 'NVIDIA HGX Rubin NVL8 (8-GPU, preliminary)',
+    name: 'NVIDIA HGX Rubin NVL8 (8 GPUs, preliminary)',
     manufacturer: 'nvidia',
     vram_gb: 250,
     memory_bandwidth_gbps: 16250,
@@ -253,6 +257,7 @@ const GPUS: GPU[] = [
     fp32_tflops: 130,
     interconnect: 'nvlink-6',
     max_gpus_per_node: 8,
+    min_gpus_per_node: 8, // integrated baseboard: 8 is the minimal unit
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/hgx/',
   },
@@ -286,6 +291,7 @@ const GPUS: GPU[] = [
     tdp_watts: 400,
     interconnect: 'nvlink-3', // NVSwitch at 600 GB/s (was priced at NVLink 4's 900)
     max_gpus_per_node: 8,
+    min_gpus_per_node: 8, // integrated baseboard: 8 is the minimal unit
     tier: 'datacenter',
     spec_url: 'https://www.nvidia.com/en-us/data-center/a100/',
   },
@@ -448,6 +454,7 @@ const GPUS: GPU[] = [
     tdp_watts: 1400,
     interconnect: 'infinity-fabric',
     max_gpus_per_node: 8,
+    min_gpus_per_node: 8, // integrated baseboard: 8 is the minimal unit
     tier: 'datacenter',
   },
   {
@@ -469,6 +476,7 @@ const GPUS: GPU[] = [
     tdp_watts: 1000,
     interconnect: 'infinity-fabric',
     max_gpus_per_node: 8,
+    min_gpus_per_node: 8, // integrated baseboard: 8 is the minimal unit
     tier: 'datacenter',
   },
   {
@@ -486,6 +494,7 @@ const GPUS: GPU[] = [
     tdp_watts: 1000,
     interconnect: 'infinity-fabric',
     max_gpus_per_node: 8,
+    min_gpus_per_node: 8, // integrated baseboard: 8 is the minimal unit
     tier: 'datacenter',
   },
   {
@@ -502,6 +511,7 @@ const GPUS: GPU[] = [
     tdp_watts: 750,
     interconnect: 'infinity-fabric',
     max_gpus_per_node: 8,
+    min_gpus_per_node: 8, // integrated baseboard: 8 is the minimal unit
     tier: 'datacenter',
     spec_url: 'https://www.amd.com/en/products/accelerators/instinct/mi300/mi300x.html',
   },

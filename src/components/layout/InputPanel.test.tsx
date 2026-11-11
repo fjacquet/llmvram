@@ -39,7 +39,7 @@ describe('InputPanel composition', () => {
     useUIStore.setState({
       ...DEFAULT_UI_CONFIG,
       selectedModel: model('meta-llama-llama-3.1-70b'),
-      selectedGPU: gpu('nvidia-h100-80gb-sxm'),
+      selectedGPU: gpu('nvidia-h100-80gb-pcie'),
       pendingNotice: null,
     })
   })
@@ -145,7 +145,7 @@ describe('InputPanel layout (ADR 0005)', () => {
     useUIStore.setState({
       ...DEFAULT_UI_CONFIG,
       selectedModel: model('meta-llama-llama-3.1-70b'),
-      selectedGPU: gpu('nvidia-h100-80gb-sxm'),
+      selectedGPU: gpu('nvidia-h100-80gb-pcie'),
       pendingNotice: null,
     })
   })

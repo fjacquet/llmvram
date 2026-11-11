@@ -1,4 +1,5 @@
 import { fitsInference } from '@engines/concurrency'
+import { totalCapacityLine } from '@utils/formatCapacity'
 import type Decimal from 'decimal.js'
 import type { ReactElement } from 'react'
 
@@ -124,6 +125,9 @@ export function FitIndicator({
           {numGPUs && numGPUs > 1 ? (
             <>
               Using {totalGB.toFixed(2)} GB per GPU of {availableVRAM} GB ({numGPUs} GPUs)
+              <span className="block" data-testid="fit-machine-total">
+                {totalCapacityLine(totalGB, availableVRAM, numGPUs)}
+              </span>
             </>
           ) : (
             <>

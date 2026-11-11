@@ -2,7 +2,7 @@ import { InfoTip } from '@components/common/InfoTip'
 import type { ShardingStrategy } from '@engines/types'
 import { useAllowedOptions } from '@hooks/useAllowedOptions'
 import { useUIStore } from '@store/uiStore'
-import { maxGPUsFor } from '@utils/gpuLimits'
+import { maxGPUsFor, minGPUsFor } from '@utils/gpuLimits'
 
 const STRATEGY_LABELS: Record<ShardingStrategy, string> = {
   'tensor-parallel': 'tensor parallel',
@@ -18,6 +18,9 @@ const STRATEGY_LABELS: Record<ShardingStrategy, string> = {
  * max_gpus_per_node — 8 for an HGX or OAM baseboard, 72 for a GB300 NVL72
  * rack, 1 for Apple Silicon, the GB300 Desktop Superchip and DGX Spark (a
  * Spark cluster is separate single-GPU nodes, not a larger per-node count).
+ *
+ * An HGX/OAM baseboard (min_gpus_per_node) is one integrated 8-GPU machine: no slider,
+ * the count is the machine (config-rules R1).
  *
  * In training mode there is no server concept: useTrainingCalculation reads
  * this value directly as the total GPU count for ZeRO data-parallel sharding
@@ -41,6 +44,30 @@ export function GPUCountSelector() {
   const tooltip = isTraining
     ? 'GPUs used for data-parallel training, e.g. DeepSpeed ZeRO sharding. Multi-node training is not modelled, so this is the total GPU count.'
     : `The parallel degree of one model replica inside one server. Tensor, pipeline or expert parallelism runs at this level, over NVLink, Infinity Fabric or PCIe. Capped at ${maxGPUs} — the largest GPU count this hardware forms in one node.`
+
+  if (minGPUsFor(selectedGPU) > 1 && gpuCounts.length === 1) {
+    return (
+      <div>
+        <div className="flex items-center gap-1 mb-1">
+          <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {label}
+          </span>
+          <InfoTip text={tooltip} />
+        </div>
+        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+          {numGPUs} GPUs (full machine)
+        </p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {selectedGPU?.name} is one integrated {numGPUs}-GPU machine: it cannot be split into
+          smaller replicas
+          {!isTraining && numNodes > 1
+            ? `; ${numNodes} servers, ${STRATEGY_LABELS[shardingStrategy]}`
+            : ''}
+          .
+        </p>
+      </div>
+    )
+  }
 
   if (maxGPUs === 1) {
     return (

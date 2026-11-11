@@ -59,7 +59,7 @@ function findModel(id: string): Model {
 
 const L70 = findModel('meta-llama-llama-3.1-70b')
 const DSR1 = findModel('deepseek-r1')
-const H100 = findGPU('nvidia-h100-80gb-sxm')
+const H100 = findGPU('nvidia-h100-80gb-pcie')
 const NVL72 = findGPU('nvidia-gb300-nvl72')
 const UNIFIED_M3 = findGPU('apple-m3-ultra')
 
@@ -78,7 +78,7 @@ describe('uiStore: host-grace KV tier guard', () => {
   it('URL restore order (GPU first, then tier): falls back to none for a non-Grace GPU', async () => {
     const { useUIStore } = await import('@store/uiStore')
     // useURLSync restores the GPU, then the tier, from the same hash.
-    useUIStore.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-sxm'))
+    useUIStore.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-pcie'))
     useUIStore.getState().setKVTier({ tier: 'host-grace' })
     expect(useUIStore.getState().kvTier.tier).toBe('none')
   })
@@ -101,59 +101,24 @@ describe('uiStore: host-grace KV tier guard', () => {
     expect(useUIStore.getState().kvTier.tier).toBe('host-grace')
   })
 
-  // 2026-11-11, sizing final review C1: was "survives the GPU change in sizing (R3 inert) and
-  // falls back once the mode is inference", now host-grace resets to none in Sizing itself
-  // because the KV tier is live there and a quote must not assume a tier the GPU lacks.
-  it('GPU-change path (through the store, not just the helper): falls back to none in Sizing', async () => {
+  // 2026-11-11, mode split: Sizing lists rack GPUs only, so a server GPU picked there is
+  // replaced by the first rack GPU (GB300, a Grace host) and the tier stays valid.
+  it('a server GPU in Sizing becomes the default rack GPU, with a notice, and keeps the tier', async () => {
     const { useUIStore } = await import('@store/uiStore')
     useUIStore.getState().setSelectedGPU(findGPU('nvidia-gb300-nvl72'))
     useUIStore.getState().setKVTier({ tier: 'host-grace' })
-    expect(useUIStore.getState().kvTier.tier).toBe('host-grace')
-
-    useUIStore.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-sxm'))
+    useUIStore.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-pcie'))
     expect(useUIStore.getState().mode).toBe('sizing')
-    expect(useUIStore.getState().kvTier.tier).toBe('none')
-    expect(useUIStore.getState().pendingNotice?.lines.join(' ')).toMatch(/KV tier turned off/)
+    expect(useUIStore.getState().selectedGPU?.id).toBe('nvidia-gb300-nvl72')
+    expect(useUIStore.getState().kvTier.tier).toBe('host-grace')
+    expect(useUIStore.getState().pendingNotice?.lines.join(' ')).toMatch(
+      /Sizing lists rack GPUs only/,
+    )
   })
 })
 
-describe('uiStore: Sizing runs the KV tier rules (final review C1)', () => {
-  it('scenario 1: GB300 host-grace then H100 gives the no-tier server count', async () => {
-    const store = await freshStore()
-    const { sizeDeployment } = await import('@engines/sizing')
-    const { resolveFabricSpec } = await import('@engines/fabric')
-    store.getState().setSelectedGPU(NVL72)
-    store.getState().setKVTier({ tier: 'host-grace' })
-    store.getState().setSelectedGPU(H100)
-    expect(store.getState().mode).toBe('sizing')
-    expect(store.getState().kvTier.tier).toBe('none')
-    const size = (kvTier: typeof DEFAULT_KV_TIER) =>
-      sizeDeployment({
-        model: findModel('meta-llama-llama-3.3-70b'),
-        gpu: H100,
-        quantization: 'fp8',
-        kvQuantization: 'fp16',
-        sequenceLength: 32768,
-        users: 1000,
-        fabric: resolveFabricSpec('ethernet-800g', null),
-        kvTier,
-      }).units
-    // 2026-11-11, sizing final review C1: was 5 (a Grace tier on an H100), now the no-tier 20.
-    expect(size(store.getState().kvTier)).toBe(20)
-    expect(size({ ...DEFAULT_KV_TIER, tier: 'host-grace' })).toBe(20)
-  })
-
-  it('scenario 2: host-pcie then Apple M3 Ultra resets the tier to none', async () => {
-    const store = await freshStore()
-    store.getState().setMode('sizing')
-    store.getState().setSelectedGPU(H100)
-    store.getState().setKVTier({ tier: 'host-pcie' })
-    expect(store.getState().kvTier.tier).toBe('host-pcie')
-    store.getState().setSelectedGPU(UNIFIED_M3)
-    expect(store.getState().kvTier.tier).toBe('none')
-  })
-
-  it('a shared sizing link with host-grace on an H100 restores as none, adjusted', async () => {
+describe('uiStore: Sizing mode and server GPUs (mode split, 2026-11-11)', () => {
+  it('a shared sizing link with an H100 restores with the default rack GPU, adjusted', async () => {
     const store = await freshStore()
     const { deserializeFromURL, urlStateToConfig } = await import('@store/urlSerializer')
     const { findGPUById, findModelById } = await import('@store/uiStore')
@@ -174,7 +139,7 @@ describe('uiStore: Sizing runs the KV tier rules (final review C1)', () => {
     const { patch } = urlStateToConfig(decoded, { findModel: findModelById, findGPU: findGPUById })
     store.getState().restoreConfig(patch)
     expect(store.getState().mode).toBe('sizing')
-    expect(store.getState().kvTier.tier).toBe('none')
+    expect(store.getState().selectedGPU?.id).toBe(NVL72.id)
     expect(store.getState().pendingNotice?.title).toBe('Shared link adjusted')
   })
 })
@@ -183,7 +148,7 @@ describe('uiStore: offloadHostCapacityGB clamp', () => {
   beforeEach(async () => {
     const { useUIStore } = await import('@store/uiStore')
     // 2026-11-11, sizing T5: reset mode too; selecting a rack GPU above now switches to sizing
-    useUIStore.setState({ mode: 'inference', offloadHostCapacityGB: null })
+    useUIStore.setState({ mode: 'inference', selectedGPU: null, offloadHostCapacityGB: null })
   })
 
   it('accepts a positive finite value', async () => {
@@ -527,6 +492,25 @@ describe('uiStore: shared-link restore is one normalized action', () => {
     expect(state.pendingNotice?.lines).toHaveLength(4)
   })
 
+  it('a link with 2 GPUs on an HGX baseboard restores as the 8-GPU machine, adjusted', async () => {
+    const state = await restore({
+      ...base,
+      modelId: L70.id,
+      gpuId: findGPU('nvidia-h100-80gb-sxm').id,
+      ng: 2,
+    })
+    expect(state.numGPUs).toBe(8)
+    expect(state.pendingNotice?.title).toBe('Shared link adjusted')
+    expect(state.pendingNotice?.lines.join(' ')).toMatch(/8-GPU machine/)
+  })
+
+  it('selecting a baseboard from 1 GPU sets 8 with an "Adjusted for" notice', async () => {
+    const store = await freshStore()
+    store.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-sxm'))
+    expect(store.getState().numGPUs).toBe(8)
+    expect(store.getState().pendingNotice?.title).toBe('Adjusted for NVIDIA H100 80GB SXM')
+  })
+
   it('clamps non-integer and negative counts', async () => {
     expect((await restore({ ...base, modelId: L70.id, gpuId: H100.id, ng: 2.5 })).numGPUs).toBe(2)
     expect((await restore({ ...base, modelId: L70.id, gpuId: H100.id, ng: -3 })).numGPUs).toBe(1)
@@ -649,9 +633,19 @@ describe('uiStore: sizing mode and rack GPUs (2026-11-11, sizing T5)', () => {
     expect(store.getState().selectedGPU).toBeNull()
   })
 
+  it('setMode(sizing) with a server GPU swaps in the default rack GPU, with a notice, no loop', async () => {
+    const store = await freshStore()
+    store.getState().setSelectedGPU(H100)
+    store.getState().setMode('sizing')
+    const state = store.getState()
+    expect(state.mode).toBe('sizing')
+    expect(state.selectedGPU?.id).toBe(NVL72.id)
+    expect(state.pendingNotice?.lines.join(' ')).toContain('Sizing lists rack GPUs only')
+  })
+
   it('setMode(inference) with a server GPU keeps it and writes no notice', async () => {
     const store = await freshStore()
-    store.getState().setMode('sizing')
+    store.getState().setMode('inference')
     store.getState().setSelectedGPU(H100)
     store.getState().setMode('inference')
     expect(store.getState().selectedGPU?.id).toBe(H100.id)

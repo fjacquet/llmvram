@@ -11,6 +11,7 @@ import {
   normalizeConfig,
   pickRuleConfig,
   type RuleConfig,
+  rackGPUCorrection,
 } from '@engines/config-rules'
 import { resolveFabricSpec } from '@engines/fabric'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
@@ -176,22 +177,29 @@ function commit(
   extra: Correction[] = [],
   presetNotice?: Notice,
 ): void {
-  const next = { ...get(), ...patch }
+  const merged = { ...get(), ...patch }
+  const rack = rackGPUCorrection(merged.mode, merged.selectedGPU, gpus)
+  const next = rack ? { ...merged, selectedGPU: rack.gpu } : merged
   const { config, corrections } = normalizeConfig(
     pickRuleConfig(next),
     next.selectedModel,
     next.selectedGPU,
   )
-  const built = buildNotice([...extra, ...corrections], source, {
-    model: next.selectedModel,
-    gpu: next.selectedGPU,
-    config,
-  })
+  const built = buildNotice(
+    [...(rack ? [rack.correction] : []), ...extra, ...corrections],
+    source,
+    {
+      model: next.selectedModel,
+      gpu: next.selectedGPU,
+      config,
+    },
+  )
   const notice = presetNotice
     ? { title: presetNotice.title, lines: [...presetNotice.lines, ...(built?.lines ?? [])] }
     : built
   set({
     ...patch,
+    ...(rack ? { selectedGPU: rack.gpu } : {}),
     ...config,
     ...(notice && notice.lines.length > 0 ? { pendingNotice: { ...notice, id: ++noticeSeq } } : {}),
   })
