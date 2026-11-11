@@ -79,7 +79,25 @@ Each model task follows these steps. The task text gives the repo, id, name and 
 **Repo:** `meituan-longcat/LongCat-2.5` (`pro_v`, multimodal MoE, custom code; a `-W4A4` repo exists). **Id:** `meituan-longcat-longcat-2.5`. **Name:** "LongCat 2.5".
 **Watch for:** `pro_v` is a new architecture. If vLLM has no model class for it, the KV cannot be sourced from vLLM; use the HF config plus a published figure, and apply the stop rule if two sources are not available.
 
-### Task 7: Docs and counts
+### Task 7: Publisher country of origin (user request, 2026-11-11)
+
+The user wants the origin shown, nothing more: no filter, no claim about bias. Shown as an ISO 3166-1 alpha-2 code ("FR") with the country name on hover. _Our call:_ a code, not a flag emoji, because flags render as two letters on Windows.
+
+**Files:** `src/utils/schemas.ts`, `src/data/models.json`, `src/components/inputs/ModelSelector.tsx` and its test, `src/utils/models.test.ts`, `src/components/guide/GuidePage.tsx`.
+
+**Interfaces:**
+- `Model.origin_country?: string` (optional; Zod `z.string().regex(/^[A-Z]{2}$/)`). Custom models leave it unset.
+- `countryName(code: string): string` in a small util (use `Intl.DisplayNames(['en'], { type: 'region' })`; no data table).
+
+- [ ] **Step 1: Failing tests.**
+  - `models.test.ts`: every curated model has `origin_country`, it matches the schema, and each value is tied to the publisher's stated headquarters. Keep a `PUBLISHER_COUNTRY` map in the test (publisher org id to code) with a source URL comment per publisher; assert each model's code equals its publisher's.
+  - `ModelSelector.test.tsx`: an option shows "FR" and a `title` of "France"; a custom model shows no code.
+- [ ] **Step 2: Data.** Add `origin_country` to all models, from the publisher's own page (company site or HF org card). It is the publisher's headquarters country, not where the model was trained. List the publisher and its source in the test map. Re-sort is unaffected.
+- [ ] **Step 3: UI.** Show the code as a small badge beside the model name in the selector options and in the selected value. Follow the existing selector styling and dark-mode variants.
+- [ ] **Step 4: Guide.** One sentence in the Guide under models: "The country is the publisher's headquarters. It does not say where a model was trained or what data it saw, and it is not a measure of bias."
+- [ ] **Step 5:** Full verification, then commit `feat: publisher country of origin in the model selector`.
+
+### Task 8: Docs and counts
 
 **Files:** `CHANGELOG.md` (`## [Unreleased]`, Added), `README.md` (model count 62), `CLAUDE.md` and `MEMORY` counts (the controller updates the memory file), `docs/adr/README.md` only if an ADR is warranted (none planned).
 

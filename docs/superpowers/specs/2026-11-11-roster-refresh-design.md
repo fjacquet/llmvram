@@ -54,3 +54,10 @@ Take the latest release of each family. All six candidates were found on Hugging
 - `npx vitest run`, `tsc -b --force`, `biome check .` and `npm run build` are green.
 - `npm run refresh:models` reports no drift for the new entries.
 - `models.test.ts` has an entry per new model with both sources, and `models.json` is sorted.
+
+## Addition: publisher country of origin (user, 2026-11-11)
+
+Some customers are sensitive to a model's origin and fear bias. The user decided: **display the origin, nothing more**. No filter and no statement about bias.
+- New optional field `origin_country` (ISO 3166-1 alpha-2) on each model, filled by hand from the publisher's headquarters, with the source per publisher in `models.test.ts`.
+- Shown as a code ("FR") with the country name on hover (_our call_: a code, since flag emoji render as letters on Windows).
+- The Guide says what it is not: the publisher's headquarters, not where a model was trained or what data it saw, and not a measure of bias.
