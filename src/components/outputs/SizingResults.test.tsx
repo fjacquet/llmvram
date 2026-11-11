@@ -35,8 +35,7 @@ function size(patch: Partial<SizingInput> & Pick<SizingInput, 'gpu' | 'model'>) 
     ...patch,
   })
 }
-const show = (result: SizingResult, g = gb300, kvTier: KVTierSettings = DEFAULT_KV_TIER) =>
-  render(<SizingResults result={result} gpu={g} kvTier={kvTier} />)
+const show = (result: SizingResult, g = gb300) => render(<SizingResults result={result} gpu={g} />)
 
 describe('SizingResults', () => {
   // Tier is DEFAULT_KV_TIER ('none'): the plain sessions line applies
@@ -96,7 +95,7 @@ describe('SizingResults', () => {
     const r = size({ model: model('zai-org-glm-5.2'), gpu: gb300, kvTier: tier })
     const c = r.chosen
     if (!c?.tierUsed) throw new Error('expected a tier-backed fit')
-    show(r, gb300, tier)
+    show(r)
     expect(
       screen.getByText(
         new RegExp(
@@ -117,9 +116,38 @@ describe('SizingResults', () => {
     }
     const r = size({ model: model('zai-org-glm-5.2'), gpu: gb300, kvTier: tier })
     if (!r.chosen?.tierOverloaded) throw new Error('fixture no longer overloads the tier')
-    show(r, gb300, tier)
+    show(r)
     expect(
       screen.getByText('Tier cannot sustain the session churn; sized on HBM only'),
     ).toBeVisible()
+  })
+
+  // 2026-11-11, sizing final review I1: a decode batch above vLLM's default max_num_seqs
+  const wide = () =>
+    size({ model: model('meta-llama-llama-3.1-8b'), gpu: gb300, sequenceLength: 512, users: 20000 })
+
+  it('notes --max-num-seqs when more than 256 sequences decode at once (soft, not an alert)', () => {
+    const r = wide()
+    const n = r.chosen?.decodeBatch ?? 0
+    expect(n).toBeGreaterThan(256)
+    show(r)
+    const note = screen.getByText(new RegExp(`^${n} sequences decode at once per replica`))
+    expect(note).toHaveTextContent('--max-num-seqs')
+    expect(note).toHaveTextContent('per-user speed beyond 128 rests on 1 measured point')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('shows no batch note at 256 sequences or fewer', () => {
+    show(size({ model: model('zai-org-glm-5.2'), gpu: gb300 }))
+    expect(screen.queryByText(/sequences decode at once per replica/)).toBeNull()
+  })
+
+  it('prints the solver active share, not the raw store value', () => {
+    const tier: KVTierSettings = { ...DEFAULT_KV_TIER, tier: 'host-grace', activeShare: 0.001 }
+    const r = size({ model: model('zai-org-glm-5.2'), gpu: gb300, kvTier: tier })
+    if (!r.chosen?.tierUsed) throw new Error('expected a tier-backed fit')
+    expect(r.chosen.activeShare).toBe(0.01)
+    show(r)
+    expect(screen.getByText('assumes 1% of sessions decode at once')).toBeVisible()
   })
 })

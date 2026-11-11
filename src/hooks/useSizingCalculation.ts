@@ -54,12 +54,14 @@ export function useSizingCalculation(): UseSizingCalculationResult {
         if (event.data.type === 'SIZING_RESULT') {
           setResult(reconstructSizingResult(event.data.result))
         } else if (event.data.type === 'CALCULATION_ERROR') {
+          setResult(null)
           setError(event.data.error)
         }
         setIsCalculating(false)
         worker.terminate()
       }
       worker.onerror = (event) => {
+        setResult(null)
         setError(`Worker error: ${event.message}`)
         setIsCalculating(false)
         worker.terminate()

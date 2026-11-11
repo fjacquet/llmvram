@@ -172,7 +172,8 @@ describe('useSizingExports', () => {
     quantization: 'fp8' as const,
     sequenceLength: 8192,
     users: 500,
-    activeShare: 0.25,
+    kvQuantization: 'fp16' as const,
+    fabricLabel: '800GbE (SONiC / RoCEv2)',
     result: sizing,
   }
 
@@ -194,7 +195,7 @@ describe('useSizingExports', () => {
     expect(captured).toBe(document.getElementById('calculator-section'))
   })
 
-  it('PPTX hands the sizing result, assumptions and active share to exportSizingPptx', async () => {
+  it('PPTX hands the sizing result, KV precision and fabric to exportSizingPptx', async () => {
     const { result } = renderHook(() => useSizingExports(sizingParams))
     await act(() => result.current.handleExportPptx())
     expect(exportSizingPptx).toHaveBeenCalledWith(
@@ -202,7 +203,8 @@ describe('useSizingExports', () => {
         model: llama,
         gpu: rack,
         result: sizing,
-        activeShare: 0.25,
+        kvQuantization: 'fp16',
+        fabricLabel: '800GbE (SONiC / RoCEv2)',
         users: 500,
       }),
     )

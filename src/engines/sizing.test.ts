@@ -340,3 +340,11 @@ describe('activations at the real batch (final review C2)', () => {
     }
   })
 })
+
+describe('active share is the solver value (final review M2)', () => {
+  it('carries the clamped share, not the raw store value', () => {
+    const raw = { ...input(llama8b, h100, 1000), kvTier: { ...DEFAULT_KV_TIER, activeShare: 5 } }
+    expect(evaluateReplica(raw, 1, 1).activeShare).toBe(1)
+    expect(evaluateReplica(input(llama8b, h100, 1000), 1, 1).activeShare).toBe(0.25)
+  })
+})

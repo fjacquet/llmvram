@@ -13,6 +13,7 @@ import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
 import { fitsInference, maxConcurrentSessions } from '@engines/concurrency'
 import { softWarnings } from '@engines/config-rules'
 import { GPU_MEMORY_UTILIZATION } from '@engines/constants'
+import { resolveFabricSpec } from '@engines/fabric'
 import { DECIMAL_GB_PER_GIB, kvTierSummary } from '@engines/kv-tier'
 import { defaultHostCapacityGB, roundOffloadSlowdown } from '@engines/offloading'
 import { weightSource } from '@engines/quantization'
@@ -49,7 +50,7 @@ function SizingPanel() {
   const sequenceLength = useUIStore((s) => s.sequenceLength)
   const users = useUIStore((s) => s.concurrentUsers)
   const interNodeFabric = useUIStore((s) => s.interNodeFabric)
-  const kvTier = useUIStore((s) => s.kvTier)
+  const customFabric = useUIStore((s) => s.customFabric)
   const { snapshots, addSnapshot } = useComparisonStore()
   const { result, isCalculating, error } = useSizingCalculation()
   const { handleExportPDF, handleExportPptx } = useSizingExports({
@@ -58,7 +59,8 @@ function SizingPanel() {
     quantization,
     sequenceLength,
     users,
-    activeShare: kvTier.activeShare,
+    kvQuantization,
+    fabricLabel: resolveFabricSpec(interNodeFabric, customFabric).label,
     result,
   })
 
@@ -127,6 +129,8 @@ function SizingPanel() {
           nodes: c.nodes,
           sessionsPerReplica: c.sessionsPerReplica,
           tier: c.tierUsed === 'none' ? null : c.tierUsed,
+          users,
+          activeShare: c.activeShare,
         },
       },
     })
@@ -155,7 +159,7 @@ function SizingPanel() {
           </button>
         </div>
       )}
-      <SizingResults result={result} gpu={selectedGPU} kvTier={kvTier} />
+      <SizingResults result={result} gpu={selectedGPU} />
     </div>
   )
 }

@@ -1,14 +1,14 @@
 import { InfoTip } from '@components/common/InfoTip'
-import { KV_TIER_PRESETS, type KVTierSettings } from '@engines/kv-tier'
+import { KV_TIER_PRESETS } from '@engines/kv-tier'
 import type { ReplicaCandidate, SizingResult } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
 import type { GPU } from '@utils/schemas'
+import { decodeBatchNote, SIZING_SPEED_NOTE } from '@utils/sizingNote'
 import Decimal from 'decimal.js'
 
 interface SizingResultsProps {
   result: SizingResult
   gpu: GPU
-  kvTier: KVTierSettings
 }
 
 const CARD =
@@ -30,7 +30,7 @@ function Stat(props: { label: string; value: string | number; testId: string }) 
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-function Sessions({ c, kvTier }: { c: ReplicaCandidate; kvTier: KVTierSettings }) {
+function Sessions({ c }: { c: ReplicaCandidate }) {
   if (!c.tierUsed || c.tierUsed === 'none') {
     return (
       <div>
@@ -53,7 +53,7 @@ function Sessions({ c, kvTier }: { c: ReplicaCandidate; kvTier: KVTierSettings }
       </p>
       {/* This assumption can cut the rack count about 4x: keep it next to the figure it drives */}
       <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-        {`assumes ${Math.round(kvTier.activeShare * 100)}% of sessions decode at once`}
+        {`assumes ${Math.round(c.activeShare * 100)}% of sessions decode at once`}
       </p>
       <p className={MUTED}>
         {`Resume ${seconds(c.resumeSeconds)} vs recompute ${seconds(c.recomputeSeconds)}`}
@@ -63,7 +63,7 @@ function Sessions({ c, kvTier }: { c: ReplicaCandidate; kvTier: KVTierSettings }
 }
 
 /** The answer in servers or racks: replica shape, packing and per-user speed (expected, with ceiling) */
-export function SizingResults({ result, gpu, kvTier }: SizingResultsProps) {
+export function SizingResults({ result, gpu }: SizingResultsProps) {
   const { chosen: c, closest } = result
   if (!result.fits || !c) {
     return (
@@ -78,6 +78,7 @@ export function SizingResults({ result, gpu, kvTier }: SizingResultsProps) {
     )
   }
   const multiServer = c.nodes > 1
+  const batchNote = decodeBatchNote(c.decodeBatch)
   return (
     <div className={CARD}>
       <div>
@@ -107,7 +108,9 @@ export function SizingResults({ result, gpu, kvTier }: SizingResultsProps) {
         )}
       </div>
 
-      <Sessions c={c} kvTier={kvTier} />
+      <Sessions c={c} />
+
+      {batchNote && <p className="text-sm text-amber-700 dark:text-amber-400">{batchNote}</p>}
 
       <div className={TILE}>
         <div className="flex items-center gap-1 mb-2">
@@ -115,7 +118,7 @@ export function SizingResults({ result, gpu, kvTier }: SizingResultsProps) {
             Per user, at {c.decodeBatch} {c.decodeBatch === 1 ? 'session' : 'sessions'} decoding at
             once
           </p>
-          <InfoTip text="Unit counts use the expected speed, which includes the efficiency losses real serving shows. The theoretical ceiling is the bandwidth and compute limit, shown beside each figure for reference." />
+          <InfoTip text={SIZING_SPEED_NOTE} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>

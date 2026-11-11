@@ -158,7 +158,8 @@ interface UseSizingExportsParams {
   quantization: QuantizationFormat
   sequenceLength: number
   users: number
-  activeShare: number
+  kvQuantization: QuantizationFormat
+  fabricLabel: string
   result: SizingResult | null
 }
 
@@ -174,8 +175,9 @@ export function useSizingExports(p: UseSizingExportsParams) {
         quantization: p.quantization,
         sequenceLength: p.sequenceLength,
         users: p.users,
+        kvQuantization: p.kvQuantization,
+        fabricLabel: p.fabricLabel,
         result: p.result,
-        activeShare: p.activeShare,
       })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'PPTX export failed')

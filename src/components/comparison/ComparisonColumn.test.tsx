@@ -150,6 +150,8 @@ describe('ComparisonColumn', () => {
           tp: 8,
           nodes: 1,
           sessionsPerReplica: 100,
+          users: 2000,
+          activeShare: 0.25,
           tier: 'host-pcie',
         },
       },
@@ -158,6 +160,7 @@ describe('ComparisonColumn', () => {
     expect(screen.getByText('Units').nextElementSibling).toHaveTextContent('3 racks')
     expect(screen.getByText('Replica').nextElementSibling).toHaveTextContent('TP 8 × 1')
     expect(screen.getByText('KV tier')).toBeInTheDocument()
+    expect(screen.getByText('Users').nextElementSibling).toHaveTextContent('2,000')
   })
 
   it('leaves Units and Replica blank for an inference snapshot', () => {
@@ -176,6 +179,8 @@ describe('ComparisonColumn', () => {
       tp: 8,
       nodes: 1,
       sessionsPerReplica: 100,
+      users: 2000,
+      activeShare: 0.25,
       tier: null,
     },
     modelWeights: 0,

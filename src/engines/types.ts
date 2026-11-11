@@ -506,6 +506,8 @@ export interface ReplicaCandidate {
   hotSessions: number
   /** Sessions decoding at once: min(hot, ceil(open x activeShare)) */
   decodeBatch: number
+  /** The active share the solver used (clamped), not the raw store value */
+  activeShare: number
   /** Tier that raised the open count; null when none or when it was overloaded */
   tierUsed: KVTierType | null
   /** The tier could not sustain the churn, so the HBM count applies */

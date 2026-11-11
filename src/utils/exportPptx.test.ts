@@ -783,15 +783,16 @@ describe('exportSizingPptx', () => {
       fabric: resolveFabricSpec('ethernet-800g', null),
       kvTier,
     })
-  const run = (result: ReturnType<typeof size>, activeShare = 0.25) =>
+  const run = (result: ReturnType<typeof size>) =>
     exportSizingPptx({
       model: realModel,
       gpu: sizingGpu,
       quantization: 'fp8',
+      kvQuantization: 'fp16',
+      fabricLabel: resolveFabricSpec('ethernet-800g', null).label,
       sequenceLength: 32768,
       users: 2000,
       result,
-      activeShare,
     })
 
   it('writes one summary slide with headline, replica, replicas, sessions and speed with ceiling, and no memory charts', async () => {
@@ -819,9 +820,80 @@ describe('exportSizingPptx', () => {
     const r = size({ ...DEFAULT_KV_TIER, tier: 'host-grace' })
     const c = r.chosen
     if (!c?.tierUsed || c.tierUsed === 'none') throw new Error('expected a tier')
-    await run(r, 0.25)
+    await run(r)
     const rows = tableRows(0)
     expect(rows).toContainEqual(['Assumption', '25% of sessions decode at once'])
     expect(rows.find(([k]) => k === 'Open sessions per replica')?.[1]).toMatch(/parked in/)
+  })
+
+  // 2026-11-11, sizing final review M3/I1/I5: the slide gains KV precision, packing rows (rack
+  // replicas of one unit), the decode-batch note and the corrected footer; no Fabric row for a rack.
+  it('adds KV precision and packing rows, no Fabric row for a rack', async () => {
+    const r = size()
+    await run(r)
+    const rows = tableRows(0)
+    expect(rows).toContainEqual(['KV precision', 'FP16'])
+    expect(rows).toContainEqual([`Replicas per rack`, String(r.replicasPerUnit)])
+    expect(rows).toContainEqual([`Idle GPUs per rack`, String(r.idleGPUsPerUnit)])
+    expect(rows.some(([k]) => k === 'Fabric')).toBe(false)
+    expect(texts.some((t) => t.text.startsWith('Counts are set by memory (90% vLLM limit)'))).toBe(
+      true,
+    )
+    expect(texts.some((t) => t.text.includes('Unit counts use expected speed'))).toBe(false)
+  })
+
+  it('shows the Fabric row for server GPUs and omits packing rows for multi-server replicas', async () => {
+    const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+    if (!h100) throw new Error('fixture not found')
+    const r = sizeDeployment({
+      model: realModel,
+      gpu: h100,
+      quantization: 'fp8',
+      kvQuantization: 'fp16',
+      sequenceLength: 32768,
+      users: 50,
+      fabric: resolveFabricSpec('ethernet-800g', null),
+      kvTier: DEFAULT_KV_TIER,
+    })
+    await exportSizingPptx({
+      model: realModel,
+      gpu: h100,
+      quantization: 'fp8',
+      kvQuantization: 'fp16',
+      fabricLabel: '800GbE (SONiC / RoCEv2)',
+      sequenceLength: 32768,
+      users: 50,
+      result: r,
+    })
+    const rows = tableRows(0)
+    expect(rows).toContainEqual(['Fabric', '800GbE (SONiC / RoCEv2)'])
+    expect(rows.some(([k]) => k.startsWith('Replicas per'))).toBe(r.chosen?.nodes === 1)
+  })
+
+  it('adds the max-num-seqs note when more than 256 sequences decode at once', async () => {
+    const small = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.1-8b')
+    if (!small) throw new Error('fixture not found')
+    const r = sizeDeployment({
+      model: small,
+      gpu: sizingGpu,
+      quantization: 'fp8',
+      kvQuantization: 'fp16',
+      sequenceLength: 512,
+      users: 20000,
+      fabric: resolveFabricSpec('ethernet-800g', null),
+      kvTier: DEFAULT_KV_TIER,
+    })
+    expect(r.chosen?.decodeBatch).toBeGreaterThan(256)
+    await exportSizingPptx({
+      model: small,
+      gpu: sizingGpu,
+      quantization: 'fp8',
+      kvQuantization: 'fp16',
+      fabricLabel: 'x',
+      sequenceLength: 512,
+      users: 20000,
+      result: r,
+    })
+    expect(tableRows(0).find(([k]) => k === 'Note')?.[1]).toContain('--max-num-seqs')
   })
 })

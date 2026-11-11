@@ -51,6 +51,9 @@ export interface ConfigSnapshot {
       tp: number
       nodes: number
       sessionsPerReplica: number
+      users: number
+      /** The share the solver used (clamped), not the raw store value */
+      activeShare: number
       /** KV storage tier the open-session count relied on; null when none */
       tier: Exclude<KVTierType, 'none'> | null
     }

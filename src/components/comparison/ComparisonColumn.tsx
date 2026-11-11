@@ -258,6 +258,11 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
           value={sizing ? `TP ${sizing.tp} × ${sizing.nodes}` : '—'}
           isDifferent={diffMap.sizing}
         />
+        <Field
+          label="Users"
+          value={sizing ? sizing.users.toLocaleString('en-US') : '—'}
+          isDifferent={diffMap.sizing}
+        />
         {sizing?.tier && (
           <Field
             label="KV tier"

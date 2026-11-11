@@ -172,11 +172,11 @@ export function GuidePage() {
           sessions), packed into servers or NVL72 racks, and the layout with the fewest units wins.
         </P>
         <P>
-          Per-user speed uses the <em>expected</em> decode speed, never the theoretical ceiling,
-          which is shown beside it. With a KV storage tier selected, a replica also holds parked
-          sessions beyond what fits in HBM. The card then states the share of sessions assumed to
-          decode at once, because that assumption can cut the unit count several times over. NVL72
-          rack GPUs are available in Sizing only.
+          Counts are set by memory (90% vLLM limit); the speed shown is expected, with the
+          theoretical ceiling beside it. With a KV storage tier selected, a replica also holds
+          parked sessions beyond what fits in HBM. The card then states the share of sessions
+          assumed to decode at once, because that assumption can cut the unit count several times
+          over. NVL72 rack GPUs are available in Sizing only.
         </P>
 
         {/* Model Configuration */}

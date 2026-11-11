@@ -142,6 +142,7 @@ export function evaluateReplica(
     sessionsPerReplica: open,
     hotSessions: hot,
     decodeBatch: sessions,
+    activeShare: settings.activeShare,
     tierUsed: used ? settings.tier : null,
     tierOverloaded: tier?.overloaded ?? false,
     resumeSeconds: used?.resumeSeconds ?? null,

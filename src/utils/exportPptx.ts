@@ -11,6 +11,7 @@ import type {
 import { formatDuration } from '@utils/formatDuration'
 import { firstTokenLabel } from '@utils/perfLabels'
 import type { GPU, Model } from '@utils/schemas'
+import { decodeBatchNote, SIZING_SPEED_NOTE } from '@utils/sizingNote'
 import type Decimal from 'decimal.js'
 
 export interface ExportPptxOffload {
@@ -644,14 +645,16 @@ export interface ExportSizingPptxParams {
   quantization: string
   sequenceLength: number
   users: number
+  kvQuantization: string
+  /** Scale-out fabric the multi-server replicas are costed on; shown for server GPUs only */
+  fabricLabel: string
   result: SizingResult
-  /** Share of open sessions decoding at once; stated whenever a KV tier raised the count */
-  activeShare: number
 }
 
 /** One summary slide: the answer in racks or servers, with the assumptions it rests on */
 export async function exportSizingPptx(params: ExportSizingPptxParams): Promise<void> {
-  const { model, gpu, quantization, sequenceLength, users, result, activeShare } = params
+  const { model, gpu, quantization, kvQuantization, fabricLabel, sequenceLength, users, result } =
+    params
   const c = result.chosen
   if (!result.fits || !c) throw new Error('Nothing fits: no sizing to export')
 
@@ -675,7 +678,15 @@ export async function exportSizingPptx(params: ExportSizingPptxParams): Promise<
       `TP ${c.tp} × ${c.nodes} (${c.gpusPerReplica} GPUs${c.nodes > 1 ? `, ${c.nodes} servers` : ''})`,
     ],
     ['Replicas', String(result.replicas)],
+    ...(c.nodes === 1
+      ? ([
+          [`Replicas per ${result.unit}`, String(result.replicasPerUnit)],
+          [`Idle GPUs per ${result.unit}`, String(result.idleGPUsPerUnit)],
+        ] as [string, string][])
+      : []),
     ['Weights', quantization.toUpperCase()],
+    ['KV precision', kvQuantization.toUpperCase()],
+    ...(result.unit === 'server' ? ([['Fabric', fabricLabel]] as [string, string][]) : []),
     ['Context', `${sequenceLength.toLocaleString('en-US')} tokens`],
     ['Users', users.toLocaleString('en-US')],
     [
@@ -693,8 +704,10 @@ export async function exportSizingPptx(params: ExportSizingPptxParams): Promise<
       `${formatDuration(c.timeToFirstToken)} (ceiling ${formatDuration(c.ceilingTimeToFirstToken)})`,
     ],
   ]
+  const batchNote = decodeBatchNote(c.decodeBatch)
+  if (batchNote) rows.push(['Note', batchNote])
   if (tier)
-    rows.push(['Assumption', `${Math.round(activeShare * 100)}% of sessions decode at once`])
+    rows.push(['Assumption', `${Math.round(c.activeShare * 100)}% of sessions decode at once`])
 
   slide.addTable(
     [
@@ -719,9 +732,14 @@ export async function exportSizingPptx(params: ExportSizingPptxParams): Promise<
       fontSize: 13,
     },
   )
-  slide.addText(
-    'Unit counts use expected speed, which includes real serving losses. The ceiling is the theoretical bandwidth and compute limit.',
-    { x: 0.4, y: 6.9, w: 12.5, h: 0.4, fontSize: 11, italic: true, color: C.bodyText },
-  )
+  slide.addText(SIZING_SPEED_NOTE, {
+    x: 0.4,
+    y: 6.9,
+    w: 12.5,
+    h: 0.4,
+    fontSize: 11,
+    italic: true,
+    color: C.bodyText,
+  })
   await pptx.writeFile({ fileName: fileName(model.name) })
 }
