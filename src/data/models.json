@@ -539,6 +539,51 @@
     }
   },
   {
+    "id": "zai-org-glm-5.3",
+    "name": "GLM 5.3",
+    "architecture": "moe",
+    "num_parameters_billion": 753.3,
+    "hidden_size": 6144,
+    "num_hidden_layers": 78,
+    "num_attention_heads": 64,
+    "num_kv_heads": 64,
+    "intermediate_size": 12288,
+    "num_experts": 256,
+    "num_experts_per_token": 8,
+    "context_length": 1048576,
+    "license": "other",
+    "hf_url": "https://huggingface.co/zai-org/GLM-5.3",
+    "kv_cache_elements_per_token": 44928,
+    "use_mla": true,
+    "sparse_attention_topk": 2048,
+    "sparse_indexer_bytes_per_token": 2772,
+    "sparse_indexer_heads": 32,
+    "sparse_indexer_layers": 21,
+    "active_parameters_billion": 51.2,
+    "weight_refs": {
+      "fp8": {
+        "repo": "zai-org/GLM-5.3",
+        "gib": 703.74,
+        "high_precision": {
+          "params_b": 2.104,
+          "gib": 3.92
+        }
+      },
+      "nvfp4": {
+        "repo": "nvidia/GLM-5.3-NVFP4",
+        "gib": 432.27,
+        "high_precision": {
+          "params_b": 27.875,
+          "gib": 51.92
+        }
+      },
+      "gguf-q8_0": {
+        "repo": "unsloth/GLM-5.3-GGUF",
+        "gib": 746.32
+      }
+    }
+  },
+  {
     "id": "openai-gpt-oss-120b",
     "name": "GPT OSS 120B",
     "architecture": "moe",

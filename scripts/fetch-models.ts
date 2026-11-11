@@ -52,6 +52,7 @@ const MODEL_IDS = [
 
   // GLM (Z.ai)
   'zai-org/GLM-5.2',
+  'zai-org/GLM-5.3',
 
   // Kimi (Moonshot)
   'moonshotai/Kimi-K3',

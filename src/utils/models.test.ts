@@ -190,6 +190,9 @@ describe('Model Database Validation', () => {
       'zai-org-glm-4.7': 188416, // 92 x 8 kv x head_dim 128 (not hidden/heads) x 2
       'zai-org-glm-4.7-flash': 27072, // MLA: 47 x 576
       'zai-org-glm-5.2': 44928, // MLA: 78 x 576 (DSA indexer, ~3%, not included)
+      // Same shape as GLM 5.2: HF config kv_lora_rank 512 + qk_rope_head_dim 64 on 78 layers;
+      // vLLM deepseek_v32 (GlmMoeDsaForCausalLM) MLA cache is kv_lora_rank + rope per token
+      'zai-org-glm-5.3': 44928,
       'minimax-m3': 68736, // 60 x 4 kv x 128 x 2 + 128-dim indexer key on 57 sparse layers
       'minimax-m2.1': 126976,
       'minimax-m2.5': 126976,
@@ -287,6 +290,7 @@ describe('Model Database Validation', () => {
       'moonshotai-kimi-linear-48b-a3b',
       'zai-org-glm-4.7-flash',
       'zai-org-glm-5.2',
+      'zai-org-glm-5.3',
     ]
     const actual = modelsData
       .filter((m) => 'use_mla' in m && m.use_mla)
@@ -347,6 +351,10 @@ describe('Model Database Validation', () => {
     // over that figure would under-read; full reads are the safe direction.
     const SPARSE: Record<string, [number, number, number, number]> = {
       'zai-org-glm-5.2': [2048, 21 * 132, 32, 21],
+      // GLM 5.3 config is identical to 5.2 (index_topk 2048, index_n_heads 32, 21 of 78
+      // indexer_types 'full'); vLLM deepseek_v32 indexer cache is head_dim 128 + 128 / 128 x 4
+      // = 132 uint8 bytes per token, built only where the layer is not 'shared'
+      'zai-org-glm-5.3': [2048, 21 * 132, 32, 21],
       // Mistral Large 4: 44 of 72 indexer_types 'full' (params.json dsa.sharing). vLLM PR #64534
       // MistralIndexerCache is the same 132-byte uint8 layout, built only where has_indexer; the
       // 9 KV-sharing layers are all 'full', so they keep their own indexer cache

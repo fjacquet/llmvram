@@ -397,3 +397,17 @@ describe('final review I4: Review Focus cases', () => {
     expect(r.closest?.lackingGB).toBeGreaterThan(0)
   })
 })
+
+// Roster refresh (2026-11): each added model sizes on one server GPU and one rack GPU, no NaN
+describe.each(['zai-org-glm-5.3'])('%s sizes', (id) => {
+  it.each([
+    ['server', 'nvidia-h100-80gb-sxm'],
+    ['rack', 'nvidia-gb300-nvl72'],
+  ])('on a %s GPU', (unit, gpuId) => {
+    const r = sizeDeployment(input(model(id), gpu(gpuId), 20, 'fp8'))
+    expect(r.fits).toBe(true)
+    expect(r.unit).toBe(unit)
+    expect(Number.isFinite(r.units) && r.units > 0).toBe(true)
+    expect(Number.isFinite(r.chosen?.perUserTokensPerSecond.toNumber() ?? Number.NaN)).toBe(true)
+  })
+})
