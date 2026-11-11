@@ -131,18 +131,18 @@ All can be implemented with the current stack.
 
 From existing `package.json`:
 
-| Library | Current Version | Status | Notes |
-|---------|----------------|--------|-------|
-| **decimal.js** | 10.4.3 | ✅ Keep | Perfect for VRAM calculations, no alternatives needed |
-| **zod** | 3.25.76 | ✅ Keep | Extend schemas for training parameters |
-| **react** | 19.2.0 | ✅ Keep | Latest stable, no changes needed |
-| **zustand** | 5.0.9 | ✅ Keep | Add training state slice |
-| **recharts** | 3.6.0 | ✅ Keep | Stacked bar charts for memory breakdown |
-| **@headlessui/react** | 2.2.9 | ✅ Keep | Dropdown for framework presets |
-| **@heroicons/react** | 2.2.0 | ✅ Keep | Icons for training UI |
-| **tailwindcss** | 4.1.18 | ✅ Keep | Styling for new components |
-| **lz-string** | 1.5.0 | ✅ Keep | URL hash compression (reuse for sharing training configs) |
-| **sonner** | 2.0.7 | ✅ Keep | Toasts for training errors/warnings |
+| Library               | Current Version | Status  | Notes                                                     |
+| --------------------- | --------------- | ------- | --------------------------------------------------------- |
+| **decimal.js**        | 10.4.3          | ✅ Keep | Perfect for VRAM calculations, no alternatives needed     |
+| **zod**               | 3.25.76         | ✅ Keep | Extend schemas for training parameters                    |
+| **react**             | 19.2.0          | ✅ Keep | Latest stable, no changes needed                          |
+| **zustand**           | 5.0.9           | ✅ Keep | Add training state slice                                  |
+| **recharts**          | 3.6.0           | ✅ Keep | Stacked bar charts for memory breakdown                   |
+| **@headlessui/react** | 2.2.9           | ✅ Keep | Dropdown for framework presets                            |
+| **@heroicons/react**  | 2.2.0           | ✅ Keep | Icons for training UI                                     |
+| **tailwindcss**       | 4.1.18          | ✅ Keep | Styling for new components                                |
+| **lz-string**         | 1.5.0           | ✅ Keep | URL hash compression (reuse for sharing training configs) |
+| **sonner**            | 2.0.7           | ✅ Keep | Toasts for training errors/warnings                       |
 
 **All libraries are current and sufficient.**
 
@@ -227,9 +227,7 @@ Based on research of similar projects and ecosystems:
 import Decimal from 'decimal.js'
 import type { FineTuningParams, FineTuningResult } from './types'
 
-export function calculateFineTuningVRAM(
-  params: FineTuningParams
-): FineTuningResult {
+export function calculateFineTuningVRAM(params: FineTuningParams): FineTuningResult {
   // Pure function - no side effects
   const modelVRAM = calculateModelWeights(params)
   const gradientsVRAM = calculateGradients(params)
@@ -245,7 +243,7 @@ export function calculateFineTuningVRAM(
       .plus(gradientsVRAM)
       .plus(optimizerVRAM)
       .plus(activationsVRAM)
-      .toNumber()
+      .toNumber(),
   }
 }
 ```
@@ -283,30 +281,30 @@ export type FineTuningConfig = z.infer<typeof FineTuningConfigSchema>
 
 ```typescript
 // data/framework-presets.json (NEW)
-[
+;[
   {
-    "id": "deepspeed-zero1",
-    "name": "DeepSpeed ZeRO Stage 1",
-    "framework": "deepspeed",
-    "description": "Optimizer state partitioning",
-    "config": {
-      "zero_stage": 1,
-      "gradient_accumulation_steps": 4,
-      "gradient_checkpointing": true,
-      "optimizer_offload": false
-    }
+    id: 'deepspeed-zero1',
+    name: 'DeepSpeed ZeRO Stage 1',
+    framework: 'deepspeed',
+    description: 'Optimizer state partitioning',
+    config: {
+      zero_stage: 1,
+      gradient_accumulation_steps: 4,
+      gradient_checkpointing: true,
+      optimizer_offload: false,
+    },
   },
   {
-    "id": "vllm-inference",
-    "name": "vLLM Inference",
-    "framework": "vllm",
-    "description": "Optimized inference with PagedAttention",
-    "config": {
-      "gpu_memory_utilization": 0.9,
-      "max_num_seqs": 256,
-      "swap_space": 4
-    }
-  }
+    id: 'vllm-inference',
+    name: 'vLLM Inference',
+    framework: 'vllm',
+    description: 'Optimized inference with PagedAttention',
+    config: {
+      gpu_memory_utilization: 0.9,
+      max_num_seqs: 256,
+      swap_space: 4,
+    },
+  },
 ]
 ```
 
@@ -339,11 +337,12 @@ export const createTrainingSlice = (set, get) => ({
   setFineTuningMethod: (method) => set({ fineTuningMethod: method }),
   setOptimizer: (optimizer) => set({ optimizer }),
   setBatchSize: (size) => set({ batchSize: size }),
-  applyPreset: (preset) => set({
-    selectedPreset: preset,
-    gradientAccumulationSteps: preset.config.gradient_accumulation_steps,
-    gradientCheckpointing: preset.config.gradient_checkpointing,
-  }),
+  applyPreset: (preset) =>
+    set({
+      selectedPreset: preset,
+      gradientAccumulationSteps: preset.config.gradient_accumulation_steps,
+      gradientCheckpointing: preset.config.gradient_checkpointing,
+    }),
 })
 ```
 
@@ -765,15 +764,15 @@ All required libraries are already installed. No new dependencies to add.
 
 ## Confidence Assessment
 
-| Area | Confidence | Rationale |
-|------|-----------|-----------|
-| **No new libraries needed** | HIGH | Research confirms existing stack is sufficient |
-| **Decimal.js for calculations** | HIGH | Already validated for precision arithmetic |
-| **Zod for validation** | HIGH | Already used extensively in codebase |
-| **Recharts for visualization** | HIGH | Stacked bar charts handle memory breakdown perfectly |
-| **Framework preset data** | HIGH | Well-documented configurations from official sources |
-| **Formulas for fine-tuning** | HIGH | Standard formulas from authoritative sources |
-| **Integration patterns** | HIGH | Following established codebase patterns |
+| Area                            | Confidence | Rationale                                            |
+| ------------------------------- | ---------- | ---------------------------------------------------- |
+| **No new libraries needed**     | HIGH       | Research confirms existing stack is sufficient       |
+| **Decimal.js for calculations** | HIGH       | Already validated for precision arithmetic           |
+| **Zod for validation**          | HIGH       | Already used extensively in codebase                 |
+| **Recharts for visualization**  | HIGH       | Stacked bar charts handle memory breakdown perfectly |
+| **Framework preset data**       | HIGH       | Well-documented configurations from official sources |
+| **Formulas for fine-tuning**    | HIGH       | Standard formulas from authoritative sources         |
+| **Integration patterns**        | HIGH       | Following established codebase patterns              |
 
 ---
 

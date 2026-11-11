@@ -4,7 +4,7 @@
 
 **Goal:** Add the AMD Instinct MI355X/MI350X/MI325X accelerators with a truthful Infinity Fabric model, then let the calculator scale inference across N identical servers (tensor parallel inside a node, pipeline parallel across nodes, with a selectable scale-out fabric).
 
-**Architecture:** A new `calculateMultiNodeVRAM` *composes* over the existing `calculateMultiGPUVRAM` rather than extending it — it derives a per-stage VRAM breakdown (weights, KV and activations divided by node count) and delegates the intra-node split to the existing function, which keeps its signature, its tests, and its 1–8 GPU guard (now correctly a *per-node* bound). Scale-out bandwidth lives in a separate `FABRIC_SPECS` table, because node-to-node Ethernet/InfiniBand is different physics from intra-node NVLink/xGMI and the two coexist in one cluster.
+**Architecture:** A new `calculateMultiNodeVRAM` _composes_ over the existing `calculateMultiGPUVRAM` rather than extending it — it derives a per-stage VRAM breakdown (weights, KV and activations divided by node count) and delegates the intra-node split to the existing function, which keeps its signature, its tests, and its 1–8 GPU guard (now correctly a _per-node_ bound). Scale-out bandwidth lives in a separate `FABRIC_SPECS` table, because node-to-node Ethernet/InfiniBand is different physics from intra-node NVLink/xGMI and the two coexist in one cluster.
 
 **Tech Stack:** TypeScript strict (`noUncheckedIndexedAccess`), React 19, Zustand, Zod, decimal.js, Vitest + jsdom, Biome.
 
@@ -20,7 +20,7 @@
 - **Engines must stay pure** — no React, no DOM, no imports from `@components` or `@store`. They are designed for Web Worker offloading and `src/workers/calculation.worker.ts` imports them directly.
 - **Zod schemas in `src/utils/schemas.ts` are the single source of truth.** Types re-export `z.infer<>`; all external data validates through Zod at the boundary.
 - **`fp16_tflops` in the GPU database is DENSE throughput.** H100 = 989, B200 = 4500, MI300X = 1307. AMD's headline "4.6/5.0 PFLOPS FP16" marketing figures are with sparsity and must never be used.
-- **Interconnect bandwidths in `INTERCONNECT_SPECS` are BIDIRECTIONAL.** NVLink-5's 1800 GB/s is NVIDIA's bidirectional per-GPU figure. Infinity Fabric's 1075 GB/s is AMD's bidirectional per-GPU figure for an 8-way fully-connected platform. A widely-quoted 538 GB/s is the *unidirectional* half of the same number — do not use it here.
+- **Interconnect bandwidths in `INTERCONNECT_SPECS` are BIDIRECTIONAL.** NVLink-5's 1800 GB/s is NVIDIA's bidirectional per-GPU figure. Infinity Fabric's 1075 GB/s is AMD's bidirectional per-GPU figure for an 8-way fully-connected platform. A widely-quoted 538 GB/s is the _unidirectional_ half of the same number — do not use it here.
 - **`FABRIC_SPECS` port speeds are UNIDIRECTIONAL GB/s per port.** Different table, different convention, documented in place.
 - **Every efficiency figure in this plan is derived from bandwidth by a documented formula, not measured.** Code comments must say so. Do not present them in the UI as vendor-sourced benchmarks.
 - **Commit after every task.** End every commit message with `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
@@ -31,34 +31,34 @@
 
 **Phase 1 — AMD hardware**
 
-| File | Responsibility | Action |
-|---|---|---|
-| `src/engines/types.ts` | `InterconnectType` gains `'infinity-fabric'` | Modify (line 155) |
-| `src/engines/constants.ts` | `INTERCONNECT_SPECS` entry + label | Modify (lines ~199, ~404) |
-| `src/engines/multi-gpu.ts` | `resolveInterconnect` stops aliasing AMD to PCIe-5; `validateInterconnect` label | Modify (lines 312, ~377) |
-| `scripts/fetch-gpus.ts` | Three AMD Instinct rows | Modify (after line 205) |
-| `src/data/gpus.json` | Generated output | Regenerate |
+| File                       | Responsibility                                                                   | Action                    |
+| -------------------------- | -------------------------------------------------------------------------------- | ------------------------- |
+| `src/engines/types.ts`     | `InterconnectType` gains `'infinity-fabric'`                                     | Modify (line 155)         |
+| `src/engines/constants.ts` | `INTERCONNECT_SPECS` entry + label                                               | Modify (lines ~199, ~404) |
+| `src/engines/multi-gpu.ts` | `resolveInterconnect` stops aliasing AMD to PCIe-5; `validateInterconnect` label | Modify (lines 312, ~377)  |
+| `scripts/fetch-gpus.ts`    | Three AMD Instinct rows                                                          | Modify (after line 205)   |
+| `src/data/gpus.json`       | Generated output                                                                 | Regenerate                |
 
 **Phase 2 — Multi-node**
 
-| File | Responsibility | Action |
-|---|---|---|
-| `src/engines/fabric.ts` | Scale-out fabric table + the three efficiency formulas. One responsibility: turn bandwidth into efficiency. | **Create** |
-| `src/engines/multi-node.ts` | `calculateMultiNodeVRAM` — node-level decomposition, delegates intra-node to `multi-gpu.ts` | **Create** |
-| `src/engines/types.ts` | `FabricType`; `MultiGPUVRAMBreakdown` gains the node dimension | Modify |
-| `src/engines/multi-gpu.ts` | PP KV-per-stage fix; populate new breakdown fields | Modify |
-| `src/engines/performance.ts` | Prefill roofline uses the prefill-specific efficiency | Modify (line ~155) |
-| `src/utils/schemas.ts` | `CustomFabricSchema` | Modify |
-| `src/store/uiStore.ts` | `numGPUs` means per-node; adds `numNodes`, `interNodeFabric`, `customFabric` | Modify |
-| `src/store/urlSerializer.ts` | New optional keys `nn`, `fab`, `fabc` | Modify |
-| `src/hooks/useURLSync.ts` | Restore the new keys | Modify (line ~110) |
-| `src/store/comparisonStore.ts` | Snapshot carries topology | Modify |
-| `src/components/inputs/GPUCountSelector.tsx` | "GPUs per server" + server count | Modify |
-| `src/components/inputs/NodeCountSelector.tsx` | Server-count slider | **Create** |
-| `src/components/inputs/InterNodeFabricSelector.tsx` | Fabric dropdown + custom entry | **Create** |
-| `src/components/inputs/ShardingStrategySelector.tsx` | Reads per-node, copy says "intra-node" | Modify (lines 15–41, ~130) |
-| `src/hooks/useInferenceCalculation.ts` | Call the node-aware entry point | Modify (line 345) |
-| `src/workers/calculation.worker.ts` | Same, worker side | Modify (line 192) |
+| File                                                 | Responsibility                                                                                              | Action                     |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `src/engines/fabric.ts`                              | Scale-out fabric table + the three efficiency formulas. One responsibility: turn bandwidth into efficiency. | **Create**                 |
+| `src/engines/multi-node.ts`                          | `calculateMultiNodeVRAM` — node-level decomposition, delegates intra-node to `multi-gpu.ts`                 | **Create**                 |
+| `src/engines/types.ts`                               | `FabricType`; `MultiGPUVRAMBreakdown` gains the node dimension                                              | Modify                     |
+| `src/engines/multi-gpu.ts`                           | PP KV-per-stage fix; populate new breakdown fields                                                          | Modify                     |
+| `src/engines/performance.ts`                         | Prefill roofline uses the prefill-specific efficiency                                                       | Modify (line ~155)         |
+| `src/utils/schemas.ts`                               | `CustomFabricSchema`                                                                                        | Modify                     |
+| `src/store/uiStore.ts`                               | `numGPUs` means per-node; adds `numNodes`, `interNodeFabric`, `customFabric`                                | Modify                     |
+| `src/store/urlSerializer.ts`                         | New optional keys `nn`, `fab`, `fabc`                                                                       | Modify                     |
+| `src/hooks/useURLSync.ts`                            | Restore the new keys                                                                                        | Modify (line ~110)         |
+| `src/store/comparisonStore.ts`                       | Snapshot carries topology                                                                                   | Modify                     |
+| `src/components/inputs/GPUCountSelector.tsx`         | "GPUs per server" + server count                                                                            | Modify                     |
+| `src/components/inputs/NodeCountSelector.tsx`        | Server-count slider                                                                                         | **Create**                 |
+| `src/components/inputs/InterNodeFabricSelector.tsx`  | Fabric dropdown + custom entry                                                                              | **Create**                 |
+| `src/components/inputs/ShardingStrategySelector.tsx` | Reads per-node, copy says "intra-node"                                                                      | Modify (lines 15–41, ~130) |
+| `src/hooks/useInferenceCalculation.ts`               | Call the node-aware entry point                                                                             | Modify (line 345)          |
+| `src/workers/calculation.worker.ts`                  | Same, worker side                                                                                           | Modify (line 192)          |
 
 `fabric.ts` and `multi-node.ts` are split because they change for different reasons: `fabric.ts` changes when network hardware changes, `multi-node.ts` when the parallelism model changes.
 
@@ -218,7 +218,7 @@ Leave the `'pcie-5'` direct mapping (line 303) and the datacenter tier fallback 
 In `src/engines/multi-gpu.ts`, replace the `interconnectName` ternary (lines ~376–378) inside `validateInterconnect`:
 
 ```ts
-    const interconnectName = INTERCONNECT_LABELS[spec.type] ?? spec.type
+const interconnectName = INTERCONNECT_LABELS[spec.type] ?? spec.type
 ```
 
 Add `INTERCONNECT_LABELS` to the existing import from `./constants` at the top of the file.
@@ -411,9 +411,11 @@ In `README.md`, change the GPU count from 24 to 27 and add the three accelerator
 
 ```markdown
 ### Added
+
 - AMD Instinct MI355X (288 GB HBM3E, 8 TB/s, 1400 W), MI350X (288 GB, 1000 W air-cooled) and MI325X (256 GB HBM3E, 6 TB/s) to the GPU database.
 
 ### Fixed
+
 - AMD Infinity Fabric is now modelled as its own interconnect tier (1075 GB/s, 8-way TP) instead of being aliased to PCIe 5.0 (128 GB/s). Multi-GPU VRAM estimates for AMD accelerators were previously inflated, and an 8-GPU AMD node raised a spurious tensor-parallel degradation warning.
 ```
 
@@ -471,14 +473,7 @@ Append to `src/engines/multi-gpu.test.ts`:
 ```ts
 describe('pipeline parallel KV cache sharding', () => {
   it('divides the KV cache across stages, because layers are split', () => {
-    const result = calculateMultiGPUVRAM(
-      singleGPU,
-      llama70b,
-      80,
-      4,
-      'pipeline-parallel',
-      h100SXM,
-    )
+    const result = calculateMultiGPUVRAM(singleGPU, llama70b, 80, 4, 'pipeline-parallel', h100SXM)
     expect(result.perGPU.kvCache.toString()).toBe(singleGPU.kvCache.div(4).toString())
   })
 
@@ -502,11 +497,11 @@ Expected: FAIL. The PP KV value is 4× the expected figure.
 In `src/engines/multi-gpu.ts`, replace lines 145–147:
 
 ```ts
-  // KV cache is sharded by layer: PP assigns a contiguous slice of layers to
-  // each stage, and the KV cache is per-layer, so a stage holds only its own
-  // layers' cache. (singleGPU.kvCache is the all-layer total — kv-cache.ts
-  // multiplies by num_hidden_layers.)
-  const kvCachePerGPU = singleGPU.kvCache.div(numGPUs)
+// KV cache is sharded by layer: PP assigns a contiguous slice of layers to
+// each stage, and the KV cache is per-layer, so a stage holds only its own
+// layers' cache. (singleGPU.kvCache is the all-layer total — kv-cache.ts
+// multiplies by num_hidden_layers.)
+const kvCachePerGPU = singleGPU.kvCache.div(numGPUs)
 ```
 
 - [ ] **Step 4: Update the three stale assertions**
@@ -891,10 +886,7 @@ export function pipelineBubbleEfficiency(batchSize: number, numNodes: number): n
  * Custom input with no value falls back to the 800GbE preset rather than
  * throwing: the UI can hold 'custom' selected while the field is still empty.
  */
-export function resolveFabricSpec(
-  type: FabricType,
-  custom: CustomFabricInput | null,
-): FabricSpec {
+export function resolveFabricSpec(type: FabricType, custom: CustomFabricInput | null): FabricSpec {
   if (type === 'custom') {
     if (!custom) return FABRIC_SPECS['ethernet-800g']
     return {
@@ -1034,32 +1026,32 @@ Expected: FAIL to compile — the properties do not exist on `MultiGPUVRAMBreakd
 In `src/engines/types.ts`, inside `MultiGPUVRAMBreakdown` (line 173), replace the `scalingEfficiency` line (~201-202) with:
 
 ```ts
-  /** Number of nodes (servers) in the configuration */
-  numNodes: number
-  /** GPUs in each node */
-  gpusPerNode: number
-  /** Intra-node scaling efficiency, from INTERCONNECT_SPECS */
-  intraNodeEfficiency: number
-  /** Inter-node efficiency on the decode path; 1.0 when numNodes === 1 */
-  interNodeDecodeEfficiency: number
-  /** Inter-node efficiency on the prefill path; 1.0 when numNodes === 1 */
-  interNodePrefillEfficiency: number
-  /** Pipeline fill/drain efficiency; 1.0 when numNodes === 1 */
-  bubbleEfficiency: number
-  /**
-   * Combined efficiency for the DECODE roofline
-   *
-   * intraNodeEfficiency * interNodeDecodeEfficiency * bubbleEfficiency.
-   * Keeps its original name so performance.ts's decode site is unchanged.
-   */
-  scalingEfficiency: number
-  /**
-   * Combined efficiency for the PREFILL roofline
-   *
-   * intraNodeEfficiency * interNodePrefillEfficiency * bubbleEfficiency.
-   * Differs from scalingEfficiency only when numNodes > 1.
-   */
-  prefillScalingEfficiency: number
+/** Number of nodes (servers) in the configuration */
+numNodes: number
+/** GPUs in each node */
+gpusPerNode: number
+/** Intra-node scaling efficiency, from INTERCONNECT_SPECS */
+intraNodeEfficiency: number
+/** Inter-node efficiency on the decode path; 1.0 when numNodes === 1 */
+interNodeDecodeEfficiency: number
+/** Inter-node efficiency on the prefill path; 1.0 when numNodes === 1 */
+interNodePrefillEfficiency: number
+/** Pipeline fill/drain efficiency; 1.0 when numNodes === 1 */
+bubbleEfficiency: number
+/**
+ * Combined efficiency for the DECODE roofline
+ *
+ * intraNodeEfficiency * interNodeDecodeEfficiency * bubbleEfficiency.
+ * Keeps its original name so performance.ts's decode site is unchanged.
+ */
+scalingEfficiency: number
+/**
+ * Combined efficiency for the PREFILL roofline
+ *
+ * intraNodeEfficiency * interNodePrefillEfficiency * bubbleEfficiency.
+ * Differs from scalingEfficiency only when numNodes > 1.
+ */
+prefillScalingEfficiency: number
 ```
 
 - [ ] **Step 4: Populate the fields at all three return sites**
@@ -1223,14 +1215,7 @@ const base = {
 describe('calculateMultiNodeVRAM', () => {
   it('is an exact passthrough at one node — the regression guard', () => {
     const multiNode = calculateMultiNodeVRAM({ ...base, gpusPerNode: 8, numNodes: 1 })
-    const multiGPU = calculateMultiGPUVRAM(
-      singleGPU,
-      llama70b,
-      288,
-      8,
-      'tensor-parallel',
-      mi355x,
-    )
+    const multiGPU = calculateMultiGPUVRAM(singleGPU, llama70b, 288, 8, 'tensor-parallel', mi355x)
     expect(multiNode.totalPerGPU.toString()).toBe(multiGPU.totalPerGPU.toString())
     expect(multiNode.scalingEfficiency).toBe(multiGPU.scalingEfficiency)
     expect(multiNode.prefillScalingEfficiency).toBe(multiGPU.prefillScalingEfficiency)
@@ -1311,7 +1296,7 @@ Expected: FAIL — `Cannot find module '@engines/multi-node'`.
 
 Create `src/engines/multi-node.ts`:
 
-```ts
+````ts
 import type { GPU, Model } from '@utils/schemas'
 import { PP_ACTIVATION_STASHING_OVERHEAD } from './constants'
 import {
@@ -1385,14 +1370,7 @@ export function calculateMultiNodeVRAM(params: {
   // Single node: delegate unchanged. This is the regression guard for the whole
   // feature — one node must produce byte-identical results to before it existed.
   if (numNodes === 1) {
-    return calculateMultiGPUVRAM(
-      singleGPU,
-      model,
-      gpuVramGB,
-      gpusPerNode,
-      intraNodeStrategy,
-      gpu,
-    )
+    return calculateMultiGPUVRAM(singleGPU, model, gpuVramGB, gpusPerNode, intraNodeStrategy, gpu)
   }
 
   // Pipeline parallelism across nodes: each node owns a contiguous slice of
@@ -1433,12 +1411,11 @@ export function calculateMultiNodeVRAM(params: {
     interNodePrefillEfficiency,
     bubbleEfficiency,
     scalingEfficiency: intraNodeEfficiency * interNodeDecodeEfficiency * bubbleEfficiency,
-    prefillScalingEfficiency:
-      intraNodeEfficiency * interNodePrefillEfficiency * bubbleEfficiency,
+    prefillScalingEfficiency: intraNodeEfficiency * interNodePrefillEfficiency * bubbleEfficiency,
     singleGPUBaseline: singleGPU.total,
   }
 }
-```
+````
 
 Add `import Decimal from 'decimal.js'` at the top — the activation term constructs one.
 
@@ -1548,21 +1525,21 @@ Expected: FAIL — `timeToFirstToken` is identical in both cases, because prefil
 In `src/engines/performance.ts`, in the prefill block (line ~155), replace:
 
 ```ts
-    if (multiGPUResult && multiGPUResult.numGPUs > 1) {
-      effectiveFLOPS = effectiveFLOPS
-        .mul(multiGPUResult.numGPUs)
-        .mul(multiGPUResult.prefillScalingEfficiency)
-    }
+if (multiGPUResult && multiGPUResult.numGPUs > 1) {
+  effectiveFLOPS = effectiveFLOPS
+    .mul(multiGPUResult.numGPUs)
+    .mul(multiGPUResult.prefillScalingEfficiency)
+}
 ```
 
 Leave the decode site (line ~104) reading `scalingEfficiency` — that is now explicitly the decode-path product, and the comment above it should say so:
 
 ```ts
-  // 4b. Apply multi-GPU scaling: effective TPS = single-GPU TPS × numGPUs ×
-  //     scalingEfficiency. scalingEfficiency is the DECODE-path product; the
-  //     prefill roofline below uses prefillScalingEfficiency instead, because a
-  //     decode hop across nodes is latency-bound and near-free while prefill is
-  //     bandwidth-bound.
+// 4b. Apply multi-GPU scaling: effective TPS = single-GPU TPS × numGPUs ×
+//     scalingEfficiency. scalingEfficiency is the DECODE-path product; the
+//     prefill roofline below uses prefillScalingEfficiency instead, because a
+//     decode hop across nodes is latency-bound and near-free while prefill is
+//     bandwidth-bound.
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -1619,7 +1596,12 @@ Append to `src/store/urlSerializer.test.ts`:
 ```ts
 describe('multi-node URL state', () => {
   it('round-trips the node topology', () => {
-    const hash = serializeToURL({ ...baseState, numGPUs: 8, numNodes: 4, interNodeFabric: 'ethernet-1600g' })
+    const hash = serializeToURL({
+      ...baseState,
+      numGPUs: 8,
+      numNodes: 4,
+      interNodeFabric: 'ethernet-1600g',
+    })
     const decoded = deserializeFromURL(hash)
     expect(decoded?.ng).toBe(8)
     expect(decoded?.nn).toBe(4)
@@ -1698,9 +1680,9 @@ Also update the `ng` comment on line 49 to `// numGPUs — PER NODE since v1.10`
 In the parameter type (after `numGPUs: number`):
 
 ```ts
-  numNodes: number
-  interNodeFabric: FabricType
-  customFabric: CustomFabricInput | null
+numNodes: number
+interNodeFabric: FabricType
+customFabric: CustomFabricInput | null
 ```
 
 and in the returned `urlState` object, after `ss: state.shardingStrategy,`:
@@ -1730,16 +1712,16 @@ Expected: PASS.
 In `src/store/uiStore.ts`, in the state interface replace the multi-GPU block (lines ~47-50):
 
 ```ts
-  // Multi-GPU parameters (persisted)
-  /** GPUs per node. Was the total GPU count before multi-node; 1 node x N GPUs
-   *  is the same configuration, so persisted state needs no migration. */
-  numGPUs: number
-  shardingStrategy: ShardingStrategy
+// Multi-GPU parameters (persisted)
+/** GPUs per node. Was the total GPU count before multi-node; 1 node x N GPUs
+ *  is the same configuration, so persisted state needs no migration. */
+numGPUs: number
+shardingStrategy: ShardingStrategy
 
-  // Multi-node parameters (persisted)
-  numNodes: number
-  interNodeFabric: FabricType
-  customFabric: CustomFabricInput | null
+// Multi-node parameters (persisted)
+numNodes: number
+interNodeFabric: FabricType
+customFabric: CustomFabricInput | null
 ```
 
 In the actions interface, after `setNumGPUs`:
@@ -1773,10 +1755,10 @@ No persist `migrate` function is needed. Zustand's persist merges stored state o
 In `src/hooks/useURLSync.ts`, after line 111 (`store.setShardingStrategy(...)`):
 
 ```ts
-    // Multi-node (absent = single node, for links created before the feature)
-    store.setNumNodes(urlState.nn ?? 1)
-    if (urlState.fab) store.setInterNodeFabric(urlState.fab)
-    if (urlState.fabc) store.setCustomFabric(urlState.fabc)
+// Multi-node (absent = single node, for links created before the feature)
+store.setNumNodes(urlState.nn ?? 1)
+if (urlState.fab) store.setInterNodeFabric(urlState.fab)
+if (urlState.fabc) store.setCustomFabric(urlState.fabc)
 ```
 
 - [ ] **Step 8: Carry topology into saved comparisons**
@@ -1784,8 +1766,8 @@ In `src/hooks/useURLSync.ts`, after line 111 (`store.setShardingStrategy(...)`):
 In `src/store/comparisonStore.ts`, in the snapshot type at line 19, after `numGPUs: number`:
 
 ```ts
-    numNodes: number
-    interNodeFabric: FabricType
+numNodes: number
+interNodeFabric: FabricType
 ```
 
 Add the `FabricType` import, and update every site that builds a snapshot to populate both fields. Run `rtk proxy npm run typecheck` to find them — TypeScript names each one. Without this, two saved comparisons with different topologies would compare as identical.
@@ -1847,17 +1829,19 @@ In `src/components/inputs/GPUCountSelector.tsx`, update the doc comment, the lab
 Label: `GPUs per server`. Tooltip text:
 
 ```tsx
-<InfoTip text="GPUs inside one server. Tensor parallelism runs at this level, over NVLink or Infinity Fabric. Capped at 8 — that is the size of a fully connected GPU domain in current hardware." />
+;<InfoTip text="GPUs inside one server. Tensor parallelism runs at this level, over NVLink or Infinity Fabric. Capped at 8 — that is the size of a fully connected GPU domain in current hardware." />
 ```
 
 Footnote — replace the `numGPUs > 1 &&` block:
 
 ```tsx
-      {numGPUs > 1 && (
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {numGPUs} GPUs per server, tensor parallel
-        </p>
-      )}
+{
+  numGPUs > 1 && (
+    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      {numGPUs} GPUs per server, tensor parallel
+    </p>
+  )
+}
 ```
 
 - [ ] **Step 2: Create the server-count selector**
@@ -1999,8 +1983,8 @@ export function InterNodeFabricSelector() {
           />
           {customFabric && (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {perNodeFabricGBps(customFabric.port_gbps, numGPUs)} GB/s per server across{' '}
-              {numGPUs} NICs
+              {perNodeFabricGBps(customFabric.port_gbps, numGPUs)} GB/s per server across {numGPUs}{' '}
+              NICs
             </p>
           )}
         </div>
@@ -2139,41 +2123,41 @@ Expected: FAIL — import error or missing fixture.
 In `src/hooks/useInferenceCalculation.ts`, add the store reads near line 230 alongside the existing `interconnectOverride` read:
 
 ```ts
-  const numNodes = useUIStore((s) => s.numNodes)
-  const interNodeFabric = useUIStore((s) => s.interNodeFabric)
-  const customFabric = useUIStore((s) => s.customFabric)
+const numNodes = useUIStore((s) => s.numNodes)
+const interNodeFabric = useUIStore((s) => s.interNodeFabric)
+const customFabric = useUIStore((s) => s.customFabric)
 ```
 
 Replace the multi-GPU block (lines ~339-359):
 
 ```ts
-        let multiGPU = null
-        let interconnectWarning = null
-        const gpusPerNode = numGPUs ?? 1
-        const effectiveNumNodes = numNodes ?? 1
-        const effectiveStrategy = shardingStrategy ?? 'tensor-parallel'
-        if (gpusPerNode > 1 || effectiveNumNodes > 1) {
-          const baseBreakdown = offloading ? offloading.onDevice : vram
-          multiGPU = multiNodeModule.calculateMultiNodeVRAM({
-            singleGPU: baseBreakdown,
-            model,
-            gpuVramGB: effectiveGPU.vram_gb,
-            gpusPerNode,
-            numNodes: effectiveNumNodes,
-            intraNodeStrategy: effectiveStrategy,
-            gpu: effectiveGPU,
-            fabric: fabricModule.resolveFabricSpec(interNodeFabric, customFabric),
-            batchSize,
-          })
-          // Validation is per-node: the interconnect bounds apply inside a
-          // server, not across the cluster.
-          const validation = multiGPUModule.validateInterconnect(
-            effectiveGPU,
-            gpusPerNode,
-            effectiveStrategy,
-          )
-          interconnectWarning = validation.warning
-        }
+let multiGPU = null
+let interconnectWarning = null
+const gpusPerNode = numGPUs ?? 1
+const effectiveNumNodes = numNodes ?? 1
+const effectiveStrategy = shardingStrategy ?? 'tensor-parallel'
+if (gpusPerNode > 1 || effectiveNumNodes > 1) {
+  const baseBreakdown = offloading ? offloading.onDevice : vram
+  multiGPU = multiNodeModule.calculateMultiNodeVRAM({
+    singleGPU: baseBreakdown,
+    model,
+    gpuVramGB: effectiveGPU.vram_gb,
+    gpusPerNode,
+    numNodes: effectiveNumNodes,
+    intraNodeStrategy: effectiveStrategy,
+    gpu: effectiveGPU,
+    fabric: fabricModule.resolveFabricSpec(interNodeFabric, customFabric),
+    batchSize,
+  })
+  // Validation is per-node: the interconnect bounds apply inside a
+  // server, not across the cluster.
+  const validation = multiGPUModule.validateInterconnect(
+    effectiveGPU,
+    gpusPerNode,
+    effectiveStrategy,
+  )
+  interconnectWarning = validation.warning
+}
 ```
 
 Add `multiNodeModule` and `fabricModule` to the existing dynamic-import block that already produces `multiGPUModule` — match its exact `import()` style rather than introducing a static import, since that block exists to keep the engines out of the initial bundle.
@@ -2193,30 +2177,30 @@ import { resolveFabricSpec } from '../engines/fabric'
 Replace the multi-GPU block (lines ~186-204):
 
 ```ts
-      let multiGPUResult = null
-      let interconnectWarning = null
+let multiGPUResult = null
+let interconnectWarning = null
 
-      const gpusPerNode = numGPUs
-      const nodes = numNodes ?? 1
+const gpusPerNode = numGPUs
+const nodes = numNodes ?? 1
 
-      if (gpusPerNode > 1 || nodes > 1) {
-        const baseBreakdown = offloadingResult ? offloadingResult.onDevice : vramBreakdown
+if (gpusPerNode > 1 || nodes > 1) {
+  const baseBreakdown = offloadingResult ? offloadingResult.onDevice : vramBreakdown
 
-        multiGPUResult = calculateMultiNodeVRAM({
-          singleGPU: baseBreakdown,
-          model,
-          gpuVramGB: gpu.vram_gb,
-          gpusPerNode,
-          numNodes: nodes,
-          intraNodeStrategy: shardingStrategy,
-          gpu,
-          fabric: resolveFabricSpec(interNodeFabric ?? 'ethernet-800g', customFabric ?? null),
-          batchSize,
-        })
+  multiGPUResult = calculateMultiNodeVRAM({
+    singleGPU: baseBreakdown,
+    model,
+    gpuVramGB: gpu.vram_gb,
+    gpusPerNode,
+    numNodes: nodes,
+    intraNodeStrategy: shardingStrategy,
+    gpu,
+    fabric: resolveFabricSpec(interNodeFabric ?? 'ethernet-800g', customFabric ?? null),
+    batchSize,
+  })
 
-        const validation = validateInterconnect(gpu, gpusPerNode, shardingStrategy)
-        interconnectWarning = validation.warning
-      }
+  const validation = validateInterconnect(gpu, gpusPerNode, shardingStrategy)
+  interconnectWarning = validation.warning
+}
 ```
 
 Add `numNodes`, `interNodeFabric` and `customFabric` to the worker's inbound message type and to whatever posts to it. Run `rtk proxy npm run typecheck` to find the sender. If `calculateMultiGPUVRAM` is now unused in the worker, drop it from the import — unused imports are a Biome error.
@@ -2274,20 +2258,22 @@ Run: `grep -rln "multiGPU" src/components/outputs`
 In the component that renders the multi-GPU breakdown, add — inside the block that already guards on a multi-GPU result being present:
 
 ```tsx
-{multiGPU.numNodes > 1 && (
-  <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
-    <p>
-      {multiGPU.numNodes} servers × {multiGPU.gpusPerNode} GPUs = {multiGPU.numGPUs} GPUs ·
-      tensor parallel within each server, pipeline parallel across them
-    </p>
-    <p>
-      Efficiency: {(multiGPU.intraNodeEfficiency * 100).toFixed(0)}% intra-server ·{' '}
-      {(multiGPU.interNodePrefillEfficiency * 100).toFixed(0)}% inter-server on prefill ·{' '}
-      {(multiGPU.interNodeDecodeEfficiency * 100).toFixed(0)}% on decode ·{' '}
-      {(multiGPU.bubbleEfficiency * 100).toFixed(0)}% pipeline fill
-    </p>
-  </div>
-)}
+{
+  multiGPU.numNodes > 1 && (
+    <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+      <p>
+        {multiGPU.numNodes} servers × {multiGPU.gpusPerNode} GPUs = {multiGPU.numGPUs} GPUs · tensor
+        parallel within each server, pipeline parallel across them
+      </p>
+      <p>
+        Efficiency: {(multiGPU.intraNodeEfficiency * 100).toFixed(0)}% intra-server ·{' '}
+        {(multiGPU.interNodePrefillEfficiency * 100).toFixed(0)}% inter-server on prefill ·{' '}
+        {(multiGPU.interNodeDecodeEfficiency * 100).toFixed(0)}% on decode ·{' '}
+        {(multiGPU.bubbleEfficiency * 100).toFixed(0)}% pipeline fill
+      </p>
+    </div>
+  )
+}
 ```
 
 - [ ] **Step 3: Add the pitfalls entries**
@@ -2337,9 +2323,11 @@ In `CHANGELOG.md`, under the same Unreleased heading Task 2 created:
 
 ```markdown
 ### Added
+
 - Multi-node inference: configure GPUs per server and server count, with a selectable scale-out fabric (1.6TbE / 800GbE SONiC RoCEv2, InfiniBand XDR/NDR, 400GbE, 100GbE, or a custom port speed). Tensor parallelism runs inside a server, pipeline parallelism across servers.
 
 ### Fixed
+
 - Pipeline parallelism no longer replicates the full all-layer KV cache on every stage. Each stage owns a slice of layers, so it holds only that slice's cache. The previous behaviour overstated the KV term by the stage count.
 - The prefill roofline now uses a prefill-specific scaling efficiency. A single efficiency applied to both rooflines penalized decode throughput and flattered time-to-first-token in multi-node configurations.
 ```
@@ -2375,17 +2363,17 @@ EOF
 
 **Spec coverage:**
 
-| Spec section | Task |
-|---|---|
-| Finding A — PP KV cache | Task 3 |
-| Finding B — split rooflines | Tasks 5, 7 |
-| §1 GPU data | Task 2 |
-| §2 Infinity Fabric | Task 1 |
-| §3 Fabric tier, formulas, custom entry, bubble | Task 4 |
-| §4 Compose-not-extend, breakdown fields | Tasks 5, 6 |
-| §5 Store, URL, comparison, UI | Tasks 8, 9, 10 |
-| §6 Testing and docs | Tasks 3–11; docs in 2 and 11 |
-| §7 Sequencing | Phase 1 = Tasks 1–2; Phase 2 = Tasks 3–11 |
+| Spec section                                   | Task                                      |
+| ---------------------------------------------- | ----------------------------------------- |
+| Finding A — PP KV cache                        | Task 3                                    |
+| Finding B — split rooflines                    | Tasks 5, 7                                |
+| §1 GPU data                                    | Task 2                                    |
+| §2 Infinity Fabric                             | Task 1                                    |
+| §3 Fabric tier, formulas, custom entry, bubble | Task 4                                    |
+| §4 Compose-not-extend, breakdown fields        | Tasks 5, 6                                |
+| §5 Store, URL, comparison, UI                  | Tasks 8, 9, 10                            |
+| §6 Testing and docs                            | Tasks 3–11; docs in 2 and 11              |
+| §7 Sequencing                                  | Phase 1 = Tasks 1–2; Phase 2 = Tasks 3–11 |
 
 No gaps.
 

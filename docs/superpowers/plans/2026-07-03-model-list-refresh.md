@@ -27,19 +27,206 @@ This exact JSON is used verbatim in Task 2. (Order here is grouped by family; th
 
 ```json
 [
-  { "id": "google-gemma-4-31b", "name": "Gemma 4 31B", "architecture": "dense", "num_parameters_billion": 32.7, "hidden_size": 5376, "num_hidden_layers": 60, "num_attention_heads": 32, "num_kv_heads": 16, "intermediate_size": 21504, "context_length": 262144, "license": "Apache-2.0", "hf_url": "https://huggingface.co/google/gemma-4-31B-it" },
-  { "id": "google-gemma-4-12b", "name": "Gemma 4 12B", "architecture": "dense", "num_parameters_billion": 12.0, "hidden_size": 3840, "num_hidden_layers": 48, "num_attention_heads": 16, "num_kv_heads": 8, "intermediate_size": 15360, "context_length": 262144, "license": "Apache-2.0", "hf_url": "https://huggingface.co/google/gemma-4-12B-it" },
-  { "id": "google-gemma-4-26b-a4b", "name": "Gemma 4 26B A4B", "architecture": "moe", "num_parameters_billion": 26.5, "hidden_size": 2816, "num_hidden_layers": 30, "num_attention_heads": 16, "num_kv_heads": 8, "intermediate_size": 2112, "num_experts": 128, "num_experts_per_token": 8, "context_length": 262144, "license": "Apache-2.0", "hf_url": "https://huggingface.co/google/gemma-4-26B-A4B-it" },
-  { "id": "qwen-qwen3.6-27b", "name": "Qwen3.6 27B", "architecture": "dense", "num_parameters_billion": 27.8, "hidden_size": 5120, "num_hidden_layers": 64, "num_attention_heads": 24, "num_kv_heads": 4, "intermediate_size": 17408, "context_length": 262144, "license": "Apache-2.0", "hf_url": "https://huggingface.co/Qwen/Qwen3.6-27B" },
-  { "id": "qwen-qwen3.6-35b-a3b", "name": "Qwen3.6 35B A3B", "architecture": "moe", "num_parameters_billion": 36.0, "hidden_size": 2048, "num_hidden_layers": 40, "num_attention_heads": 16, "num_kv_heads": 2, "intermediate_size": 512, "num_experts": 256, "num_experts_per_token": 8, "context_length": 262144, "license": "Apache-2.0", "hf_url": "https://huggingface.co/Qwen/Qwen3.6-35B-A3B" },
-  { "id": "deepseek-v4-flash", "name": "DeepSeek V4 Flash", "architecture": "moe", "num_parameters_billion": 158.1, "hidden_size": 4096, "num_hidden_layers": 43, "num_attention_heads": 64, "num_kv_heads": 1, "intermediate_size": 2048, "num_experts": 256, "num_experts_per_token": 6, "context_length": 1048576, "license": "MIT", "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash" },
-  { "id": "deepseek-v4-pro", "name": "DeepSeek V4 Pro", "architecture": "moe", "num_parameters_billion": 861.6, "hidden_size": 7168, "num_hidden_layers": 61, "num_attention_heads": 128, "num_kv_heads": 1, "intermediate_size": 3072, "num_experts": 384, "num_experts_per_token": 6, "context_length": 1048576, "license": "MIT", "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro" },
-  { "id": "zai-org-glm-5.2", "name": "GLM 5.2", "architecture": "moe", "num_parameters_billion": 753.3, "hidden_size": 6144, "num_hidden_layers": 78, "num_attention_heads": 64, "num_kv_heads": 64, "intermediate_size": 12288, "num_experts": 256, "num_experts_per_token": 8, "context_length": 1048576, "license": "MIT", "hf_url": "https://huggingface.co/zai-org/GLM-5.2" },
-  { "id": "moonshotai-kimi-k2-thinking", "name": "Kimi K2 Thinking", "architecture": "moe", "num_parameters_billion": 1058.1, "hidden_size": 7168, "num_hidden_layers": 61, "num_attention_heads": 64, "num_kv_heads": 64, "intermediate_size": 18432, "num_experts": 384, "num_experts_per_token": 8, "context_length": 262144, "license": "Modified MIT", "hf_url": "https://huggingface.co/moonshotai/Kimi-K2-Thinking" },
-  { "id": "moonshotai-kimi-linear-48b-a3b", "name": "Kimi Linear 48B A3B", "architecture": "moe", "num_parameters_billion": 49.1, "hidden_size": 2304, "num_hidden_layers": 27, "num_attention_heads": 32, "num_kv_heads": 32, "intermediate_size": 9216, "num_experts": 256, "num_experts_per_token": 8, "context_length": 1048576, "license": "MIT", "hf_url": "https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct" },
-  { "id": "mistralai-mistral-medium-3.5-128b", "name": "Mistral Medium 3.5 128B", "architecture": "dense", "num_parameters_billion": 127.7, "hidden_size": 12288, "num_hidden_layers": 88, "num_attention_heads": 96, "num_kv_heads": 8, "intermediate_size": 28672, "context_length": 262144, "license": "Mistral Research License", "hf_url": "https://huggingface.co/mistralai/Mistral-Medium-3.5-128B" },
-  { "id": "minimax-m3", "name": "MiniMax M3", "architecture": "moe", "num_parameters_billion": 427.0, "hidden_size": 6144, "num_hidden_layers": 60, "num_attention_heads": 64, "num_kv_heads": 4, "intermediate_size": 12288, "num_experts": 128, "num_experts_per_token": 4, "context_length": 1048576, "license": "MiniMax", "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M3" },
-  { "id": "nvidia-nemotron-3-ultra-550b-a55b", "name": "Nemotron 3 Ultra 550B A55B", "architecture": "moe", "num_parameters_billion": 560.5, "hidden_size": 8192, "num_hidden_layers": 128, "num_attention_heads": 64, "num_kv_heads": 2, "intermediate_size": 5120, "num_experts": 512, "num_experts_per_token": 22, "context_length": 262144, "license": "other", "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16" }
+  {
+    "id": "google-gemma-4-31b",
+    "name": "Gemma 4 31B",
+    "architecture": "dense",
+    "num_parameters_billion": 32.7,
+    "hidden_size": 5376,
+    "num_hidden_layers": 60,
+    "num_attention_heads": 32,
+    "num_kv_heads": 16,
+    "intermediate_size": 21504,
+    "context_length": 262144,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/google/gemma-4-31B-it"
+  },
+  {
+    "id": "google-gemma-4-12b",
+    "name": "Gemma 4 12B",
+    "architecture": "dense",
+    "num_parameters_billion": 12.0,
+    "hidden_size": 3840,
+    "num_hidden_layers": 48,
+    "num_attention_heads": 16,
+    "num_kv_heads": 8,
+    "intermediate_size": 15360,
+    "context_length": 262144,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/google/gemma-4-12B-it"
+  },
+  {
+    "id": "google-gemma-4-26b-a4b",
+    "name": "Gemma 4 26B A4B",
+    "architecture": "moe",
+    "num_parameters_billion": 26.5,
+    "hidden_size": 2816,
+    "num_hidden_layers": 30,
+    "num_attention_heads": 16,
+    "num_kv_heads": 8,
+    "intermediate_size": 2112,
+    "num_experts": 128,
+    "num_experts_per_token": 8,
+    "context_length": 262144,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/google/gemma-4-26B-A4B-it"
+  },
+  {
+    "id": "qwen-qwen3.6-27b",
+    "name": "Qwen3.6 27B",
+    "architecture": "dense",
+    "num_parameters_billion": 27.8,
+    "hidden_size": 5120,
+    "num_hidden_layers": 64,
+    "num_attention_heads": 24,
+    "num_kv_heads": 4,
+    "intermediate_size": 17408,
+    "context_length": 262144,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/Qwen/Qwen3.6-27B"
+  },
+  {
+    "id": "qwen-qwen3.6-35b-a3b",
+    "name": "Qwen3.6 35B A3B",
+    "architecture": "moe",
+    "num_parameters_billion": 36.0,
+    "hidden_size": 2048,
+    "num_hidden_layers": 40,
+    "num_attention_heads": 16,
+    "num_kv_heads": 2,
+    "intermediate_size": 512,
+    "num_experts": 256,
+    "num_experts_per_token": 8,
+    "context_length": 262144,
+    "license": "Apache-2.0",
+    "hf_url": "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+  },
+  {
+    "id": "deepseek-v4-flash",
+    "name": "DeepSeek V4 Flash",
+    "architecture": "moe",
+    "num_parameters_billion": 158.1,
+    "hidden_size": 4096,
+    "num_hidden_layers": 43,
+    "num_attention_heads": 64,
+    "num_kv_heads": 1,
+    "intermediate_size": 2048,
+    "num_experts": 256,
+    "num_experts_per_token": 6,
+    "context_length": 1048576,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash"
+  },
+  {
+    "id": "deepseek-v4-pro",
+    "name": "DeepSeek V4 Pro",
+    "architecture": "moe",
+    "num_parameters_billion": 861.6,
+    "hidden_size": 7168,
+    "num_hidden_layers": 61,
+    "num_attention_heads": 128,
+    "num_kv_heads": 1,
+    "intermediate_size": 3072,
+    "num_experts": 384,
+    "num_experts_per_token": 6,
+    "context_length": 1048576,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro"
+  },
+  {
+    "id": "zai-org-glm-5.2",
+    "name": "GLM 5.2",
+    "architecture": "moe",
+    "num_parameters_billion": 753.3,
+    "hidden_size": 6144,
+    "num_hidden_layers": 78,
+    "num_attention_heads": 64,
+    "num_kv_heads": 64,
+    "intermediate_size": 12288,
+    "num_experts": 256,
+    "num_experts_per_token": 8,
+    "context_length": 1048576,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/zai-org/GLM-5.2"
+  },
+  {
+    "id": "moonshotai-kimi-k2-thinking",
+    "name": "Kimi K2 Thinking",
+    "architecture": "moe",
+    "num_parameters_billion": 1058.1,
+    "hidden_size": 7168,
+    "num_hidden_layers": 61,
+    "num_attention_heads": 64,
+    "num_kv_heads": 64,
+    "intermediate_size": 18432,
+    "num_experts": 384,
+    "num_experts_per_token": 8,
+    "context_length": 262144,
+    "license": "Modified MIT",
+    "hf_url": "https://huggingface.co/moonshotai/Kimi-K2-Thinking"
+  },
+  {
+    "id": "moonshotai-kimi-linear-48b-a3b",
+    "name": "Kimi Linear 48B A3B",
+    "architecture": "moe",
+    "num_parameters_billion": 49.1,
+    "hidden_size": 2304,
+    "num_hidden_layers": 27,
+    "num_attention_heads": 32,
+    "num_kv_heads": 32,
+    "intermediate_size": 9216,
+    "num_experts": 256,
+    "num_experts_per_token": 8,
+    "context_length": 1048576,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct"
+  },
+  {
+    "id": "mistralai-mistral-medium-3.5-128b",
+    "name": "Mistral Medium 3.5 128B",
+    "architecture": "dense",
+    "num_parameters_billion": 127.7,
+    "hidden_size": 12288,
+    "num_hidden_layers": 88,
+    "num_attention_heads": 96,
+    "num_kv_heads": 8,
+    "intermediate_size": 28672,
+    "context_length": 262144,
+    "license": "Mistral Research License",
+    "hf_url": "https://huggingface.co/mistralai/Mistral-Medium-3.5-128B"
+  },
+  {
+    "id": "minimax-m3",
+    "name": "MiniMax M3",
+    "architecture": "moe",
+    "num_parameters_billion": 427.0,
+    "hidden_size": 6144,
+    "num_hidden_layers": 60,
+    "num_attention_heads": 64,
+    "num_kv_heads": 4,
+    "intermediate_size": 12288,
+    "num_experts": 128,
+    "num_experts_per_token": 4,
+    "context_length": 1048576,
+    "license": "MiniMax",
+    "hf_url": "https://huggingface.co/MiniMaxAI/MiniMax-M3"
+  },
+  {
+    "id": "nvidia-nemotron-3-ultra-550b-a55b",
+    "name": "Nemotron 3 Ultra 550B A55B",
+    "architecture": "moe",
+    "num_parameters_billion": 560.5,
+    "hidden_size": 8192,
+    "num_hidden_layers": 128,
+    "num_attention_heads": 64,
+    "num_kv_heads": 2,
+    "intermediate_size": 5120,
+    "num_experts": 512,
+    "num_experts_per_token": 22,
+    "context_length": 262144,
+    "license": "other",
+    "hf_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16"
+  }
 ]
 ```
 
@@ -75,31 +262,31 @@ Rationale: the current test hard-codes presence of retired families (LLaMA 2, Mi
 In `src/utils/models.test.ts`, replace this block:
 
 ```typescript
-  it('should include LLaMA 2 variants', () => {
-    const llama2Models = modelsData.filter((m) => m.name.includes('LLaMA 2'))
-    expect(llama2Models.length).toBeGreaterThanOrEqual(3)
-  })
+it('should include LLaMA 2 variants', () => {
+  const llama2Models = modelsData.filter((m) => m.name.includes('LLaMA 2'))
+  expect(llama2Models.length).toBeGreaterThanOrEqual(3)
+})
 
-  it('should include LLaMA 3 variants', () => {
-    const llama3Models = modelsData.filter((m) => m.name.includes('LLaMA 3'))
-    expect(llama3Models.length).toBeGreaterThanOrEqual(3)
-  })
+it('should include LLaMA 3 variants', () => {
+  const llama3Models = modelsData.filter((m) => m.name.includes('LLaMA 3'))
+  expect(llama3Models.length).toBeGreaterThanOrEqual(3)
+})
 ```
 
 with:
 
 ```typescript
-  it('should include Gemma 4 variants', () => {
-    const gemma4Models = modelsData.filter((m) => m.name.includes('Gemma 4'))
-    expect(gemma4Models.length).toBeGreaterThanOrEqual(3)
-  })
+it('should include Gemma 4 variants', () => {
+  const gemma4Models = modelsData.filter((m) => m.name.includes('Gemma 4'))
+  expect(gemma4Models.length).toBeGreaterThanOrEqual(3)
+})
 
-  it('should include LLaMA 3 / Llama 4 variants', () => {
-    const llamaModels = modelsData.filter(
-      (m) => m.name.includes('LLaMA 3') || m.name.includes('Llama 4'),
-    )
-    expect(llamaModels.length).toBeGreaterThanOrEqual(3)
-  })
+it('should include LLaMA 3 / Llama 4 variants', () => {
+  const llamaModels = modelsData.filter(
+    (m) => m.name.includes('LLaMA 3') || m.name.includes('Llama 4'),
+  )
+  expect(llamaModels.length).toBeGreaterThanOrEqual(3)
+})
 ```
 
 - [ ] **Step 2: Re-point the MoE-pitfall test to Qwen3.6 35B A3B**
@@ -107,29 +294,29 @@ with:
 Replace this block:
 
 ```typescript
-  it('should include Mixtral MoE models with correct total parameters', () => {
-    const mixtral8x7b = modelsData.find((m) => m.id.includes('mixtral-8x7b'))
-    expect(mixtral8x7b).toBeDefined()
-    expect(mixtral8x7b?.architecture).toBe('moe')
-    // Must be 46.7B (total), NOT 13B (active) - research pitfall #1
-    expect(mixtral8x7b?.num_parameters_billion).toBeCloseTo(46.7, 1)
-    expect(mixtral8x7b?.num_experts).toBe(8)
-    expect(mixtral8x7b?.num_experts_per_token).toBe(2)
-  })
+it('should include Mixtral MoE models with correct total parameters', () => {
+  const mixtral8x7b = modelsData.find((m) => m.id.includes('mixtral-8x7b'))
+  expect(mixtral8x7b).toBeDefined()
+  expect(mixtral8x7b?.architecture).toBe('moe')
+  // Must be 46.7B (total), NOT 13B (active) - research pitfall #1
+  expect(mixtral8x7b?.num_parameters_billion).toBeCloseTo(46.7, 1)
+  expect(mixtral8x7b?.num_experts).toBe(8)
+  expect(mixtral8x7b?.num_experts_per_token).toBe(2)
+})
 ```
 
 with:
 
 ```typescript
-  it('should store MoE models with TOTAL parameters, not active', () => {
-    const qwenMoe = modelsData.find((m) => m.id === 'qwen-qwen3.6-35b-a3b')
-    expect(qwenMoe).toBeDefined()
-    expect(qwenMoe?.architecture).toBe('moe')
-    // 36.0B total (all experts), NOT ~3B active - research pitfall #1
-    expect(qwenMoe?.num_parameters_billion).toBeCloseTo(36.0, 1)
-    expect(qwenMoe?.num_experts).toBe(256)
-    expect(qwenMoe?.num_experts_per_token).toBe(8)
-  })
+it('should store MoE models with TOTAL parameters, not active', () => {
+  const qwenMoe = modelsData.find((m) => m.id === 'qwen-qwen3.6-35b-a3b')
+  expect(qwenMoe).toBeDefined()
+  expect(qwenMoe?.architecture).toBe('moe')
+  // 36.0B total (all experts), NOT ~3B active - research pitfall #1
+  expect(qwenMoe?.num_parameters_billion).toBeCloseTo(36.0, 1)
+  expect(qwenMoe?.num_experts).toBe(256)
+  expect(qwenMoe?.num_experts_per_token).toBe(8)
+})
 ```
 
 - [ ] **Step 3: Replace the Phi and Command-R presence tests with current families**
@@ -137,37 +324,37 @@ with:
 Replace this block:
 
 ```typescript
-  it('should include Phi models', () => {
-    const phiModels = modelsData.filter((m) => m.name.includes('Phi'))
-    expect(phiModels.length).toBeGreaterThanOrEqual(2)
-  })
+it('should include Phi models', () => {
+  const phiModels = modelsData.filter((m) => m.name.includes('Phi'))
+  expect(phiModels.length).toBeGreaterThanOrEqual(2)
+})
 ```
 
 with:
 
 ```typescript
-  it('should include Kimi models', () => {
-    const kimiModels = modelsData.filter((m) => m.name.includes('Kimi'))
-    expect(kimiModels.length).toBeGreaterThanOrEqual(2)
-  })
+it('should include Kimi models', () => {
+  const kimiModels = modelsData.filter((m) => m.name.includes('Kimi'))
+  expect(kimiModels.length).toBeGreaterThanOrEqual(2)
+})
 ```
 
 and replace this block:
 
 ```typescript
-  it('should include Command-R models', () => {
-    const commandRModels = modelsData.filter((m) => m.name.includes('Command-R'))
-    expect(commandRModels.length).toBeGreaterThanOrEqual(2)
-  })
+it('should include Command-R models', () => {
+  const commandRModels = modelsData.filter((m) => m.name.includes('Command-R'))
+  expect(commandRModels.length).toBeGreaterThanOrEqual(2)
+})
 ```
 
 with:
 
 ```typescript
-  it('should include GLM models', () => {
-    const glmModels = modelsData.filter((m) => m.name.includes('GLM'))
-    expect(glmModels.length).toBeGreaterThanOrEqual(2)
-  })
+it('should include GLM models', () => {
+  const glmModels = modelsData.filter((m) => m.name.includes('GLM'))
+  expect(glmModels.length).toBeGreaterThanOrEqual(2)
+})
 ```
 
 - [ ] **Step 4: Re-point the GQA test away from retired Mistral 7B**
@@ -175,39 +362,39 @@ with:
 Replace this block:
 
 ```typescript
-  it('should specify num_kv_heads for GQA models', () => {
-    const llama3_8b = modelsData.find((m) => m.id.includes('llama-3.1-8b'))
-    const mistral7b = modelsData.find((m) => m.id.includes('mistral-7b'))
+it('should specify num_kv_heads for GQA models', () => {
+  const llama3_8b = modelsData.find((m) => m.id.includes('llama-3.1-8b'))
+  const mistral7b = modelsData.find((m) => m.id.includes('mistral-7b'))
 
-    // LLaMA 3.1 and Mistral use GQA with num_kv_heads < num_attention_heads
-    if (llama3_8b) {
-      expect(llama3_8b.num_kv_heads).toBeDefined()
-      expect(llama3_8b.num_kv_heads).toBeLessThan(llama3_8b.num_attention_heads)
-    }
-    if (mistral7b) {
-      expect(mistral7b.num_kv_heads).toBeDefined()
-      expect(mistral7b.num_kv_heads).toBeLessThan(mistral7b.num_attention_heads)
-    }
-  })
+  // LLaMA 3.1 and Mistral use GQA with num_kv_heads < num_attention_heads
+  if (llama3_8b) {
+    expect(llama3_8b.num_kv_heads).toBeDefined()
+    expect(llama3_8b.num_kv_heads).toBeLessThan(llama3_8b.num_attention_heads)
+  }
+  if (mistral7b) {
+    expect(mistral7b.num_kv_heads).toBeDefined()
+    expect(mistral7b.num_kv_heads).toBeLessThan(mistral7b.num_attention_heads)
+  }
+})
 ```
 
 with:
 
 ```typescript
-  it('should specify num_kv_heads for GQA models', () => {
-    const llama3_8b = modelsData.find((m) => m.id.includes('llama-3.1-8b'))
-    const qwen27b = modelsData.find((m) => m.id === 'qwen-qwen3.6-27b')
+it('should specify num_kv_heads for GQA models', () => {
+  const llama3_8b = modelsData.find((m) => m.id.includes('llama-3.1-8b'))
+  const qwen27b = modelsData.find((m) => m.id === 'qwen-qwen3.6-27b')
 
-    // LLaMA 3.1 and Qwen3.6 use GQA with num_kv_heads < num_attention_heads
-    if (llama3_8b) {
-      expect(llama3_8b.num_kv_heads).toBeDefined()
-      expect(llama3_8b.num_kv_heads).toBeLessThan(llama3_8b.num_attention_heads)
-    }
-    if (qwen27b) {
-      expect(qwen27b.num_kv_heads).toBeDefined()
-      expect(qwen27b.num_kv_heads).toBeLessThan(qwen27b.num_attention_heads)
-    }
-  })
+  // LLaMA 3.1 and Qwen3.6 use GQA with num_kv_heads < num_attention_heads
+  if (llama3_8b) {
+    expect(llama3_8b.num_kv_heads).toBeDefined()
+    expect(llama3_8b.num_kv_heads).toBeLessThan(llama3_8b.num_attention_heads)
+  }
+  if (qwen27b) {
+    expect(qwen27b.num_kv_heads).toBeDefined()
+    expect(qwen27b.num_kv_heads).toBeLessThan(qwen27b.num_attention_heads)
+  }
+})
 ```
 
 - [ ] **Step 5: Add an alphabetical-sort invariant**
@@ -215,11 +402,11 @@ with:
 Immediately before the final closing `})` of the `describe(...)` block, add:
 
 ```typescript
-  it('should be sorted alphabetically by name (code-unit order)', () => {
-    const names = modelsData.map((m) => m.name)
-    const sorted = [...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
-    expect(names).toEqual(sorted)
-  })
+it('should be sorted alphabetically by name (code-unit order)', () => {
+  const names = modelsData.map((m) => m.name)
+  const sorted = [...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+  expect(names).toEqual(sorted)
+})
 ```
 
 - [ ] **Step 6: Run the test to verify it now fails (red)**
@@ -256,31 +443,235 @@ import { readFile, writeFile } from 'node:fs/promises'
 const PATH = 'src/data/models.json'
 
 const RETIRE = new Set([
-  'LLaMA 2 7B', 'LLaMA 2 13B', 'LLaMA 2 70B',
-  'Mistral 7B v0.1', 'Mistral 7B v0.3',
-  'Mixtral 8x7B v0.1', 'Mixtral 8x7B Instruct v0.1', 'Mixtral 8x22B v0.1',
-  'Gemma 2B', 'Gemma 7B', 'Gemma 2 9B',
-  'Phi 3 Mini 4K', 'Phi 3 Small 8K', 'Phi 3 Medium 4K', 'Phi 3.5 Mini Instruct',
-  'MPT 30B', 'Falcon 40B', 'Yi 34B', 'LLaMA 3 8B',
-  'DeepSeek Coder 33B', 'DeepSeek V2 Lite', 'DeepSeek Coder V2 Lite',
-  'Command-R', 'Command-R Plus',
-  'Nemotron Llama 3.1 Nano 8B', 'Nemotron Llama 3.3 Super 49B',
+  'LLaMA 2 7B',
+  'LLaMA 2 13B',
+  'LLaMA 2 70B',
+  'Mistral 7B v0.1',
+  'Mistral 7B v0.3',
+  'Mixtral 8x7B v0.1',
+  'Mixtral 8x7B Instruct v0.1',
+  'Mixtral 8x22B v0.1',
+  'Gemma 2B',
+  'Gemma 7B',
+  'Gemma 2 9B',
+  'Phi 3 Mini 4K',
+  'Phi 3 Small 8K',
+  'Phi 3 Medium 4K',
+  'Phi 3.5 Mini Instruct',
+  'MPT 30B',
+  'Falcon 40B',
+  'Yi 34B',
+  'LLaMA 3 8B',
+  'DeepSeek Coder 33B',
+  'DeepSeek V2 Lite',
+  'DeepSeek Coder V2 Lite',
+  'Command-R',
+  'Command-R Plus',
+  'Nemotron Llama 3.1 Nano 8B',
+  'Nemotron Llama 3.3 Super 49B',
 ])
 
 const ADD = [
-  { id: 'google-gemma-4-31b', name: 'Gemma 4 31B', architecture: 'dense', num_parameters_billion: 32.7, hidden_size: 5376, num_hidden_layers: 60, num_attention_heads: 32, num_kv_heads: 16, intermediate_size: 21504, context_length: 262144, license: 'Apache-2.0', hf_url: 'https://huggingface.co/google/gemma-4-31B-it' },
-  { id: 'google-gemma-4-12b', name: 'Gemma 4 12B', architecture: 'dense', num_parameters_billion: 12.0, hidden_size: 3840, num_hidden_layers: 48, num_attention_heads: 16, num_kv_heads: 8, intermediate_size: 15360, context_length: 262144, license: 'Apache-2.0', hf_url: 'https://huggingface.co/google/gemma-4-12B-it' },
-  { id: 'google-gemma-4-26b-a4b', name: 'Gemma 4 26B A4B', architecture: 'moe', num_parameters_billion: 26.5, hidden_size: 2816, num_hidden_layers: 30, num_attention_heads: 16, num_kv_heads: 8, intermediate_size: 2112, num_experts: 128, num_experts_per_token: 8, context_length: 262144, license: 'Apache-2.0', hf_url: 'https://huggingface.co/google/gemma-4-26B-A4B-it' },
-  { id: 'qwen-qwen3.6-27b', name: 'Qwen3.6 27B', architecture: 'dense', num_parameters_billion: 27.8, hidden_size: 5120, num_hidden_layers: 64, num_attention_heads: 24, num_kv_heads: 4, intermediate_size: 17408, context_length: 262144, license: 'Apache-2.0', hf_url: 'https://huggingface.co/Qwen/Qwen3.6-27B' },
-  { id: 'qwen-qwen3.6-35b-a3b', name: 'Qwen3.6 35B A3B', architecture: 'moe', num_parameters_billion: 36.0, hidden_size: 2048, num_hidden_layers: 40, num_attention_heads: 16, num_kv_heads: 2, intermediate_size: 512, num_experts: 256, num_experts_per_token: 8, context_length: 262144, license: 'Apache-2.0', hf_url: 'https://huggingface.co/Qwen/Qwen3.6-35B-A3B' },
-  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', architecture: 'moe', num_parameters_billion: 158.1, hidden_size: 4096, num_hidden_layers: 43, num_attention_heads: 64, num_kv_heads: 1, intermediate_size: 2048, num_experts: 256, num_experts_per_token: 6, context_length: 1048576, license: 'MIT', hf_url: 'https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash' },
-  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', architecture: 'moe', num_parameters_billion: 861.6, hidden_size: 7168, num_hidden_layers: 61, num_attention_heads: 128, num_kv_heads: 1, intermediate_size: 3072, num_experts: 384, num_experts_per_token: 6, context_length: 1048576, license: 'MIT', hf_url: 'https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro' },
-  { id: 'zai-org-glm-5.2', name: 'GLM 5.2', architecture: 'moe', num_parameters_billion: 753.3, hidden_size: 6144, num_hidden_layers: 78, num_attention_heads: 64, num_kv_heads: 64, intermediate_size: 12288, num_experts: 256, num_experts_per_token: 8, context_length: 1048576, license: 'MIT', hf_url: 'https://huggingface.co/zai-org/GLM-5.2' },
-  { id: 'moonshotai-kimi-k2-thinking', name: 'Kimi K2 Thinking', architecture: 'moe', num_parameters_billion: 1058.1, hidden_size: 7168, num_hidden_layers: 61, num_attention_heads: 64, num_kv_heads: 64, intermediate_size: 18432, num_experts: 384, num_experts_per_token: 8, context_length: 262144, license: 'Modified MIT', hf_url: 'https://huggingface.co/moonshotai/Kimi-K2-Thinking' },
-  { id: 'moonshotai-kimi-linear-48b-a3b', name: 'Kimi Linear 48B A3B', architecture: 'moe', num_parameters_billion: 49.1, hidden_size: 2304, num_hidden_layers: 27, num_attention_heads: 32, num_kv_heads: 32, intermediate_size: 9216, num_experts: 256, num_experts_per_token: 8, context_length: 1048576, license: 'MIT', hf_url: 'https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct' },
-  { id: 'mistralai-mistral-medium-3.5-128b', name: 'Mistral Medium 3.5 128B', architecture: 'dense', num_parameters_billion: 127.7, hidden_size: 12288, num_hidden_layers: 88, num_attention_heads: 96, num_kv_heads: 8, intermediate_size: 28672, context_length: 262144, license: 'Mistral Research License', hf_url: 'https://huggingface.co/mistralai/Mistral-Medium-3.5-128B' },
-  { id: 'minimax-m3', name: 'MiniMax M3', architecture: 'moe', num_parameters_billion: 427.0, hidden_size: 6144, num_hidden_layers: 60, num_attention_heads: 64, num_kv_heads: 4, intermediate_size: 12288, num_experts: 128, num_experts_per_token: 4, context_length: 1048576, license: 'MiniMax', hf_url: 'https://huggingface.co/MiniMaxAI/MiniMax-M3' },
-  { id: 'nvidia-nemotron-3-ultra-550b-a55b', name: 'Nemotron 3 Ultra 550B A55B', architecture: 'moe', num_parameters_billion: 560.5, hidden_size: 8192, num_hidden_layers: 128, num_attention_heads: 64, num_kv_heads: 2, intermediate_size: 5120, num_experts: 512, num_experts_per_token: 22, context_length: 262144, license: 'other', hf_url: 'https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16' },
+  {
+    id: 'google-gemma-4-31b',
+    name: 'Gemma 4 31B',
+    architecture: 'dense',
+    num_parameters_billion: 32.7,
+    hidden_size: 5376,
+    num_hidden_layers: 60,
+    num_attention_heads: 32,
+    num_kv_heads: 16,
+    intermediate_size: 21504,
+    context_length: 262144,
+    license: 'Apache-2.0',
+    hf_url: 'https://huggingface.co/google/gemma-4-31B-it',
+  },
+  {
+    id: 'google-gemma-4-12b',
+    name: 'Gemma 4 12B',
+    architecture: 'dense',
+    num_parameters_billion: 12.0,
+    hidden_size: 3840,
+    num_hidden_layers: 48,
+    num_attention_heads: 16,
+    num_kv_heads: 8,
+    intermediate_size: 15360,
+    context_length: 262144,
+    license: 'Apache-2.0',
+    hf_url: 'https://huggingface.co/google/gemma-4-12B-it',
+  },
+  {
+    id: 'google-gemma-4-26b-a4b',
+    name: 'Gemma 4 26B A4B',
+    architecture: 'moe',
+    num_parameters_billion: 26.5,
+    hidden_size: 2816,
+    num_hidden_layers: 30,
+    num_attention_heads: 16,
+    num_kv_heads: 8,
+    intermediate_size: 2112,
+    num_experts: 128,
+    num_experts_per_token: 8,
+    context_length: 262144,
+    license: 'Apache-2.0',
+    hf_url: 'https://huggingface.co/google/gemma-4-26B-A4B-it',
+  },
+  {
+    id: 'qwen-qwen3.6-27b',
+    name: 'Qwen3.6 27B',
+    architecture: 'dense',
+    num_parameters_billion: 27.8,
+    hidden_size: 5120,
+    num_hidden_layers: 64,
+    num_attention_heads: 24,
+    num_kv_heads: 4,
+    intermediate_size: 17408,
+    context_length: 262144,
+    license: 'Apache-2.0',
+    hf_url: 'https://huggingface.co/Qwen/Qwen3.6-27B',
+  },
+  {
+    id: 'qwen-qwen3.6-35b-a3b',
+    name: 'Qwen3.6 35B A3B',
+    architecture: 'moe',
+    num_parameters_billion: 36.0,
+    hidden_size: 2048,
+    num_hidden_layers: 40,
+    num_attention_heads: 16,
+    num_kv_heads: 2,
+    intermediate_size: 512,
+    num_experts: 256,
+    num_experts_per_token: 8,
+    context_length: 262144,
+    license: 'Apache-2.0',
+    hf_url: 'https://huggingface.co/Qwen/Qwen3.6-35B-A3B',
+  },
+  {
+    id: 'deepseek-v4-flash',
+    name: 'DeepSeek V4 Flash',
+    architecture: 'moe',
+    num_parameters_billion: 158.1,
+    hidden_size: 4096,
+    num_hidden_layers: 43,
+    num_attention_heads: 64,
+    num_kv_heads: 1,
+    intermediate_size: 2048,
+    num_experts: 256,
+    num_experts_per_token: 6,
+    context_length: 1048576,
+    license: 'MIT',
+    hf_url: 'https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash',
+  },
+  {
+    id: 'deepseek-v4-pro',
+    name: 'DeepSeek V4 Pro',
+    architecture: 'moe',
+    num_parameters_billion: 861.6,
+    hidden_size: 7168,
+    num_hidden_layers: 61,
+    num_attention_heads: 128,
+    num_kv_heads: 1,
+    intermediate_size: 3072,
+    num_experts: 384,
+    num_experts_per_token: 6,
+    context_length: 1048576,
+    license: 'MIT',
+    hf_url: 'https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro',
+  },
+  {
+    id: 'zai-org-glm-5.2',
+    name: 'GLM 5.2',
+    architecture: 'moe',
+    num_parameters_billion: 753.3,
+    hidden_size: 6144,
+    num_hidden_layers: 78,
+    num_attention_heads: 64,
+    num_kv_heads: 64,
+    intermediate_size: 12288,
+    num_experts: 256,
+    num_experts_per_token: 8,
+    context_length: 1048576,
+    license: 'MIT',
+    hf_url: 'https://huggingface.co/zai-org/GLM-5.2',
+  },
+  {
+    id: 'moonshotai-kimi-k2-thinking',
+    name: 'Kimi K2 Thinking',
+    architecture: 'moe',
+    num_parameters_billion: 1058.1,
+    hidden_size: 7168,
+    num_hidden_layers: 61,
+    num_attention_heads: 64,
+    num_kv_heads: 64,
+    intermediate_size: 18432,
+    num_experts: 384,
+    num_experts_per_token: 8,
+    context_length: 262144,
+    license: 'Modified MIT',
+    hf_url: 'https://huggingface.co/moonshotai/Kimi-K2-Thinking',
+  },
+  {
+    id: 'moonshotai-kimi-linear-48b-a3b',
+    name: 'Kimi Linear 48B A3B',
+    architecture: 'moe',
+    num_parameters_billion: 49.1,
+    hidden_size: 2304,
+    num_hidden_layers: 27,
+    num_attention_heads: 32,
+    num_kv_heads: 32,
+    intermediate_size: 9216,
+    num_experts: 256,
+    num_experts_per_token: 8,
+    context_length: 1048576,
+    license: 'MIT',
+    hf_url: 'https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct',
+  },
+  {
+    id: 'mistralai-mistral-medium-3.5-128b',
+    name: 'Mistral Medium 3.5 128B',
+    architecture: 'dense',
+    num_parameters_billion: 127.7,
+    hidden_size: 12288,
+    num_hidden_layers: 88,
+    num_attention_heads: 96,
+    num_kv_heads: 8,
+    intermediate_size: 28672,
+    context_length: 262144,
+    license: 'Mistral Research License',
+    hf_url: 'https://huggingface.co/mistralai/Mistral-Medium-3.5-128B',
+  },
+  {
+    id: 'minimax-m3',
+    name: 'MiniMax M3',
+    architecture: 'moe',
+    num_parameters_billion: 427.0,
+    hidden_size: 6144,
+    num_hidden_layers: 60,
+    num_attention_heads: 64,
+    num_kv_heads: 4,
+    intermediate_size: 12288,
+    num_experts: 128,
+    num_experts_per_token: 4,
+    context_length: 1048576,
+    license: 'MiniMax',
+    hf_url: 'https://huggingface.co/MiniMaxAI/MiniMax-M3',
+  },
+  {
+    id: 'nvidia-nemotron-3-ultra-550b-a55b',
+    name: 'Nemotron 3 Ultra 550B A55B',
+    architecture: 'moe',
+    num_parameters_billion: 560.5,
+    hidden_size: 8192,
+    num_hidden_layers: 128,
+    num_attention_heads: 64,
+    num_kv_heads: 2,
+    intermediate_size: 5120,
+    num_experts: 512,
+    num_experts_per_token: 22,
+    context_length: 262144,
+    license: 'other',
+    hf_url: 'https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16',
+  },
 ]
 
 const original = JSON.parse(await readFile(PATH, 'utf8'))
@@ -289,7 +680,9 @@ const kept = original.filter((m) => !RETIRE.has(m.name))
 // Guard: every retired name must have matched exactly one entry.
 const removed = original.length - kept.length
 if (removed !== RETIRE.size) {
-  throw new Error(`Expected to remove ${RETIRE.size} entries but removed ${removed}. Check name spellings.`)
+  throw new Error(
+    `Expected to remove ${RETIRE.size} entries but removed ${removed}. Check name spellings.`,
+  )
 }
 
 const next = [...kept, ...ADD].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))

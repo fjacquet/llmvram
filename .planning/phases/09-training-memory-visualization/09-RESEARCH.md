@@ -17,25 +17,28 @@ Key technical requirements: convert Decimal.js values to numbers for Recharts, h
 ## Standard Stack
 
 ### Core
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| Recharts | 2.x | React data visualization | Already in use for inference charts, declarative API, TypeScript support, widely adopted |
-| Decimal.js | 10.x | Arbitrary precision arithmetic | Already in use throughout engines, prevents floating-point errors in VRAM calculations |
-| React | 19.x | UI framework | Project standard, latest version with improved concurrent rendering |
-| TypeScript | 5.x | Type safety | Project uses strict mode with noUncheckedIndexedAccess enabled |
+
+| Library    | Version | Purpose                        | Why Standard                                                                             |
+| ---------- | ------- | ------------------------------ | ---------------------------------------------------------------------------------------- |
+| Recharts   | 2.x     | React data visualization       | Already in use for inference charts, declarative API, TypeScript support, widely adopted |
+| Decimal.js | 10.x    | Arbitrary precision arithmetic | Already in use throughout engines, prevents floating-point errors in VRAM calculations   |
+| React      | 19.x    | UI framework                   | Project standard, latest version with improved concurrent rendering                      |
+| TypeScript | 5.x     | Type safety                    | Project uses strict mode with noUncheckedIndexedAccess enabled                           |
 
 ### Supporting
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| Tailwind CSS | 4.x | Styling | Project standard, utility-first approach for component styling |
-| Zustand | 4.x | State management | Already manages training configuration, auto-triggers re-renders |
+
+| Library      | Version | Purpose          | When to Use                                                      |
+| ------------ | ------- | ---------------- | ---------------------------------------------------------------- |
+| Tailwind CSS | 4.x     | Styling          | Project standard, utility-first approach for component styling   |
+| Zustand      | 4.x     | State management | Already manages training configuration, auto-triggers re-renders |
 
 ### Alternatives Considered
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| Recharts | Chart.js | Chart.js has better performance at 1M+ data points, but training breakdowns have 6-10 categories max—Recharts declarative API better fits React paradigm |
-| Recharts | D3.js | D3 offers more control, but requires imperative DOM manipulation—Recharts wraps D3 concepts in React-friendly components |
-| Pie chart | Stacked bar chart | Bars better for comparing across multiple configurations, but pie chart better for showing proportion breakdown at single point in time (our use case) |
+
+| Instead of | Could Use         | Tradeoff                                                                                                                                                 |
+| ---------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recharts   | Chart.js          | Chart.js has better performance at 1M+ data points, but training breakdowns have 6-10 categories max—Recharts declarative API better fits React paradigm |
+| Recharts   | D3.js             | D3 offers more control, but requires imperative DOM manipulation—Recharts wraps D3 concepts in React-friendly components                                 |
+| Pie chart  | Stacked bar chart | Bars better for comparing across multiple configurations, but pie chart better for showing proportion breakdown at single point in time (our use case)   |
 
 **Installation:**
 ```bash
@@ -46,6 +49,7 @@ Key technical requirements: convert Decimal.js values to numbers for Recharts, h
 ## Architecture Patterns
 
 ### Recommended Component Structure
+
 ```
 src/components/outputs/
 ├── TrainingBreakdownChart.tsx     # New: Pie chart for training memory
@@ -55,6 +59,7 @@ src/components/outputs/
 ```
 
 ### Pattern 1: Reusable Visualization Components with Conditional Rendering
+
 **What:** Create specialized components for training visualization that handle both TrainingVRAMBreakdown and LoRAVRAMBreakdown using TypeScript discriminated unions.
 
 **When to use:** When data structure varies based on training method (full vs LoRA/QLoRA).
@@ -123,6 +128,7 @@ export function TrainingBreakdownChart({ breakdown }: TrainingBreakdownChartProp
 ```
 
 ### Pattern 2: Decimal.js to Number Conversion for Recharts
+
 **What:** Always convert Decimal values to numbers using `.toNumber()` before passing to Recharts.
 
 **When to use:** Every time passing breakdown data to chart components.
@@ -144,6 +150,7 @@ const data = [
 ```
 
 ### Pattern 3: Accessible Chart with Screen Reader Support
+
 **What:** Provide multiple accessibility layers: ARIA labels, color indicators with text, and sr-only text alternative.
 
 **When to use:** All data visualization components.
@@ -179,6 +186,7 @@ export function TrainingBreakdownChart({ breakdown }: TrainingBreakdownChartProp
 ```
 
 ### Pattern 4: Performance Optimization with Memoization
+
 **What:** Memoize Recharts props (functions, objects) to prevent unnecessary re-renders.
 
 **When to use:** When passing custom formatters, label renderers, or data transformation functions.
@@ -210,6 +218,7 @@ export function TrainingBreakdownChart({ breakdown }: TrainingBreakdownChartProp
 ```
 
 ### Anti-Patterns to Avoid
+
 - **Unstable dataKey props:** Don't compute dataKey inline—keep it stable to avoid recalculation of all points
 - **Passing Decimal objects directly:** Always convert to numbers; Recharts doesn't understand Decimal.js type
 - **Color-only differentiation:** Don't rely solely on color; add text labels and patterns for colorblind accessibility
@@ -218,19 +227,20 @@ export function TrainingBreakdownChart({ breakdown }: TrainingBreakdownChartProp
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Chart rendering | Custom SVG drawing logic | Recharts components | Handles responsiveness, legends, tooltips, accessibility roles automatically |
-| Number precision | Native JavaScript arithmetic | Decimal.js (already in use) | Prevents floating-point errors (0.1 + 0.2 = 0.30000000000000004) |
-| Pie slice layout | Manual angle calculation | Recharts Pie component | Handles label positioning, slice sizing, animations, active states |
-| Dark mode styling | Manual CSS variables | Tailwind dark: classes + Zustand isDarkMode | Already integrated, consistent with project patterns |
-| Type guards | Runtime type checking | TypeScript discriminated unions | Compile-time type narrowing, exhaustiveness checking |
+| Problem           | Don't Build                  | Use Instead                                 | Why                                                                          |
+| ----------------- | ---------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------- |
+| Chart rendering   | Custom SVG drawing logic     | Recharts components                         | Handles responsiveness, legends, tooltips, accessibility roles automatically |
+| Number precision  | Native JavaScript arithmetic | Decimal.js (already in use)                 | Prevents floating-point errors (0.1 + 0.2 = 0.30000000000000004)             |
+| Pie slice layout  | Manual angle calculation     | Recharts Pie component                      | Handles label positioning, slice sizing, animations, active states           |
+| Dark mode styling | Manual CSS variables         | Tailwind dark: classes + Zustand isDarkMode | Already integrated, consistent with project patterns                         |
+| Type guards       | Runtime type checking        | TypeScript discriminated unions             | Compile-time type narrowing, exhaustiveness checking                         |
 
 **Key insight:** Recharts abstracts complex chart layout calculations (angles, positions, responsiveness) and provides React-friendly API. Building custom SVG charts would require recreating ResponsiveContainer logic, legend positioning, tooltip triggers, accessibility features—hundreds of lines of code already solved by Recharts.
 
 ## Common Pitfalls
 
 ### Pitfall 1: Decimal.js Precision Loss on Conversion
+
 **What goes wrong:** Converting numbers to Decimal via number literals loses precision.
 
 **Why it happens:** JavaScript floats can't represent some decimals exactly (0.7 + 0.1 = 0.7999999999999999).
@@ -240,6 +250,7 @@ export function TrainingBreakdownChart({ breakdown }: TrainingBreakdownChartProp
 **Warning signs:** Financial/VRAM calculations showing unexpected trailing digits.
 
 ### Pitfall 2: Breaking Type Guards with Incorrect Conditionals
+
 **What goes wrong:** Using `breakdown.method === 'lora'` instead of `'baseWeights' in breakdown` breaks type narrowing.
 
 **Why it happens:** TypeScript discriminated unions require checking the discriminant property directly (the unique field that exists only in one type).
@@ -261,6 +272,7 @@ if (breakdown.method === 'lora') {
 **Warning signs:** TypeScript errors like "Property 'baseWeights' does not exist on type 'TrainingVRAMBreakdown'".
 
 ### Pitfall 3: Recharts Re-renders from Unstable Props
+
 **What goes wrong:** Chart re-renders on every parent render, even when data hasn't changed.
 
 **Why it happens:** Passing inline objects/functions as props creates new references each render, causing Recharts to recalculate everything.
@@ -270,6 +282,7 @@ if (breakdown.method === 'lora') {
 **Warning signs:** Performance issues, chart flickering, slow responsiveness when changing unrelated inputs.
 
 ### Pitfall 4: Missing Conditional Rows in Table
+
 **What goes wrong:** Table always shows "Master Weights" row even for FP32 training (where it should be 0).
 
 **Why it happens:** Not checking if values are significant before adding rows.
@@ -290,6 +303,7 @@ rows.push({ name: 'Master Weights (FP32)', value: breakdown.masterWeights, color
 **Warning signs:** Users see 0.00 GB rows in breakdown, cluttering the UI unnecessarily.
 
 ### Pitfall 5: Accessibility Only for Mouse Users
+
 **What goes wrong:** Charts work with mouse but not with keyboard or screen readers.
 
 **Why it happens:** Recharts doesn't provide full accessibility out of the box; requires explicit ARIA attributes and sr-only text.
@@ -303,6 +317,7 @@ rows.push({ name: 'Master Weights (FP32)', value: breakdown.masterWeights, color
 Verified patterns from existing codebase:
 
 ### Inference Breakdown Chart (Template to Adapt)
+
 ```typescript
 // Source: src/components/outputs/VRAMBreakdownChart.tsx (lines 17-82)
 export function VRAMBreakdownChart({ breakdown }: VRAMBreakdownChartProps) {
@@ -363,6 +378,7 @@ export function VRAMBreakdownChart({ breakdown }: VRAMBreakdownChartProps) {
 ```
 
 ### Inference Breakdown Table (Template to Adapt)
+
 ```typescript
 // Source: src/components/outputs/MemoryBreakdownTable.tsx (lines 21-84)
 export function MemoryBreakdownTable({ breakdown }: MemoryBreakdownTableProps) {
@@ -412,6 +428,7 @@ export function MemoryBreakdownTable({ breakdown }: MemoryBreakdownTableProps) {
 ```
 
 ### Type Guard for LoRA vs Full Fine-Tuning
+
 ```typescript
 // Source: src/components/layout/ResultsPanel.tsx (lines 285-315)
 // Type guard to check if result is LoRA/QLoRA
@@ -440,12 +457,12 @@ if (isLoRA) {
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| Inline table in ResultsPanel | Dedicated TrainingBreakdownChart + TrainingBreakdownTable components | Phase 9 | Better separation of concerns, reusable components, consistent with inference visualization |
-| Chart.js for React | Recharts | 2019-2020 | Declarative React-first API, better TypeScript support, easier composition |
-| Manual color schemes | Tailwind color palette | Tailwind v3+ (2021) | Consistent colors across light/dark modes, semantic color names |
-| Inline type checks | Discriminated unions | TypeScript 2.0+ (2016) | Compile-time type narrowing, exhaustiveness checking, better IDE support |
+| Old Approach                 | Current Approach                                                     | When Changed           | Impact                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
+| Inline table in ResultsPanel | Dedicated TrainingBreakdownChart + TrainingBreakdownTable components | Phase 9                | Better separation of concerns, reusable components, consistent with inference visualization |
+| Chart.js for React           | Recharts                                                             | 2019-2020              | Declarative React-first API, better TypeScript support, easier composition                  |
+| Manual color schemes         | Tailwind color palette                                               | Tailwind v3+ (2021)    | Consistent colors across light/dark modes, semantic color names                             |
+| Inline type checks           | Discriminated unions                                                 | TypeScript 2.0+ (2016) | Compile-time type narrowing, exhaustiveness checking, better IDE support                    |
 
 **Deprecated/outdated:**
 - `recharts@1.x`: Version 2.x (2023+) improved TypeScript types, performance, accessibility hooks
@@ -472,6 +489,7 @@ if (isLoRA) {
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - [Recharts Pie API Documentation](https://recharts.github.io/api/Pie/) - Official API reference for Pie component props
 - [Recharts PieChart API Documentation](https://recharts.github.io/en-US/api/PieChart/) - Official API reference for PieChart container
 - [Recharts Performance Guide](https://recharts.github.io/en-US/guide/performance/) - Official performance best practices
@@ -479,6 +497,7 @@ if (isLoRA) {
 - Existing codebase: `src/components/outputs/VRAMBreakdownChart.tsx`, `MemoryBreakdownTable.tsx`, `ResultsPanel.tsx` - Proven patterns already in production
 
 ### Secondary (MEDIUM confidence)
+
 - [Efficient Deep Learning: Optimization Techniques - Hugging Face](https://huggingface.co/blog/Isayoften/optimization-rush) - Training memory component categories (optimizer states, gradients, weights, activations)
 - [Efficient Training on a Single GPU - Hugging Face](https://huggingface.co/docs/transformers/v4.20.1/en/perf_train_gpu_one) - Mixed precision training memory requirements
 - [How to Choose Between Bar Chart and Pie Chart - Atlassian](https://www.atlassian.com/data/charts/how-to-choose-pie-chart-vs-bar-chart) - Visualization best practices for proportion breakdowns
@@ -486,6 +505,7 @@ if (isLoRA) {
 - [WCAG Data Visualization Accessibility - The A11Y Collective](https://www.a11y-collective.com/blog/accessible-charts/) - Comprehensive accessibility checklist for charts
 
 ### Tertiary (LOW confidence - marked for validation)
+
 - [Recharts and Accessibility - GitHub Wiki](https://github.com/recharts/recharts/wiki/Recharts-and-accessibility/ad2642f9fa2e43411621e9e29e3c6ea2d6396234) - Older wiki page, may be outdated
 - [Color Palette Generators 2026 - Venngage](https://venngage.com/blog/color-palette-generators/) - General color trends, not specific to training visualization
 

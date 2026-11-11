@@ -22,6 +22,7 @@
 - Biome: 2 spaces, single quotes, no semicolons, 100 columns. Run `rtk proxy npx biome check --write .` (plain `npx biome format --write` through rtk silently applies nothing).
 - Tests: `npx vitest run <file>`; test files are not typechecked, so build fixtures from real types.
 - Commits end with:
+
   ```
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z
@@ -390,41 +391,47 @@ git commit -m "feat: KV storage tier engine (sessions held, resume vs recompute,
 - [ ] **Step 1: Write the failing tests** (append inside `describe('serializeToURL and deserializeFromURL', ...)` in `src/store/urlSerializer.test.ts`)
 
 ```ts
-    it('round-trips concurrent users and the KV tier', () => {
-      const serialized = serializeToURL({
-        ...baseState,
-        concurrentUsers: 2500,
-        kvTier: {
-          tier: 'network',
-          customGBps: 20,
-          activeShare: 0.1,
-          burstSeconds: 45,
-          capacityTB: 500,
-        },
-      })
-      const d = deserializeFromURL(serialized)
-      expect(d?.cu).toBe(2500)
-      expect(d?.kt).toEqual({ t: 'network', g: 20, a: 0.1, b: 45, c: 500 })
-    })
+it('round-trips concurrent users and the KV tier', () => {
+  const serialized = serializeToURL({
+    ...baseState,
+    concurrentUsers: 2500,
+    kvTier: {
+      tier: 'network',
+      customGBps: 20,
+      activeShare: 0.1,
+      burstSeconds: 45,
+      capacityTB: 500,
+    },
+  })
+  const d = deserializeFromURL(serialized)
+  expect(d?.cu).toBe(2500)
+  expect(d?.kt).toEqual({ t: 'network', g: 20, a: 0.1, b: 45, c: 500 })
+})
 
-    it('omits the tier when it is none and users when there is one', () => {
-      const d = deserializeFromURL(
-        serializeToURL({
-          ...baseState,
-          concurrentUsers: 1,
-          kvTier: { tier: 'none', customGBps: null, activeShare: 0.25, burstSeconds: 30, capacityTB: null },
-        }),
-      )
-      expect(d?.cu).toBeUndefined()
-      expect(d?.kt).toBeUndefined()
-    })
+it('omits the tier when it is none and users when there is one', () => {
+  const d = deserializeFromURL(
+    serializeToURL({
+      ...baseState,
+      concurrentUsers: 1,
+      kvTier: {
+        tier: 'none',
+        customGBps: null,
+        activeShare: 0.25,
+        burstSeconds: 30,
+        capacityTB: null,
+      },
+    }),
+  )
+  expect(d?.cu).toBeUndefined()
+  expect(d?.kt).toBeUndefined()
+})
 
-    it('still parses links made before these keys existed', () => {
-      const d = deserializeFromURL(serializeToURL(baseState))
-      expect(d).not.toBeNull()
-      expect(d?.cu).toBeUndefined()
-      expect(d?.kt).toBeUndefined()
-    })
+it('still parses links made before these keys existed', () => {
+  const d = deserializeFromURL(serializeToURL(baseState))
+  expect(d).not.toBeNull()
+  expect(d?.cu).toBeUndefined()
+  expect(d?.kt).toBeUndefined()
+})
 ```
 
 - [ ] **Step 2: Run to verify they fail**
@@ -466,6 +473,7 @@ export const MAX_CONCURRENT_USERS = 65536
     })
     .optional(), // KV storage tier (absent = none)
 ```
+
 - `serializeToURL` parameter type, add: `concurrentUsers?: number` and `kvTier?: KVTierSettings`
 - body, after `ss: state.shardingStrategy,`:
 ```ts
@@ -485,19 +493,19 @@ export const MAX_CONCURRENT_USERS = 65536
 
 `src/hooks/useURLSync.ts`, after `store.setShardingStrategy(...)`:
 ```ts
-    // Absent in links made before these keys existed: 1 user, no tier
-    store.setConcurrentUsers(urlState.cu ?? 1)
-    store.setKVTier(
-      urlState.kt
-        ? {
-            tier: urlState.kt.t,
-            customGBps: urlState.kt.g ?? null,
-            activeShare: urlState.kt.a,
-            burstSeconds: urlState.kt.b,
-            capacityTB: urlState.kt.c ?? null,
-          }
-        : DEFAULT_KV_TIER,
-    )
+// Absent in links made before these keys existed: 1 user, no tier
+store.setConcurrentUsers(urlState.cu ?? 1)
+store.setKVTier(
+  urlState.kt
+    ? {
+        tier: urlState.kt.t,
+        customGBps: urlState.kt.g ?? null,
+        activeShare: urlState.kt.a,
+        burstSeconds: urlState.kt.b,
+        capacityTB: urlState.kt.c ?? null,
+      }
+    : DEFAULT_KV_TIER,
+)
 ```
 with `import { DEFAULT_KV_TIER } from '@engines/kv-tier'`.
 
@@ -679,7 +687,9 @@ export function KVTierPanel() {
               aria-label="Active share (%)"
               value={Math.round(kvTier.activeShare * 100)}
               onChange={(e) =>
-                setKVTier({ activeShare: Math.min(100, Math.max(1, Number(e.target.value) || 0)) / 100 })
+                setKVTier({
+                  activeShare: Math.min(100, Math.max(1, Number(e.target.value) || 0)) / 100,
+                })
               }
               className={inputClass}
             />
@@ -691,7 +701,9 @@ export function KVTierPanel() {
               min={1}
               aria-label="Active burst (s)"
               value={kvTier.burstSeconds}
-              onChange={(e) => setKVTier({ burstSeconds: Math.max(1, Number(e.target.value) || 1) })}
+              onChange={(e) =>
+                setKVTier({ burstSeconds: Math.max(1, Number(e.target.value) || 1) })
+              }
               className={inputClass}
             />
           </label>
@@ -716,12 +728,14 @@ export function KVTierPanel() {
 
 `src/components/layout/InputPanel.tsx`: add `import { KVTierPanel } from '@components/inputs/KVTierPanel'` and, directly after `<OffloadingPanel />`:
 ```tsx
-            {mode === 'inference' && (
-              <>
-                <hr className="border-gray-200 dark:border-gray-700" />
-                <KVTierPanel />
-              </>
-            )}
+{
+  mode === 'inference' && (
+    <>
+      <hr className="border-gray-200 dark:border-gray-700" />
+      <KVTierPanel />
+    </>
+  )
+}
 ```
 
 - [ ] **Step 4: Run to verify it passes**
@@ -753,48 +767,50 @@ git commit -m "feat: KV storage tier input panel"
 
 In `ResultsPanel.tsx`: add `kvTier` to the `useUIStore()` destructuring, `import { kvTierSummary } from '@engines/kv-tier'`, and after the `maxSessions` computation:
 ```tsx
-  // KV storage tier: sessions held with idle KV parked off-GPU (null = no tier)
-  const tierSummary =
-    maxSessions === null
-      ? null
-      : kvTierSummary({
-          settings: kvTier,
-          maxHotSessions: maxSessions,
-          kvPerSessionPerGPUGB: perGPU.kvCache.toNumber() / Math.max(1, concurrentUsers),
-          kvPerSessionGB: result.vram.kvCache.toNumber() / Math.max(1, concurrentUsers),
-          totalGPUs: result.multiGPU?.numGPUs ?? 1,
-          recomputeSeconds: result.performance.prefillSeconds?.toNumber() ?? null,
-        })
+// KV storage tier: sessions held with idle KV parked off-GPU (null = no tier)
+const tierSummary =
+  maxSessions === null
+    ? null
+    : kvTierSummary({
+        settings: kvTier,
+        maxHotSessions: maxSessions,
+        kvPerSessionPerGPUGB: perGPU.kvCache.toNumber() / Math.max(1, concurrentUsers),
+        kvPerSessionGB: result.vram.kvCache.toNumber() / Math.max(1, concurrentUsers),
+        totalGPUs: result.multiGPU?.numGPUs ?? 1,
+        recomputeSeconds: result.performance.prefillSeconds?.toNumber() ?? null,
+      })
 ```
 Right after the max-sessions block:
 ```tsx
-            {tierSummary && (
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 space-y-1">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  With the KV storage tier ({Math.round(kvTier.activeShare * 100)}% active)
-                </p>
-                <p className="text-base font-semibold text-gray-900 dark:text-white">
-                  {tierSummary.sessionsHeld.toLocaleString('en-US')} sessions held
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  Resume {formatDuration(new Decimal(tierSummary.resumeSeconds))}
-                  {tierSummary.recomputeSeconds !== null &&
-                    ` vs recompute ${formatDuration(new Decimal(tierSummary.recomputeSeconds))} (${
-                      tierSummary.resumeFaster ? 'resume is faster' : 'recompute is faster'
-                    })`}
-                </p>
-                <p
-                  className={`text-xs ${
-                    tierSummary.trafficGBps > tierSummary.tierGBps
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-600 dark:text-gray-400'
-                  }`}
-                >
-                  Tier reads {tierSummary.trafficGBps.toFixed(1)} GB/s of{' '}
-                  {tierSummary.tierGBps.toFixed(0)} GB/s available
-                </p>
-              </div>
-            )}
+{
+  tierSummary && (
+    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 space-y-1">
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        With the KV storage tier ({Math.round(kvTier.activeShare * 100)}% active)
+      </p>
+      <p className="text-base font-semibold text-gray-900 dark:text-white">
+        {tierSummary.sessionsHeld.toLocaleString('en-US')} sessions held
+      </p>
+      <p className="text-xs text-gray-600 dark:text-gray-400">
+        Resume {formatDuration(new Decimal(tierSummary.resumeSeconds))}
+        {tierSummary.recomputeSeconds !== null &&
+          ` vs recompute ${formatDuration(new Decimal(tierSummary.recomputeSeconds))} (${
+            tierSummary.resumeFaster ? 'resume is faster' : 'recompute is faster'
+          })`}
+      </p>
+      <p
+        className={`text-xs ${
+          tierSummary.trafficGBps > tierSummary.tierGBps
+            ? 'text-red-600 dark:text-red-400'
+            : 'text-gray-600 dark:text-gray-400'
+        }`}
+      >
+        Tier reads {tierSummary.trafficGBps.toFixed(1)} GB/s of {tierSummary.tierGBps.toFixed(0)}{' '}
+        GB/s available
+      </p>
+    </div>
+  )
+}
 ```
 If `Decimal` is not yet imported in `ResultsPanel.tsx`, add `import Decimal from 'decimal.js'` (check `formatDuration`'s parameter type first with `grep -n "function formatDuration" -A3 src -r`; if it takes a number, pass the number and drop `new Decimal`).
 
@@ -803,6 +819,7 @@ If `Decimal` is not yet imported in `ResultsPanel.tsx`, add `import Decimal from
 - `CHANGELOG.md`, top of `### Added` under `## [Unreleased]`:
   `- KV storage tier: park idle sessions' KV cache on host memory, local NVMe or network storage (CMX, PowerScale, ObjectScale) and see sessions held (hot sessions / active share, capped by capacity), resume time vs recompute, and tier traffic vs bandwidth. Presets are per-GPU estimates with their basis in code; resume is anchored on Dell's ObjectScale measurement (43 GB, 837 ms). Concurrent users and tier settings are now part of shared links.`
 - `ARCHITECTURE.md`, after the `### Concurrency (\`concurrency.ts\`)` section:
+
   ```markdown
   ### KV Storage Tier (`kv-tier.ts`)
 
@@ -838,8 +855,11 @@ const gpus = (await import('/llmvram/src/data/gpus.json')).default
 const s = useUIStore.getState()
 s.setSelectedModel(models.find((m) => m.id === 'moonshotai-kimi-k3'))
 s.setSelectedGPU(gpus.find((g) => g.id === 'nvidia-gb300-nvl72'))
-s.setQuantization('mxfp4'); s.setSequenceLength(262144); s.setNumGPUs(72)
-s.setShardingStrategy('expert-parallel'); s.setConcurrentUsers(1000)
+s.setQuantization('mxfp4')
+s.setSequenceLength(262144)
+s.setNumGPUs(72)
+s.setShardingStrategy('expert-parallel')
+s.setConcurrentUsers(1000)
 s.setKVTier({ tier: 'network' })
 ```
 Expected: the results show "Max concurrent sessions ... 2,189" and "8,756 sessions held" (2,189 / 0.25), a resume time under 1 s shorter than recompute, and the tier traffic line. Reload the page with the same URL hash: the same numbers appear (URL round-trip). Stop the server; delete `.playwright-mcp/` if created.

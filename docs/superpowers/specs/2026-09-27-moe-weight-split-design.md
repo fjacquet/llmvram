@@ -37,16 +37,16 @@ This was finding I-4 of the weight-refs final review, documented as Domain Pitfa
 
 ## Evidence (Hugging Face `?expand[]=safetensors`, 2026-09-27)
 
-| Checkpoint | Wide (>= 16-bit float) | Quantized storage |
-|---|---|---|
-| moonshotai/Kimi-K3 | BF16 57.18B, F32 0.01B | U8 2722.74B |
-| nvidia/Kimi-K3-NVFP4 | BF16 21.00B, F32 0.01B | U8 1361.37B, F8_E4M3 36.18B |
-| deepseek-ai/DeepSeek-R1 | BF16 3.92B | F8_E4M3 680.57B |
-| Qwen/Qwen3-235B-A22B-GPTQ-Int4 | F16 1.29B | I32 233.80B (packed int4) |
-| nvidia/Qwen3-235B-A22B-NVFP4 | BF16 1.29B | U8 116.90B, F8_E4M3 14.61B (block scales) |
-| openai/gpt-oss-120b | BF16 2.17B | U8 114.66B |
-| Qwen/Qwen3-235B-A22B | (single type) | BF16 235.09B |
-| RedHatAI/Qwen3-235B-A22B-FP8-dynamic | BF16 1.38B | F8_E4M3 233.80B |
+| Checkpoint                           | Wide (>= 16-bit float) | Quantized storage                         |
+| ------------------------------------ | ---------------------- | ----------------------------------------- |
+| moonshotai/Kimi-K3                   | BF16 57.18B, F32 0.01B | U8 2722.74B                               |
+| nvidia/Kimi-K3-NVFP4                 | BF16 21.00B, F32 0.01B | U8 1361.37B, F8_E4M3 36.18B               |
+| deepseek-ai/DeepSeek-R1              | BF16 3.92B             | F8_E4M3 680.57B                           |
+| Qwen/Qwen3-235B-A22B-GPTQ-Int4       | F16 1.29B              | I32 233.80B (packed int4)                 |
+| nvidia/Qwen3-235B-A22B-NVFP4         | BF16 1.29B             | U8 116.90B, F8_E4M3 14.61B (block scales) |
+| openai/gpt-oss-120b                  | BF16 2.17B             | U8 114.66B                                |
+| Qwen/Qwen3-235B-A22B                 | (single type)          | BF16 235.09B                              |
+| RedHatAI/Qwen3-235B-A22B-FP8-dynamic | BF16 1.38B             | F8_E4M3 233.80B                           |
 
 The U8 count is not reliable: Kimi K3 native reports logical parameters (2722.7B)
 while the NVIDIA NVFP4 build reports packed bytes (1361.4B). Counts for 16-bit and

@@ -21,6 +21,7 @@
 - Zod 4: enum-keyed records are exhaustive; use `z.partialRecord` (zod.dev v4 changelog).
 - Biome: run `rtk proxy npx biome check --write .` (plain `npx biome format --write` through rtk silently applies nothing).
 - Commits end with:
+
   ```
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   Claude-Session: https://claude.ai/code/session_01X6Gm3X317RU4ns4JqR7A4z
@@ -70,9 +71,15 @@ describe('weight_refs', () => {
   })
 
   it('rejects an unknown format key, an empty repo and a non-positive size', () => {
-    expect(ModelSchema.safeParse({ ...base, weight_refs: { fp5: { repo: 'x/y', gib: 1 } } }).success).toBe(false)
-    expect(ModelSchema.safeParse({ ...base, weight_refs: { fp8: { repo: '', gib: 1 } } }).success).toBe(false)
-    expect(ModelSchema.safeParse({ ...base, weight_refs: { fp8: { repo: 'x/y', gib: 0 } } }).success).toBe(false)
+    expect(
+      ModelSchema.safeParse({ ...base, weight_refs: { fp5: { repo: 'x/y', gib: 1 } } }).success,
+    ).toBe(false)
+    expect(
+      ModelSchema.safeParse({ ...base, weight_refs: { fp8: { repo: '', gib: 1 } } }).success,
+    ).toBe(false)
+    expect(
+      ModelSchema.safeParse({ ...base, weight_refs: { fp8: { repo: 'x/y', gib: 0 } } }).success,
+    ).toBe(false)
   })
 
   it('lists every quantization format once', () => {
@@ -321,12 +328,12 @@ Update the doc lines above the table that say `gptq: 0.6 bytes (4-bit + 1.2x ove
 
 Run: `npx vitest run src/engines/quantization.test.ts` → Expected: PASS.
 Run: `npx vitest run 2>&1 | grep -E "FAIL|Tests "` → some existing tests fail on absolute values derived from the old constants. For each failure, confirm the value comes from `int4` / `gptq` / `awq` / `gguf-q2_k`, recompute with the new constant and update the expectation and its comment. Known ones:
-  - `quantization.test.ts`: table rows `['int4', 0.5]` → `0.5625`, `['gptq', 0.6]` / `['awq', 0.6]` → `0.52`, `['gguf-q2_k', 0.328]` → `0.366` (comment `// ~2.93 bpp`); the "approximately 0.6 (0.5 * 1.2)" test → `toBeCloseTo(0.52, 2)` with comment "4-bit + group-128 scale and zero"; 70B GPTQ `39.12` → `70e9 × 0.52 / 1024³ = 33.90`; 13B INT4 → `13e9 × 0.5625 / 1024³ = 6.81`; 1.5B INT4 → `0.786`; FP16/GPTQ ratio `2 / 0.6` → `2 / 0.52 = 3.846`.
-  - Any other file (e.g. `inference.test.ts`, `inference.integration.test.ts`) asserting a GPTQ/AWQ/INT4/Q2_K absolute size: recompute the same way. Relational assertions (A > B) need no change.
+- `quantization.test.ts`: table rows `['int4', 0.5]` → `0.5625`, `['gptq', 0.6]` / `['awq', 0.6]` → `0.52`, `['gguf-q2_k', 0.328]` → `0.366` (comment `// ~2.93 bpp`); the "approximately 0.6 (0.5 * 1.2)" test → `toBeCloseTo(0.52, 2)` with comment "4-bit + group-128 scale and zero"; 70B GPTQ `39.12` → `70e9 × 0.52 / 1024³ = 33.90`; 13B INT4 → `13e9 × 0.5625 / 1024³ = 6.81`; 1.5B INT4 → `0.786`; FP16/GPTQ ratio `2 / 0.6` → `2 / 0.52 = 3.846`.
+- Any other file (e.g. `inference.test.ts`, `inference.integration.test.ts`) asserting a GPTQ/AWQ/INT4/Q2_K absolute size: recompute the same way. Relational assertions (A > B) need no change.
   Also update the docblock example in `src/engines/inference.ts` (`~39.12 GB (70B * 0.6 bytes/param)` → `~33.90 GB (70B * 0.52 bytes/param)`, and its total line accordingly).
-Run again until: `Tests  N passed (N)`.
+  Run again until: `Tests  N passed (N)`.
 
-- [ ] **Step 5: Commit**
+* [ ] **Step 5: Commit**
 
 ```bash
 rtk proxy npx biome check --write . && npm run typecheck
@@ -549,9 +556,9 @@ describe('refDrift', () => {
 describe('knownGoodGaps', () => {
   it('flags MLA, sliding and linear-attention configs missing their curated field', () => {
     expect(knownGoodGaps(model, { kv_lora_rank: 512 })).toContain('use_mla')
-    expect(knownGoodGaps(model, { layer_types: ['sliding_attention', 'full_attention'] })).toContain(
-      'kv_sliding_window',
-    )
+    expect(
+      knownGoodGaps(model, { layer_types: ['sliding_attention', 'full_attention'] }),
+    ).toContain('kv_sliding_window')
     expect(knownGoodGaps(model, { linear_attn_config: { kda_layers: [1] } })).toContain(
       'linear_state_bytes_per_session',
     )
@@ -664,19 +671,33 @@ export function configFields(cfg: Config): MeasuredFields {
   ) as MeasuredFields
 }
 
-export function compareModel(model: Model, fields: MeasuredFields, paramsB: number | null): Drift[] {
+export function compareModel(
+  model: Model,
+  fields: MeasuredFields,
+  paramsB: number | null,
+): Drift[] {
   const drift: Drift[] = []
   for (const [field, measured] of Object.entries(fields) as [keyof MeasuredFields, number][]) {
     const curated = model[field]
     if (curated !== measured) drift.push({ field, curated, measured })
   }
-  if (paramsB !== null && Math.abs(paramsB - model.num_parameters_billion) > model.num_parameters_billion * 0.01) {
-    drift.push({ field: 'num_parameters_billion', curated: model.num_parameters_billion, measured: paramsB })
+  if (
+    paramsB !== null &&
+    Math.abs(paramsB - model.num_parameters_billion) > model.num_parameters_billion * 0.01
+  ) {
+    drift.push({
+      field: 'num_parameters_billion',
+      curated: model.num_parameters_billion,
+      measured: paramsB,
+    })
   }
   return drift
 }
 
-export function weightFiles(files: RepoFile[], format: QuantizationFormat): RepoFile[] | 'ambiguous' {
+export function weightFiles(
+  files: RepoFile[],
+  format: QuantizationFormat,
+): RepoFile[] | 'ambiguous' {
   const tag = GGUF_TAGS[format]
   if (tag) {
     const re = new RegExp(`(^|[-_./])${tag}(\\.gguf$|-\\d{5}-of-|/)`, 'i')
@@ -687,7 +708,9 @@ export function weightFiles(files: RepoFile[], format: QuantizationFormat): Repo
     const sets = new Set(hits.map((f) => f.path.replace(/-\d{5}-of-\d{5}\.gguf$/, '.gguf')))
     return sets.size > 1 ? 'ambiguous' : hits
   }
-  const st = files.filter((f) => f.path.endsWith('.safetensors') && !/^(original|metal)\//.test(f.path))
+  const st = files.filter(
+    (f) => f.path.endsWith('.safetensors') && !/^(original|metal)\//.test(f.path),
+  )
   const hf = st.filter((f) => !/consolidated/.test(f.path))
   return hf.length ? hf : st
 }
@@ -855,7 +878,9 @@ export async function fetchConfig(repo: string): Promise<Record<string, unknown>
 export async function fetchSafetensors(
   repo: string,
 ): Promise<{ total: number; parameters: Record<string, number> } | null> {
-  const info = (await getJSON(`https://huggingface.co/api/models/${repo}?expand[]=safetensors`)) as {
+  const info = (await getJSON(
+    `https://huggingface.co/api/models/${repo}?expand[]=safetensors`,
+  )) as {
     safetensors?: { total: number; parameters: Record<string, number> }
   } | null
   return info?.safetensors ?? null
@@ -945,7 +970,11 @@ async function audit(strict: boolean) {
 }
 
 async function measureRefs(repo: string) {
-  const [cfg, st, tree] = await Promise.all([fetchConfig(repo), fetchSafetensors(repo), fetchTree(repo)])
+  const [cfg, st, tree] = await Promise.all([
+    fetchConfig(repo),
+    fetchSafetensors(repo),
+    fetchTree(repo),
+  ])
   const refs: Partial<Record<QuantizationFormat, { repo: string; gib: number }>> = {}
   const native = nativeFormat(cfg ?? {}, st?.parameters)
   const own = tree ? weightFiles(tree, native) : null
@@ -999,7 +1028,9 @@ async function draft() {
     })
   }
   await writeFile('src/data/models-fetched.json', `${JSON.stringify(drafts, null, 2)}\n`)
-  console.log(`Wrote ${drafts.length} draft(s) to src/data/models-fetched.json; review and merge by hand.`)
+  console.log(
+    `Wrote ${drafts.length} draft(s) to src/data/models-fetched.json; review and merge by hand.`,
+  )
 }
 
 const args = process.argv.slice(2)
@@ -1041,61 +1072,61 @@ git commit -m "feat: refresh:models audits models.json and measures weight_refs"
 - [ ] **Step 1: Write the failing tests** (append inside `describe('Model Database Validation', ...)` in `src/utils/models.test.ts`; add `import { calculateInferenceVRAM } from '@engines/inference'` and `import { BYTES_PER_PARAMETER } from '@engines/constants'`)
 
 ```ts
-  it('gives every weight ref a size plausible for its format', () => {
-    // Implied bytes per parameter; a size pasted under the wrong format falls outside.
-    const band = (format: string): [number, number] => {
-      if (format.startsWith('gguf-')) {
-        const c = BYTES_PER_PARAMETER[format as keyof typeof BYTES_PER_PARAMETER].toNumber()
-        return [c * 0.6, c * 1.4]
-      }
-      const bands: Record<string, [number, number]> = {
-        nvfp4: [0.5, 1.0],
-        mxfp4: [0.5, 1.0],
-        int4: [0.5, 1.0],
-        awq: [0.5, 1.0],
-        gptq: [0.5, 1.0],
-        fp8: [0.95, 1.3],
-        bf16: [1.9, 2.1],
-        fp16: [1.9, 2.1],
-      }
-      return bands[format] ?? [0, Number.POSITIVE_INFINITY]
+it('gives every weight ref a size plausible for its format', () => {
+  // Implied bytes per parameter; a size pasted under the wrong format falls outside.
+  const band = (format: string): [number, number] => {
+    if (format.startsWith('gguf-')) {
+      const c = BYTES_PER_PARAMETER[format as keyof typeof BYTES_PER_PARAMETER].toNumber()
+      return [c * 0.6, c * 1.4]
     }
-    let refs = 0
-    for (const m of modelsData) {
-      const w = (m as { weight_refs?: Record<string, { repo: string; gib: number }> }).weight_refs
-      for (const [format, ref] of Object.entries(w ?? {})) {
-        refs++
-        expect(ref.repo, `${m.id} ${format}`).toMatch(/^[\w.-]+\/[\w.-]+$/)
-        const bpp = (ref.gib * 1024 ** 3) / (m.num_parameters_billion * 1e9)
-        const [lo, hi] = band(format)
-        expect(bpp, `${m.id} ${format} ${bpp.toFixed(3)} bytes/param`).toBeGreaterThanOrEqual(lo)
-        expect(bpp, `${m.id} ${format} ${bpp.toFixed(3)} bytes/param`).toBeLessThanOrEqual(hi)
-      }
+    const bands: Record<string, [number, number]> = {
+      nvfp4: [0.5, 1.0],
+      mxfp4: [0.5, 1.0],
+      int4: [0.5, 1.0],
+      awq: [0.5, 1.0],
+      gptq: [0.5, 1.0],
+      fp8: [0.95, 1.3],
+      bf16: [1.9, 2.1],
+      fp16: [1.9, 2.1],
     }
-    expect(refs).toBeGreaterThan(100)
-  })
+    return bands[format] ?? [0, Number.POSITIVE_INFINITY]
+  }
+  let refs = 0
+  for (const m of modelsData) {
+    const w = (m as { weight_refs?: Record<string, { repo: string; gib: number }> }).weight_refs
+    for (const [format, ref] of Object.entries(w ?? {})) {
+      refs++
+      expect(ref.repo, `${m.id} ${format}`).toMatch(/^[\w.-]+\/[\w.-]+$/)
+      const bpp = (ref.gib * 1024 ** 3) / (m.num_parameters_billion * 1e9)
+      const [lo, hi] = band(format)
+      expect(bpp, `${m.id} ${format} ${bpp.toFixed(3)} bytes/param`).toBeGreaterThanOrEqual(lo)
+      expect(bpp, `${m.id} ${format} ${bpp.toFixed(3)} bytes/param`).toBeLessThanOrEqual(hi)
+    }
+  }
+  expect(refs).toBeGreaterThan(100)
+})
 
-  it('matches the independent 2026-09-26 checkpoint measurements through the engine', () => {
-    // [model id, format, reference repo, file GiB measured by the spike]
-    const ANCHORS: [string, string, string, number][] = [
-      ['google-gemma-4-31b', 'nvfp4', 'nvidia/Gemma-4-31B-IT-NVFP4', 30.4],
-      ['moonshotai-kimi-k3', 'mxfp4', 'moonshotai/Kimi-K3', 1453.7],
-      ['meta-llama-llama-3.1-8b', 'fp8', 'RedHatAI/Meta-Llama-3.1-8B-Instruct-FP8', 8.5],
-      ['deepseek-r1', 'gguf-q2_k', 'unsloth/DeepSeek-R1-GGUF', 227.3],
-      ['qwen-qwen3.8-27b', 'awq', 'cyankiwi/Qwen3.8-27B-AWQ-INT4', 19.6],
-    ]
-    for (const [id, format, repo, fileGiB] of ANCHORS) {
-      const m = validateModels(modelsData).find((x) => x.id === id)
-      expect(m?.weight_refs?.[format as never]?.repo, `${id} ${format}`).toBe(repo)
-      const weights = calculateInferenceVRAM({
-        model: m as never,
-        quantization: format as never,
-        sequenceLength: 4096,
-        batchSize: 1,
-      }).modelWeights.toNumber()
-      expect(Math.abs(weights - fileGiB) / fileGiB, `${id} ${format}`).toBeLessThan(0.01)
-    }
-  })
+it('matches the independent 2026-09-26 checkpoint measurements through the engine', () => {
+  // [model id, format, reference repo, file GiB measured by the spike]
+  const ANCHORS: [string, string, string, number][] = [
+    ['google-gemma-4-31b', 'nvfp4', 'nvidia/Gemma-4-31B-IT-NVFP4', 30.4],
+    ['moonshotai-kimi-k3', 'mxfp4', 'moonshotai/Kimi-K3', 1453.7],
+    ['meta-llama-llama-3.1-8b', 'fp8', 'RedHatAI/Meta-Llama-3.1-8B-Instruct-FP8', 8.5],
+    ['deepseek-r1', 'gguf-q2_k', 'unsloth/DeepSeek-R1-GGUF', 227.3],
+    ['qwen-qwen3.8-27b', 'awq', 'cyankiwi/Qwen3.8-27B-AWQ-INT4', 19.6],
+  ]
+  for (const [id, format, repo, fileGiB] of ANCHORS) {
+    const m = validateModels(modelsData).find((x) => x.id === id)
+    expect(m?.weight_refs?.[format as never]?.repo, `${id} ${format}`).toBe(repo)
+    const weights = calculateInferenceVRAM({
+      model: m as never,
+      quantization: format as never,
+      sequenceLength: 4096,
+      batchSize: 1,
+    }).modelWeights.toNumber()
+    expect(Math.abs(weights - fileGiB) / fileGiB, `${id} ${format}`).toBeLessThan(0.01)
+  }
+})
 ```
 
 - [ ] **Step 2: Run to verify they fail**
@@ -1173,28 +1204,30 @@ git commit -m "data: measured weight_refs for all models; integrity and corpus t
 
 In `ResultsPanel.tsx`: `import { weightSource } from '@engines/quantization'`; directly after `<MemoryBreakdownTable breakdown={displayBreakdown} />`:
 ```tsx
-            {(() => {
-              const source = weightSource(selectedModel, quantization)
-              return (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {source ? (
-                    <>
-                      Weights measured from{' '}
-                      <a
-                        href={`https://huggingface.co/${source}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline"
-                      >
-                        {source}
-                      </a>
-                    </>
-                  ) : (
-                    `Weights estimated: no reference checkpoint for ${quantization}`
-                  )}
-                </p>
-              )
-            })()}
+{
+  ;(() => {
+    const source = weightSource(selectedModel, quantization)
+    return (
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        {source ? (
+          <>
+            Weights measured from{' '}
+            <a
+              href={`https://huggingface.co/${source}`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              {source}
+            </a>
+          </>
+        ) : (
+          `Weights estimated: no reference checkpoint for ${quantization}`
+        )}
+      </p>
+    )
+  })()
+}
 ```
 
 - [ ] **Step 2: Docs**
@@ -1205,6 +1238,7 @@ In `ResultsPanel.tsx`: `import { weightSource } from '@engines/quantization'`; d
   - `### Changed`: `- Fallback bytes per parameter from the format definitions: INT4 0.5625 (16-bit scale per group of 32), AWQ/GPTQ 0.52 (scale and zero per group of 128, was 0.6), GGUF Q2_K 0.366 (median published file, was 0.328).`
 - `CLAUDE.md`: in Commands, replace the `refresh:models` line with `npm run refresh:models   # Audit models.json vs Hugging Face; --measure <id> prints weight_refs; --draft drafts new roster ids (never writes models.json)`. In Key Patterns, after the KV known-good line, add: `- **Weight sizes are measured per format**: weight_refs[format] = {repo, gib} from the reference checkpoint (native, nvidia NVFP4, RedHatAI FP8/INT4, unsloth→bartowski GGUF, most-downloaded AWQ/GPTQ), produced by \`refresh:models --measure\`. effectiveBytesPerParameter uses it for memory and decode; BYTES_PER_PARAMETER is only the fallback.`
 - `ARCHITECTURE.md`, Quantization Engine section: replace the `**Formula:**` line and the paragraph under it with:
+
   ```markdown
   **Formula:** `weight_GB = params × effectiveBytesPerParameter(format, model) / 1024³`
 

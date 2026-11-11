@@ -15,13 +15,13 @@ while real checkpoints keep some tensors in 16-bit.
 What stays 16-bit depends on the **recipe** (who quantized it), not only on the
 model:
 
-| Model | Checkpoint | 16-bit | Rest |
-|---|---|---|---|
-| Gemma 4 31B | nvidia/Gemma-4-31B-IT-NVFP4 | 10.5B | FP4 |
-| Gemma 4 31B | RedHatAI/gemma-4-31B-it-FP8-block | 2.0B | FP8 |
-| Qwen3.8 27B | unsloth/Qwen3.8-27B-NVFP4 | 1.8B | 10.6B FP8 + FP4 |
-| Kimi K3 | moonshotai/Kimi-K3 (native MXFP4) | 57.2B | FP4 experts |
-| Kimi K3 | nvidia/Kimi-K3-NVFP4 | 21.0B | 36.2B FP8 + FP4 |
+| Model       | Checkpoint                        | 16-bit | Rest            |
+| ----------- | --------------------------------- | ------ | --------------- |
+| Gemma 4 31B | nvidia/Gemma-4-31B-IT-NVFP4       | 10.5B  | FP4             |
+| Gemma 4 31B | RedHatAI/gemma-4-31B-it-FP8-block | 2.0B   | FP8             |
+| Qwen3.8 27B | unsloth/Qwen3.8-27B-NVFP4         | 1.8B   | 10.6B FP8 + FP4 |
+| Kimi K3     | moonshotai/Kimi-K3 (native MXFP4) | 57.2B  | FP4 experts     |
+| Kimi K3     | nvidia/Kimi-K3-NVFP4              | 21.0B  | 36.2B FP8 + FP4 |
 
 So a single per-model "unquantized parameters" figure cannot be right for two
 releases of the same model. The fix follows the pattern used for KV sizes:
@@ -94,12 +94,12 @@ effectiveBytesPerParameter(model, format): Decimal =
 Constants describe the quantized tensors only (16-bit parts are what the refs
 capture). Each carries its source in `constants.ts`:
 
-| Format | Now | New | Basis |
-|---|---|---|---|
-| `int4` | 0.5 | 0.5625 | 4 bits + 16-bit scale per group of 32, symmetric (Kimi K2 `quantization_config`: `group_size: 32`) |
-| `awq`, `gptq` | 0.6 | 0.52 | 4 bits + 16-bit scale + 4-bit zero per group of 128 ≈ 4.16 bits |
-| `gguf-q2_k` | 0.328 | 0.366 | median of 25 published Q2_K files in the 2026-09 spike ≈ 2.93 bpp (the Q2_K mix uses higher-bit types for some tensors) |
-| `nvfp4` | 0.5625 | unchanged | E2M1 + FP8 scale per 16 = 4.5 bits (already correct) |
+| Format        | Now    | New       | Basis                                                                                                                   |
+| ------------- | ------ | --------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `int4`        | 0.5    | 0.5625    | 4 bits + 16-bit scale per group of 32, symmetric (Kimi K2 `quantization_config`: `group_size: 32`)                      |
+| `awq`, `gptq` | 0.6    | 0.52      | 4 bits + 16-bit scale + 4-bit zero per group of 128 ≈ 4.16 bits                                                         |
+| `gguf-q2_k`   | 0.328  | 0.366     | median of 25 published Q2_K files in the 2026-09 spike ≈ 2.93 bpp (the Q2_K mix uses higher-bit types for some tensors) |
+| `nvfp4`       | 0.5625 | unchanged | E2M1 + FP8 scale per 16 = 4.5 bits (already correct)                                                                    |
 
 ### UI
 

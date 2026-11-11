@@ -18,15 +18,15 @@ num_attention_heads, and (c) the cache stores K and V per KV head. All three ass
 fail for the exotic-attention models in the database, with wildly inconsistent errors
 (verified 2026-07-03 against live config.json):
 
-| Model | Current formula error |
-|---|---|
-| DeepSeek R1, Kimi K2.x (MLA, dummy kv=heads) | **~25× overestimate** |
-| GLM 5.2 (MLA + DSA) | ~21× overestimate |
-| Kimi Linear (20/27 layers linear) | ~31× overestimate |
-| Nemotron 3 Nano/Super/Ultra (mamba hybrids) | 6–11× overestimate |
-| DeepSeek V4 (MLA, config kv=1) | **~5× UNDERestimate** |
-| MiniMax M2.1/2.5/2.7 (head_dim=128 ≠ hidden/heads=64) | 2× underestimate |
-| MiniMax M3 (head_dim=128 ≠ 96) | 1.33× underestimate |
+| Model                                                 | Current formula error |
+| ----------------------------------------------------- | --------------------- |
+| DeepSeek R1, Kimi K2.x (MLA, dummy kv=heads)          | **~25× overestimate** |
+| GLM 5.2 (MLA + DSA)                                   | ~21× overestimate     |
+| Kimi Linear (20/27 layers linear)                     | ~31× overestimate     |
+| Nemotron 3 Nano/Super/Ultra (mamba hybrids)           | 6–11× overestimate    |
+| DeepSeek V4 (MLA, config kv=1)                        | **~5× UNDERestimate** |
+| MiniMax M2.1/2.5/2.7 (head_dim=128 ≠ hidden/heads=64) | 2× underestimate      |
+| MiniMax M3 (head_dim=128 ≠ 96)                        | 1.33× underestimate   |
 
 ## Solution: one generic override field
 
@@ -74,24 +74,24 @@ Values computed from live config.json fields on 2026-07-03. Derivations:
 - **Hybrid:** `full_attention_layer_count × 2 × num_kv_heads × head_dim`.
 - **Explicit head_dim GQA:** `layers × 2 × num_kv_heads × head_dim`.
 
-| id | Value | Derivation | Confidence |
-|---|---|---|---|
-| deepseek-r1 | 35136 | 61 × 576 (kv_lora_rank=512, rope=64) | config-verified |
-| moonshotai-kimi-k2-thinking | 35136 | 61 × 576 | config-verified |
-| moonshotai-kimi-k2-instruct | 35136 | 61 × 576 | config-verified |
-| moonshotai-kimi-k2.5 | 35136 | 61 × 576 (in text_config) | config-verified |
-| zai-org-glm-5.2 | 44928 | 78 × 576 (MLA base; shared DSA indexer overhead small, not counted) | config-verified (base) |
-| moonshotai-kimi-linear-48b-a3b | 4032 | 7 full-attn layers (`full_attn_layers` array) × 576; 20 KDA layers constant-state | config-verified |
-| deepseek-v4-flash | 24768 | 43 × (512 + 64) (head_dim=512 ≙ renamed latent; CSA/HCA compresses further — this is the **upper bound**) | paper-inferred upper bound |
-| deepseek-v4-pro | 35136 | 61 × 576 (same caveat) | paper-inferred upper bound |
-| minimax-m3 | 61440 | 60 × 2 × 4 × 128 (explicit head_dim=128; sparsity affects reads, not storage) | config-verified |
-| minimax-m2.1 | 126976 | 62 × 2 × 8 × 128 (all layers uniform full attention) | config-verified |
-| minimax-m2.5 | 126976 | 62 × 2 × 8 × 128 | config-verified |
-| minimax-m2.7 | 126976 | 62 × 2 × 8 × 128 | config-verified |
-| nvidia-nemotron-3-nano-4b | 8192 | 4 attention layers (of 42: 21 mamba + 17 MLP + 4 attn) × 2 × 8 × 128 | config-verified |
-| nvidia-nemotron-3-nano-30b-a3b | 3072 | 6 attention layers (of 52) × 2 × 2 × 128 | config-verified |
-| nvidia-nemotron-3-super-120b-a12b | 4096 | 8 attention layers (of 88) × 2 × 2 × 128 | config-verified |
-| nvidia-nemotron-3-ultra-550b-a55b | 6144 | 12 attention layers (of 108) × 2 × 2 × 128 | config-verified |
+| id                                | Value  | Derivation                                                                                                | Confidence                 |
+| --------------------------------- | ------ | --------------------------------------------------------------------------------------------------------- | -------------------------- |
+| deepseek-r1                       | 35136  | 61 × 576 (kv_lora_rank=512, rope=64)                                                                      | config-verified            |
+| moonshotai-kimi-k2-thinking       | 35136  | 61 × 576                                                                                                  | config-verified            |
+| moonshotai-kimi-k2-instruct       | 35136  | 61 × 576                                                                                                  | config-verified            |
+| moonshotai-kimi-k2.5              | 35136  | 61 × 576 (in text_config)                                                                                 | config-verified            |
+| zai-org-glm-5.2                   | 44928  | 78 × 576 (MLA base; shared DSA indexer overhead small, not counted)                                       | config-verified (base)     |
+| moonshotai-kimi-linear-48b-a3b    | 4032   | 7 full-attn layers (`full_attn_layers` array) × 576; 20 KDA layers constant-state                         | config-verified            |
+| deepseek-v4-flash                 | 24768  | 43 × (512 + 64) (head_dim=512 ≙ renamed latent; CSA/HCA compresses further — this is the **upper bound**) | paper-inferred upper bound |
+| deepseek-v4-pro                   | 35136  | 61 × 576 (same caveat)                                                                                    | paper-inferred upper bound |
+| minimax-m3                        | 61440  | 60 × 2 × 4 × 128 (explicit head_dim=128; sparsity affects reads, not storage)                             | config-verified            |
+| minimax-m2.1                      | 126976 | 62 × 2 × 8 × 128 (all layers uniform full attention)                                                      | config-verified            |
+| minimax-m2.5                      | 126976 | 62 × 2 × 8 × 128                                                                                          | config-verified            |
+| minimax-m2.7                      | 126976 | 62 × 2 × 8 × 128                                                                                          | config-verified            |
+| nvidia-nemotron-3-nano-4b         | 8192   | 4 attention layers (of 42: 21 mamba + 17 MLP + 4 attn) × 2 × 8 × 128                                      | config-verified            |
+| nvidia-nemotron-3-nano-30b-a3b    | 3072   | 6 attention layers (of 52) × 2 × 2 × 128                                                                  | config-verified            |
+| nvidia-nemotron-3-super-120b-a12b | 4096   | 8 attention layers (of 88) × 2 × 2 × 128                                                                  | config-verified            |
+| nvidia-nemotron-3-ultra-550b-a55b | 6144   | 12 attention layers (of 108) × 2 × 2 × 128                                                                | config-verified            |
 
 **DeepSeek V4 note:** the config lacks `kv_lora_rank`; `head_dim=512` is the renamed MLA
 latent dim, and per-layer `compress_ratios` (CSA/HCA) shrink the real cache further

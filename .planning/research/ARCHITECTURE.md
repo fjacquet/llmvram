@@ -80,24 +80,24 @@ src/
 ```typescript
 export interface FineTuningVRAMBreakdown {
   // Base model components (reused from inference)
-  modelWeights: Decimal       // Base model in training precision (or quantized for QLoRA)
+  modelWeights: Decimal // Base model in training precision (or quantized for QLoRA)
 
   // Training-specific components
-  gradients: Decimal          // Gradient storage (trainable params only for LoRA/QLoRA)
-  optimizerStates: Decimal    // Optimizer momentum/variance (trainable params only)
-  activations: Decimal        // Forward pass activations (larger than inference)
-  loraAdapters: Decimal       // LoRA A/B matrices (0 for full fine-tuning)
+  gradients: Decimal // Gradient storage (trainable params only for LoRA/QLoRA)
+  optimizerStates: Decimal // Optimizer momentum/variance (trainable params only)
+  activations: Decimal // Forward pass activations (larger than inference)
+  loraAdapters: Decimal // LoRA A/B matrices (0 for full fine-tuning)
 
   // Infrastructure
-  frameworkOverhead: Decimal  // PyTorch + CUDA + training framework
-  kvCache: Decimal            // KV cache for training (if applicable)
+  frameworkOverhead: Decimal // PyTorch + CUDA + training framework
+  kvCache: Decimal // KV cache for training (if applicable)
 
   // Total
   total: Decimal
 
   // Metadata
-  trainableParams: number     // Number of trainable parameters
-  frozenParams: number        // Number of frozen parameters
+  trainableParams: number // Number of trainable parameters
+  frozenParams: number // Number of frozen parameters
 }
 
 export type TrainingMode = 'full' | 'lora' | 'qlora'
@@ -105,7 +105,7 @@ export type TrainingMode = 'full' | 'lora' | 'qlora'
 export function calculateFineTuningVRAM(params: {
   model: Model
   mode: TrainingMode
-  precision: QuantizationFormat    // Training precision (fp32, bf16, fp16)
+  precision: QuantizationFormat // Training precision (fp32, bf16, fp16)
   basePrecision?: QuantizationFormat // QLoRA only: base model quantization (nf4, int4)
   loraConfig?: LoRAConfig
   optimizerConfig: OptimizerConfig
@@ -120,24 +120,24 @@ export function calculateFineTuningVRAM(params: {
 
 ```typescript
 // Full Fine-Tuning (mixed precision fp16/bf16 training)
-modelWeights = params * 2        // fp16/bf16 weights
-gradients = params * 4           // fp32 gradients
-optimizerStates = params * K     // K = 8 for AdamW, 2 for Adafactor
+modelWeights = params * 2 // fp16/bf16 weights
+gradients = params * 4 // fp32 gradients
+optimizerStates = params * K // K = 8 for AdamW, 2 for Adafactor
 activations = batchSize * seqLen * hiddenSize * layers * 12 // MLP expansion
 total = modelWeights + gradients + optimizerStates + activations + overhead
 
 // LoRA Fine-Tuning
-baseModel = params * 2           // fp16 frozen weights
+baseModel = params * 2 // fp16 frozen weights
 loraParams = rank * hiddenSize * targetLayers * 2 // A and B matrices
-gradients = loraParams * 4       // Only for LoRA adapters
+gradients = loraParams * 4 // Only for LoRA adapters
 optimizerStates = loraParams * K // Only for LoRA adapters (~1% of full)
-activations = same as full       // Full forward pass still needed
+activations = same as full // Full forward pass still needed
 total = baseModel + loraParams + gradients + optimizerStates + activations + overhead
 
 // QLoRA Fine-Tuning
-baseModel = params * 0.5625      // 4-bit NF4 with double quantization overhead
+baseModel = params * 0.5625 // 4-bit NF4 with double quantization overhead
 loraParams = rank * hiddenSize * targetLayers * 2
-gradients = loraParams * 4       // Only for adapters
+gradients = loraParams * 4 // Only for adapters
 optimizerStates = loraParams * K // Only for adapters
 activations = same as full
 total = baseModel + loraParams + gradients + optimizerStates + activations + overhead
@@ -171,31 +171,45 @@ total = baseModel + loraParams + gradients + optimizerStates + activations + ove
 
 ```typescript
 export interface LoRAConfig {
-  rank: number                    // r: rank of low-rank matrices (4, 8, 16, 32, 64, 128)
-  alpha: number                   // LoRA alpha scaling factor (usually rank or 2*rank)
-  targetModules: LoRATargetModule[]  // Which modules to apply LoRA
-  dropout: number                 // Dropout probability (0.0 - 0.1)
+  rank: number // r: rank of low-rank matrices (4, 8, 16, 32, 64, 128)
+  alpha: number // LoRA alpha scaling factor (usually rank or 2*rank)
+  targetModules: LoRATargetModule[] // Which modules to apply LoRA
+  dropout: number // Dropout probability (0.0 - 0.1)
 }
 
-export type LoRATargetModule = 'q_proj' | 'k_proj' | 'v_proj' | 'o_proj' | 'gate_proj' | 'up_proj' | 'down_proj'
+export type LoRATargetModule =
+  | 'q_proj'
+  | 'k_proj'
+  | 'v_proj'
+  | 'o_proj'
+  | 'gate_proj'
+  | 'up_proj'
+  | 'down_proj'
 
 export interface LoRAParamBreakdown {
-  perLayerParams: number          // Parameters per transformer layer
-  totalLayers: number             // Number of layers with LoRA
-  totalParams: number             // Total LoRA parameters
-  percentOfBase: number           // Percentage of base model parameters
-  memoryGB: Decimal               // Memory in GB (fp16)
+  perLayerParams: number // Parameters per transformer layer
+  totalLayers: number // Number of layers with LoRA
+  totalParams: number // Total LoRA parameters
+  percentOfBase: number // Percentage of base model parameters
+  memoryGB: Decimal // Memory in GB (fp16)
 }
 
-export function calculateLoRAParams(
-  model: Model,
-  config: LoRAConfig,
-): LoRAParamBreakdown
+export function calculateLoRAParams(model: Model, config: LoRAConfig): LoRAParamBreakdown
 
 export const LORA_PRESETS: Record<string, LoRAConfig> = {
   minimal: { rank: 4, alpha: 8, targetModules: ['q_proj', 'v_proj'], dropout: 0.05 },
-  standard: { rank: 16, alpha: 32, targetModules: ['q_proj', 'k_proj', 'v_proj', 'o_proj'], dropout: 0.05 },
-  full: { rank: 64, alpha: 128, targetModules: ['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'], dropout: 0.1 },
+  standard: {
+    rank: 16,
+    alpha: 32,
+    targetModules: ['q_proj', 'k_proj', 'v_proj', 'o_proj'],
+    dropout: 0.05,
+  },
+  full: {
+    rank: 64,
+    alpha: 128,
+    targetModules: ['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'],
+    dropout: 0.1,
+  },
 }
 ```
 
@@ -236,22 +250,22 @@ memoryGB = totalParams * 2 / (1024^3)  // fp16 storage
 
 ```typescript
 export type OptimizerType =
-  | 'adamw'           // Standard AdamW (fp32 states)
-  | 'adamw_8bit'      // 8-bit AdamW (bitsandbytes)
-  | 'sgd'             // SGD with momentum
-  | 'adafactor'       // Memory-efficient Adafactor
+  | 'adamw' // Standard AdamW (fp32 states)
+  | 'adamw_8bit' // 8-bit AdamW (bitsandbytes)
+  | 'sgd' // SGD with momentum
+  | 'adafactor' // Memory-efficient Adafactor
 
 export interface OptimizerConfig {
   type: OptimizerType
-  learningRate?: number           // For reference only (doesn't affect memory)
-  weightDecay?: number            // For reference only
+  learningRate?: number // For reference only (doesn't affect memory)
+  weightDecay?: number // For reference only
 }
 
 export interface OptimizerMemoryBreakdown {
   type: OptimizerType
-  bytesPerParam: number           // Memory bytes per trainable parameter
-  totalMemoryGB: Decimal          // Total optimizer state memory
-  notes: string                   // Stability/performance notes
+  bytesPerParam: number // Memory bytes per trainable parameter
+  totalMemoryGB: Decimal // Total optimizer state memory
+  notes: string // Stability/performance notes
 }
 
 export function calculateOptimizerMemory(
@@ -259,28 +273,31 @@ export function calculateOptimizerMemory(
   config: OptimizerConfig,
 ): OptimizerMemoryBreakdown
 
-export const OPTIMIZER_SPECS: Record<OptimizerType, {
-  bytesPerParam: number
-  stability: 'high' | 'medium' | 'low'
-  notes: string
-}> = {
+export const OPTIMIZER_SPECS: Record<
+  OptimizerType,
+  {
+    bytesPerParam: number
+    stability: 'high' | 'medium' | 'low'
+    notes: string
+  }
+> = {
   adamw: {
-    bytesPerParam: 8,  // 4 bytes momentum + 4 bytes variance (fp32)
+    bytesPerParam: 8, // 4 bytes momentum + 4 bytes variance (fp32)
     stability: 'high',
     notes: 'Standard choice for fine-tuning. Stable convergence.',
   },
   adamw_8bit: {
-    bytesPerParam: 2,  // 1 byte momentum + 1 byte variance (int8)
+    bytesPerParam: 2, // 1 byte momentum + 1 byte variance (int8)
     stability: 'high',
     notes: '4x memory reduction vs AdamW. Same performance (bitsandbytes).',
   },
   adafactor: {
-    bytesPerParam: 4,  // Factored representation reduces from 8 to ~4
+    bytesPerParam: 4, // Factored representation reduces from 8 to ~4
     stability: 'medium',
     notes: 'Memory-efficient but less stable. May need tuning.',
   },
   sgd: {
-    bytesPerParam: 4,  // 4 bytes momentum (fp32)
+    bytesPerParam: 4, // 4 bytes momentum (fp32)
     stability: 'low',
     notes: 'Minimal memory but poor convergence for LLMs.',
   },
@@ -293,17 +310,17 @@ export const OPTIMIZER_SPECS: Record<OptimizerType, {
 // AdamW (standard): stores 2 states per parameter
 // - First moment (momentum): fp32 (4 bytes)
 // - Second moment (variance): fp32 (4 bytes)
-optimizerMemory = trainableParams * 8 / (1024^3)  // GB
+optimizerMemory = (trainableParams * 8) / (1024 ^ 3) // GB
 
 // AdamW 8-bit: quantized states
 // - First moment: int8 (1 byte)
 // - Second moment: int8 (1 byte)
-optimizerMemory = trainableParams * 2 / (1024^3)  // GB
+optimizerMemory = (trainableParams * 2) / (1024 ^ 3) // GB
 
 // Adafactor: factored representation
 // For matrix-shaped params (n × m), stores O(n + m) instead of O(n*m)
 // Approximation: ~50% of AdamW memory
-optimizerMemory = trainableParams * 4 / (1024^3)  // GB
+optimizerMemory = (trainableParams * 4) / (1024 ^ 3) // GB
 ```
 
 **Sources:**
@@ -322,14 +339,14 @@ optimizerMemory = trainableParams * 4 / (1024^3)  // GB
 
 ```typescript
 export interface GradientAccumulationConfig {
-  microBatchSize: number          // Actual batch size per step
-  accumulationSteps: number       // Number of steps to accumulate
-  effectiveBatchSize: number      // microBatchSize * accumulationSteps
+  microBatchSize: number // Actual batch size per step
+  accumulationSteps: number // Number of steps to accumulate
+  effectiveBatchSize: number // microBatchSize * accumulationSteps
 }
 
 export interface GradientAccumulationImpact {
-  memoryReduction: number         // % reduction vs effective batch size
-  timeIncrease: number            // % increase in training time
+  memoryReduction: number // % reduction vs effective batch size
+  timeIncrease: number // % increase in training time
   recommendationLevel: 'optimal' | 'acceptable' | 'inefficient'
   warnings: string[]
 }
@@ -353,18 +370,26 @@ export function recommendGradientAccumulation(
 // KV cache and activations scale with batch size
 
 // Memory with gradient accumulation
-memoryWithGA = modelWeights + gradients + optimizerStates +
-               (activations * microBatchSize) + (kvCache * microBatchSize)
+memoryWithGA =
+  modelWeights +
+  gradients +
+  optimizerStates +
+  activations * microBatchSize +
+  kvCache * microBatchSize
 
 // Memory without gradient accumulation (full effective batch)
-memoryWithoutGA = modelWeights + gradients + optimizerStates +
-                  (activations * effectiveBatchSize) + (kvCache * effectiveBatchSize)
+memoryWithoutGA =
+  modelWeights +
+  gradients +
+  optimizerStates +
+  activations * effectiveBatchSize +
+  kvCache * effectiveBatchSize
 
 // Memory reduction (activations and KV cache only)
 reductionFactor = (effectiveBatchSize - microBatchSize) / effectiveBatchSize
 
 // Time increase (sequential micro-batches)
-timeIncrease = (accumulationSteps - 1) / accumulationSteps * 100  // Percentage
+timeIncrease = ((accumulationSteps - 1) / accumulationSteps) * 100 // Percentage
 ```
 
 **Warnings:**
@@ -388,21 +413,21 @@ timeIncrease = (accumulationSteps - 1) / accumulationSteps * 100  // Percentage
 
 ```typescript
 export type FrameworkType =
-  | 'baseline'      // No framework-specific optimizations
-  | 'vllm'          // vLLM PagedAttention optimizations
-  | 'tgi'           // Hugging Face Text Generation Inference
-  | 'unsloth'       // Unsloth fast fine-tuning
-  | 'deepspeed'     // DeepSpeed ZeRO
+  | 'baseline' // No framework-specific optimizations
+  | 'vllm' // vLLM PagedAttention optimizations
+  | 'tgi' // Hugging Face Text Generation Inference
+  | 'unsloth' // Unsloth fast fine-tuning
+  | 'deepspeed' // DeepSpeed ZeRO
 
 export interface FrameworkPreset {
   framework: FrameworkType
-  optimizations: string[]         // List of active optimizations
-  kvCacheReduction: number        // % reduction in KV cache memory (vLLM PagedAttention)
-  activationReduction: number     // % reduction in activation memory (gradient checkpointing)
-  overheadIncrease: number        // Additional framework overhead (GB)
-  speedupFactor: number           // Training/inference speedup multiplier
-  memoryReductionFactor: number   // Overall memory reduction multiplier
-  requirements: string[]          // Framework-specific requirements
+  optimizations: string[] // List of active optimizations
+  kvCacheReduction: number // % reduction in KV cache memory (vLLM PagedAttention)
+  activationReduction: number // % reduction in activation memory (gradient checkpointing)
+  overheadIncrease: number // Additional framework overhead (GB)
+  speedupFactor: number // Training/inference speedup multiplier
+  memoryReductionFactor: number // Overall memory reduction multiplier
+  requirements: string[] // Framework-specific requirements
   notes: string
 }
 
@@ -410,11 +435,11 @@ export const FRAMEWORK_PRESETS: Record<FrameworkType, FrameworkPreset> = {
   vllm: {
     framework: 'vllm',
     optimizations: ['PagedAttention', 'Continuous batching', 'Optimized CUDA kernels'],
-    kvCacheReduction: 96,         // 96% reduction in KV cache waste
-    activationReduction: 0,       // Inference-only
-    overheadIncrease: 1.5,        // vLLM runtime overhead
-    speedupFactor: 2.5,           // 2-4x throughput increase
-    memoryReductionFactor: 0.65,  // Effective memory reduction from paging
+    kvCacheReduction: 96, // 96% reduction in KV cache waste
+    activationReduction: 0, // Inference-only
+    overheadIncrease: 1.5, // vLLM runtime overhead
+    speedupFactor: 2.5, // 2-4x throughput increase
+    memoryReductionFactor: 0.65, // Effective memory reduction from paging
     requirements: ['Inference mode only', 'CUDA GPU'],
     notes: 'PagedAttention reduces KV cache waste from 60-80% to <4%',
   },
@@ -425,7 +450,7 @@ export const FRAMEWORK_PRESETS: Record<FrameworkType, FrameworkPreset> = {
     activationReduction: 0,
     overheadIncrease: 1.0,
     speedupFactor: 2.0,
-    memoryReductionFactor: 0.70,
+    memoryReductionFactor: 0.7,
     requirements: ['Inference mode only', 'CUDA GPU'],
     notes: 'Optimized for production inference with auto-scaling',
   },
@@ -433,10 +458,10 @@ export const FRAMEWORK_PRESETS: Record<FrameworkType, FrameworkPreset> = {
     framework: 'unsloth',
     optimizations: ['Manual backprop kernels', 'Triton kernels', 'LoRA optimization'],
     kvCacheReduction: 0,
-    activationReduction: 26,      // 74% less memory = 26% of original
+    activationReduction: 26, // 74% less memory = 26% of original
     overheadIncrease: 0.5,
     speedupFactor: 2.0,
-    memoryReductionFactor: 0.26,  // 74% memory reduction
+    memoryReductionFactor: 0.26, // 74% memory reduction
     requirements: ['Training mode only', 'LoRA or QLoRA'],
     notes: '2x faster training with 70% less memory vs standard LoRA',
   },
@@ -494,9 +519,9 @@ export type TrainingMode = 'inference' | 'full-ft' | 'lora' | 'qlora'
  */
 export interface FineTuningVRAMBreakdown extends InferenceVRAMBreakdown {
   // Additional training components
-  gradients: Decimal          // Gradient storage
-  optimizerStates: Decimal    // Optimizer momentum/variance
-  loraAdapters: Decimal       // LoRA adapters (0 for full FT)
+  gradients: Decimal // Gradient storage
+  optimizerStates: Decimal // Optimizer momentum/variance
+  loraAdapters: Decimal // LoRA adapters (0 for full FT)
 
   // Metadata
   trainableParams: number
@@ -521,10 +546,9 @@ export const OptimizerConfigSchema = z.object({
 export const LoRAConfigSchema = z.object({
   rank: z.number().int().positive().min(1).max(256),
   alpha: z.number().int().positive(),
-  targetModules: z.array(z.enum([
-    'q_proj', 'k_proj', 'v_proj', 'o_proj',
-    'gate_proj', 'up_proj', 'down_proj',
-  ])),
+  targetModules: z.array(
+    z.enum(['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj']),
+  ),
   dropout: z.number().min(0).max(1),
 })
 
@@ -709,18 +733,35 @@ interface UIState {
 **Changes:** Support training mode breakdown with additional slices
 
 ```typescript
-const data = trainingMode !== 'inference'
-  ? [
-      { name: 'Model Weights', value: breakdown.modelWeights.toNumber(), color: COLORS.modelWeights },
-      { name: 'Gradients', value: breakdown.gradients.toNumber(), color: COLORS.gradients },
-      { name: 'Optimizer States', value: breakdown.optimizerStates.toNumber(), color: COLORS.optimizerStates },
-      { name: 'LoRA Adapters', value: breakdown.loraAdapters.toNumber(), color: COLORS.loraAdapters },
-      { name: 'Activations', value: breakdown.activations.toNumber(), color: COLORS.activations },
-      { name: 'Framework', value: breakdown.frameworkOverhead.toNumber(), color: COLORS.framework },
-    ].filter(d => d.value > 0)  // Hide zero-value slices
-  : [
-      // ... existing inference breakdown ...
-    ]
+const data =
+  trainingMode !== 'inference'
+    ? [
+        {
+          name: 'Model Weights',
+          value: breakdown.modelWeights.toNumber(),
+          color: COLORS.modelWeights,
+        },
+        { name: 'Gradients', value: breakdown.gradients.toNumber(), color: COLORS.gradients },
+        {
+          name: 'Optimizer States',
+          value: breakdown.optimizerStates.toNumber(),
+          color: COLORS.optimizerStates,
+        },
+        {
+          name: 'LoRA Adapters',
+          value: breakdown.loraAdapters.toNumber(),
+          color: COLORS.loraAdapters,
+        },
+        { name: 'Activations', value: breakdown.activations.toNumber(), color: COLORS.activations },
+        {
+          name: 'Framework',
+          value: breakdown.frameworkOverhead.toNumber(),
+          color: COLORS.framework,
+        },
+      ].filter((d) => d.value > 0) // Hide zero-value slices
+    : [
+        // ... existing inference breakdown ...
+      ]
 ```
 
 ---
@@ -900,10 +941,7 @@ Components render (VRAMBreakdownChart [EXTENDED], MemoryBreakdownTable [EXTENDED
 
 ```typescript
 // ✅ GOOD: Pure function, no side effects
-export function calculateLoRAParams(
-  model: Model,
-  config: LoRAConfig,
-): LoRAParamBreakdown {
+export function calculateLoRAParams(model: Model, config: LoRAConfig): LoRAParamBreakdown {
   const paramsPerModule = 2 * model.hidden_size * config.rank
   return breakdown
 }
@@ -937,13 +975,11 @@ export type LoRAConfig = z.infer<typeof LoRAConfigSchema>
 ```typescript
 // ❌ BAD
 export function calculateFineTuningVRAM() {
-  const model = useUIStore(s => s.selectedModel) // NO!
+  const model = useUIStore((s) => s.selectedModel) // NO!
 }
 
 // ✅ GOOD
-export function calculateFineTuningVRAM(params: {
-  model: Model
-}): FineTuningVRAMBreakdown {
+export function calculateFineTuningVRAM(params: { model: Model }): FineTuningVRAMBreakdown {
   // ... pure calculation ...
 }
 ```

@@ -21,10 +21,10 @@ The inference engine is the core calculation layer that estimates VRAM requireme
 
 ### Core Libraries
 
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| **Decimal.js** | 10.x | Arbitrary-precision arithmetic | CRITICAL for VRAM calculations. Native JavaScript numbers cause precision errors (0.1 + 0.2 ≠ 0.3). VRAM calculations involve large numbers (GB, TB) where errors compound. Use for ALL memory math. |
-| **Zod** | 3.x | Runtime validation + type generation | Already established in Phase 1. Validates calculation inputs, generates TypeScript types. Single source of truth for data contracts. |
+| Library        | Version | Purpose                              | Why Standard                                                                                                                                                                                         |
+| -------------- | ------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Decimal.js** | 10.x    | Arbitrary-precision arithmetic       | CRITICAL for VRAM calculations. Native JavaScript numbers cause precision errors (0.1 + 0.2 ≠ 0.3). VRAM calculations involve large numbers (GB, TB) where errors compound. Use for ALL memory math. |
+| **Zod**        | 3.x     | Runtime validation + type generation | Already established in Phase 1. Validates calculation inputs, generates TypeScript types. Single source of truth for data contracts.                                                                 |
 
 **Installation:**
 ```bash
@@ -35,18 +35,18 @@ npm install zod@^3
 
 ### Supporting Libraries
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| **Vitest** | 2.x | Unit testing | Test calculation engines extensively. Pure functions = easy to test. Coverage target: 80%+ for engines/. |
-| **@vitest/coverage-v8** | 2.x | Code coverage | Verify calculation paths are tested (quantization variants, edge cases). |
+| Library                 | Version | Purpose       | When to Use                                                                                              |
+| ----------------------- | ------- | ------------- | -------------------------------------------------------------------------------------------------------- |
+| **Vitest**              | 2.x     | Unit testing  | Test calculation engines extensively. Pure functions = easy to test. Coverage target: 80%+ for engines/. |
+| **@vitest/coverage-v8** | 2.x     | Code coverage | Verify calculation paths are tested (quantization variants, edge cases).                                 |
 
 ### Alternatives Considered
 
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| Decimal.js | BigNumber.js | BigNumber.js uses decimal places precision, Decimal.js uses significant digits (better for scientific calculations). Decimal.js chosen for consistency with raidy. |
-| Web Workers | Synchronous calculation | Web Workers prevent UI blocking but add complexity. Solution: Build both, use Workers as enhancement with sync fallback. |
-| Pure functions | Class-based engines | Pure functions are easier to test, work in Workers without serialization issues, and enable potential server-side reuse. |
+| Instead of     | Could Use               | Tradeoff                                                                                                                                                           |
+| -------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Decimal.js     | BigNumber.js            | BigNumber.js uses decimal places precision, Decimal.js uses significant digits (better for scientific calculations). Decimal.js chosen for consistency with raidy. |
+| Web Workers    | Synchronous calculation | Web Workers prevent UI blocking but add complexity. Solution: Build both, use Workers as enhancement with sync fallback.                                           |
+| Pure functions | Class-based engines     | Pure functions are easier to test, work in Workers without serialization issues, and enable potential server-side reuse.                                           |
 
 ## Architecture Patterns
 
@@ -78,10 +78,18 @@ src/
 import Decimal from 'decimal.js'
 
 export type QuantizationFormat =
-  | 'fp32' | 'fp16' | 'bf16'
-  | 'int8' | 'int4' | 'nf4'
-  | 'gptq' | 'awq'
-  | 'gguf-q4_0' | 'gguf-q4_k_m' | 'gguf-q5_k_m' | 'gguf-q6_k'
+  | 'fp32'
+  | 'fp16'
+  | 'bf16'
+  | 'int8'
+  | 'int4'
+  | 'nf4'
+  | 'gptq'
+  | 'awq'
+  | 'gguf-q4_0'
+  | 'gguf-q4_k_m'
+  | 'gguf-q5_k_m'
+  | 'gguf-q6_k'
 
 /**
  * Get bytes per parameter for quantization format (including overhead)
@@ -131,7 +139,7 @@ export function getBytesPerParameter(format: QuantizationFormat): Decimal {
  */
 export function calculateModelWeightVRAM(
   numParameters: number,
-  format: QuantizationFormat
+  format: QuantizationFormat,
 ): Decimal {
   const bytesPerParam = getBytesPerParameter(format)
   const totalBytes = new Decimal(numParameters).mul(1e9).mul(bytesPerParam)
@@ -191,11 +199,16 @@ export function calculateKVCacheVRAM(params: KVCacheParams): Decimal {
 
 function getPrecisionBytes(precision: string): Decimal {
   switch (precision) {
-    case 'fp16': return new Decimal(2)
-    case 'fp8': return new Decimal(1)
-    case 'int8': return new Decimal(1)
-    case 'int4': return new Decimal(0.5)
-    default: throw new Error(`Unknown KV precision: ${precision}`)
+    case 'fp16':
+      return new Decimal(2)
+    case 'fp8':
+      return new Decimal(1)
+    case 'int8':
+      return new Decimal(1)
+    case 'int4':
+      return new Decimal(0.5)
+    default:
+      throw new Error(`Unknown KV precision: ${precision}`)
   }
 }
 ```
@@ -226,34 +239,32 @@ export function calculateInferenceVRAM(
   model: Model,
   quantization: QuantizationFormat,
   sequenceLength: number,
-  batchSize: number
+  batchSize: number,
 ): InferenceVRAMBreakdown {
   // Model weights: Use TOTAL parameters for MoE (not active)
   // For Mixtral 8x7B: num_parameters_billion = 46.7, NOT 13
-  const modelWeights = calculateModelWeightVRAM(
-    model.num_parameters_billion,
-    quantization
-  )
+  const modelWeights = calculateModelWeightVRAM(model.num_parameters_billion, quantization)
 
   // KV cache: Same for dense and MoE (based on hidden_size, not experts)
   const kvCache = calculateKVCacheVRAM({
     model,
     sequenceLength,
     batchSize,
-    kvPrecision: 'fp16' // Default, can be configurable
+    kvPrecision: 'fp16', // Default, can be configurable
   })
 
   // Activations: For MoE, use active parameters (if available)
-  const activeParams = model.architecture === 'moe' && model.num_experts_per_token
-    ? calculateMoEActiveParams(model)
-    : model.num_parameters_billion
+  const activeParams =
+    model.architecture === 'moe' && model.num_experts_per_token
+      ? calculateMoEActiveParams(model)
+      : model.num_parameters_billion
 
   const activations = calculateActivationMemory(
     activeParams,
     model.hidden_size,
     model.intermediate_size,
     sequenceLength,
-    batchSize
+    batchSize,
   )
 
   // Framework overhead: 500MB-1.5GB baseline (PyTorch + CUDA context)
@@ -266,7 +277,7 @@ export function calculateInferenceVRAM(
     kvCache,
     activations,
     frameworkOverhead,
-    total
+    total,
   }
 }
 
@@ -282,7 +293,7 @@ function calculateMoEActiveParams(model: Model): number {
   const expertParams = model.num_parameters_billion * 0.8
   const sharedParams = model.num_parameters_billion * 0.2
 
-  return sharedParams + (expertParams * expertRatio)
+  return sharedParams + expertParams * expertRatio
 }
 
 function calculateActivationMemory(
@@ -290,7 +301,7 @@ function calculateActivationMemory(
   hiddenSize: number,
   intermediateSize: number,
   sequenceLength: number,
-  batchSize: number
+  batchSize: number,
 ): Decimal {
   // Simplified activation memory: batch * seq_len * intermediate_size * 4 bytes (fp32)
   // Real implementation would be more detailed per-layer
@@ -298,7 +309,9 @@ function calculateActivationMemory(
     .mul(sequenceLength)
     .mul(intermediateSize)
     .mul(4)
-    .div(1024).div(1024).div(1024) // To GB
+    .div(1024)
+    .div(1024)
+    .div(1024) // To GB
 }
 ```
 
@@ -335,13 +348,13 @@ export function estimatePerformance(
   model: Model,
   gpu: GPU,
   quantization: QuantizationFormat,
-  batchSize: number
+  batchSize: number,
 ): PerformanceEstimate {
   // Memory-bound estimate (dominant for LLM inference)
-  const modelSizeBytes = calculateModelWeightVRAM(
-    model.num_parameters_billion,
-    quantization
-  ).mul(1024).mul(1024).mul(1024) // Back to bytes
+  const modelSizeBytes = calculateModelWeightVRAM(model.num_parameters_billion, quantization)
+    .mul(1024)
+    .mul(1024)
+    .mul(1024) // Back to bytes
 
   const bandwidthBytesPerSec = new Decimal(gpu.memory_bandwidth_gbps).mul(1e9)
   const memoryBoundTPS = bandwidthBytesPerSec.div(modelSizeBytes).mul(batchSize)
@@ -371,7 +384,7 @@ export function estimatePerformance(
     timeToFirstToken,
     isComputeBound,
     isMemoryBound,
-    bottleneck
+    bottleneck,
   }
 }
 ```
@@ -419,26 +432,26 @@ self.onmessage = (event: MessageEvent<CalculationRequest>) => {
         payload.model,
         payload.quantization,
         payload.sequenceLength,
-        payload.batchSize
+        payload.batchSize,
       )
 
       const performance = estimatePerformance(
         payload.model,
         payload.gpu,
         payload.quantization,
-        payload.batchSize
+        payload.batchSize,
       )
 
       const response: CalculationResponse = {
         type: 'CALCULATION_RESULT',
-        payload: { vram, performance }
+        payload: { vram, performance },
       }
 
       self.postMessage(response)
     } catch (error) {
       self.postMessage({
         type: 'CALCULATION_ERROR',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
     }
   }
@@ -457,7 +470,7 @@ export function useInferenceCalculation(
   gpu: GPU | null,
   quantization: QuantizationFormat,
   sequenceLength: number,
-  batchSize: number
+  batchSize: number,
 ) {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -471,14 +484,13 @@ export function useInferenceCalculation(
 
     // Try Web Worker first, fallback to synchronous
     if (typeof Worker !== 'undefined') {
-      const worker = new Worker(
-        new URL('@/workers/calculation.worker.ts', import.meta.url),
-        { type: 'module' }
-      )
+      const worker = new Worker(new URL('@/workers/calculation.worker.ts', import.meta.url), {
+        type: 'module',
+      })
 
       worker.postMessage({
         type: 'CALCULATE_INFERENCE',
-        payload: { model, gpu, quantization, sequenceLength, batchSize }
+        payload: { model, gpu, quantization, sequenceLength, batchSize },
       })
 
       worker.onmessage = (e) => {
@@ -517,13 +529,13 @@ export function useInferenceCalculation(
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| **Decimal arithmetic** | Custom BigInt wrappers, string-based math | **Decimal.js** | Handles precision, rounding modes, edge cases. Battle-tested in financial apps. |
-| **Worker pooling** (Phase 1) | Custom worker pool manager | Single worker per calculation | Premature optimization. Single worker sufficient for Phase 2. Add pooling in Phase 3+ if needed. |
-| **Quantization lookup** | Database/API for quant formats | **Constants file** with multipliers | Quantization overhead is static domain knowledge, not runtime data. Keep in code. |
-| **Performance profiling** | Custom perf monitoring in engines | **Browser Performance API** in hooks | Engines should be pure. Add monitoring at integration layer, not calculation layer. |
-| **Model/GPU databases** | Backend API, IndexedDB | **Static JSON imports** (already done) | Static data, version-controlled, tree-shakeable, works offline. |
+| Problem                      | Don't Build                               | Use Instead                            | Why                                                                                              |
+| ---------------------------- | ----------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Decimal arithmetic**       | Custom BigInt wrappers, string-based math | **Decimal.js**                         | Handles precision, rounding modes, edge cases. Battle-tested in financial apps.                  |
+| **Worker pooling** (Phase 1) | Custom worker pool manager                | Single worker per calculation          | Premature optimization. Single worker sufficient for Phase 2. Add pooling in Phase 3+ if needed. |
+| **Quantization lookup**      | Database/API for quant formats            | **Constants file** with multipliers    | Quantization overhead is static domain knowledge, not runtime data. Keep in code.                |
+| **Performance profiling**    | Custom perf monitoring in engines         | **Browser Performance API** in hooks   | Engines should be pure. Add monitoring at integration layer, not calculation layer.              |
+| **Model/GPU databases**      | Backend API, IndexedDB                    | **Static JSON imports** (already done) | Static data, version-controlled, tree-shakeable, works offline.                                  |
 
 **Key insight:** The calculation engines are deliberately simple and pure. Resist adding features like caching, optimization hints, or performance monitoring inside engines. Keep them testable and portable.
 
@@ -573,8 +585,8 @@ expect(getBytesPerParameter('gptq').toNumber()).toBeLessThanOrEqual(0.65)
 **Test case:**
 ```typescript
 // Llama 3 70B with GQA should have 8x smaller KV cache than MHA
-const llamaMHA = calculateKVCacheVRAM({ ...params, model: { ...llama70b, num_kv_heads: 64 }})
-const llamaGQA = calculateKVCacheVRAM({ ...params, model: { ...llama70b, num_kv_heads: 8 }})
+const llamaMHA = calculateKVCacheVRAM({ ...params, model: { ...llama70b, num_kv_heads: 64 } })
+const llamaGQA = calculateKVCacheVRAM({ ...params, model: { ...llama70b, num_kv_heads: 8 } })
 expect(llamaMHA.div(llamaGQA).toNumber()).toBeCloseTo(8, 1)
 ```
 
@@ -626,13 +638,10 @@ expect(llamaMHA.div(llamaGQA).toNumber()).toBeCloseTo(8, 1)
 **Example:**
 ```typescript
 // BAD
-const modelVRAM = (numParams * 1e9 * 2) / (1024 ** 3) // ❌ Native number precision
+const modelVRAM = (numParams * 1e9 * 2) / 1024 ** 3 // ❌ Native number precision
 
 // GOOD
-const modelVRAM = new Decimal(numParams)
-  .mul(1e9)
-  .mul(2)
-  .div(1024).div(1024).div(1024) // ✅ Arbitrary precision
+const modelVRAM = new Decimal(numParams).mul(1e9).mul(2).div(1024).div(1024).div(1024) // ✅ Arbitrary precision
 ```
 
 ---
@@ -696,7 +705,7 @@ const llama3_70b: Model = {
   num_hidden_layers: 80,
   num_attention_heads: 64,
   num_kv_heads: 8, // GQA: 8x reduction
-  intermediate_size: 28672
+  intermediate_size: 28672,
 }
 
 const h100_80gb: GPU = {
@@ -708,15 +717,15 @@ const h100_80gb: GPU = {
   memory_type: 'HBM3',
   bus_width: 5120,
   fp16_tflops: 989,
-  tier: 'datacenter'
+  tier: 'datacenter',
 }
 
 // Calculate VRAM
 const vram = calculateInferenceVRAM(
   llama3_70b,
   'gptq', // 4-bit quantized
-  4096,   // sequence length
-  1       // batch size
+  4096, // sequence length
+  1, // batch size
 )
 
 console.log(`Model weights: ${vram.modelWeights.toFixed(2)} GB`)
@@ -768,7 +777,7 @@ describe('calculateKVCacheVRAM', () => {
       model: llama3_70b,
       sequenceLength: 4096,
       batchSize: 1,
-      kvPrecision: 'fp16'
+      kvPrecision: 'fp16',
     }
 
     const kvCache = calculateKVCacheVRAM(params)
@@ -776,8 +785,12 @@ describe('calculateKVCacheVRAM', () => {
     // Llama 3 70B: 8 KV heads / 64 query heads = 0.125x
     // Expected: 2 * 80 layers * 8192 hidden * 4096 seq * 2 bytes * 0.125
     const expected = new Decimal(2)
-      .mul(80).mul(8192).mul(4096).mul(2).mul(0.125)
-      .div(1024**3)
+      .mul(80)
+      .mul(8192)
+      .mul(4096)
+      .mul(2)
+      .mul(0.125)
+      .div(1024 ** 3)
 
     expect(kvCache.toFixed(2)).toBe(expected.toFixed(2))
   })
@@ -791,13 +804,16 @@ describe('calculateInferenceVRAM', () => {
       architecture: 'moe',
       num_parameters_billion: 46.7, // Total
       num_experts: 8,
-      num_experts_per_token: 2
+      num_experts_per_token: 2,
     }
 
     const vram = calculateInferenceVRAM(mixtral, 'fp16', 2048, 1)
 
     // Should use 46.7B, not 13B active
-    const expectedWeights = new Decimal(46.7).mul(1e9).mul(2).div(1024**3)
+    const expectedWeights = new Decimal(46.7)
+      .mul(1e9)
+      .mul(2)
+      .div(1024 ** 3)
     expect(vram.modelWeights.toFixed(1)).toBe(expectedWeights.toFixed(1))
   })
 })
@@ -807,24 +823,24 @@ describe('calculateInferenceVRAM', () => {
 
 ### Current Approaches (2026)
 
-| Feature | Industry Standard | Our Implementation |
-|---------|------------------|-------------------|
-| **Quantization formats** | GPTQ, AWQ, GGUF variants (Q4/Q5/Q6), FP8 | ✅ Support all major formats with verified overhead |
-| **KV cache optimization** | GQA (Llama 3), MQA (rare) | ✅ n_kv_heads / n_heads ratio in formula |
-| **MoE support** | Mixtral, DeepSeek V3/V4 | ✅ Total params for VRAM, active for activations |
-| **Performance estimation** | Roofline model (memory-bound dominant) | ✅ Min(memory, compute) with bottleneck reporting |
-| **Web Workers** | Standard for heavy computation in SPAs | ✅ Worker with sync fallback |
-| **Precision arithmetic** | Financial-grade (Decimal.js, BigNumber.js) | ✅ Decimal.js for all memory math |
+| Feature                    | Industry Standard                          | Our Implementation                                  |
+| -------------------------- | ------------------------------------------ | --------------------------------------------------- |
+| **Quantization formats**   | GPTQ, AWQ, GGUF variants (Q4/Q5/Q6), FP8   | ✅ Support all major formats with verified overhead |
+| **KV cache optimization**  | GQA (Llama 3), MQA (rare)                  | ✅ n_kv_heads / n_heads ratio in formula            |
+| **MoE support**            | Mixtral, DeepSeek V3/V4                    | ✅ Total params for VRAM, active for activations    |
+| **Performance estimation** | Roofline model (memory-bound dominant)     | ✅ Min(memory, compute) with bottleneck reporting   |
+| **Web Workers**            | Standard for heavy computation in SPAs     | ✅ Worker with sync fallback                        |
+| **Precision arithmetic**   | Financial-grade (Decimal.js, BigNumber.js) | ✅ Decimal.js for all memory math                   |
 
 ### Recent Developments (2025-2026)
 
-| What Changed | When | Impact |
-|--------------|------|--------|
-| **GGUF K-quants** | 2024-2025 | Superior to legacy Q4_0/Q4_1. Q4_K_M is new default 4-bit. Need distinct variants. |
-| **GQA adoption** | 2023-2024 | Llama 3, Mistral, Qwen use GQA. KV cache is 4-8x smaller than old calculators assume. |
-| **MoE models mainstream** | 2024-2025 | Mixtral, DeepSeek V3, Qwen MoE. Need clear total vs active param distinction. |
-| **FP8 quantization** | 2024-2025 | H100/Blackwell native FP8. Emerging as sweet spot (quality + speed). Add support in Phase 3. |
-| **Speculative prefill** | 2025-2026 | TTFT optimization (7x faster). Our estimates become conservative (good). |
+| What Changed              | When      | Impact                                                                                       |
+| ------------------------- | --------- | -------------------------------------------------------------------------------------------- |
+| **GGUF K-quants**         | 2024-2025 | Superior to legacy Q4_0/Q4_1. Q4_K_M is new default 4-bit. Need distinct variants.           |
+| **GQA adoption**          | 2023-2024 | Llama 3, Mistral, Qwen use GQA. KV cache is 4-8x smaller than old calculators assume.        |
+| **MoE models mainstream** | 2024-2025 | Mixtral, DeepSeek V3, Qwen MoE. Need clear total vs active param distinction.                |
+| **FP8 quantization**      | 2024-2025 | H100/Blackwell native FP8. Emerging as sweet spot (quality + speed). Add support in Phase 3. |
+| **Speculative prefill**   | 2025-2026 | TTFT optimization (7x faster). Our estimates become conservative (good).                     |
 
 ### Deprecated/Outdated
 

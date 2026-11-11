@@ -107,11 +107,11 @@ PCIe card, re-creating the exact error this design removes.
 
 They are different things and both stay.
 
-| | `max_gpus_per_node` | `recommendedMaxTPDegree` |
-|---|---|---|
-| Lives on | the GPU row | `INTERCONNECT_SPECS` |
-| Means | cannot be built | can be built, scales badly |
-| Enforcement | hard — bounds the slider | soft — emits a warning |
+|             | `max_gpus_per_node`      | `recommendedMaxTPDegree`   |
+| ----------- | ------------------------ | -------------------------- |
+| Lives on    | the GPU row              | `INTERCONNECT_SPECS`       |
+| Means       | cannot be built          | can be built, scales badly |
+| Enforcement | hard — bounds the slider | soft — emits a warning     |
 
 Eight RTX PRO 6000 in an XE7745 is buildable (`max_gpus_per_node: 8`) and a
 poor tensor-parallel target (`recommendedMaxTPDegree: 4` for PCIe-5). Both
@@ -122,12 +122,12 @@ statements are true and the user should see both.
 `scripts/fetch-gpus.ts` is the source; `src/data/gpus.json` is generated and
 never hand-edited.
 
-| `max_gpus_per_node` | GPUs |
-|---|---|
-| 72 | GB300 NVL72 (new row) |
-| 8 | H100 PCIe, H100 SXM, H200, B200, GB300 (HGX B300), A100 PCIe, A100 SXM, L40S, RTX PRO 6000, RTX 6000 Ada, RTX 5090, RTX 4090, RTX 3090, MI355X, MI350X, MI325X, MI300X |
-| 2 | GB10 (DGX Spark — two units linked over ConnectX-7) |
-| 1 | GB300 Desktop Superchip, M1/M2/M3 Ultra, M1/M2/M3/M4/M5 Max |
+| `max_gpus_per_node` | GPUs                                                                                                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 72                  | GB300 NVL72 (new row)                                                                                                                                                  |
+| 8                   | H100 PCIe, H100 SXM, H200, B200, GB300 (HGX B300), A100 PCIe, A100 SXM, L40S, RTX PRO 6000, RTX 6000 Ada, RTX 5090, RTX 4090, RTX 3090, MI355X, MI350X, MI325X, MI300X |
+| 2                   | GB10 (DGX Spark — two units linked over ConnectX-7)                                                                                                                    |
+| 1                   | GB300 Desktop Superchip, M1/M2/M3 Ultra, M1/M2/M3/M4/M5 Max                                                                                                            |
 
 Consumer RTX rows take 8 on the chassis rule: multi-GPU inference rigs with
 eight PCIe cards exist, and the poor PCIe scaling is already expressed by

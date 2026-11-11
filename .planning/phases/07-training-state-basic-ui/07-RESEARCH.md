@@ -17,27 +17,30 @@ Key insight: The existing `urlSerializer.ts` approach (custom serialization) sho
 ## Standard Stack
 
 ### Core
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| Zustand | 5.0.9 | State management | Already in use; slice pattern proven in raidy project |
-| Headless UI | 2.2.9 | Accessible UI components | Already in use; Switch and RadioGroup perfect for mode toggling |
-| Zod | 3.25.76 | Schema validation | Already in use; validates URL state on hydration |
-| lz-string | 1.5.0 | URL compression | Already in use; keeps shareable URLs under 2KB |
-| Tailwind CSS | 4.1.18 | Styling | Already in use; v4's peer variants ideal for toggle styling |
+
+| Library      | Version | Purpose                  | Why Standard                                                    |
+| ------------ | ------- | ------------------------ | --------------------------------------------------------------- |
+| Zustand      | 5.0.9   | State management         | Already in use; slice pattern proven in raidy project           |
+| Headless UI  | 2.2.9   | Accessible UI components | Already in use; Switch and RadioGroup perfect for mode toggling |
+| Zod          | 3.25.76 | Schema validation        | Already in use; validates URL state on hydration                |
+| lz-string    | 1.5.0   | URL compression          | Already in use; keeps shareable URLs under 2KB                  |
+| Tailwind CSS | 4.1.18  | Styling                  | Already in use; v4's peer variants ideal for toggle styling     |
 
 ### Supporting
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| zustand/middleware | (built-in) | Persist middleware | URL hash persistence with custom StateStorage |
-| react-hook-form | (optional) | Complex forms | NOT needed for Phase 7 - simple state is sufficient |
+
+| Library            | Version    | Purpose            | When to Use                                         |
+| ------------------ | ---------- | ------------------ | --------------------------------------------------- |
+| zustand/middleware | (built-in) | Persist middleware | URL hash persistence with custom StateStorage       |
+| react-hook-form    | (optional) | Complex forms      | NOT needed for Phase 7 - simple state is sufficient |
 
 ### Alternatives Considered
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| Zustand slices | Context API | Context causes unnecessary re-renders; Zustand more performant |
-| Headless UI Switch | Custom toggle | Headless UI handles accessibility (ARIA, keyboard nav) automatically |
-| URL hash | localStorage | URL hash enables shareable links; localStorage is per-device only |
-| persist middleware | Manual sync | Manual sync (current approach) requires custom debouncing and hydration logic |
+
+| Instead of         | Could Use     | Tradeoff                                                                      |
+| ------------------ | ------------- | ----------------------------------------------------------------------------- |
+| Zustand slices     | Context API   | Context causes unnecessary re-renders; Zustand more performant                |
+| Headless UI Switch | Custom toggle | Headless UI handles accessibility (ARIA, keyboard nav) automatically          |
+| URL hash           | localStorage  | URL hash enables shareable links; localStorage is per-device only             |
+| persist middleware | Manual sync   | Manual sync (current approach) requires custom debouncing and hydration logic |
 
 **Installation:**
 ```bash
@@ -48,6 +51,7 @@ Key insight: The existing `urlSerializer.ts` approach (custom serialization) sho
 ## Architecture Patterns
 
 ### Recommended Project Structure (After Phase 7)
+
 ```
 src/
 ├── store/
@@ -123,7 +127,7 @@ export const createTrainingSlice: StateCreator<
   TrainingSlice
 > = (set) => ({
   // State (new training state)
-  mode: 'inference',  // 'inference' | 'training'
+  mode: 'inference', // 'inference' | 'training'
   trainingMethod: 'lora',
   optimizer: 'adamw',
   trainingPrecision: 'bf16',
@@ -181,14 +185,16 @@ export const useUIStore = create<UIStore>()(
           offloadLayers: state.offloadLayers,
           kvCacheOffload: state.kvCacheOffload,
           // Training state (only persist if mode is 'training')
-          ...(state.mode === 'training' ? {
-            trainingMethod: state.trainingMethod,
-            optimizer: state.optimizer,
-            trainingPrecision: state.trainingPrecision,
-            loraRank: state.loraRank,
-            loraAlpha: state.loraAlpha,
-            targetModulesPercent: state.targetModulesPercent,
-          } : {}),
+          ...(state.mode === 'training'
+            ? {
+                trainingMethod: state.trainingMethod,
+                optimizer: state.optimizer,
+                trainingPrecision: state.trainingPrecision,
+                loraRank: state.loraRank,
+                loraAlpha: state.loraAlpha,
+                targetModulesPercent: state.targetModulesPercent,
+              }
+            : {}),
         }
       },
     },
@@ -482,13 +488,13 @@ export function TrainingPanel() {
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Accessible toggle switches | Custom checkbox + styling | Headless UI Switch | Handles ARIA roles, keyboard nav (Space/Enter), focus management automatically |
-| Radio button groups | Custom state + click handlers | Headless UI RadioGroup | Manages keyboard navigation (arrow keys), ARIA roles, focus management |
-| URL state persistence | Manual localStorage + URL sync | Zustand persist + custom StateStorage | Handles hydration, serialization, race conditions, SSR compatibility |
-| State serialization/compression | Custom JSON.stringify + base64 | lz-string | Achieves 60-80% compression; handles Unicode correctly; battle-tested |
-| Form validation | Manual validation logic | Zod schemas | Type inference, composable validators, clear error messages |
+| Problem                         | Don't Build                    | Use Instead                           | Why                                                                            |
+| ------------------------------- | ------------------------------ | ------------------------------------- | ------------------------------------------------------------------------------ |
+| Accessible toggle switches      | Custom checkbox + styling      | Headless UI Switch                    | Handles ARIA roles, keyboard nav (Space/Enter), focus management automatically |
+| Radio button groups             | Custom state + click handlers  | Headless UI RadioGroup                | Manages keyboard navigation (arrow keys), ARIA roles, focus management         |
+| URL state persistence           | Manual localStorage + URL sync | Zustand persist + custom StateStorage | Handles hydration, serialization, race conditions, SSR compatibility           |
+| State serialization/compression | Custom JSON.stringify + base64 | lz-string                             | Achieves 60-80% compression; handles Unicode correctly; battle-tested          |
+| Form validation                 | Manual validation logic        | Zod schemas                           | Type inference, composable validators, clear error messages                    |
 
 **Key insight:** URL state management is deceptively complex. Manual approaches miss edge cases like:
 - Race conditions between URL changes and store updates
@@ -658,13 +664,13 @@ export function ModeToggle() {
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| Manual URL sync with useEffect | persist middleware with StateStorage | Zustand v3+ (2021) | Eliminates race conditions, handles SSR |
-| localStorage only | URL hash with lz-string | Modern SPAs | Enables shareable links |
-| Global state dump | Selective persistence (partialize) | persist middleware | Reduces URL size, faster hydration |
-| Context API for forms | Zustand slices | Zustand v4+ (2022) | Better performance, less boilerplate |
-| Custom toggle components | Headless UI Switch | Headless UI v2 (2024) | Accessibility built-in |
+| Old Approach                   | Current Approach                     | When Changed          | Impact                                  |
+| ------------------------------ | ------------------------------------ | --------------------- | --------------------------------------- |
+| Manual URL sync with useEffect | persist middleware with StateStorage | Zustand v3+ (2021)    | Eliminates race conditions, handles SSR |
+| localStorage only              | URL hash with lz-string              | Modern SPAs           | Enables shareable links                 |
+| Global state dump              | Selective persistence (partialize)   | persist middleware    | Reduces URL size, faster hydration      |
+| Context API for forms          | Zustand slices                       | Zustand v4+ (2022)    | Better performance, less boilerplate    |
+| Custom toggle components       | Headless UI Switch                   | Headless UI v2 (2024) | Accessibility built-in                  |
 
 **Deprecated/outdated:**
 - **useURLSync hook pattern** (current llmvram approach): Manual sync is error-prone; replaced by persist middleware
@@ -691,18 +697,21 @@ export function ModeToggle() {
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - [Context7: Zustand v5.0.8](https://context7.com/pmndrs/zustand/v5.0.8) - Slice pattern, persist middleware, state creators
 - [Context7: Headless UI v2.2.9](https://context7.com/tailwindlabs/headlessui/_headlessui_react_v2_2_9) - Switch component, RadioGroup component, accessibility patterns
 - [Zod TypeScript Validation](https://zod.dev/) - Schema validation, safe parsing, type inference
 - [raidy project codebase](file:///Users/fjacquet/Projects/raidy/src/store/) - urlStorage.ts, configStore.ts, slice pattern implementation
 
 ### Secondary (MEDIUM confidence)
+
 - [React Toggle Switch UX Best Practices](https://www.eleken.co/blog-posts/toggle-ux) - Immediate effect, reversible actions, clear labels
 - [Tailwind CSS Toggle Accessibility](https://dockyard.com/blog/2024/05/28/creating-an-accessible-toggle-switch-in-tailwindcss) - ARIA roles, peer variants, keyboard nav
 - [Zustand Architecture Patterns at Scale](https://brainhub.eu/library/zustand-architecture-patterns-at-scale) - Slice pattern for large stores
 - [React Conditional Rendering Patterns 2026](https://www.sayonetech.com/blog/react-design-patterns/) - Strategy pattern, presentational components
 
 ### Tertiary (LOW confidence)
+
 - Web search: "form validation patterns React Zod 2026" - General Zod usage patterns (not specific to this project)
 
 ## Metadata

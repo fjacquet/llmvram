@@ -978,13 +978,13 @@ dispatch at EP8, 128 tokens).
 
 ## Phase-Specific Warnings
 
-| Phase | Focus | Likely Pitfalls | Mitigation |
-|-------|-------|-----------------|------------|
-| Phase 1: Fine-tuning MVP | Full FT, LoRA, QLoRA basics | #1 (KV cache reuse), #2 (optimizer precision), #3 (LoRA adapter-only), #5 (gradient accumulation) | Separate training from inference logic immediately. Validate against real training runs. Test with Llama 7B LoRA on 24GB GPU. |
-| Phase 2: Advanced Fine-tuning | Mixed precision, checkpointing, Flash Attention | #7 (checkpointing trade-offs), #9 (mixed precision complications), #13 (Flash Attention backward pass) | Add detailed explanations for each optimization. Show compute vs memory trade-offs explicitly. |
-| Phase 3: Multi-GPU Fine-tuning | DeepSpeed ZeRO, distributed training | #6 (ZeRO stage confusion), #11 (batch size terminology), #12 (CPU offload overhead) | Use official DeepSpeed formulas. Show per-GPU memory explicitly. Warn about communication overhead. |
-| Phase 4: Framework Presets | vLLM, TGI, Unsloth, DeepSpeed configs | #10 (framework differences), #14 (validation errors) | Distinguish inference vs training frameworks clearly. Add Unsloth preset. Validate presets against documentation. |
-| Phase 5: Validation & Polish | Cross-validation, user testing | #14 (calculator errors), all integration bugs | Compare against 2+ other calculators. Collect real measurements. Test edge cases (MoE, GQA, quantized). |
+| Phase                          | Focus                                           | Likely Pitfalls                                                                                        | Mitigation                                                                                                                    |
+| ------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Phase 1: Fine-tuning MVP       | Full FT, LoRA, QLoRA basics                     | #1 (KV cache reuse), #2 (optimizer precision), #3 (LoRA adapter-only), #5 (gradient accumulation)      | Separate training from inference logic immediately. Validate against real training runs. Test with Llama 7B LoRA on 24GB GPU. |
+| Phase 2: Advanced Fine-tuning  | Mixed precision, checkpointing, Flash Attention | #7 (checkpointing trade-offs), #9 (mixed precision complications), #13 (Flash Attention backward pass) | Add detailed explanations for each optimization. Show compute vs memory trade-offs explicitly.                                |
+| Phase 3: Multi-GPU Fine-tuning | DeepSpeed ZeRO, distributed training            | #6 (ZeRO stage confusion), #11 (batch size terminology), #12 (CPU offload overhead)                    | Use official DeepSpeed formulas. Show per-GPU memory explicitly. Warn about communication overhead.                           |
+| Phase 4: Framework Presets     | vLLM, TGI, Unsloth, DeepSpeed configs           | #10 (framework differences), #14 (validation errors)                                                   | Distinguish inference vs training frameworks clearly. Add Unsloth preset. Validate presets against documentation.             |
+| Phase 5: Validation & Polish   | Cross-validation, user testing                  | #14 (calculator errors), all integration bugs                                                          | Compare against 2+ other calculators. Collect real measurements. Test edge cases (MoE, GQA, quantized).                       |
 
 ---
 
@@ -1035,7 +1035,7 @@ test('LoRA adapter params: Llama 7B, rank 16, 4 targets', () => {
 // Test: Optimizer state memory (AdamW)
 test('AdamW optimizer states: 8 bytes per trainable param', () => {
   const trainableParams = 16_777_216
-  const optimizerMemory = trainableParams * 8 / (1024**3)
+  const optimizerMemory = (trainableParams * 8) / 1024 ** 3
   expect(optimizerMemory).toBeCloseTo(0.125, 2) // 125MB
 })
 
@@ -1046,7 +1046,7 @@ test('Mixed precision: 16 bytes per trainable param', () => {
   const masterWeights = params * 4 // FP32
   const gradients = params * 2 // BF16
   const optimizer = params * 8 // FP32
-  const total = (weights + masterWeights + gradients + optimizer) / (1024**3)
+  const total = (weights + masterWeights + gradients + optimizer) / 1024 ** 3
   expect(total).toBeCloseTo(14.9, 1) // ~15GB
 })
 ```

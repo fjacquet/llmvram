@@ -24,13 +24,13 @@ parked session take to resume".
 
 ## Published figures (the only anchors)
 
-| Source | Figure |
-|---|---|
+| Source                                        | Figure                                                                                                                                                                                                                      |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dell blog, KV Cache Offload to Object Storage | XE9680, 4× H100, TP4, Qwen3-Coder-30B-A3B, ObjectScale S3-over-RDMA, vLLM + LMCache 0.4.5 + NIXL 1.1: 235K-token request, 43 GB KV, TTFT 837 ms vs 11,223 ms recompute; below 8-16K tokens offload is slower than recompute |
-| Dell storage engines blog | PowerScale / ObjectScale: 1 s TTFT at 131K vs 17 s |
-| StorageReview, GTC 2026 | Lightning FS up to 150 GB/s per rack unit |
-| Dell Lightning FS page | targets > 16K GPUs or 4 TB/s aggregate |
-| NVIDIA CMX | BlueField-4, up to 800 Gb/s |
+| Dell storage engines blog                     | PowerScale / ObjectScale: 1 s TTFT at 131K vs 17 s                                                                                                                                                                          |
+| StorageReview, GTC 2026                       | Lightning FS up to 150 GB/s per rack unit                                                                                                                                                                                   |
+| Dell Lightning FS page                        | targets > 16K GPUs or 4 TB/s aggregate                                                                                                                                                                                      |
+| NVIDIA CMX                                    | BlueField-4, up to 800 Gb/s                                                                                                                                                                                                 |
 
 Dell publishes **no per-GPU KV reload bandwidth** for Lightning. The 837 ms anchor
 implies ≥ 51 GB/s into one 4-GPU server (43 GB / 0.837 s, prefill of the last
@@ -66,12 +66,12 @@ Outputs:
 
 Preset bandwidths (per GPU, read, **estimates**, sources in code):
 
-| Preset | GB/s per GPU | Basis |
-|---|---|---|
-| Host memory (Grace C2C) | 225 | NVLink-C2C 900 GB/s bidirectional per Grace, shared by 2 GPUs, one direction (**to verify** against NVIDIA GB300 docs before landing) |
-| Host memory (PCIe 5) | 50 | PCIe 5 x16 ~64 GB/s, practical |
-| Local NVMe | 12 | ~4 Gen5 drives per 8-GPU server striped |
-| Network storage | 12.5 | one 400 GbE storage NIC share per GPU; matches the Dell anchor (≥ 51 GB/s per 4-GPU server = 12.8 per GPU) |
+| Preset                  | GB/s per GPU | Basis                                                                                                                                 |
+| ----------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Host memory (Grace C2C) | 225          | NVLink-C2C 900 GB/s bidirectional per Grace, shared by 2 GPUs, one direction (**to verify** against NVIDIA GB300 docs before landing) |
+| Host memory (PCIe 5)    | 50           | PCIe 5 x16 ~64 GB/s, practical                                                                                                        |
+| Local NVMe              | 12           | ~4 Gen5 drives per 8-GPU server striped                                                                                               |
+| Network storage         | 12.5         | one 400 GbE storage NIC share per GPU; matches the Dell anchor (≥ 51 GB/s per 4-GPU server = 12.8 per GPU)                            |
 
 ## Engine
 

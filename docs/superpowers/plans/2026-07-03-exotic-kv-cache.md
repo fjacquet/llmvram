@@ -56,50 +56,50 @@ const mlaModel: Model = {
 Add inside the `describe('calculateKVCacheVRAM', ...)` block, before its closing `})`:
 
 ```typescript
-  it('uses kv_cache_elements_per_token override when present (MLA exact value)', () => {
-    const result = calculateKVCacheVRAM({
-      model: mlaModel,
-      sequenceLength: 4096,
-      batchSize: 1,
-      kvPrecision: 'fp16',
-    })
-    // 35136 × 4096 × 1 × 2 bytes / 1024³ = 0.26806640625 GB exactly
-    expect(result.toNumber()).toBe(0.26806640625)
+it('uses kv_cache_elements_per_token override when present (MLA exact value)', () => {
+  const result = calculateKVCacheVRAM({
+    model: mlaModel,
+    sequenceLength: 4096,
+    batchSize: 1,
+    kvPrecision: 'fp16',
   })
+  // 35136 × 4096 × 1 × 2 bytes / 1024³ = 0.26806640625 GB exactly
+  expect(result.toNumber()).toBe(0.26806640625)
+})
 
-  it('override is much smaller than the nominal GQA formula for MLA models', () => {
-    const nominal: Model = { ...mlaModel, kv_cache_elements_per_token: undefined }
-    const overridden = calculateKVCacheVRAM({
-      model: mlaModel,
-      sequenceLength: 4096,
-      batchSize: 1,
-      kvPrecision: 'fp16',
-    })
-    const gqaFormula = calculateKVCacheVRAM({
-      model: nominal,
-      sequenceLength: 4096,
-      batchSize: 1,
-      kvPrecision: 'fp16',
-    })
-    // GQA formula: 2×61×7168 = 874496 elem/token vs MLA 35136 → ~24.9× reduction
-    expect(gqaFormula.div(overridden).toNumber()).toBeCloseTo(874496 / 35136, 3)
+it('override is much smaller than the nominal GQA formula for MLA models', () => {
+  const nominal: Model = { ...mlaModel, kv_cache_elements_per_token: undefined }
+  const overridden = calculateKVCacheVRAM({
+    model: mlaModel,
+    sequenceLength: 4096,
+    batchSize: 1,
+    kvPrecision: 'fp16',
   })
+  const gqaFormula = calculateKVCacheVRAM({
+    model: nominal,
+    sequenceLength: 4096,
+    batchSize: 1,
+    kvPrecision: 'fp16',
+  })
+  // GQA formula: 2×61×7168 = 874496 elem/token vs MLA 35136 → ~24.9× reduction
+  expect(gqaFormula.div(overridden).toNumber()).toBeCloseTo(874496 / 35136, 3)
+})
 
-  it('override path applies KV precision scaling (int8 = half of fp16)', () => {
-    const fp16 = calculateKVCacheVRAM({
-      model: mlaModel,
-      sequenceLength: 4096,
-      batchSize: 2,
-      kvPrecision: 'fp16',
-    })
-    const int8 = calculateKVCacheVRAM({
-      model: mlaModel,
-      sequenceLength: 4096,
-      batchSize: 2,
-      kvPrecision: 'int8',
-    })
-    expect(int8.mul(2).toNumber()).toBeCloseTo(fp16.toNumber(), 10)
+it('override path applies KV precision scaling (int8 = half of fp16)', () => {
+  const fp16 = calculateKVCacheVRAM({
+    model: mlaModel,
+    sequenceLength: 4096,
+    batchSize: 2,
+    kvPrecision: 'fp16',
   })
+  const int8 = calculateKVCacheVRAM({
+    model: mlaModel,
+    sequenceLength: 4096,
+    batchSize: 2,
+    kvPrecision: 'int8',
+  })
+  expect(int8.mul(2).toNumber()).toBeCloseTo(fp16.toNumber(), 10)
+})
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -170,66 +170,65 @@ git commit -m "feat(engine): kv_cache_elements_per_token override for exotic att
 
 The canonical 16 values (HF-config-verified 2026-07-03 — use verbatim):
 
-| id | value |
-|---|---|
-| deepseek-r1 | 35136 |
-| deepseek-v4-flash | 24768 |
-| deepseek-v4-pro | 35136 |
-| moonshotai-kimi-k2-thinking | 35136 |
-| moonshotai-kimi-k2-instruct | 35136 |
-| moonshotai-kimi-k2.5 | 35136 |
-| moonshotai-kimi-linear-48b-a3b | 4032 |
-| zai-org-glm-5.2 | 44928 |
-| minimax-m3 | 61440 |
-| minimax-m2.1 | 126976 |
-| minimax-m2.5 | 126976 |
-| minimax-m2.7 | 126976 |
-| nvidia-nemotron-3-nano-4b | 8192 |
-| nvidia-nemotron-3-nano-30b-a3b | 3072 |
-| nvidia-nemotron-3-super-120b-a12b | 4096 |
-| nvidia-nemotron-3-ultra-550b-a55b | 6144 |
-
+| id                                | value  |
+| --------------------------------- | ------ |
+| deepseek-r1                       | 35136  |
+| deepseek-v4-flash                 | 24768  |
+| deepseek-v4-pro                   | 35136  |
+| moonshotai-kimi-k2-thinking       | 35136  |
+| moonshotai-kimi-k2-instruct       | 35136  |
+| moonshotai-kimi-k2.5              | 35136  |
+| moonshotai-kimi-linear-48b-a3b    | 4032   |
+| zai-org-glm-5.2                   | 44928  |
+| minimax-m3                        | 61440  |
+| minimax-m2.1                      | 126976 |
+| minimax-m2.5                      | 126976 |
+| minimax-m2.7                      | 126976 |
+| nvidia-nemotron-3-nano-4b         | 8192   |
+| nvidia-nemotron-3-nano-30b-a3b    | 3072   |
+| nvidia-nemotron-3-super-120b-a12b | 4096   |
+| nvidia-nemotron-3-ultra-550b-a55b | 6144   |
 - [ ] **Step 1: Write the failing invariant test**
 
 In `src/utils/models.test.ts`, add immediately before the final closing `})` of the `describe` block:
 
 ```typescript
-  it('sets kv_cache_elements_per_token on exactly the exotic-attention models', () => {
-    const EXOTIC_KV: Record<string, number> = {
-      'deepseek-r1': 35136,
-      'deepseek-v4-flash': 24768,
-      'deepseek-v4-pro': 35136,
-      'moonshotai-kimi-k2-thinking': 35136,
-      'moonshotai-kimi-k2-instruct': 35136,
-      'moonshotai-kimi-k2.5': 35136,
-      'moonshotai-kimi-linear-48b-a3b': 4032,
-      'zai-org-glm-5.2': 44928,
-      'minimax-m3': 61440,
-      'minimax-m2.1': 126976,
-      'minimax-m2.5': 126976,
-      'minimax-m2.7': 126976,
-      'nvidia-nemotron-3-nano-4b': 8192,
-      'nvidia-nemotron-3-nano-30b-a3b': 3072,
-      'nvidia-nemotron-3-super-120b-a12b': 4096,
-      'nvidia-nemotron-3-ultra-550b-a55b': 6144,
-    }
-    for (const [id, expected] of Object.entries(EXOTIC_KV)) {
-      const model = modelsData.find((m) => m.id === id) as
-        | { kv_cache_elements_per_token?: number }
-        | undefined
-      expect(model, `model ${id} missing from database`).toBeDefined()
-      expect(model?.kv_cache_elements_per_token, `wrong value for ${id}`).toBe(expected)
-    }
-    const withField = modelsData.filter(
-      (m) => (m as { kv_cache_elements_per_token?: number }).kv_cache_elements_per_token,
-    )
-    expect(withField.length).toBe(Object.keys(EXOTIC_KV).length)
-  })
+it('sets kv_cache_elements_per_token on exactly the exotic-attention models', () => {
+  const EXOTIC_KV: Record<string, number> = {
+    'deepseek-r1': 35136,
+    'deepseek-v4-flash': 24768,
+    'deepseek-v4-pro': 35136,
+    'moonshotai-kimi-k2-thinking': 35136,
+    'moonshotai-kimi-k2-instruct': 35136,
+    'moonshotai-kimi-k2.5': 35136,
+    'moonshotai-kimi-linear-48b-a3b': 4032,
+    'zai-org-glm-5.2': 44928,
+    'minimax-m3': 61440,
+    'minimax-m2.1': 126976,
+    'minimax-m2.5': 126976,
+    'minimax-m2.7': 126976,
+    'nvidia-nemotron-3-nano-4b': 8192,
+    'nvidia-nemotron-3-nano-30b-a3b': 3072,
+    'nvidia-nemotron-3-super-120b-a12b': 4096,
+    'nvidia-nemotron-3-ultra-550b-a55b': 6144,
+  }
+  for (const [id, expected] of Object.entries(EXOTIC_KV)) {
+    const model = modelsData.find((m) => m.id === id) as
+      | { kv_cache_elements_per_token?: number }
+      | undefined
+    expect(model, `model ${id} missing from database`).toBeDefined()
+    expect(model?.kv_cache_elements_per_token, `wrong value for ${id}`).toBe(expected)
+  }
+  const withField = modelsData.filter(
+    (m) => (m as { kv_cache_elements_per_token?: number }).kv_cache_elements_per_token,
+  )
+  expect(withField.length).toBe(Object.keys(EXOTIC_KV).length)
+})
 
-  it('stores the corrected Nemotron Ultra layer count (108, not 128)', () => {
-    const ultra = modelsData.find((m) => m.id === 'nvidia-nemotron-3-ultra-550b-a55b')
-    expect(ultra?.num_hidden_layers).toBe(108)
-  })
+it('stores the corrected Nemotron Ultra layer count (108, not 128)', () => {
+  const ultra = modelsData.find((m) => m.id === 'nvidia-nemotron-3-ultra-550b-a55b')
+  expect(ultra?.num_hidden_layers).toBe(108)
+})
 ```
 
 (The `as` casts are needed because the JSON import's inferred type lacks the optional field until the data carries it.)

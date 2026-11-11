@@ -231,7 +231,7 @@ Look for a measurement that **isolates prefill**: input (prompt) tokens/s, or ti
 Record the result in the commit message and in ADR 0008 (Task 5):
 
 - **Outcome A (sourced):** `fp8` and `fp4` get their sourced values, each with a source comment.
-- **Outcome B (no prefill-isolating FP4 source):** where the format *would* get FP4 (card has `fp4_tflops`, and is NVIDIA for nvfp4), it gets the card's `fp8_tflops` instead (precision `'fp8'`). Everywhere else the normal fallback to FP16 applies: H100 + nvfp4 stays FP16, and MI355X + nvfp4 stays FP16. The comment cites spec D9. `fp8` without a source keeps 0.45.
+- **Outcome B (no prefill-isolating FP4 source):** where the format _would_ get FP4 (card has `fp4_tflops`, and is NVIDIA for nvfp4), it gets the card's `fp8_tflops` instead (precision `'fp8'`). Everywhere else the normal fallback to FP16 applies: H100 + nvfp4 stays FP16, and MI355X + nvfp4 stays FP16. The comment cites spec D9. `fp8` without a source keeps 0.45.
 
 Steps 2-5 below are written for Outcome A. Under Outcome B, the FP4 rows of the test table expect `{precision:'fp8', tflops: fp8_tflops}`.
 

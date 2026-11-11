@@ -28,21 +28,21 @@
 
 **Modified:**
 
-| File | Responsibility after the change |
-|---|---|
-| `src/engines/constants.ts` | Adds `PREFILL_CHUNK_TOKENS`, `PREFILL_MFU` |
-| `src/utils/schemas.ts` | Adds `MAX_SEQUENCE_LENGTH` (leaf module, no engine imports) and `active_parameters_billion` on `ModelSchema`; raises `TrainingInputSchema` cap |
-| `src/engines/types.ts` | Raises `CalculationInputSchema` cap; extends `PerformanceEstimate` |
-| `src/engines/inference.ts` | Bounds activations by the prefill chunk; three-tier `calculateMoEActiveParams` |
-| `src/engines/performance.ts` | Prefill/TTFT model; active-parameter roofline |
-| `src/workers/calculation.worker.ts` | Threads `sequenceLength` into `estimatePerformance`; serializes the new fields |
-| `src/hooks/useInferenceCalculation.ts` | Same, plus reconstructs the new fields from the worker |
-| `src/components/layout/ResultsPanel.tsx` | Prefill display, adaptive TTFT formatting, correct ms into the comparison snapshot |
-| `src/components/inputs/SequenceLengthInput.tsx` | Dynamic max, 1M presets, native-context marker, warning badge |
-| `src/store/comparisonStore.ts` | Unit comment corrected to match the value actually stored |
-| `src/data/models.json` | `active_parameters_billion` on 33 MoE entries |
-| `scripts/fetch-models.ts` | Divergence warning on refresh |
-| `CHANGELOG.md`, `README.md`, `src/components/guide/GuidePage.tsx` | Documentation |
+| File                                                              | Responsibility after the change                                                                                                                |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/engines/constants.ts`                                        | Adds `PREFILL_CHUNK_TOKENS`, `PREFILL_MFU`                                                                                                     |
+| `src/utils/schemas.ts`                                            | Adds `MAX_SEQUENCE_LENGTH` (leaf module, no engine imports) and `active_parameters_billion` on `ModelSchema`; raises `TrainingInputSchema` cap |
+| `src/engines/types.ts`                                            | Raises `CalculationInputSchema` cap; extends `PerformanceEstimate`                                                                             |
+| `src/engines/inference.ts`                                        | Bounds activations by the prefill chunk; three-tier `calculateMoEActiveParams`                                                                 |
+| `src/engines/performance.ts`                                      | Prefill/TTFT model; active-parameter roofline                                                                                                  |
+| `src/workers/calculation.worker.ts`                               | Threads `sequenceLength` into `estimatePerformance`; serializes the new fields                                                                 |
+| `src/hooks/useInferenceCalculation.ts`                            | Same, plus reconstructs the new fields from the worker                                                                                         |
+| `src/components/layout/ResultsPanel.tsx`                          | Prefill display, adaptive TTFT formatting, correct ms into the comparison snapshot                                                             |
+| `src/components/inputs/SequenceLengthInput.tsx`                   | Dynamic max, 1M presets, native-context marker, warning badge                                                                                  |
+| `src/store/comparisonStore.ts`                                    | Unit comment corrected to match the value actually stored                                                                                      |
+| `src/data/models.json`                                            | `active_parameters_billion` on 33 MoE entries                                                                                                  |
+| `scripts/fetch-models.ts`                                         | Divergence warning on refresh                                                                                                                  |
+| `CHANGELOG.md`, `README.md`, `src/components/guide/GuidePage.tsx` | Documentation                                                                                                                                  |
 
 **Dependency note:** `performance.ts` gains an import of `calculateMoEActiveParams` from `./inference`. `inference.ts` does not import `performance.ts`, so there is no cycle. `schemas.ts` imports only `zod` and stays a leaf; `types.ts` will import `MAX_SEQUENCE_LENGTH` from `@utils/schemas`, which is acyclic because `schemas.ts` imports nothing from `engines/`.
 
@@ -307,7 +307,7 @@ export function calculateMoEActiveParams(model: Model): number {
 
 Update the JSDoc above it: the old block documents a "20% shared, 80% expert" split and a Mixtral example returning ~18.68. Replace the `@example` block with:
 
-```
+````
  * @example
  * ```ts
  * // Tier 1 - explicit field wins
@@ -319,7 +319,7 @@ Update the JSDoc above it: the old block documents a "20% shared, 80% expert" sp
  * // Tier 3 - dense model
  * calculateMoEActiveParams(llama70b) // 70.0
  * ```
-```
+````
 
 - [ ] **Step 5: Run the new tests**
 
@@ -590,31 +590,31 @@ import { calculateModelWeightVRAM } from './quantization'
 `PerformanceParams` — add the required field:
 
 ```ts
-  /** Number of concurrent sequences (batch size) */
-  batchSize: number
-  /** Prompt length in tokens — drives prefill time and therefore TTFT */
-  sequenceLength: number
+/** Number of concurrent sequences (batch size) */
+batchSize: number
+/** Prompt length in tokens — drives prefill time and therefore TTFT */
+sequenceLength: number
 ```
 
 Body — destructure `sequenceLength`, then replace steps 1–3:
 
 ```ts
-  const { model, gpu, quantization, sequenceLength, batchSize, multiGPUResult } = params
+const { model, gpu, quantization, sequenceLength, batchSize, multiGPUResult } = params
 
-  // 1. Bytes read per decode token. MoE decode touches only the active experts, so
-  //    this uses active params — but it must still route through the quantization
-  //    helper, because bytes depend on precision. Never hardcode `x 2` here.
-  const activeParams = calculateMoEActiveParams(model)
-  const modelSizeGB = calculateModelWeightVRAM(activeParams, quantization)
-  const modelSizeBytes = modelSizeGB.mul(BYTES_PER_GB)
+// 1. Bytes read per decode token. MoE decode touches only the active experts, so
+//    this uses active params — but it must still route through the quantization
+//    helper, because bytes depend on precision. Never hardcode `x 2` here.
+const activeParams = calculateMoEActiveParams(model)
+const modelSizeGB = calculateModelWeightVRAM(activeParams, quantization)
+const modelSizeBytes = modelSizeGB.mul(BYTES_PER_GB)
 
-  // 2. Memory-bound tokens/sec (dominant for LLM inference)
-  const bandwidthBytesPerSec = new Decimal(gpu.memory_bandwidth_gbps).mul(1e9)
-  const memoryBoundTPS = bandwidthBytesPerSec.div(modelSizeBytes).mul(batchSize)
+// 2. Memory-bound tokens/sec (dominant for LLM inference)
+const bandwidthBytesPerSec = new Decimal(gpu.memory_bandwidth_gbps).mul(1e9)
+const memoryBoundTPS = bandwidthBytesPerSec.div(modelSizeBytes).mul(batchSize)
 
-  // 3. Compute-bound tokens/sec. FLOPs are precision-independent: ~2 FLOPs per
-  //    active parameter (one multiply, one add).
-  const flopsPerToken = new Decimal(activeParams).mul(2e9)
+// 3. Compute-bound tokens/sec. FLOPs are precision-independent: ~2 FLOPs per
+//    active parameter (one multiply, one add).
+const flopsPerToken = new Decimal(activeParams).mul(2e9)
 ```
 
 Leave steps 4, 4b and 5 (roofline min, multi-GPU scaling, bottleneck classification) exactly as they are.
@@ -687,29 +687,29 @@ In `src/workers/calculation.worker.ts`:
 Add `sequenceLength` to the `estimatePerformance` call (step 4 of the handler):
 
 ```ts
-      const performance = estimatePerformance({
-        model,
-        gpu,
-        quantization,
-        sequenceLength,
-        batchSize,
-        multiGPUResult,
-      })
+const performance = estimatePerformance({
+  model,
+  gpu,
+  quantization,
+  sequenceLength,
+  batchSize,
+  multiGPUResult,
+})
 ```
 
 Extend `CalculationSuccessResponse['payload']['performance']`:
 
 ```ts
-    performance: {
-      tokensPerSecond: string
-      timeToFirstToken: string
-      prefillSeconds: string | null
-      prefillBottleneck: 'linear' | 'attention'
-      prefillEstimateDegraded: boolean
-      isComputeBound: boolean
-      isMemoryBound: boolean
-      bottleneck: 'compute' | 'memory' | 'balanced'
-    }
+performance: {
+  tokensPerSecond: string
+  timeToFirstToken: string
+  prefillSeconds: string | null
+  prefillBottleneck: 'linear' | 'attention'
+  prefillEstimateDegraded: boolean
+  isComputeBound: boolean
+  isMemoryBound: boolean
+  bottleneck: 'compute' | 'memory' | 'balanced'
+}
 ```
 
 And extend the serialization block:
@@ -759,14 +759,14 @@ function reconstructPerformanceEstimate(serialized: {
 And in the sync fallback path, add `sequenceLength` to the `estimatePerformance` call:
 
 ```ts
-        const performance = performanceModule.estimatePerformance({
-          model,
-          gpu: effectiveGPU,
-          quantization,
-          sequenceLength,
-          batchSize,
-          multiGPUResult: multiGPU,
-        })
+const performance = performanceModule.estimatePerformance({
+  model,
+  gpu: effectiveGPU,
+  quantization,
+  sequenceLength,
+  batchSize,
+  multiGPUResult: multiGPU,
+})
 ```
 
 - [ ] **Step 9: Fix the comparison-store unit bug**
@@ -778,16 +778,16 @@ First add the failing test to `src/store/comparisonStore.test.ts`:
 The file already defines `makeSnapshot(label)` at module scope, returning a full snapshot with `results.timeToFirstToken: 22`. Add, inside the existing `describe('comparisonStore', ...)`:
 
 ```ts
-  it('stores TTFT in milliseconds, not seconds', () => {
-    const base = makeSnapshot('ttft units')
-    useComparisonStore.getState().addSnapshot({
-      ...base,
-      results: { ...base.results, timeToFirstToken: 527 },
-    })
-
-    const stored = useComparisonStore.getState().snapshots[0]
-    expect(stored?.results.timeToFirstToken).toBe(527)
+it('stores TTFT in milliseconds, not seconds', () => {
+  const base = makeSnapshot('ttft units')
+  useComparisonStore.getState().addSnapshot({
+    ...base,
+    results: { ...base.results, timeToFirstToken: 527 },
   })
+
+  const stored = useComparisonStore.getState().snapshots[0]
+  expect(stored?.results.timeToFirstToken).toBe(527)
+})
 ```
 
 The store performs no conversion, so this test documents the contract that `ResultsPanel` must satisfy; the real fix is the `.mul(1000)` below.
@@ -801,7 +801,7 @@ Then fix the producer in `src/components/layout/ResultsPanel.tsx:323`:
 And tighten the comment in `src/store/comparisonStore.ts:34`:
 
 ```ts
-    timeToFirstToken: number // ms — producers must multiply the engine's seconds by 1000
+timeToFirstToken: number // ms — producers must multiply the engine's seconds by 1000
 ```
 
 `src/components/comparison/ComparisonColumn.tsx:300` renders the field as
@@ -1136,42 +1136,44 @@ Then, in the JSX:
 - Wrap the range input in a relatively-positioned container and add the marker before it:
 
 ```tsx
-        <div className="relative">
-          {nativeMarkerPercent !== null && (
-            <div
-              className="absolute top-0 h-2 w-0.5 bg-gray-500 dark:bg-gray-300 pointer-events-none"
-              style={{ left: `${nativeMarkerPercent}%` }}
-              aria-hidden="true"
-              title={`Native context: ${formatTokens(nativeContext ?? 0)}`}
-            />
-          )}
-          <input
-            type="range"
-            id="sequence-length"
-            min={MIN_LOG}
-            max={maxLog}
-            step={0.1}
-            value={sliderValue}
-            onChange={handleSliderChange}
-            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
-            aria-label="Sequence length"
-            aria-valuetext={formatValue(sequenceLength)}
-          />
-        </div>
+;<div className="relative">
+  {nativeMarkerPercent !== null && (
+    <div
+      className="absolute top-0 h-2 w-0.5 bg-gray-500 dark:bg-gray-300 pointer-events-none"
+      style={{ left: `${nativeMarkerPercent}%` }}
+      aria-hidden="true"
+      title={`Native context: ${formatTokens(nativeContext ?? 0)}`}
+    />
+  )}
+  <input
+    type="range"
+    id="sequence-length"
+    min={MIN_LOG}
+    max={maxLog}
+    step={0.1}
+    value={sliderValue}
+    onChange={handleSliderChange}
+    className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+    aria-label="Sequence length"
+    aria-valuetext={formatValue(sequenceLength)}
+  />
+</div>
 ```
 
 - Add the warning badge immediately after the preset button row:
 
 ```tsx
-      {exceedsNative && (
-        <p
-          role="status"
-          className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md px-2 py-1.5"
-        >
-          Beyond native context ({formatTokens(nativeContext ?? 0)}) — requires RoPE scaling
-          / YaRN. The estimate still computes.
-        </p>
-      )}
+{
+  exceedsNative && (
+    <p
+      role="status"
+      className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md px-2 py-1.5"
+    >
+      Beyond native context ({formatTokens(nativeContext ?? 0)}) — requires RoPE scaling / YaRN. The
+      estimate still computes.
+    </p>
+  )
+}
 ```
 
 - Update the `InfoTip` text to mention the 1M range: `"... Common values: 2K (chat), 8K (documents), 128K-1M (long context). Values above the model's native context require RoPE scaling."`
@@ -1245,44 +1247,42 @@ function formatDuration(seconds: Decimal): string {
 Replace the "Time to First Token" tile body:
 
 ```tsx
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {formatDuration(result.performance.timeToFirstToken)}
-                </p>
-                {result.performance.prefillEstimateDegraded && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    rough estimate — no FLOPS data for this GPU
-                  </p>
-                )}
+;<p className="text-lg font-semibold text-gray-900 dark:text-white">
+  {formatDuration(result.performance.timeToFirstToken)}
+</p>
+{
+  result.performance.prefillEstimateDegraded && (
+    <p className="text-xs text-gray-500 dark:text-gray-400">
+      rough estimate — no FLOPS data for this GPU
+    </p>
+  )
+}
 ```
 
 Add a fourth tile after "Bottleneck" (and change the grid class from `sm:grid-cols-3` to `sm:grid-cols-4`):
 
 ```tsx
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Prompt Processing</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {result.performance.prefillSeconds
-                    ? formatDuration(result.performance.prefillSeconds)
-                    : 'n/a'}
-                </p>
-                {result.performance.prefillSeconds && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {result.performance.prefillBottleneck === 'attention'
-                      ? 'attention-dominated (quadratic)'
-                      : 'weight-dominated (linear)'}
-                  </p>
-                )}
-              </div>
+;<div>
+  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Prompt Processing</p>
+  <p className="text-lg font-semibold text-gray-900 dark:text-white">
+    {result.performance.prefillSeconds ? formatDuration(result.performance.prefillSeconds) : 'n/a'}
+  </p>
+  {result.performance.prefillSeconds && (
+    <p className="text-xs text-gray-500 dark:text-gray-400">
+      {result.performance.prefillBottleneck === 'attention'
+        ? 'attention-dominated (quadratic)'
+        : 'weight-dominated (linear)'}
+    </p>
+  )}
+</div>
 ```
 
 Apply `formatDuration` to the per-user TTFT block too (it currently ends with `.mul(1000).toFixed(1)} ms`):
 
 ```tsx
-                      {formatDuration(
-                        result.performance.timeToFirstToken
-                          .mul(concurrentUsers)
-                          .div(batchSize),
-                      )}
+{
+  formatDuration(result.performance.timeToFirstToken.mul(concurrentUsers).div(batchSize))
+}
 ```
 
 - [ ] **Step 3: Match the export**
@@ -1290,10 +1290,10 @@ Apply `formatDuration` to the per-user TTFT block too (it currently ends with `.
 In `src/utils/exportPptx.ts`, replace the fixed-ms TTFT line (~339):
 
 ```ts
-  const ttftSeconds = performance.timeToFirstToken
-  const ttftLabel = ttftSeconds.mul(1000).lessThan(1000)
-    ? `${ttftSeconds.mul(1000).toFixed(1)} ms`
-    : `${ttftSeconds.toFixed(2)} s`
+const ttftSeconds = performance.timeToFirstToken
+const ttftLabel = ttftSeconds.mul(1000).lessThan(1000)
+  ? `${ttftSeconds.mul(1000).toFixed(1)} ms`
+  : `${ttftSeconds.toFixed(2)} s`
 ```
 
 and use `ttftLabel` at the two places that currently interpolate `ttftMs`.
@@ -1302,7 +1302,7 @@ and use `ttftLabel` at the two places that currently interpolate `ttftMs`.
 
 Run: `npm run dev`
 
-Check by hand: select a dense model with a GPU that has `fp16_tflops`, set the sequence to 1M, and confirm the panel shows a multi-second "Prompt Processing" value labelled *attention-dominated*, and that at 2K it shows a sub-second value labelled *weight-dominated*.
+Check by hand: select a dense model with a GPU that has `fp16_tflops`, set the sequence to 1M, and confirm the panel shows a multi-second "Prompt Processing" value labelled _attention-dominated_, and that at 2K it shows a sub-second value labelled _weight-dominated_.
 
 **Expect MoE throughput to be short of its final value at this point.** Task 7 has not run yet, so every MoE model is still on the tier-2 derivation: Qwen3.6 35B A3B resolves to 4.79B active, giving roughly 350 tok/s rather than the ~558 it will show once its verified `active_parameters_billion: 3` lands. That gap is expected here and is not a defect in the prefill work.
 
@@ -1343,20 +1343,19 @@ This is a data task. Correctness comes from verification, not from recall.
 
 These need no lookup — the model's own name states the active parameter count. Add `active_parameters_billion` to each entry in `src/data/models.json`:
 
-| `name` | `active_parameters_billion` |
-|---|---|
-| Gemma 4 26B A4B | 4 |
-| Kimi Linear 48B A3B | 3 |
-| Llama 4 Maverick 17B 128E | 17 |
-| Llama 4 Scout 17B 16E | 17 |
-| Nemotron 3 Nano 30B A3B | 3 |
-| Nemotron 3 Super 120B A12B | 12 |
-| Nemotron 3 Ultra 550B A55B | 55 |
-| Nemotron 3.5 Lightning 30B A3B | 3 |
-| Qwen3 235B A22B | 22 |
-| Qwen3.6 35B A3B | 3 |
-| Qwen3.8 2.4T A95B | 95 |
-
+| `name`                         | `active_parameters_billion` |
+| ------------------------------ | --------------------------- |
+| Gemma 4 26B A4B                | 4                           |
+| Kimi Linear 48B A3B            | 3                           |
+| Llama 4 Maverick 17B 128E      | 17                          |
+| Llama 4 Scout 17B 16E          | 17                          |
+| Nemotron 3 Nano 30B A3B        | 3                           |
+| Nemotron 3 Super 120B A12B     | 12                          |
+| Nemotron 3 Ultra 550B A55B     | 55                          |
+| Nemotron 3.5 Lightning 30B A3B | 3                           |
+| Qwen3 235B A22B                | 22                          |
+| Qwen3.6 35B A3B                | 3                           |
+| Qwen3.8 2.4T A95B              | 95                          |
 - [ ] **Step 2: Verify the remaining 22 one at a time**
 
 For each model below, open its `hf_url` (already present on the entry) via the Hugging Face MCP — `hub_repo_details` for the model card, `hf_fs` to `cat` its `config.json` — and read the active parameter count from the card. Where the card does not state it, compute it from `config.json` using `num_experts_per_tok`, `num_local_experts` (or the model's equivalent field names) and `moe_intermediate_size`, and record in the commit message which models were computed rather than quoted.
@@ -1398,12 +1397,17 @@ function checkActiveParamsConsistency(model: Model): void {
   if (!model.num_experts || !model.num_experts_per_token) return
 
   const expertParams =
-    (model.num_hidden_layers * model.num_experts * 3 * model.hidden_size * model.intermediate_size) /
+    (model.num_hidden_layers *
+      model.num_experts *
+      3 *
+      model.hidden_size *
+      model.intermediate_size) /
     1e9
   const nonExpert = Math.max(model.num_parameters_billion - expertParams, 0)
   const derived = nonExpert + expertParams * (model.num_experts_per_token / model.num_experts)
 
-  const divergence = Math.abs(derived - model.active_parameters_billion) / model.active_parameters_billion
+  const divergence =
+    Math.abs(derived - model.active_parameters_billion) / model.active_parameters_billion
   if (divergence > 0.25) {
     console.warn(
       `WARN ${model.name}: active_parameters_billion=${model.active_parameters_billion} ` +

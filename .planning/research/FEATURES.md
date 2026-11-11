@@ -12,17 +12,17 @@ This research focuses on features needed for v1.1, which adds fine-tuning VRAM e
 
 Features users expect for fine-tuning estimation. Missing = product feels incomplete.
 
-| Feature | Why Expected | Complexity | Dependencies | Notes |
-|---------|--------------|------------|--------------|-------|
-| Training mode toggle | Distinguish inference vs training | Low | None (new top-level control) | Simple radio: Inference / Fine-tuning |
-| Fine-tuning method selector | Full/LoRA/QLoRA are standard methods | Low | Training mode active | Radio group: Full / LoRA / QLoRA |
-| Optimizer selection | Different optimizers have vastly different memory | Medium | Training mode active | AdamW (8B/param), SGD (4B/param), 8-bit Adam (2B/param) |
-| Batch size input | Critical for activation memory | Low | **Exists in v1.0** for inference | Reuse existing, expand validation range (1-256) |
-| Sequence length input | Activation memory scales with seq len | Low | **Exists in v1.0** for inference | Reuse existing (512-131K range) |
-| Training memory breakdown | Show WHERE memory goes in training | Medium | Memory visualization from v1.0 | Add: optimizer states, gradients to existing chart |
-| LoRA rank/alpha inputs | Control LoRA adapter size | Low | Fine-tuning method = LoRA/QLoRA | Rank (4-256), alpha (2x rank typical) |
-| Gradient accumulation steps | Standard memory-saving technique | Low | Training mode active | Input: 1-128 steps, show effective batch size |
-| Mixed precision toggle | FP16/BF16 halves memory | Low | Training mode active | Checkbox + format selector (FP32/FP16/BF16) |
+| Feature                     | Why Expected                                      | Complexity | Dependencies                     | Notes                                                   |
+| --------------------------- | ------------------------------------------------- | ---------- | -------------------------------- | ------------------------------------------------------- |
+| Training mode toggle        | Distinguish inference vs training                 | Low        | None (new top-level control)     | Simple radio: Inference / Fine-tuning                   |
+| Fine-tuning method selector | Full/LoRA/QLoRA are standard methods              | Low        | Training mode active             | Radio group: Full / LoRA / QLoRA                        |
+| Optimizer selection         | Different optimizers have vastly different memory | Medium     | Training mode active             | AdamW (8B/param), SGD (4B/param), 8-bit Adam (2B/param) |
+| Batch size input            | Critical for activation memory                    | Low        | **Exists in v1.0** for inference | Reuse existing, expand validation range (1-256)         |
+| Sequence length input       | Activation memory scales with seq len             | Low        | **Exists in v1.0** for inference | Reuse existing (512-131K range)                         |
+| Training memory breakdown   | Show WHERE memory goes in training                | Medium     | Memory visualization from v1.0   | Add: optimizer states, gradients to existing chart      |
+| LoRA rank/alpha inputs      | Control LoRA adapter size                         | Low        | Fine-tuning method = LoRA/QLoRA  | Rank (4-256), alpha (2x rank typical)                   |
+| Gradient accumulation steps | Standard memory-saving technique                  | Low        | Training mode active             | Input: 1-128 steps, show effective batch size           |
+| Mixed precision toggle      | FP16/BF16 halves memory                           | Low        | Training mode active             | Checkbox + format selector (FP32/FP16/BF16)             |
 
 **Rationale:** Users cannot estimate training memory without knowing: (1) training method (full vs LoRA), (2) optimizer (AdamW vs 8-bit), (3) batch size, (4) whether gradient accumulation is used. These are non-negotiable for accurate estimation.
 
@@ -30,20 +30,20 @@ Features users expect for fine-tuning estimation. Missing = product feels incomp
 
 Features that set product apart. Not expected, but highly valued.
 
-| Feature | Value Proposition | Complexity | Dependencies | Notes |
-|---------|-------------------|------------|--------------|-------|
-| Framework presets | One-click accurate configs | Medium | Training calculations | DeepSpeed ZeRO-1/2/3, Unsloth, vLLM, TGI presets |
-| Gradient checkpointing toggle | 50-80% activation memory reduction | Medium | Training calculations | Checkbox with memory impact shown |
-| Flash Attention toggle | 50-80% KV cache reduction | Low | **KV cache engine from v1.0** | Checkbox, reduce KV by 0.5-0.8x |
-| Effective batch size calculator | Understand gradient accumulation impact | Low | Gradient accumulation input | Formula: batch × accum_steps × num_gpus |
-| LoRA target modules % | Adjust trainable param count | Low | LoRA method selected | Slider: 10-100% (default 50%, affects trainable params) |
-| QLoRA base quantization | Show 4-bit base + 16-bit adapter split | Medium | QLoRA method, quantization engine from v1.0 | Auto-select 4-bit for base, show adapter separately |
-| Multi-GPU training estimation | DeepSpeed ZeRO stage impact | High | Multi-GPU engine from v1.0 | ZeRO-1: partition optimizer, ZeRO-2: +gradients, ZeRO-3: +weights |
-| Training speed estimation | Samples/sec with optimizations | High | Performance engine from v1.0 | Extend existing tokens/sec to training throughput |
-| Optimizer state breakdown | Visualize momentum + variance | Low | Training memory breakdown | Sub-rows: first moment, second moment for AdamW |
-| CPU offloading for training | DeepSpeed ZeRO-Offload / ZeRO-Infinity | Medium | Offloading engine from v1.0 | Extend existing CPU offload to optimizer states |
-| 8-bit optimizer toggle | bitsandbytes paged optimizers | Low | Optimizer selection | Checkbox: "Use 8-bit optimizer" (2x memory savings) |
-| Activation checkpointing detail | Show recomputation tradeoff | Low | Gradient checkpointing | Tooltip: "~20% slower, 50-80% memory savings" |
+| Feature                         | Value Proposition                       | Complexity | Dependencies                                | Notes                                                             |
+| ------------------------------- | --------------------------------------- | ---------- | ------------------------------------------- | ----------------------------------------------------------------- |
+| Framework presets               | One-click accurate configs              | Medium     | Training calculations                       | DeepSpeed ZeRO-1/2/3, Unsloth, vLLM, TGI presets                  |
+| Gradient checkpointing toggle   | 50-80% activation memory reduction      | Medium     | Training calculations                       | Checkbox with memory impact shown                                 |
+| Flash Attention toggle          | 50-80% KV cache reduction               | Low        | **KV cache engine from v1.0**               | Checkbox, reduce KV by 0.5-0.8x                                   |
+| Effective batch size calculator | Understand gradient accumulation impact | Low        | Gradient accumulation input                 | Formula: batch × accum_steps × num_gpus                           |
+| LoRA target modules %           | Adjust trainable param count            | Low        | LoRA method selected                        | Slider: 10-100% (default 50%, affects trainable params)           |
+| QLoRA base quantization         | Show 4-bit base + 16-bit adapter split  | Medium     | QLoRA method, quantization engine from v1.0 | Auto-select 4-bit for base, show adapter separately               |
+| Multi-GPU training estimation   | DeepSpeed ZeRO stage impact             | High       | Multi-GPU engine from v1.0                  | ZeRO-1: partition optimizer, ZeRO-2: +gradients, ZeRO-3: +weights |
+| Training speed estimation       | Samples/sec with optimizations          | High       | Performance engine from v1.0                | Extend existing tokens/sec to training throughput                 |
+| Optimizer state breakdown       | Visualize momentum + variance           | Low        | Training memory breakdown                   | Sub-rows: first moment, second moment for AdamW                   |
+| CPU offloading for training     | DeepSpeed ZeRO-Offload / ZeRO-Infinity  | Medium     | Offloading engine from v1.0                 | Extend existing CPU offload to optimizer states                   |
+| 8-bit optimizer toggle          | bitsandbytes paged optimizers           | Low        | Optimizer selection                         | Checkbox: "Use 8-bit optimizer" (2x memory savings)               |
+| Activation checkpointing detail | Show recomputation tradeoff             | Low        | Gradient checkpointing                      | Tooltip: "~20% slower, 50-80% memory savings"                     |
 
 **Rationale:** Framework presets are the killer feature - users don't know optimal DeepSpeed ZeRO stage or Unsloth settings. Gradient checkpointing is table stakes in some communities, differentiator in others. Multi-GPU training with ZeRO is complex but extremely valuable for large models.
 
@@ -51,18 +51,18 @@ Features that set product apart. Not expected, but highly valued.
 
 Features to explicitly NOT build.
 
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Hyperparameter tuning suggestions | Out of scope, domain-specific | Show memory only, link to Weights & Biases guides |
-| Dataset size recommendations | Too training-task specific | Provide batch size input, user decides iterations |
-| Training loss prediction | Impossible without knowing data quality | Estimate memory/speed only, not model quality |
-| Learning rate scheduling | Unrelated to VRAM | Focus on memory estimation |
-| Cost estimation per epoch | Too many variables (provider, region, spot) | Maybe add in future, but not v1.1 priority |
-| Distributed training strategies (FSDP, Megatron) | Overwhelming complexity for v1.1 | Start with DeepSpeed ZeRO only, expand later |
-| Data loading/preprocessing memory | Highly variable, framework-dependent | Focus on model training memory |
-| Evaluation during training | Adds another dimension of complexity | Assume training-only memory in v1.1 |
-| Checkpoint saving memory | Transient, not sustained memory use | Ignore for VRAM estimation |
-| Mixed expert fine-tuning (MoE-specific) | Niche, complex, low ROI for v1.1 | Support MoE inference only (already in v1.0) |
+| Anti-Feature                                     | Why Avoid                                   | What to Do Instead                                |
+| ------------------------------------------------ | ------------------------------------------- | ------------------------------------------------- |
+| Hyperparameter tuning suggestions                | Out of scope, domain-specific               | Show memory only, link to Weights & Biases guides |
+| Dataset size recommendations                     | Too training-task specific                  | Provide batch size input, user decides iterations |
+| Training loss prediction                         | Impossible without knowing data quality     | Estimate memory/speed only, not model quality     |
+| Learning rate scheduling                         | Unrelated to VRAM                           | Focus on memory estimation                        |
+| Cost estimation per epoch                        | Too many variables (provider, region, spot) | Maybe add in future, but not v1.1 priority        |
+| Distributed training strategies (FSDP, Megatron) | Overwhelming complexity for v1.1            | Start with DeepSpeed ZeRO only, expand later      |
+| Data loading/preprocessing memory                | Highly variable, framework-dependent        | Focus on model training memory                    |
+| Evaluation during training                       | Adds another dimension of complexity        | Assume training-only memory in v1.1               |
+| Checkpoint saving memory                         | Transient, not sustained memory use         | Ignore for VRAM estimation                        |
+| Mixed expert fine-tuning (MoE-specific)          | Niche, complex, low ROI for v1.1            | Support MoE inference only (already in v1.0)      |
 
 **Rationale:** v1.1 scope is VRAM estimation for training. Hyperparameters, data quality, cost optimization are separate problem domains. Keep focus tight on "will it fit, how fast will it train?"
 
@@ -159,24 +159,24 @@ v1.1 New Calculation Components:
 
 ## Implementation Complexity
 
-| Feature | Complexity | Effort | Notes |
-|---------|------------|--------|-------|
-| Training mode toggle | Low | 0.5 day | UI state management |
-| Fine-tuning method selector | Low | 0.5 day | Radio group + conditional rendering |
-| Optimizer selection | Low | 0.5 day | Dropdown with 3-4 options |
-| Full fine-tuning calculation | Medium | 2 days | New engine, formula verification critical |
-| LoRA calculation | Medium | 2 days | Adapter size math, percent trainable |
-| QLoRA calculation | Medium | 1.5 days | Combine quantization + LoRA engines |
-| Training memory breakdown | Medium | 2 days | Extend existing chart, new data structure |
-| Gradient accumulation calculator | Low | 0.5 day | Simple formula, display effective batch |
-| Mixed precision toggle | Low | 1 day | Adjust bytes/param in calculations |
-| Framework presets | Medium | 2 days | JSON configs, preset application logic |
-| Gradient checkpointing | Low | 1 day | Activation reduction multiplier (0.2-0.5x) |
-| Flash Attention toggle | Low | 0.5 day | Reuse v1.0 KV cache engine, apply multiplier |
-| LoRA rank/alpha inputs | Low | 1 day | Input validation, adapter size calculation |
-| 8-bit optimizer toggle | Low | 0.5 day | Optimizer state bytes/param adjustment |
-| Multi-GPU ZeRO | High | 4 days | Complex per-stage memory partitioning |
-| Training speed estimation | High | 3 days | Benchmarking data, formula validation |
+| Feature                          | Complexity | Effort   | Notes                                        |
+| -------------------------------- | ---------- | -------- | -------------------------------------------- |
+| Training mode toggle             | Low        | 0.5 day  | UI state management                          |
+| Fine-tuning method selector      | Low        | 0.5 day  | Radio group + conditional rendering          |
+| Optimizer selection              | Low        | 0.5 day  | Dropdown with 3-4 options                    |
+| Full fine-tuning calculation     | Medium     | 2 days   | New engine, formula verification critical    |
+| LoRA calculation                 | Medium     | 2 days   | Adapter size math, percent trainable         |
+| QLoRA calculation                | Medium     | 1.5 days | Combine quantization + LoRA engines          |
+| Training memory breakdown        | Medium     | 2 days   | Extend existing chart, new data structure    |
+| Gradient accumulation calculator | Low        | 0.5 day  | Simple formula, display effective batch      |
+| Mixed precision toggle           | Low        | 1 day    | Adjust bytes/param in calculations           |
+| Framework presets                | Medium     | 2 days   | JSON configs, preset application logic       |
+| Gradient checkpointing           | Low        | 1 day    | Activation reduction multiplier (0.2-0.5x)   |
+| Flash Attention toggle           | Low        | 0.5 day  | Reuse v1.0 KV cache engine, apply multiplier |
+| LoRA rank/alpha inputs           | Low        | 1 day    | Input validation, adapter size calculation   |
+| 8-bit optimizer toggle           | Low        | 0.5 day  | Optimizer state bytes/param adjustment       |
+| Multi-GPU ZeRO                   | High       | 4 days   | Complex per-stage memory partitioning        |
+| Training speed estimation        | High       | 3 days   | Benchmarking data, formula validation        |
 
 **Total MVP Effort:** ~12-15 days (must-have + should-have)
 
@@ -551,12 +551,12 @@ VRAM_mixed = weights + master_weights + optimizer_states + gradients + activatio
 
 ## Confidence Assessment
 
-| Area | Confidence | Rationale |
-|------|------------|-----------|
-| Full fine-tuning formulas | **HIGH** | Multiple authoritative sources agree on 8B/param for AdamW, 4B for SGD |
-| LoRA/QLoRA memory savings | **HIGH** | Official docs and benchmarks consistent (LoRA: 4-6x, QLoRA: 12-16x reduction) |
-| Gradient accumulation behavior | **HIGH** | Recent research (2025) clarifies misconceptions, activation memory does NOT multiply |
-| DeepSpeed ZeRO stages | **HIGH** | Official documentation with formulas |
-| Framework preset configurations | **MEDIUM** | Inferred from best practices, not always explicitly documented |
-| Training throughput estimation | **LOW** | Requires benchmarking data not available from web search |
-| CPU offloading penalties | **LOW** | Wide range of claims, hardware-dependent |
+| Area                            | Confidence | Rationale                                                                            |
+| ------------------------------- | ---------- | ------------------------------------------------------------------------------------ |
+| Full fine-tuning formulas       | **HIGH**   | Multiple authoritative sources agree on 8B/param for AdamW, 4B for SGD               |
+| LoRA/QLoRA memory savings       | **HIGH**   | Official docs and benchmarks consistent (LoRA: 4-6x, QLoRA: 12-16x reduction)        |
+| Gradient accumulation behavior  | **HIGH**   | Recent research (2025) clarifies misconceptions, activation memory does NOT multiply |
+| DeepSpeed ZeRO stages           | **HIGH**   | Official documentation with formulas                                                 |
+| Framework preset configurations | **MEDIUM** | Inferred from best practices, not always explicitly documented                       |
+| Training throughput estimation  | **LOW**    | Requires benchmarking data not available from web search                             |
+| CPU offloading penalties        | **LOW**    | Wide range of claims, hardware-dependent                                             |

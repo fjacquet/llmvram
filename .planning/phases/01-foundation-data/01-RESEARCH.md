@@ -15,37 +15,40 @@ Research confirms that LLM memory requirements follow well-defined formulas: Mod
 ## Standard Stack
 
 ### Core
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| React | ^19.2.0 | UI framework | Industry standard, raidy already uses it |
-| TypeScript | ~5.9.3 | Type safety | Critical for calculation accuracy in math-heavy apps |
-| Vite | ^7.2.4 | Build tool | Fast, modern, raidy-proven |
-| Zustand | ^5.0.9 | State management | Lightweight, raidy uses it for config store patterns |
-| Tailwind CSS | ^4.1.18 | Styling | Utility-first, raidy uses v4 with @tailwindcss/vite |
-| Recharts | ^3.6.0 | Charts/visualization | Simple API, raidy uses for data viz |
-| Biome | 2.3.11 | Linting/formatting | Fast Rust-based tool, raidy uses for all code quality |
-| Vitest | ^4.0.16 | Testing | Native Vite integration, raidy uses for unit tests |
-| Decimal.js | Latest | Precision arithmetic | Arbitrary-precision for accurate VRAM calculations |
-| Zod | ^3.25.76 | Schema validation | Type-safe validation, raidy uses for data schemas |
+
+| Library      | Version  | Purpose              | Why Standard                                          |
+| ------------ | -------- | -------------------- | ----------------------------------------------------- |
+| React        | ^19.2.0  | UI framework         | Industry standard, raidy already uses it              |
+| TypeScript   | ~5.9.3   | Type safety          | Critical for calculation accuracy in math-heavy apps  |
+| Vite         | ^7.2.4   | Build tool           | Fast, modern, raidy-proven                            |
+| Zustand      | ^5.0.9   | State management     | Lightweight, raidy uses it for config store patterns  |
+| Tailwind CSS | ^4.1.18  | Styling              | Utility-first, raidy uses v4 with @tailwindcss/vite   |
+| Recharts     | ^3.6.0   | Charts/visualization | Simple API, raidy uses for data viz                   |
+| Biome        | 2.3.11   | Linting/formatting   | Fast Rust-based tool, raidy uses for all code quality |
+| Vitest       | ^4.0.16  | Testing              | Native Vite integration, raidy uses for unit tests    |
+| Decimal.js   | Latest   | Precision arithmetic | Arbitrary-precision for accurate VRAM calculations    |
+| Zod          | ^3.25.76 | Schema validation    | Type-safe validation, raidy uses for data schemas     |
 
 ### Supporting
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| @huggingface/transformers | Latest | Fetch model configs | Optional: for client-side config fetching (or use build script) |
-| @vitejs/plugin-react | ^5.1.1 | Vite React plugin | Required for Vite + React |
-| @tailwindcss/vite | ^4.1.18 | Tailwind v4 Vite plugin | Required for Tailwind CSS |
-| @testing-library/react | ^16.3.1 | React testing utilities | Testing React components |
-| @testing-library/jest-dom | ^6.9.1 | DOM matchers for tests | Testing assertions |
-| jsdom | ^27.4.0 | DOM simulation | Vitest environment for React tests |
-| @vitest/coverage-v8 | ^4.0.16 | Coverage reporting | Test coverage metrics |
+
+| Library                   | Version | Purpose                 | When to Use                                                     |
+| ------------------------- | ------- | ----------------------- | --------------------------------------------------------------- |
+| @huggingface/transformers | Latest  | Fetch model configs     | Optional: for client-side config fetching (or use build script) |
+| @vitejs/plugin-react      | ^5.1.1  | Vite React plugin       | Required for Vite + React                                       |
+| @tailwindcss/vite         | ^4.1.18 | Tailwind v4 Vite plugin | Required for Tailwind CSS                                       |
+| @testing-library/react    | ^16.3.1 | React testing utilities | Testing React components                                        |
+| @testing-library/jest-dom | ^6.9.1  | DOM matchers for tests  | Testing assertions                                              |
+| jsdom                     | ^27.4.0 | DOM simulation          | Vitest environment for React tests                              |
+| @vitest/coverage-v8       | ^4.0.16 | Coverage reporting      | Test coverage metrics                                           |
 
 ### Alternatives Considered
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
+
+| Instead of | Could Use              | Tradeoff                                                                        |
+| ---------- | ---------------------- | ------------------------------------------------------------------------------- |
 | Decimal.js | big.js or bignumber.js | Decimal.js has best HuggingFace docs coverage (167 snippets), most complete API |
-| Zustand | Redux or Jotai | Zustand is simplest, raidy already uses it, no boilerplate |
-| Recharts | Chart.js or D3 | Recharts has React-native API, raidy uses it |
-| Biome | ESLint + Prettier | Biome is faster, single tool, raidy already configured |
+| Zustand    | Redux or Jotai         | Zustand is simplest, raidy already uses it, no boilerplate                      |
+| Recharts   | Chart.js or D3         | Recharts has React-native API, raidy uses it                                    |
+| Biome      | ESLint + Prettier      | Biome is faster, single tool, raidy already configured                          |
 
 **Installation:**
 ```bash
@@ -56,6 +59,7 @@ npm install -D typescript vite @vitejs/plugin-react @tailwindcss/vite tailwindcs
 ## Architecture Patterns
 
 ### Recommended Project Structure
+
 ```
 src/
 ├── engines/            # Calculation engines (VRAM, KV cache, inference)
@@ -122,10 +126,7 @@ import Decimal from 'decimal.js'
 // Configure precision globally
 Decimal.set({ precision: 20, rounding: 4 }) // ROUND_HALF_UP
 
-export function calculateModelWeightsGB(
-  numParams: number,
-  bytesPerParam: number
-): Decimal {
+export function calculateModelWeightsGB(numParams: number, bytesPerParam: number): Decimal {
   const params = new Decimal(numParams)
   const bytes = new Decimal(bytesPerParam)
   const gigabyte = new Decimal(1e9)
@@ -139,7 +140,7 @@ export function calculateKVCacheGB(
   numLayers: number,
   hiddenSize: number,
   numKVHeads: number,
-  bytesPerParam: number
+  bytesPerParam: number,
 ): Decimal {
   const b = new Decimal(batchSize)
   const s = new Decimal(seqLength)
@@ -216,8 +217,8 @@ export const useConfigStore = create<ConfigState>()(
         contextLength: state.contextLength,
         batchSize: state.batchSize,
       }),
-    }
-  )
+    },
+  ),
 )
 ```
 
@@ -246,9 +247,10 @@ export function calculateVRAMRequirements(
   precision: 'fp32' | 'fp16' | 'int8' | 'int4',
   contextLength: number,
   batchSize: number,
-  gpu: GPU
+  gpu: GPU,
 ): VRAMRequirements {
-  const bytesPerParam = precision === 'fp32' ? 4 : precision === 'fp16' ? 2 : precision === 'int8' ? 1 : 0.5
+  const bytesPerParam =
+    precision === 'fp32' ? 4 : precision === 'fp16' ? 2 : precision === 'int8' ? 1 : 0.5
 
   // Model weights
   const modelWeightsGB = calculateModelWeightsGB(model.num_parameters_billion * 1e9, bytesPerParam)
@@ -260,7 +262,7 @@ export function calculateVRAMRequirements(
     model.num_hidden_layers,
     model.hidden_size,
     model.num_kv_heads || model.num_attention_heads,
-    bytesPerParam
+    bytesPerParam,
   )
 
   // Activations (rough estimate: 20% of model weights)
@@ -288,6 +290,7 @@ export function calculateVRAMRequirements(
 ```
 
 ### Anti-Patterns to Avoid
+
 - **Direct number arithmetic for VRAM calculations:** Use Decimal.js to avoid precision loss (0.1 + 0.2 !== 0.3 in JS)
 - **Hardcoded model/GPU data in components:** Always load from JSON databases, keep components pure
 - **Global mutable state outside Zustand:** All state changes through store actions only
@@ -295,13 +298,13 @@ export function calculateVRAMRequirements(
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Arbitrary precision math | Custom BigInt wrapper | Decimal.js | Handles edge cases (division, rounding modes, scientific notation), battle-tested |
-| Schema validation | Manual if/else checks | Zod | Type inference, runtime validation, composable schemas |
-| State persistence | localStorage wrapper | zustand/persist | Handles serialization, migration, storage events |
-| Model config fetching | Custom HTTP client | fetch API or @huggingface/transformers | HuggingFace has public URLs, no auth needed for public models |
-| CSS framework | Custom utility classes | Tailwind CSS | Raidy already uses v4, consistency across projects |
+| Problem                  | Don't Build            | Use Instead                            | Why                                                                               |
+| ------------------------ | ---------------------- | -------------------------------------- | --------------------------------------------------------------------------------- |
+| Arbitrary precision math | Custom BigInt wrapper  | Decimal.js                             | Handles edge cases (division, rounding modes, scientific notation), battle-tested |
+| Schema validation        | Manual if/else checks  | Zod                                    | Type inference, runtime validation, composable schemas                            |
+| State persistence        | localStorage wrapper   | zustand/persist                        | Handles serialization, migration, storage events                                  |
+| Model config fetching    | Custom HTTP client     | fetch API or @huggingface/transformers | HuggingFace has public URLs, no auth needed for public models                     |
+| CSS framework            | Custom utility classes | Tailwind CSS                           | Raidy already uses v4, consistency across projects                                |
 
 **Key insight:** These libraries exist because the problems are deceptively complex. Decimal.js handles 50+ edge cases in arithmetic, Zod handles nested validation with error messages, zustand/persist handles storage quotas and edge cases. Use proven solutions.
 
@@ -347,6 +350,7 @@ export function calculateVRAMRequirements(
 Verified patterns from official sources:
 
 ### Decimal.js Basic Usage
+
 ```typescript
 // Source: https://github.com/mikemcl/decimal.js
 import Decimal from 'decimal.js'
@@ -370,6 +374,7 @@ const vramGB = new Decimal(7000000000) // 7B params
 ```
 
 ### HuggingFace Config Fetching
+
 ```typescript
 // Source: https://huggingface.co/docs/transformers.js/api/configs
 // Option 1: Direct fetch from public URL
@@ -397,6 +402,7 @@ console.log(config)
 ```
 
 ### Zod Schema Validation
+
 ```typescript
 // Source: raidy's utils/schemas.ts pattern
 import { z } from 'zod'
@@ -427,6 +433,7 @@ if (result.success) {
 ```
 
 ### Vitest Test Example
+
 ```typescript
 // Source: raidy's vitest.config.ts + pattern
 import { describe, it, expect } from 'vitest'
@@ -448,14 +455,14 @@ describe('VRAM Engine', () => {
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| ESLint + Prettier | Biome | 2023-2024 | Single tool, 10x faster, raidy already migrated |
-| Tailwind v3 | Tailwind v4 | 2024 | Native CSS-first, Vite plugin, raidy uses @tailwindcss/vite 4.1.18 |
-| Jest | Vitest | 2021-2022 | Native Vite integration, faster, raidy uses 4.0.16 |
-| React 18 | React 19 | 2024 | Improved server components, raidy uses 19.2.0 |
-| num_attention_heads only | num_kv_heads (GQA) | 2023 (LLaMA 2) | Reduced KV cache size, critical for accurate VRAM calc |
-| MHA (Multi-Head Attention) | GQA (Grouped Query Attention) | 2023 | KV heads < attention heads, lower memory footprint |
+| Old Approach               | Current Approach              | When Changed   | Impact                                                             |
+| -------------------------- | ----------------------------- | -------------- | ------------------------------------------------------------------ |
+| ESLint + Prettier          | Biome                         | 2023-2024      | Single tool, 10x faster, raidy already migrated                    |
+| Tailwind v3                | Tailwind v4                   | 2024           | Native CSS-first, Vite plugin, raidy uses @tailwindcss/vite 4.1.18 |
+| Jest                       | Vitest                        | 2021-2022      | Native Vite integration, faster, raidy uses 4.0.16                 |
+| React 18                   | React 19                      | 2024           | Improved server components, raidy uses 19.2.0                      |
+| num_attention_heads only   | num_kv_heads (GQA)            | 2023 (LLaMA 2) | Reduced KV cache size, critical for accurate VRAM calc             |
+| MHA (Multi-Head Attention) | GQA (Grouped Query Attention) | 2023           | KV heads < attention heads, lower memory footprint                 |
 
 **Deprecated/outdated:**
 - **big.js/bignumber.js over Decimal.js:** All three are by same author (mikemcl), but Decimal.js has the most complete API and best docs (167 snippets in Context7)
@@ -489,6 +496,7 @@ describe('VRAM Engine', () => {
 Research from HuggingFace transformers documentation and model configs:
 
 ### Common Fields (All Architectures)
+
 - `model_type`: Architecture identifier (e.g., "llama", "mistral", "mixtral")
 - `hidden_size`: Hidden dimension size
 - `num_hidden_layers`: Number of transformer blocks/layers
@@ -583,6 +591,7 @@ async function fetchModels() {
 ## GPU Data Sources
 
 ### dbgpu (https://github.com/painebenjamin/dbgpu)
+
 - **Format:** JSON, CSV, or PKL (pickle)
 - **Coverage:** 2000+ GPUs
 - **Fields (50+):** manufacturer, name, GPU name, architecture, process size, memory (size, type, bus width, bandwidth), clock speeds, compute units, TDP, API support, performance metrics
@@ -590,6 +599,7 @@ async function fetchModels() {
 - **Recommendation:** PRIMARY source for NVIDIA/AMD datacenter and consumer GPUs
 
 ### gpu-info-api (https://github.com/voidful/gpu-info-api)
+
 - **Format:** JSON from Wikipedia, updated weekly via GitHub Actions
 - **Coverage:** NVIDIA, AMD, Intel
 - **Fields:** Model, codename, fab process, die size, memory (size, type, bandwidth), TFLOPS (single/double/half), TDP, PCIe, launch date
@@ -597,6 +607,7 @@ async function fetchModels() {
 - **Recommendation:** SECONDARY source for verification, good for quick lookup
 
 ### Apple Silicon (https://github.com/philipturner/metal-benchmarks)
+
 - **Format:** Benchmark data and specs
 - **Coverage:** M1, M2, M3, M4 (base, Pro, Max, Ultra)
 - **Fields:** GPU cores, unified memory size, memory bandwidth, Neural Engine cores, process node
@@ -634,6 +645,7 @@ export interface GPU {
 Based on research from multiple sources (LocalLLM.in, apxml.com, Skymod.tech, Tech Tactician):
 
 ### Model Weights
+
 ```
 Model Weights (GB) = Num Parameters (billion) × 1e9 × Bytes per Param / 1e9
                    = Num Parameters (billion) × Bytes per Param
@@ -646,6 +658,7 @@ Bytes per Param:
 ```
 
 ### KV Cache
+
 ```
 KV Cache (GB) = Batch Size × Seq Length × Num Layers × Head Dim × Num KV Heads × 2 × Bytes per Param / 1e9
 
@@ -660,11 +673,13 @@ Total KV Cache = KV Cache per Token × Batch Size × Seq Length
 ```
 
 ### Activations
+
 ```
 Activations (GB) ≈ 20% of Model Weights (rough estimate)
 ```
 
 ### Total VRAM
+
 ```
 Total VRAM (GB) = Model Weights + KV Cache + Activations + Overhead
 
@@ -672,6 +687,7 @@ Overhead = 10-20% of subtotal (accounts for fragmentation, buffers, framework ov
 ```
 
 ### MoE Special Case
+
 ```
 For MoE models (e.g., Mixtral 8x7B):
 - Total Parameters = All expert parameters (e.g., 46B for Mixtral)
@@ -684,11 +700,13 @@ Reason: All experts must be in VRAM for fast switching, even though only subset 
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - Decimal.js Context7 (/mikemcl/decimal.js) - Arithmetic operations, configuration, precision handling
 - HuggingFace Transformers Docs - [Configuration](https://huggingface.co/docs/transformers/main_classes/configuration), [Mistral config](https://github.com/huggingface/transformers/blob/main/src/transformers/models/mistral/configuration_mistral.py), [Mixtral docs](https://huggingface.co/docs/transformers/en/model_doc/mixtral)
 - Raidy project (/Users/fjacquet/Projects/raidy) - package.json, biome.json, tsconfig.app.json, vite.config.ts, src structure
 
 ### Secondary (MEDIUM confidence)
+
 - [dbgpu GitHub](https://github.com/painebenjamin/dbgpu) - GPU database structure and fields
 - [gpu-info-api GitHub](https://github.com/voidful/gpu-info-api) - GPU specs from Wikipedia
 - [LocalLLM.in VRAM Calculator](https://localllm.in/blog/interactive-vram-calculator) - VRAM formulas and KV cache calculation
@@ -702,6 +720,7 @@ Reason: All experts must be in VRAM for fast switching, even though only subset 
 - [Mac Observer M-Series Guide](https://www.macobserver.com/tips/round-ups/apple-m-series-chips-explained/) - Apple chip comparison
 
 ### Tertiary (LOW confidence - needs validation)
+
 - WebSearch results for quantization packing overhead - conflicting information, needs real-world testing
 - Apple unified memory efficiency claims - theoretical, needs benchmarking
 
