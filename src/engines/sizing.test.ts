@@ -5,6 +5,7 @@ import { validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 import { validTPDegrees } from './config-rules'
 import { resolveFabricSpec } from './fabric'
+import { estimatePerformance } from './performance'
 import { evaluateReplica, isRackGPU, replicaCandidates, sizeDeployment } from './sizing'
 import type { SizingInput } from './types'
 
@@ -67,6 +68,8 @@ describe('sizeDeployment', () => {
     expect(r.unit).toBe('server')
     expect(r.chosen?.tp).toBe(1)
     expect(r.replicasPerUnit).toBe(8)
+    expect(r.replicas).toBe(2)
+    expect(r.units).toBe(1)
     expect(r.units).toBe(Math.ceil(r.replicas / 8))
   })
 
@@ -78,13 +81,28 @@ describe('sizeDeployment', () => {
     expect(r.units).toBe(r.replicas * (r.chosen?.nodes ?? 0))
   })
 
-  it('rack packing always adds up to 72 GPUs', () => {
-    for (const id of ['deepseek-r1', 'meta-llama-llama-3.1-70b', llama8b.id]) {
-      const r = sizeDeployment(input(model(id), gb300, 500))
-      expect(r.fits).toBe(true)
-      expect(r.unit).toBe('rack')
-      expect(r.replicasPerUnit * (r.chosen?.tp ?? 0) + r.idleGPUsPerUnit).toBe(72)
-    }
+  it.each([
+    // 2026-11-11, sizing T4: literals recomputed from the solver; the 48-way split is non-power-of-2
+    [
+      'deepseek-v4-pro',
+      'nvidia-gb300-nvl72',
+      { tp: 16, replicasPerUnit: 4, idleGPUsPerUnit: 8, replicas: 3, units: 1 },
+    ],
+    [
+      'moonshotai-kimi-k3',
+      'nvidia-gb200-nvl72',
+      { tp: 48, replicasPerUnit: 1, idleGPUsPerUnit: 24, replicas: 8, units: 8 },
+    ],
+  ])('rack split: %s on %s', (m, g, expected) => {
+    const r = sizeDeployment(input(model(m), gpu(g), 2000))
+    expect(r.unit).toBe('rack')
+    expect({
+      tp: r.chosen?.tp,
+      replicasPerUnit: r.replicasPerUnit,
+      idleGPUsPerUnit: r.idleGPUsPerUnit,
+      replicas: r.replicas,
+      units: r.units,
+    }).toEqual(expected)
   })
 
   it('doubling users doubles replicas within one', () => {
@@ -93,12 +111,24 @@ describe('sizeDeployment', () => {
     expect(Math.abs(b.replicas - 2 * a.replicas)).toBeLessThanOrEqual(1)
   })
 
-  it('one user: one replica, one unit, batch-1 speed', () => {
+  it('one user: one replica, one unit, batch-1 speed from the engine', () => {
     const r = sizeDeployment(input(llama8b, h100, 1))
     expect(r.replicas).toBe(1)
     expect(r.units).toBe(1)
-    const same = evaluateReplica(input(llama8b, h100, 1), r.chosen?.tp ?? 0, 1)
-    expect(r.chosen?.perUserTokensPerSecond.toNumber()).toBe(same.perUserTokensPerSecond.toNumber())
+    expect(r.chosen?.sessionsPerReplica).toBe(1)
+    const direct = estimatePerformance({
+      model: llama8b,
+      gpu: h100,
+      quantization: 'fp16',
+      sequenceLength: 8192,
+      batchSize: 1,
+      kvQuantization: 'fp16',
+      multiGPUResult: null,
+    })
+    expect(r.chosen?.tp).toBe(1)
+    expect(r.chosen?.perUserTokensPerSecond.toNumber()).toBe(
+      direct.expected.tokensPerSecond.toNumber(),
+    )
   })
 
   it('reports the closest candidate when nothing fits', () => {
