@@ -11,6 +11,7 @@ import {
   type KVTierSettings,
   type KVTierType,
 } from './kv-tier'
+import { isRackGPU } from './sizing'
 import type { OffloadTarget, ShardingStrategy } from './types'
 
 /**
@@ -23,7 +24,7 @@ import type { OffloadTarget, ShardingStrategy } from './types'
  * Engine throws stay as a backstop only.
  */
 
-export type ConfigMode = 'inference' | 'training'
+export type ConfigMode = 'inference' | 'training' | 'sizing'
 
 /** The store fields the rules read or write */
 export interface RuleConfig {
@@ -110,6 +111,7 @@ export type RuleId =
   | 'R10'
   | 'R12'
   | 'R14'
+  | 'R15'
 
 /** What the correction was adjusted for; picks the notice title for a plain setting change */
 export type CorrectionSubject = 'gpu' | 'model' | 'mode' | 'preset' | 'offload' | 'range'
@@ -136,7 +138,11 @@ export interface Rule {
   check: (config: RuleConfig, ctx: RuleContext) => Correction[]
 }
 
-const BOTH: readonly ConfigMode[] = ['inference', 'training']
+// Sizing hides numGPUs, numNodes, sharding, batch size, offloading, KV tier and the
+// interconnect override, so only the rules for fields it shows run there (2026-11-11).
+const ALL_MODES: readonly ConfigMode[] = ['inference', 'training', 'sizing']
+const INFERENCE_SIZING: readonly ConfigMode[] = ['inference', 'sizing']
+const NOT_SIZING: readonly ConfigMode[] = ['inference', 'training']
 const INFERENCE: readonly ConfigMode[] = ['inference']
 const TRAINING: readonly ConfigMode[] = ['training']
 
@@ -213,12 +219,15 @@ type RangeBound = { field: keyof typeof RANGE_LABELS; min: number; max: number }
 // batchSize and sequenceLength render in both; loraRank and gradientAccumulationSteps
 // only render in training (TrainingPanel) — loraRank has no widget at all yet, but it
 // only ever feeds a training calculation (useTrainingCalculation), never inference's.
-const RANGE_BOUNDS_INFERENCE: RangeBound[] = [
-  { field: 'numNodes', min: 1, max: 8 },
+const RANGE_BOUNDS_INFERENCE: RangeBound[] = [{ field: 'numNodes', min: 1, max: 8 }]
+// Sizing reuses concurrentUsers (users) and sequenceLength (context)
+const RANGE_BOUNDS_USERS: RangeBound[] = [
   { field: 'concurrentUsers', min: 1, max: MAX_CONCURRENT_USERS },
 ]
-const RANGE_BOUNDS_BOTH: RangeBound[] = [
+const RANGE_BOUNDS_BATCH: RangeBound[] = [
   { field: 'batchSize', min: 1, max: Number.MAX_SAFE_INTEGER },
+]
+const RANGE_BOUNDS_CONTEXT: RangeBound[] = [
   { field: 'sequenceLength', min: 512, max: MAX_SEQUENCE_LENGTH },
 ]
 const RANGE_BOUNDS_TRAINING: RangeBound[] = [
@@ -251,8 +260,27 @@ function rangeCheck(bounds: readonly RangeBound[]): Rule['check'] {
  */
 export const RULES: readonly Rule[] = [
   {
+    id: 'R15',
+    // Rack GPUs are sized, never configured: a rack GPU outside Sizing (a shared link)
+    // restores in Sizing. Runs first so the mode-gated rules see the final mode.
+    modes: NOT_SIZING,
+    check: (c, { gpu }) =>
+      gpu && isRackGPU(gpu)
+        ? [
+            fix(
+              'R15',
+              'mode',
+              c.mode,
+              'sizing',
+              'mode',
+              `Switched to Sizing: ${gpu.name} is sized as a rack, not configured.`,
+            ),
+          ]
+        : [],
+  },
+  {
     id: 'R1',
-    modes: BOTH,
+    modes: NOT_SIZING,
     check: (c, { gpu }) => {
       // In training, numGPUs is hidden (InputPanel's showGPUCount) unless a ZeRO
       // preset is selected: no widget shows it, so it must not be corrected.
@@ -500,8 +528,18 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: 'R10',
-    modes: BOTH,
-    check: rangeCheck(RANGE_BOUNDS_BOTH),
+    modes: INFERENCE_SIZING,
+    check: rangeCheck(RANGE_BOUNDS_USERS),
+  },
+  {
+    id: 'R10',
+    modes: NOT_SIZING,
+    check: rangeCheck(RANGE_BOUNDS_BATCH),
+  },
+  {
+    id: 'R10',
+    modes: ALL_MODES,
+    check: rangeCheck(RANGE_BOUNDS_CONTEXT),
   },
   {
     id: 'R10',
@@ -588,6 +626,11 @@ export function normalizeConfig<C extends RuleConfig>(
     if (!changed) return { config: current, corrections, passes: pass }
   }
   throw new Error(`normalizeConfig did not reach a fixpoint in ${MAX_NORMALIZE_PASSES} passes`)
+}
+
+/** Rack GPUs are selectable in Sizing only (R15); the selector lists what this allows */
+export function gpuAllowed(mode: ConfigMode, gpu: GPU): boolean {
+  return mode === 'sizing' || !isRackGPU(gpu)
 }
 
 export type AllowedOptionsInput = Pick<
@@ -709,6 +752,12 @@ export interface NoticeContext {
   config: RuleConfig
 }
 
+const MODE_LABELS: Record<ConfigMode, string> = {
+  inference: 'inference',
+  training: 'fine-tuning',
+  sizing: 'sizing',
+}
+
 function subjectTitle(subject: CorrectionSubject, ctx: NoticeContext): string {
   switch (subject) {
     case 'gpu':
@@ -716,7 +765,7 @@ function subjectTitle(subject: CorrectionSubject, ctx: NoticeContext): string {
     case 'model':
       return `Adjusted for ${ctx.model?.name ?? 'the selected model'}`
     case 'mode':
-      return `Adjusted for ${ctx.config.mode === 'training' ? 'fine-tuning' : 'inference'} mode`
+      return `Adjusted for ${MODE_LABELS[ctx.config.mode]} mode`
     case 'preset':
       return `Adjusted for ${FRAMEWORK_PRESETS[ctx.config.frameworkPreset].name}`
     case 'offload':

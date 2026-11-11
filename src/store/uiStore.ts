@@ -2,6 +2,7 @@ import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import {
   buildNotice,
+  type ConfigMode,
   type Correction,
   DEFAULT_RULE_CONFIG,
   type Notice,
@@ -13,6 +14,7 @@ import {
 import { resolveFabricSpec } from '@engines/fabric'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
 import type { KVTierSettings } from '@engines/kv-tier'
+import { isRackGPU } from '@engines/sizing'
 import type {
   FabricType,
   FineTuningMethod,
@@ -121,7 +123,7 @@ interface UIState extends UIConfig {
   setOffloadLayers: (layers: number) => void
   setKVCacheOffload: (enabled: boolean) => void
   setOffloadHostCapacityGB: (gb: number | null) => void
-  setMode: (mode: 'inference' | 'training') => void
+  setMode: (mode: ConfigMode) => void
   setTrainingMethod: (method: FineTuningMethod) => void
   setOptimizer: (optimizer: OptimizerType) => void
   setTrainingPrecision: (precision: TrainingPrecision) => void
@@ -312,7 +314,25 @@ export const useUIStore = create<UIState>()(
       setKVCacheOffload: (kvCacheOffload) => commit(set, get, { kvCacheOffload }, 'setting'),
       setOffloadHostCapacityGB: (offloadHostCapacityGB) =>
         commit(set, get, { offloadHostCapacityGB }, 'setting'),
-      setMode: (mode) => commit(set, get, { mode }, 'mode'),
+      setMode: (mode) => {
+        const { selectedGPU } = get()
+        // Action intent: leaving Sizing with a rack GPU selected clears it, since R15
+        // would otherwise bounce the mode straight back to Sizing.
+        if (mode !== 'sizing' && selectedGPU && isRackGPU(selectedGPU)) {
+          commit(set, get, { mode, selectedGPU: null }, 'mode', [
+            {
+              rule: 'R15',
+              field: 'mode',
+              from: 'sizing',
+              to: mode,
+              subject: 'mode',
+              message: `${selectedGPU.name} is sized as a rack; pick a server GPU`,
+            },
+          ])
+          return
+        }
+        commit(set, get, { mode }, 'mode')
+      },
       setTrainingMethod: (trainingMethod) => commit(set, get, { trainingMethod }, 'setting'),
       setOptimizer: (optimizer) => commit(set, get, { optimizer }, 'setting'),
       setTrainingPrecision: (trainingPrecision) =>

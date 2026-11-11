@@ -1,5 +1,6 @@
 import { InfoTip } from '@components/common/InfoTip'
 import gpusData from '@data/gpus.json'
+import { gpuAllowed } from '@engines/config-rules'
 import {
   Combobox,
   ComboboxButton,
@@ -17,7 +18,7 @@ import { type CustomGPUInput, createCustomGPU, type GPU } from '@/types/gpu'
 const gpus = validateGPUs(gpusData)
 
 export function GPUSelector() {
-  const { selectedGPU, setSelectedGPU } = useUIStore()
+  const { selectedGPU, setSelectedGPU, mode } = useUIStore()
   const [query, setQuery] = useState('')
   const [showCustomForm, setShowCustomForm] = useState(false)
 
@@ -29,10 +30,12 @@ export function GPUSelector() {
 
   // Filter and group GPUs
   const filteredGPUs = useMemo(() => {
+    // Rack GPUs are selectable in Sizing only (R15)
+    const offered = gpus.filter((gpu) => gpuAllowed(mode, gpu))
     const filtered =
       query === ''
-        ? gpus
-        : gpus.filter((gpu) => gpu.name.toLowerCase().includes(query.toLowerCase()))
+        ? offered
+        : offered.filter((gpu) => gpu.name.toLowerCase().includes(query.toLowerCase()))
 
     // Group by manufacturer
     const grouped = {
@@ -43,7 +46,7 @@ export function GPUSelector() {
     }
 
     return grouped
-  }, [query])
+  }, [query, mode])
 
   const handleCustomGPUSubmit = () => {
     const vramNum = Number.parseFloat(customVRAM)

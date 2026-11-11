@@ -72,7 +72,7 @@ async function freshStore() {
 describe('uiStore: host-grace KV tier guard', () => {
   beforeEach(async () => {
     const { useUIStore } = await import('@store/uiStore')
-    useUIStore.setState({ selectedGPU: null, kvTier: DEFAULT_KV_TIER })
+    useUIStore.setState({ mode: 'inference', selectedGPU: null, kvTier: DEFAULT_KV_TIER })
   })
 
   it('URL restore order (GPU first, then tier): falls back to none for a non-Grace GPU', async () => {
@@ -90,20 +90,27 @@ describe('uiStore: host-grace KV tier guard', () => {
     expect(useUIStore.getState().kvTier.tier).toBe('none')
   })
 
-  it('URL restore order: keeps host-grace for a Grace-host GPU', async () => {
+  // 2026-11-11, sizing T5: was "keeps host-grace for a Grace-host GPU" in inference. The only
+  // Grace-host GPUs that are not unified memory are racks, now selectable in sizing only,
+  // where R3 does not run (kvTier is hidden); selecting one switches the mode.
+  it('a Grace-host rack GPU switches to sizing and keeps host-grace (inert there)', async () => {
     const { useUIStore } = await import('@store/uiStore')
     useUIStore.getState().setSelectedGPU(findGPU('nvidia-gb300-nvl72'))
     useUIStore.getState().setKVTier({ tier: 'host-grace' })
+    expect(useUIStore.getState().mode).toBe('sizing')
     expect(useUIStore.getState().kvTier.tier).toBe('host-grace')
   })
 
   it('GPU-change path (through the store, not just the helper): falls back to none', async () => {
     const { useUIStore } = await import('@store/uiStore')
+    // 2026-11-11, sizing T5: the rack GPU is sizing-only and R3 is inert there, so the tier
+    // survives the GPU change and falls back once the mode is inference again.
     useUIStore.getState().setSelectedGPU(findGPU('nvidia-gb300-nvl72'))
     useUIStore.getState().setKVTier({ tier: 'host-grace' })
     expect(useUIStore.getState().kvTier.tier).toBe('host-grace')
 
     useUIStore.getState().setSelectedGPU(findGPU('nvidia-h100-80gb-sxm'))
+    useUIStore.getState().setMode('inference')
     expect(useUIStore.getState().kvTier.tier).toBe('none')
   })
 })
@@ -111,7 +118,8 @@ describe('uiStore: host-grace KV tier guard', () => {
 describe('uiStore: offloadHostCapacityGB clamp', () => {
   beforeEach(async () => {
     const { useUIStore } = await import('@store/uiStore')
-    useUIStore.setState({ offloadHostCapacityGB: null })
+    // 2026-11-11, sizing T5: reset mode too; selecting a rack GPU above now switches to sizing
+    useUIStore.setState({ mode: 'inference', offloadHostCapacityGB: null })
   })
 
   it('accepts a positive finite value', async () => {
@@ -553,5 +561,60 @@ describe('uiStore: shared-link restore is one normalized action', () => {
     }
     expect(results[1]).toEqual(results[0])
     expect(results[2]).toEqual(results[0])
+  })
+})
+
+describe('uiStore: sizing mode and rack GPUs (2026-11-11, sizing T5)', () => {
+  it('setMode(inference) with a rack GPU selected clears it, with a notice', async () => {
+    const store = await freshStore()
+    store.getState().setMode('sizing')
+    store.getState().setSelectedGPU(NVL72)
+    store.getState().clearNotice()
+    store.getState().setMode('inference')
+    const state = store.getState()
+    expect(state.mode).toBe('inference')
+    expect(state.selectedGPU).toBeNull()
+    expect(state.pendingNotice?.lines.join(' ')).toContain('is sized as a rack; pick a server GPU')
+  })
+
+  it('setMode(training) with a rack GPU selected clears it too', async () => {
+    const store = await freshStore()
+    store.getState().setMode('sizing')
+    store.getState().setSelectedGPU(NVL72)
+    store.getState().setMode('training')
+    expect(store.getState().selectedGPU).toBeNull()
+  })
+
+  it('setMode(inference) with a server GPU keeps it and writes no notice', async () => {
+    const store = await freshStore()
+    store.getState().setMode('sizing')
+    store.getState().setSelectedGPU(H100)
+    store.getState().setMode('inference')
+    expect(store.getState().selectedGPU?.id).toBe(H100.id)
+  })
+
+  it('a link with m: inference and a rack GPU restores in sizing, "Shared link adjusted"', async () => {
+    const store = await freshStore()
+    const { deserializeFromURL, urlStateToConfig } = await import('@store/urlSerializer')
+    const { findGPUById, findModelById } = await import('@store/uiStore')
+    const json = {
+      q: 'fp16',
+      sl: 4096,
+      bs: 1,
+      kvq: 'fp16',
+      ng: 1,
+      ss: 'tensor-parallel',
+      m: 'inference',
+      modelId: L70.id,
+      gpuId: NVL72.id,
+    }
+    const decoded = deserializeFromURL(compressToEncodedURIComponent(JSON.stringify(json)))
+    if (!decoded) throw new Error('expected the link to parse')
+    const { patch } = urlStateToConfig(decoded, { findModel: findModelById, findGPU: findGPUById })
+    store.getState().restoreConfig(patch)
+    const state = store.getState()
+    expect(state.mode).toBe('sizing')
+    expect(state.selectedGPU?.id).toBe(NVL72.id)
+    expect(state.pendingNotice?.title).toBe('Shared link adjusted')
   })
 })

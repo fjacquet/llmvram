@@ -29,7 +29,8 @@ export function InputPanel() {
   const mode = useUIStore((s) => s.mode)
   const frameworkPreset = useUIStore((s) => s.frameworkPreset)
   const resetAdvancedSettings = useUIStore((s) => s.resetAdvancedSettings)
-  const isInference = mode === 'inference'
+  // Sizing shows the inference inputs until its own panel lands (sizing T6)
+  const isInference = mode !== 'training'
   // In training, more than one GPU only matters with a DeepSpeed ZeRO preset
   const showGPUCount =
     selectedGPU !== null && (isInference || FRAMEWORK_PRESETS[frameworkPreset].zeroStage !== null)
