@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking changes
 
+- Headline speed is now the expected figure, the theoretical ceiling shown beside it (ADR 0009). Decode tok/s is the ceiling x 0.47 (median of 512 vLLM points); TTFT and prefill are the ceiling / 0.469 (median of 62), about 2.13x longer. Rack counts will use expected.
+- Inference fits at 90% of VRAM (`gpu_memory_utilization`), not 100%. Tiers: comfortable up to 80%, tight up to 90%, else does not fit. Training is unchanged (80/95 of VRAM). A shared link that fit between 90% and 100% now reads "does not fit".
+- Mistral Large 3 KV per token is 35,136 (was overstated about 24.9x): sessions up about 25x. Nemotron Ultra KV is 131,072 (was 2.5x over): sessions up about 2.5x.
+- GLM 5.2 long-context decode and prefill are faster: sparse attention reads at most 2048 KV positions. DeepSeek V4 long-context speed does NOT change; its compressed KV could not be modelled with confidence, so it stays on full-attention reads.
 - GB300 NVL72 (`nvidia-gb300-nvl72`, id unchanged) is now 278 GB usable (NVIDIA's 20 TB / 72; SemiAnalysis InferenceX), not the 288 GB physical. A shared link that fit at 288 GB may now read "does not fit".
 - The Grace host-memory KV tier on GB200/GB300 NVL72 is 194 GB/s per GPU, was 225: the LPDDR5X share (14 TB/s / 36 Grace / 2) is lower than the C2C link share (ADR 0008).
 - fp8, nvfp4 and mxfp4 prefill and compute-bound decode now run at the tensor core vLLM uses for the format (ADR 0008): FP8 on Hopper, Blackwell, Rubin and AMD MI300/MI350; NVFP4 and MXFP4 on Blackwell and Rubin at the card's FP8 rate (no measured FP4 prefill efficiency exists yet); MXFP4 on MI350-series at FP8. The linear term runs at up to 2x the old rate, attention stays at FP16. Example: Llama 3.1 70B fp8 on 8x H100 SXM, 8192-token prompt: prefill 0.377 s -> 0.202 s. Formats that compute in 16-bit (fp16, bf16, int4, int8, nf4, GPTQ, AWQ, GGUF) are unchanged.
@@ -16,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Mistral Large 4 1T-A52B (1053.2B total, 52.3B active, MLA, KV 36,288) with measured fp8, nvfp4 and GGUF weights; pending upstream vLLM support (PR #64534). 55 models in total.
+- Sparse attention (DSA): model fields `sparse_attention_topk`, `sparse_indexer_bytes_per_token`, `sparse_indexer_heads`, `sparse_indexer_layers`, for GLM 5.2 and Mistral Large 4.
+- Expected vs ceiling speed in results, comparison and exports, with the committed calibration points in `docs/calibration/`.
+- ADR 0009.
 - GPUs: GB200 NVL72 (186 GB), Vera Rubin NVL72 (preliminary, 278 GB estimated) and HGX Rubin NVL8 (preliminary, 250 GB); 32 GPUs in total.
 - NVLink 6 interconnect (3000 GB/s per GPU, scaling efficiency capped at 0.98).
 - Dense `fp8_tflops` and `fp4_tflops` GPU fields, present only where vLLM runs that precision natively.
@@ -23,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The multi-GPU chart no longer claims "N x GPUs x X% efficiency" for decode, which never applies scaling efficiency.
+- The KV tier "vs recompute" comparison uses the ceiling prefill, the safe direction.
+- Recommendations measure the memory deficit against 90% of VRAM in inference.
 - The prefill bottleneck label compares the time of the linear and attention terms, not their FLOPs, now that they run at different rates.
 
 ## [2.0.1] - 2026-09-27

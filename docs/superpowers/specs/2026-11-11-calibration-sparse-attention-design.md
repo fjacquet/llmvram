@@ -143,7 +143,7 @@ Add `mistralai-mistral-large-4-1t-a52b` (id per the existing pattern):
 - `num_parameters_billion` and `active_parameters_billion` from the safetensors summary or model
   card (~1T / 52B);
 - 72 layers, MoE 128 experts with 4 active plus 1 shared, MLA `use_mla`;
-- KV 72 × 576 = 41,472 elements per token, FP8 KV native;
+- KV 63 × 576 = 36,288 elements per token (63 KV-owning layers; nine layers share layer 35's cache per vLLM kv_sharing and the HF config), FP8 KV native;
 - the sparse fields from P6; context 1,048,576;
 - `weight_refs` measured by `npm run refresh:models -- --measure` for fp8 (native), nvfp4
   (`mistralai/Mistral-Large-4-1T-A52B-NVFP4`) and GGUF (unsloth, then ggml-org).

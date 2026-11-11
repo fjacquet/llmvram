@@ -146,7 +146,7 @@
 
 - [ ] **Step 1: Write the failing tests:**
   - The entry validates.
-  - `kv_cache_elements_per_token` is 41,472 (72 × (512 + 64)). Sources: `params.json` `kv_lora_rank`/`qk_rope_head_dim`, plus the vLLM MLA layout.
+  - `kv_cache_elements_per_token` is 36,288 (63 × (512 + 64); nine of the 72 layers share layer 35's cache). Sources: `params.json` `kv_lora_rank`/`qk_rope_head_dim`, plus the vLLM MLA layout.
   - `sparse_attention_topk` is 2048, and the indexer is owned by 44 of the 72 layers (`indexer_types` "full" count). Indexer bytes per Task 4's vLLM layout.
   - `use_mla` is true; MoE has 128 experts, 4 active, 1 shared.
   - `context_length` is 1,048,576.
