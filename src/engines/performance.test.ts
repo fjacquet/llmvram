@@ -4,7 +4,13 @@ import type { GPU, Model } from '@utils/schemas'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
-import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU } from './constants'
+import {
+  BYTES_PER_GB,
+  DECODE_EFFICIENCY,
+  INTERCONNECT_SPECS,
+  PREFILL_EFFICIENCY,
+  PREFILL_MFU,
+} from './constants'
 import { effectiveFraction, FABRIC_SPECS, fabricHopSeconds, interNodeGBps } from './fabric'
 import {
   calculateInferenceVRAM,
@@ -1920,5 +1926,65 @@ describe('sparse attention (DSA): topk-bounded reads and FLOPs, indexer cache an
         (4500e12 * PREFILL_MFU.toNumber() * a.multi.prefillScalingEfficiency),
       9,
     )
+  })
+})
+
+describe('expected figures: ceiling x measured vLLM efficiency (spec P1, P2)', () => {
+  const model = validateModels(modelsData).find((m) => m.id === 'meta-llama-llama-3.3-70b')
+  const h100 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-h100-80gb-sxm')
+  if (!model || !h100) throw new Error('fixture rows missing')
+  const base = { model, gpu: h100, quantization: 'fp8' as const, kvQuantization: 'fp8' as const }
+
+  it('both efficiencies lie in (0, 1]', () => {
+    for (const e of [DECODE_EFFICIENCY, PREFILL_EFFICIENCY]) {
+      expect(e.greaterThan(0)).toBe(true)
+      expect(e.lessThanOrEqualTo(1)).toBe(true)
+    }
+  })
+
+  it('expected tok/s = ceiling x DECODE_EFFICIENCY; TTFT and prefill = ceiling / PREFILL_EFFICIENCY', () => {
+    const p = estimatePerformance({ ...base, batchSize: 8, sequenceLength: 8192 })
+    expect(p.expected.tokensPerSecond.equals(p.tokensPerSecond.mul(DECODE_EFFICIENCY))).toBe(true)
+    expect(p.expected.timeToFirstToken.equals(p.timeToFirstToken.div(PREFILL_EFFICIENCY))).toBe(
+      true,
+    )
+    expect(p.prefillSeconds).not.toBeNull()
+    expect(p.expected.prefillSeconds?.equals(p.prefillSeconds?.div(PREFILL_EFFICIENCY) ?? 0)).toBe(
+      true,
+    )
+  })
+
+  it('expected prefill is null when the ceiling is (no FLOPS data)', () => {
+    const p = estimatePerformance({
+      ...base,
+      gpu: { ...h100, fp16_tflops: undefined, fp32_tflops: undefined },
+      batchSize: 1,
+      sequenceLength: 4096,
+    })
+    expect(p.prefillSeconds).toBeNull()
+    expect(p.expected.prefillSeconds).toBeNull()
+    expect(p.expected.timeToFirstToken.equals(p.timeToFirstToken.div(PREFILL_EFFICIENCY))).toBe(
+      true,
+    )
+  })
+
+  it('expected is never faster than the ceiling', () => {
+    const tp4 = calculateMultiGPUVRAM(
+      calculateInferenceVRAM({ ...base, batchSize: 32, sequenceLength: 32768 }),
+      model,
+      h100.vram_gb,
+      4,
+      'tensor-parallel',
+      h100,
+      'fp8',
+    )
+    for (const p of [
+      estimatePerformance({ ...base, batchSize: 1, sequenceLength: 2048 }),
+      estimatePerformance({ ...base, batchSize: 32, sequenceLength: 32768, multiGPUResult: tp4 }),
+    ]) {
+      expect(p.expected.tokensPerSecond.lessThanOrEqualTo(p.tokensPerSecond)).toBe(true)
+      expect(p.expected.timeToFirstToken.greaterThanOrEqualTo(p.timeToFirstToken)).toBe(true)
+      expect(p.expected.prefillSeconds?.greaterThanOrEqualTo(p.prefillSeconds ?? 0)).toBe(true)
+    }
   })
 })

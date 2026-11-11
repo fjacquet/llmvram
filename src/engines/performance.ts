@@ -1,7 +1,13 @@
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { attentionComputeRate, linearComputeRate } from './compute'
-import { BYTES_PER_GB, INTERCONNECT_SPECS, PREFILL_MFU_BY_PRECISION } from './constants'
+import {
+  BYTES_PER_GB,
+  DECODE_EFFICIENCY,
+  INTERCONNECT_SPECS,
+  PREFILL_EFFICIENCY,
+  PREFILL_MFU_BY_PRECISION,
+} from './constants'
 import { fabricHopSeconds } from './fabric'
 import {
   calculateMoEActiveParams,
@@ -455,5 +461,11 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     isComputeBound,
     bottleneck,
     offloadSlowdown,
+    // One multiplication / division at the output: the roofline above stays the ceiling
+    expected: {
+      tokensPerSecond: tokensPerSecond.mul(DECODE_EFFICIENCY),
+      timeToFirstToken: timeToFirstToken.div(PREFILL_EFFICIENCY),
+      prefillSeconds: prefillSeconds?.div(PREFILL_EFFICIENCY) ?? null,
+    },
   }
 }

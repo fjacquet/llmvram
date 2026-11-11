@@ -73,7 +73,7 @@ function reconstructVRAMBreakdown(serialized: {
 /**
  * Reconstruct PerformanceEstimate from serialized strings
  */
-function reconstructPerformanceEstimate(serialized: {
+export function reconstructPerformanceEstimate(serialized: {
   tokensPerSecond: string
   timeToFirstToken: string
   prefillSeconds: string | null
@@ -83,6 +83,7 @@ function reconstructPerformanceEstimate(serialized: {
   isMemoryBound: boolean
   bottleneck: 'compute' | 'memory' | 'balanced'
   offloadSlowdown: number | null
+  expected: { tokensPerSecond: string; timeToFirstToken: string; prefillSeconds: string | null }
 }): PerformanceEstimate {
   return {
     tokensPerSecond: new Decimal(serialized.tokensPerSecond),
@@ -95,6 +96,14 @@ function reconstructPerformanceEstimate(serialized: {
     isMemoryBound: serialized.isMemoryBound,
     bottleneck: serialized.bottleneck,
     offloadSlowdown: serialized.offloadSlowdown,
+    expected: {
+      tokensPerSecond: new Decimal(serialized.expected.tokensPerSecond),
+      timeToFirstToken: new Decimal(serialized.expected.timeToFirstToken),
+      prefillSeconds:
+        serialized.expected.prefillSeconds === null
+          ? null
+          : new Decimal(serialized.expected.prefillSeconds),
+    },
   }
 }
 

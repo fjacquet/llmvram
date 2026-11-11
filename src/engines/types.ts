@@ -74,6 +74,15 @@ export interface PerformanceEstimate {
    * instead of HBM. Null when no offloading is configured.
    */
   offloadSlowdown: number | null
+  /**
+   * What vLLM is expected to deliver: tok/s = ceiling x DECODE_EFFICIENCY, TTFT and prefill =
+   * ceiling / PREFILL_EFFICIENCY (spec P2). Every other field above is the theoretical ceiling.
+   */
+  expected: {
+    tokensPerSecond: Decimal
+    timeToFirstToken: Decimal
+    prefillSeconds: Decimal | null
+  }
 }
 
 /**
