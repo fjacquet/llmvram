@@ -257,6 +257,44 @@
     }
   },
   {
+    "id": "deepseek-ai-deepseek-v4.1-flash-1017",
+    "name": "DeepSeek V4.1 Flash",
+    "architecture": "moe",
+    "num_parameters_billion": 763.2,
+    "hidden_size": 5120,
+    "num_hidden_layers": 40,
+    "num_attention_heads": 64,
+    "num_kv_heads": 1,
+    "intermediate_size": 2304,
+    "num_experts": 384,
+    "num_experts_per_token": 6,
+    "context_length": 1048576,
+    "license": "MIT",
+    "hf_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    "kv_cache_elements_per_token": 1600,
+    "kv_sliding_elements_per_token": 20480,
+    "kv_sliding_window": 128,
+    "active_parameters_billion": 16,
+    "weight_refs": {
+      "mxfp4": {
+        "repo": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        "gib": 475.25,
+        "high_precision": {
+          "params_b": 2.019,
+          "gib": 3.84
+        }
+      },
+      "nvfp4": {
+        "repo": "nvidia/DeepSeek-V4.1-Flash-1017-NVFP4",
+        "gib": 399.52,
+        "high_precision": {
+          "params_b": 2.019,
+          "gib": 3.84
+        }
+      }
+    }
+  },
+  {
     "id": "mistralai-devstral-2-123b",
     "name": "Devstral 2 123B",
     "architecture": "dense",

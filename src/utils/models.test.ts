@@ -172,6 +172,12 @@ describe('Model Database Validation', () => {
       // "~2% of a BF16 GQA8 baseline" matches (2.2%). Sliding part in EXOTIC_SLIDING.
       'deepseek-v4-flash': 3440, // 21x128 + 20x4 + 21x32
       'deepseek-v4-pro': 4924, // 30x128 + 31x4 + 30x32
+      // V4.1 CSA2 (vLLM vllm/models/deepseek_v41/attention.py): only kv_source_layer_ids [2, 8, 14,
+      // 20] own a compressed cache (get_kv_cache_spec returns None elsewhere), at 512 / ratio:
+      // ratio 2 owners 2, 8, 14 = 3 x 256, ratio 1 owner 20 = 512; each owner also holds an indexer
+      // key of index_head_dim 128 / ratio = 3 x 64 + 128. Second source: the card's "890 bytes per
+      // token" = 1280 main x 0.5625 (FP4 + one E4M3 scale per 16) + 320 indexer x 0.53 (MXFP4 68/128)
+      'deepseek-ai-deepseek-v4.1-flash-1017': 1600, // 768 + 512 + 320
       'moonshotai-kimi-k2-thinking': 35136,
       'moonshotai-kimi-k2-instruct': 35136,
       'moonshotai-kimi-k2.5': 35136,
@@ -253,6 +259,9 @@ describe('Model Database Validation', () => {
     const EXOTIC_SLIDING: Record<string, [number, number]> = {
       'deepseek-v4-flash': [22016, 128], // all 43 layers keep a 128-token window, 512 each
       'deepseek-v4-pro': [31232, 128], // 61 x 512
+      // 40 backbone layers, each builds its own DeepseekV4SWACache (attention.py swa_cache_layer),
+      // config sliding_window 128, head_dim 512. Bounded replay changes persistence, not memory
+      'deepseek-ai-deepseek-v4.1-flash-1017': [20480, 128],
       'google-gemma-3-1b': [11264, 512], // 22 local x 1 kv x 256 x 2
       'google-gemma-3-4b': [59392, 1024], // 29 local x 4 kv x 256 x 2
       'google-gemma-3-12b': [163840, 1024], // 40 local x 8 kv x 256 x 2
@@ -404,6 +413,14 @@ describe('Model Database Validation', () => {
     expect(flash?.active_parameters_billion).toBe(13)
     expect(pro?.num_parameters_billion).toBe(1600)
     expect(pro?.active_parameters_billion).toBe(49)
+  })
+
+  it('stores DeepSeek V4.1 Flash at the V4.1-Flash card figures', () => {
+    // card (deepseek-ai/DeepSeek-V4.1-Flash, same config as -1017): 552B backbone + 196B Engram,
+    // HF safetensors total 763.2B; activated 8B prefill / 16B decode (the decode figure is stored)
+    const m = modelsData.find((x) => x.id === 'deepseek-ai-deepseek-v4.1-flash-1017')
+    expect(m?.num_parameters_billion).toBe(763.2)
+    expect(m?.active_parameters_billion).toBe(16)
   })
 
   it('stores the context lengths the model cards and configs state', () => {
@@ -559,6 +576,10 @@ describe('Model Database Validation', () => {
         ?.high_precision
     expect(hp('moonshotai-kimi-k3', 'mxfp4')).toEqual({ params_b: 57.191, gib: 106.55 })
     expect(hp('moonshotai-kimi-k3.1-pro', 'mxfp4')).toEqual({ params_b: 57.37, gib: 106.88 })
+    expect(hp('deepseek-ai-deepseek-v4.1-flash-1017', 'mxfp4')).toEqual({
+      params_b: 2.019,
+      gib: 3.84,
+    })
     expect(hp('deepseek-r1', 'fp8')).toEqual({ params_b: 3.919, gib: 7.3 })
     expect(hp('qwen-qwen3-235b-a22b', 'bf16')).toBeUndefined()
   })

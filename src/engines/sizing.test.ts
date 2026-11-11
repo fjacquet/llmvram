@@ -399,7 +399,11 @@ describe('final review I4: Review Focus cases', () => {
 })
 
 // Roster refresh (2026-11): each added model sizes on one server GPU and one rack GPU, no NaN
-describe.each(['zai-org-glm-5.3', 'moonshotai-kimi-k3.1-pro'])('%s sizes', (id) => {
+describe.each([
+  'zai-org-glm-5.3',
+  'moonshotai-kimi-k3.1-pro',
+  'deepseek-ai-deepseek-v4.1-flash-1017',
+])('%s sizes', (id) => {
   it.each([
     ['server', 'nvidia-h100-80gb-sxm'],
     ['rack', 'nvidia-gb300-nvl72'],

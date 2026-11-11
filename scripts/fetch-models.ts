@@ -48,6 +48,7 @@ const MODEL_IDS = [
 
   // DeepSeek V4
   'deepseek-ai/DeepSeek-V4-Flash-0731',
+  'deepseek-ai/DeepSeek-V4.1-Flash-1017',
   'deepseek-ai/DeepSeek-V4-Pro-0813',
 
   // GLM (Z.ai)
