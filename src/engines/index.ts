@@ -12,7 +12,6 @@ export {
   type ComputeRate,
   linearComputeRate,
 } from './compute'
-// Sizing solver
 export { isRackGPU } from './config-rules'
 // Constants
 export {
@@ -66,6 +65,7 @@ export {
 export { estimatePerformance } from './performance'
 // Quantization engine
 export { calculateModelWeightVRAM, getBytesPerParameter } from './quantization'
+// Sizing solver
 export { evaluateReplica, replicaCandidates, sizeDeployment } from './sizing'
 
 // Training engine

@@ -36,7 +36,8 @@ export function InputPanel() {
   // In training, more than one GPU only matters with a DeepSpeed ZeRO preset
   const showGPUCount =
     selectedGPU !== null &&
-    (mode === 'inference' || FRAMEWORK_PRESETS[frameworkPreset].zeroStage !== null)
+    (mode === 'inference' ||
+      (mode === 'training' && FRAMEWORK_PRESETS[frameworkPreset].zeroStage !== null))
 
   // Derived selector: re-renders only when the count itself changes, not on every
   // store write (UIState extends UIConfig, so countAdvancedChanges' shape typechecks).

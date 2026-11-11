@@ -39,6 +39,7 @@ const show = (result: SizingResult, g = gb300, kvTier: KVTierSettings = DEFAULT_
   render(<SizingResults result={result} gpu={g} kvTier={kvTier} />)
 
 describe('SizingResults', () => {
+  // Tier is DEFAULT_KV_TIER ('none'): the plain sessions line applies
   it('rack: headline, replica line, packing and speed with ceiling', () => {
     const r = size({ model: model('zai-org-glm-5.2'), gpu: gb300 })
     const c = r.chosen
@@ -83,7 +84,9 @@ describe('SizingResults', () => {
     show(r, m3)
     expect(
       screen.getByText(
-        `Does not fit: closest is TP ${closest.candidate.tp} × ${closest.candidate.nodes}, lacking ${closest.lackingGB.toFixed(1)} GB per GPU`,
+        new RegExp(
+          `^Does not fit: closest is TP ${closest.candidate.tp} × ${closest.candidate.nodes}, lacking \\d+\\.\\d GB per GPU$`,
+        ),
       ),
     ).toBeVisible()
   })

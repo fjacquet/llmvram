@@ -629,12 +629,12 @@ export function normalizeConfig<C extends RuleConfig>(
   throw new Error(`normalizeConfig did not reach a fixpoint in ${MAX_NORMALIZE_PASSES} passes`)
 }
 
-/** Rack GPUs are selectable in Sizing only (R15); the selector lists what this allows */
 /** A GPU sold as a rack (NVL72) rather than an 8-way server */
 export function isRackGPU(gpu: GPU): boolean {
   return gpu.max_gpus_per_node > 8
 }
 
+/** Rack GPUs are selectable in Sizing only (R15); the selector lists what this allows */
 export function gpuAllowed(mode: ConfigMode, gpu: GPU): boolean {
   return mode === 'sizing' || !isRackGPU(gpu)
 }
