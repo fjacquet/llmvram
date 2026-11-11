@@ -3,7 +3,7 @@ import Decimal from 'decimal.js'
 import { attentionComputeRate, linearComputeRate } from './compute'
 import {
   BYTES_PER_GB,
-  DECODE_EFFICIENCY,
+  decodeEfficiency,
   INTERCONNECT_SPECS,
   PREFILL_EFFICIENCY,
   PREFILL_MFU_BY_PRECISION,
@@ -466,7 +466,7 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     offloadSlowdown,
     // One multiplication / division at the output: the roofline above stays the ceiling
     expected: {
-      tokensPerSecond: tokensPerSecond.mul(DECODE_EFFICIENCY),
+      tokensPerSecond: tokensPerSecond.mul(decodeEfficiency(batchSize)),
       timeToFirstToken: timeToFirstToken.div(PREFILL_EFFICIENCY),
       prefillSeconds: prefillSeconds?.div(PREFILL_EFFICIENCY) ?? null,
     },

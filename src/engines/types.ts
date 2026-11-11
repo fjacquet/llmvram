@@ -75,7 +75,7 @@ export interface PerformanceEstimate {
    */
   offloadSlowdown: number | null
   /**
-   * What vLLM is expected to deliver: tok/s = ceiling x DECODE_EFFICIENCY, TTFT and prefill =
+   * What vLLM is expected to deliver: tok/s = ceiling x decodeEfficiency(batch), TTFT and prefill =
    * ceiling / PREFILL_EFFICIENCY (spec P2). Every other field above is the theoretical ceiling.
    */
   expected: {

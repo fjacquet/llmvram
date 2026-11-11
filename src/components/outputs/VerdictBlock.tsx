@@ -28,7 +28,7 @@ export function VerdictBlock({
         <div>
           <dt className="text-sm text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">
             Decode speed
-            <InfoTip text="Expected = theoretical ceiling × measured vLLM efficiency (median of published runs; sources: ADR 0009)" />
+            <InfoTip text="Expected = theoretical ceiling × measured vLLM efficiency (median of published runs; sources: ADR 0009). Decode efficiency depends on load: 0.47 up to batch 32, 0.425 for 33-128, 0.25 above 128 (provisional, 1 point)." />
           </dt>
           <dd className="text-lg font-semibold text-gray-900 dark:text-white">
             {performance.expected.tokensPerSecond.toFixed(1)} tokens/sec

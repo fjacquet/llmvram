@@ -6,7 +6,8 @@ import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import {
   BYTES_PER_GB,
-  DECODE_EFFICIENCY,
+  DECODE_EFFICIENCY_BANDS,
+  decodeEfficiency,
   INTERCONNECT_SPECS,
   PREFILL_EFFICIENCY,
   PREFILL_MFU,
@@ -1954,15 +1955,28 @@ describe('expected figures: ceiling x measured vLLM efficiency (spec P1, P2)', (
   const base = { model, gpu: h100, quantization: 'fp8' as const, kvQuantization: 'fp8' as const }
 
   it('both efficiencies lie in (0, 1]', () => {
-    for (const e of [DECODE_EFFICIENCY, PREFILL_EFFICIENCY]) {
+    for (const e of [
+      ...DECODE_EFFICIENCY_BANDS.map((b) => new Decimal(b.efficiency)),
+      PREFILL_EFFICIENCY,
+    ]) {
       expect(e.greaterThan(0)).toBe(true)
       expect(e.lessThanOrEqualTo(1)).toBe(true)
     }
   })
 
-  it('expected tok/s = ceiling x DECODE_EFFICIENCY; TTFT and prefill = ceiling / PREFILL_EFFICIENCY', () => {
+  it('decodeEfficiency steps at the band edges (2026-11-11, sizing T2)', () => {
+    const at = (b: number) => decodeEfficiency(b).toNumber()
+    expect([at(1), at(32), at(33), at(128), at(129)]).toEqual([0.47, 0.47, 0.425, 0.425, 0.25])
+  })
+
+  it('expected tok/s at batch 64 = ceiling x 0.425', () => {
+    const p = estimatePerformance({ ...base, batchSize: 64, sequenceLength: 8192 })
+    expect(p.expected.tokensPerSecond.equals(p.tokensPerSecond.mul(0.425))).toBe(true)
+  })
+
+  it('expected tok/s = ceiling x decodeEfficiency(8); TTFT and prefill = ceiling / PREFILL_EFFICIENCY', () => {
     const p = estimatePerformance({ ...base, batchSize: 8, sequenceLength: 8192 })
-    expect(p.expected.tokensPerSecond.equals(p.tokensPerSecond.mul(DECODE_EFFICIENCY))).toBe(true)
+    expect(p.expected.tokensPerSecond.equals(p.tokensPerSecond.mul(decodeEfficiency(8)))).toBe(true)
     expect(p.expected.timeToFirstToken.equals(p.timeToFirstToken.div(PREFILL_EFFICIENCY))).toBe(
       true,
     )

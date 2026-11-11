@@ -516,7 +516,7 @@ export const PREFILL_MFU_BY_PRECISION: Record<ComputePrecision, Decimal> = {
 
 /**
  * Decode efficiency: measured vLLM decode speed / the roofline's (spec P1). Expected tok/s =
- * ceiling x this. Measured mean ITL against engine ITL (batch / tok/s) at the measured mean
+ * ceiling x this, by load band (decodeEfficiency). Measured mean ITL against engine ITL (batch / tok/s) at the measured mean
  * context. Median of 512 accepted vLLM points (user decision 2026-11-11; the spec's earlier
  * 'pessimistic end' rule was replaced). Median = sorted value at index floor(0.5 (n - 1)).
  * Distribution: min 0.126, p10 0.315, median 0.470.
@@ -530,7 +530,28 @@ export const PREFILL_MFU_BY_PRECISION: Record<ComputePrecision, Decimal> = {
  * one global figure (spec P1). Every point, with its run URL, acceptance and method:
  * docs/calibration/2026-11-11-vllm-efficiency-points.md.
  */
-export const DECODE_EFFICIENCY = new Decimal(0.47)
+
+/**
+ * Decode efficiency by concurrency band: medians of the accepted points in
+ * docs/calibration/2026-11-11-vllm-efficiency-points.md (sizing T2, 2026-11-11). Measured: band
+ * 2-8 0.481 (n=203), 9-32 0.472 (n=188), 33-128 0.425 (n=103), above 128 0.252 (n=1,
+ * provisional). Bands up to 32 keep the overall median 0.47 (user decision 2026-11-11).
+ */
+export const DECODE_EFFICIENCY_BANDS: readonly {
+  maxBatch: number
+  efficiency: number
+  n: number
+  provisional?: true
+}[] = [
+  { maxBatch: 32, efficiency: 0.47, n: 391 },
+  { maxBatch: 128, efficiency: 0.425, n: 103 },
+  { maxBatch: Number.POSITIVE_INFINITY, efficiency: 0.25, n: 1, provisional: true },
+]
+
+export function decodeEfficiency(batchSize: number): Decimal {
+  const band = DECODE_EFFICIENCY_BANDS.find((b) => batchSize <= b.maxBatch)
+  return new Decimal(band?.efficiency ?? 0.25)
+}
 
 /**
  * Prefill efficiency: the roofline's prefill seconds / measured vLLM TTFT (spec P1). Expected

@@ -1,6 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
-import { DECODE_EFFICIENCY, PREFILL_EFFICIENCY } from '@engines/constants'
+import { decodeEfficiency, PREFILL_EFFICIENCY } from '@engines/constants'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -176,7 +176,7 @@ describe('ResultsPanel expected vs ceiling (spec P3, P4b)', () => {
     const results = useComparisonStore.getState().snapshots[0]?.results
     if (!results) throw new Error('no snapshot saved')
     expect(results.tokensPerSecond).toBeCloseTo(
-      results.ceilingTokensPerSecond * DECODE_EFFICIENCY.toNumber(),
+      results.ceilingTokensPerSecond * decodeEfficiency(DEFAULT_UI_CONFIG.batchSize).toNumber(),
       6,
     )
     expect(results.timeToFirstToken).toBeCloseTo(
