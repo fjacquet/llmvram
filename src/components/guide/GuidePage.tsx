@@ -123,7 +123,8 @@ export function GuidePage() {
           <strong>Advanced</strong>, which opens by itself and shows &quot;N settings changed&quot;
           whenever one of its values differs from the default. Results lead with a verdict (does it
           fit, decode speed, first-token delay, sessions); charts and tables are under{' '}
-          <strong>Details</strong>. The PDF export opens every section before it captures.
+          <strong>Details</strong>. The PDF export opens every section and prints the results with
+          an assumptions table, without the form.
         </P>
         <P>
           <strong>Rules.</strong> A combination that cannot run is no longer offered, and a change
@@ -472,7 +473,8 @@ export function GuidePage() {
           The verdict block answers first: whether the configuration fits, decode speed, the
           first-token figure and how many sessions fit. Warnings stay visible under it. Charts, the
           memory table, the multi-GPU split, the weight source, the KV tier summary and per-user
-          metrics are under Details. Export PDF opens every collapsed section for the capture.
+          metrics are under Details. Export PDF prints the results (every collapsed section open)
+          under an assumptions table, in all three modes.
         </P>
         <SubHeading>First token with a batch (burst)</SubHeading>
         <P>

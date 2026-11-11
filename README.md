@@ -38,7 +38,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
 - **Configuration Comparison**: Save and diff up to 3 configurations side-by-side
 - **URL Sharing**: LZ-String compressed state in URL hash for shareable links
 - **MoE Architecture**: Correct handling of total vs active parameters
-- **Export**: PDF and PowerPoint (PPTX) export of the full analysis
+- **Export**: PDF (assumptions table plus the results, light theme, A4) and PowerPoint (PPTX) export of the full analysis
 - **Dark Mode**: Follows OS `prefers-color-scheme` on first visit, tracks live changes, manual toggle
 
 ## Supported Hardware
