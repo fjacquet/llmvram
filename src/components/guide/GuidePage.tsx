@@ -521,6 +521,14 @@ export function GuidePage() {
             (quadratic) once the prompt is long enough.
           </li>
         </ul>
+        <P>
+          Each speed shows two figures. The large one is the <strong>expected</strong> speed: what
+          vLLM delivers in published benchmark runs. The smaller{' '}
+          <strong>Theoretical ceiling</strong> is the roofline itself, the speed if every byte and
+          FLOP ran at the GPU&apos;s peak. Expected = ceiling × the median efficiency of published
+          vLLM runs (one ratio for decode, one for prefill; sources in ADR 0009), so expected is
+          always slower. The comparison view and the exports show both figures too.
+        </P>
 
         <SubHeading>Recommendations</SubHeading>
         <P>

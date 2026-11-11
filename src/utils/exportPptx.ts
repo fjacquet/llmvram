@@ -471,7 +471,13 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     color: C.darkBlue,
   })
 
-  const ttftLabel = formatDuration(performance.timeToFirstToken)
+  const { expected } = performance
+  const decodeCeiling = `(ceiling ${performance.tokensPerSecond.toFixed(1)})`
+  const ttftLabel = `${formatDuration(expected.timeToFirstToken)} (ceiling ${formatDuration(performance.timeToFirstToken)})`
+  const prefillValue =
+    expected.prefillSeconds && performance.prefillSeconds
+      ? `${formatDuration(expected.prefillSeconds)} (ceiling ${formatDuration(performance.prefillSeconds)})`
+      : null
   const bottleneckLabel =
     performance.bottleneck === 'memory'
       ? 'Memory Bandwidth'
@@ -482,21 +488,22 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     performance.prefillBottleneck === 'attention'
       ? 'attention-dominated (quadratic)'
       : 'weight-dominated (linear)'
-  const prefillLabel = performance.prefillSeconds
-    ? `${formatDuration(performance.prefillSeconds)} — ${prefillRegimeLabel}`
-    : 'n/a'
+  const prefillLabel = prefillValue ? `${prefillValue} — ${prefillRegimeLabel}` : 'n/a'
   const prefillTableLabel = performance.prefillEstimateDegraded
     ? `${prefillLabel} (rough estimate — no FLOPS data for this GPU)`
     : prefillLabel
 
   // Four metric boxes
   const metricBoxes: { label: string; value: string }[] = [
-    { label: 'Decode Speed', value: `${performance.tokensPerSecond.toFixed(1)} tok/s` },
+    {
+      label: 'Decode Speed',
+      value: `${expected.tokensPerSecond.toFixed(1)} tok/s ${decodeCeiling}`,
+    },
     { label: firstTokenLabel(batchSize), value: ttftLabel },
     { label: 'Bottleneck', value: bottleneckLabel },
     {
       label: 'Prompt Processing',
-      value: performance.prefillSeconds ? formatDuration(performance.prefillSeconds) : 'n/a',
+      value: prefillValue ?? 'n/a',
     },
   ]
   const boxXPositions = [0.4, 3.6, 6.8, 10.0] as const
@@ -576,7 +583,7 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
       [
         { text: 'Decode Speed', options: { fill: C.whiteFill } },
         {
-          text: `${performance.tokensPerSecond.toFixed(1)} tokens/sec`,
+          text: `${expected.tokensPerSecond.toFixed(1)} tokens/sec ${decodeCeiling}`,
           options: { fill: C.whiteFill },
         },
       ],

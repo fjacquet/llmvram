@@ -317,8 +317,10 @@ export function ResultsPanel() {
         kvCache: result.vram.kvCache.toNumber(),
         activations: result.vram.activations.toNumber(),
         frameworkOverhead: result.vram.frameworkOverhead.toNumber(),
-        tokensPerSecond: result.performance.tokensPerSecond.toNumber(),
-        timeToFirstToken: result.performance.timeToFirstToken.mul(1000).toNumber(),
+        tokensPerSecond: result.performance.expected.tokensPerSecond.toNumber(),
+        timeToFirstToken: result.performance.expected.timeToFirstToken.mul(1000).toNumber(),
+        ceilingTokensPerSecond: result.performance.tokensPerSecond.toNumber(),
+        ceilingTimeToFirstToken: result.performance.timeToFirstToken.mul(1000).toNumber(),
         bottleneck: result.performance.bottleneck,
         fits: !doesNotFit,
         perGPUTotal: result.multiGPU?.totalPerGPU.toNumber() ?? null,
@@ -655,7 +657,7 @@ export function ResultsPanel() {
               <MultiGPUBreakdownChart
                 breakdown={result.multiGPU}
                 gpuVRAM={selectedGPU.vram_gb}
-                effectiveTokPerSec={result.performance.tokensPerSecond.toNumber()}
+                effectiveTokPerSec={result.performance.expected.tokensPerSecond.toNumber()}
               />
             )}
 
