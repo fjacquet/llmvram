@@ -18,8 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fp8, nvfp4 and mxfp4 prefill and compute-bound decode now run at the tensor core vLLM uses for the format (ADR 0008): FP8 on Hopper, Blackwell, Rubin and AMD MI300/MI350; NVFP4 and MXFP4 on Blackwell and Rubin at the card's FP8 rate (no measured FP4 prefill efficiency exists yet); MXFP4 on MI350-series at FP8. The linear term runs at up to 2x the old rate, attention stays at FP16. Example: Llama 3.1 70B fp8 on 8x H100 SXM, 8192-token prompt: prefill 0.377 s -> 0.202 s. Formats that compute in 16-bit (fp16, bf16, int4, int8, nf4, GPTQ, AWQ, GGUF) are unchanged.
 - FP8 on H200 NVL (1670), MI300X and MI325X (2614) is the vendor sparse figure halved and rounded down.
 
+- Expected decode speed falls at batch > 32: efficiency is banded by load (ADR 0010), 0.47 up to 32, 0.425 for 33-128, 0.25 above 128 (provisional, one point). Prefill is unchanged.
+- FP8 KV on GLM 5.2 and Mistral Large 4 (DSA) is 656 B per token per layer (`fp8_ds_mla`), not 576: fewer sessions. Other MLA models are unchanged.
+- Rack GPUs (more than 8 per server, e.g. NVL72) are selectable only in Sizing. Training on NVL72 is no longer offered, and a shared link with a rack GPU in Inference or Training restores as Sizing.
+
 ### Added
 
+- Sizing mode: racks or servers for a model and N simultaneous users, with replica split, idle GPUs and expected speed beside its ceiling; optional KV storage tier (the assumption drives the count and is shown in the UI and PPTX). In comparison and exports. ADR 0010.
 - Mistral Large 4 1T-A52B (1053.2B total, 52.3B active, MLA, KV 36,288) with measured fp8, nvfp4 and GGUF weights; pending upstream vLLM support (PR #64534). 55 models in total.
 - Sparse attention (DSA): model fields `sparse_attention_topk`, `sparse_indexer_bytes_per_token`, `sparse_indexer_heads`, `sparse_indexer_layers`, for GLM 5.2 and Mistral Large 4. Prefill main attention is 2·L·H·a·(2T − a) FLOPs, a = min(T, topk): query t attends min(t, topk) keys.
 - Expected vs ceiling speed in results, comparison and exports, with the committed calibration points in `docs/calibration/`.
@@ -31,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recommendations round the GPU count up to the next valid tensor-parallel degree (R1 Distill 70B at 32k on H100: 4x, was 3x).
 - The multi-GPU chart no longer claims "N x GPUs x X% efficiency" for decode, which never applies scaling efficiency.
 - The KV tier "vs recompute" comparison uses the ceiling prefill, the safe direction.
 - Recommendations measure the memory deficit against 90% of VRAM in inference.

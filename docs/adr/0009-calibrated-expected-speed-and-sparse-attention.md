@@ -27,7 +27,7 @@ read at most `topk` KV positions per token, not the whole context.
   Expected TTFT and prefill = ceiling / 0.469, about 2.13x longer. Rack counts
   in the next piece use expected. ADR 0005's UI freeze is lifted for this second
   figure only. No new inputs.
-- **D2 Constants.** `DECODE_EFFICIENCY` 0.47, the median of n=512 accepted vLLM
+- **D2 Constants.** (Decode is now banded by load, ADR 0010; the flat 0.47 below is the overall median, kept for bands up to 32.) `DECODE_EFFICIENCY` 0.47, the median of n=512 accepted vLLM
   points. `PREFILL_EFFICIENCY` 0.469, the median of n=62. The statistic is the
   median. The user chose it on 2026-11-11, replacing "pessimistic end": the
   minimum (0.126 decode, 0.101 prefill) is driven by outliers and would cut the
@@ -95,7 +95,7 @@ read at most `topk` KV positions per token, not the whole context.
 
 Open items:
 
-- The `fp8_ds_mla` KV layout is 656 B per token against the 576 charged, so FP8
+- (Resolved by ADR 0010 gate 1, narrowed to DSA models.) The `fp8_ds_mla` KV layout is 656 B per token against the 576 charged, so FP8
   MLA KV is undercounted about 14%. This is the unsafe direction. Triage in a later piece.
   Sessions are 9-17% high when FP8 KV is selected on MLA models. This must be resolved,
   verified against vLLM source, before piece 2 divides targets by session counts.
@@ -104,7 +104,7 @@ Open items:
 - One median over mixed models and GPUs hides per-config spread (decode p5 is 0.27).
 - Batch-dependent decode efficiency. The AMD rows fall from about 0.63 at batch 1 to
   about 0.24 at batch 128. The flat median 0.47 is optimistic at the high concurrency
-  that rack sizing uses. Revisit in piece 2.
+  that rack sizing uses. Resolved by ADR 0010 (bands).
 
 ## Sources
 

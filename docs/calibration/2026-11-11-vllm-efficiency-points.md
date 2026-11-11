@@ -17,6 +17,15 @@ p = sorted value at index floor(p x (n - 1)).
 | Prefill, as ruled: burst (c + 1) / 2, mean TTFT  | 62  | 0.219 | 0.311 | 0.520 | 0.747 | 1.020  |
 | Prefill, alternative: no correction, median TTFT | 62  | 0.118 | 0.186 | 0.213 | 0.361 | 0.494  |
 
+**Decode by concurrency band** (ADR 0010; `DECODE_EFFICIENCY_BANDS`). Median of the accepted points in each band:
+
+| Concurrency | n   | median | Used               |
+| ----------- | --- | ------ | ------------------ |
+| 2-8         | 203 | 0.481  | 0.47 (batch <= 32) |
+| 9-32        | 188 | 0.472  | 0.47 (batch <= 32) |
+| 33-128      | 103 | 0.425  | 0.425              |
+| > 128       | 1   | 0.252  | 0.25, provisional  |
+
 **Ratios above 1.** An individual ratio may exceed 1. That only means the run beat the engine's
 ceiling, which assumes 0.45 MFU. Only the published constant must lie in (0, 1]. Four accepted
 rows exceed 1 with the factor used, and they are kept:
