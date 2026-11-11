@@ -32,6 +32,9 @@ vi.mock('@store/uiStore', () => ({ useUIStore }))
 // Import after mock setup
 import { Recommendations } from './Recommendations'
 
+const anyModel = validateModels(modelsData)[0]
+if (!anyModel) throw new Error('models.json is empty')
+
 function gpu(overrides: Partial<GPU>): GPU {
   return {
     id: 'test-gpu',
@@ -67,6 +70,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={appleGPU}
+        model={anyModel}
         breakdown={breakdown(900)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -88,6 +92,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={gb10Like}
+        model={anyModel}
         breakdown={breakdown(100)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -112,6 +117,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={eightWay}
+        model={anyModel}
         breakdown={breakdown(500)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -145,6 +151,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={eightWay}
+        model={anyModel}
         breakdown={breakdown(500)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -176,6 +183,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={eightWay}
+        model={anyModel}
         breakdown={breakdown(500)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -210,6 +218,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={bigPart}
+        model={anyModel}
         breakdown={breakdown(12000)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -245,6 +254,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={pcie}
+        model={anyModel}
         breakdown={breakdown(130)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -261,6 +271,7 @@ describe('Recommendations', () => {
     const { container } = render(
       <Recommendations
         gpu={gpu({ vram_gb: 80, max_gpus_per_node: 8 })}
+        model={anyModel}
         breakdown={breakdown(76)}
         currentQuantization="fp16"
         currentSequenceLength={4096}
@@ -276,6 +287,7 @@ describe('Recommendations', () => {
     render(
       <Recommendations
         gpu={gpu({ vram_gb: 16, max_gpus_per_node: 1 })}
+        model={anyModel}
         breakdown={breakdown(30)}
         currentQuantization="fp16"
         currentSequenceLength={2048}
@@ -318,7 +330,9 @@ describe('Recommendations', () => {
     }
 
     it('DeepSeek R1 Distill 70B fp16, 32k, H100 80 GB', () => {
-      const { perGPU } = advise('deepseek-r1-distill-llama-70b', 32768)
+      const { n, perGPU } = advise('deepseek-r1-distill-llama-70b', 32768)
+      // 2026-11-11, sizing T3: was 3 (memory count), now 4 because 64 heads are not divisible by 3
+      expect(n).toBe(4)
       expect(fitsInference(perGPU, 80)).toBe(true)
     })
 

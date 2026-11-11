@@ -13,7 +13,7 @@ import type { Model } from '@/types/model'
 
 interface RecommendationsProps {
   gpu: GPU
-  model?: Model
+  model: Model
   breakdown: InferenceVRAMBreakdown
   currentQuantization: QuantizationFormat
   currentSequenceLength: number
@@ -166,8 +166,7 @@ export function Recommendations({
   // Advise only degrees vLLM accepts (heads and KV heads divide); past every valid
   // degree the count stays raw and the exceeds-one-server paths take over.
   const gpusByMemory =
-    (model && validTPDegrees(model, maxGPUsFor(gpu)).find((t) => t >= countByMemory)) ||
-    countByMemory
+    validTPDegrees(model, maxGPUsFor(gpu)).find((t) => t >= countByMemory) || countByMemory
 
   // Case A: Multi-GPU active and still doesn't fit -> suggest more GPUs
   if (
