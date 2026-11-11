@@ -368,6 +368,13 @@ describe('Model Database Validation', () => {
     expect(actual).toEqual(SPARSE)
   })
 
+  it('every DSA model is MLA', () => {
+    // The indexer rides in the KV total, divided by kvShards: vLLM's replication only under MLA
+    const sparse = models.filter((m) => m.sparse_attention_topk !== undefined)
+    expect(sparse.length).toBeGreaterThan(0)
+    for (const m of sparse) expect(m.use_mla, m.id).toBe(true)
+  })
+
   it('stores DeepSeek V4 at its published parameter counts (arXiv 2606.19348)', () => {
     const flash = modelsData.find((m) => m.id === 'deepseek-v4-flash')
     const pro = modelsData.find((m) => m.id === 'deepseek-v4-pro')

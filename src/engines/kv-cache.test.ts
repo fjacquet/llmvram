@@ -425,6 +425,22 @@ describe('sparse attention (DSA) indexer cache and reads', () => {
     expect(read(sparse, 131072).toNumber()).toBeCloseTo(expected.toNumber(), 12)
   })
 
+  it('Mistral Large 4 decode at 128k reads the KV of topk tokens plus its full indexer cache', () => {
+    // 2026-11-11, final review M6 (spec success criterion): the real row, 44 indexer layers
+    const ml4 = validateModels(modelsData).find((m) => m.id === 'mistralai-mistral-large-4-1t-a52b')
+    if (!ml4) throw new Error('mistralai-mistral-large-4-1t-a52b missing from models.json')
+    const {
+      sparse_attention_topk: _k,
+      sparse_indexer_bytes_per_token: _b,
+      sparse_indexer_heads: _h,
+      sparse_indexer_layers: _l,
+      ...dense
+    } = ml4
+    const expected = kv(dense, 2048).add(new Decimal(44 * 132 * 131072).div(1024 ** 3))
+    expect(read(ml4, 131072).toNumber()).toBeCloseTo(expected.toNumber(), 12)
+    expect(read(ml4, 131072).toNumber()).toBeLessThan(kv(ml4, 131072).toNumber())
+  })
+
   it('decode reads equal memory below topk, and the full KV without sparse fields', () => {
     expect(read(sparse, 1024).toNumber()).toBeCloseTo(kv(sparse, 1024).toNumber(), 12)
     expect(read(glm, 131072).toNumber()).toBeCloseTo(kv(glm, 131072).toNumber(), 12)
