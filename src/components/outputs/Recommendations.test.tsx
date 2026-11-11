@@ -95,8 +95,9 @@ describe('Recommendations', () => {
       />,
     )
 
-    // Unclamped math ((100 - 2) / (16 - 2 - 0.25)) would ask for 8x — unbuildable on a 2-way part.
-    expect(screen.queryByText(/8x Test GPU/)).not.toBeInTheDocument()
+    // Unclamped math ((100 - 2) / (16 x 0.9 - 2 - 0.25)) would ask for 9x — unbuildable on a
+    // 2-way part. 2026-11-11, final review I1: was 8x at 100% of the card.
+    expect(screen.queryByText(/9x Test GPU/)).not.toBeInTheDocument()
     expect(screen.getByText(/2x Test GPU/)).toBeInTheDocument()
   })
 
@@ -124,8 +125,9 @@ describe('Recommendations', () => {
       />,
     )
 
-    // Unclamped math ((500 - 10) / (16 - 10 - 0.25)) would ask for 86x — clamp to the 8-way bound.
-    expect(screen.queryByText(/86x Test GPU/)).not.toBeInTheDocument()
+    // Unclamped math ((500 - 10) / (16 x 0.9 - 10 - 0.25)) would ask for 119x — clamp to the
+    // 8-way bound. 2026-11-11, final review I1: was 86x at 100% of the card.
+    expect(screen.queryByText(/119x Test GPU/)).not.toBeInTheDocument()
     expect(screen.getByText(/8x Test GPU/)).toBeInTheDocument()
   })
 
