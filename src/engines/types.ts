@@ -2,6 +2,7 @@ import type { GPU, Model } from '@utils/schemas'
 import { MAX_SEQUENCE_LENGTH, QUANTIZATION_FORMATS } from '@utils/schemas'
 import type Decimal from 'decimal.js'
 import { z } from 'zod'
+import type { KVTierSettings, KVTierType } from './kv-tier'
 
 /**
  * All supported quantization formats for model weights
@@ -490,6 +491,7 @@ export interface SizingInput {
   sequenceLength: number
   users: number
   fabric: FabricSpec
+  kvTier: KVTierSettings
 }
 
 /** One replica shape (tp GPUs per server across `nodes` pipeline stages), evaluated */
@@ -498,8 +500,18 @@ export interface ReplicaCandidate {
   nodes: number
   /** tp * nodes */
   gpusPerReplica: number
-  /** Memory-bound, >= 1 when it fits, capped at the user count */
+  /** Open sessions: HBM-resident plus parked in the KV tier; >= 1 when it fits, capped at users */
   sessionsPerReplica: number
+  /** Sessions whose KV sits in HBM (memory-bound, capped at users) */
+  hotSessions: number
+  /** Sessions decoding at once: min(hot, ceil(open x activeShare)) */
+  decodeBatch: number
+  /** Tier that raised the open count; null when none or when it was overloaded */
+  tierUsed: KVTierType | null
+  /** The tier could not sustain the churn, so the HBM count applies */
+  tierOverloaded: boolean
+  /** Resume time of one parked session; null when no tier is used */
+  resumeSeconds: number | null
   perUserTokensPerSecond: Decimal
   perUserCeilingTokensPerSecond: Decimal
   timeToFirstToken: Decimal

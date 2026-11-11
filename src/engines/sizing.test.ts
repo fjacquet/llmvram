@@ -5,6 +5,7 @@ import { validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 import { validTPDegrees } from './config-rules'
 import { resolveFabricSpec } from './fabric'
+import { DEFAULT_KV_TIER } from './kv-tier'
 import { estimatePerformance } from './performance'
 import { evaluateReplica, isRackGPU, replicaCandidates, sizeDeployment } from './sizing'
 import type { SizingInput } from './types'
@@ -30,6 +31,7 @@ const input = (m: Model, g: GPU, users: number, quantization = 'fp16' as const):
   sequenceLength: 8192,
   users,
   fabric,
+  kvTier: DEFAULT_KV_TIER,
 })
 
 const h100 = gpu('nvidia-h100-80gb-sxm')
@@ -172,5 +174,77 @@ describe('sizeDeployment', () => {
   it('isRackGPU flags NVL72 only', () => {
     expect(isRackGPU(gb300)).toBe(true)
     expect(isRackGPU(h100)).toBe(false)
+  })
+})
+
+describe('KV storage tier', () => {
+  const glm = model('zai-org-glm-5.2')
+  const tiered = (tier: 'host-grace' | 'network', customGBps: number | null = null) => ({
+    ...input(glm, gb300, 2000, 'fp8'),
+    sequenceLength: 32768,
+    kvTier: { ...DEFAULT_KV_TIER, tier, customGBps },
+  })
+  const none = { ...tiered('host-grace'), kvTier: DEFAULT_KV_TIER }
+
+  it('tier none: hot = open = decode batch', () => {
+    const c = sizeDeployment(none).chosen
+    expect(c?.hotSessions).toBe(c?.sessionsPerReplica)
+    expect(c?.decodeBatch).toBe(c?.hotSessions)
+    expect(c?.tierUsed).toBeNull()
+    expect(c?.tierOverloaded).toBe(false)
+    expect(c?.resumeSeconds).toBeNull()
+  })
+
+  it('host-grace holds sessionsHeld open sessions, decodes a share of them', () => {
+    const r = sizeDeployment(tiered('host-grace'))
+    const c = r.chosen
+    const base = sizeDeployment(none)
+    if (!c) throw new Error('no chosen')
+    const one = evaluateReplica({ ...none, users: 1 }, c.tp, c.nodes)
+    expect(c.tierUsed).toBe('host-grace')
+    expect(c.sessionsPerReplica).toBeGreaterThan(c.hotSessions)
+    expect(c.decodeBatch).toBe(Math.min(c.hotSessions, Math.ceil(c.sessionsPerReplica * 0.25)))
+    expect(c.resumeSeconds).toBeGreaterThan(0)
+    expect(one.hotSessions).toBe(1)
+    expect(r.units).toBeLessThanOrEqual(base.units)
+  })
+
+  it('open sessions equal kvTierSummary sessionsHeld (uncapped case)', () => {
+    const inp = { ...tiered('host-grace'), users: 100000 }
+    const c = sizeDeployment(inp).chosen
+    if (!c) throw new Error('no chosen')
+    const hot = sizeDeployment({ ...inp, kvTier: DEFAULT_KV_TIER }).chosen?.hotSessions
+    expect(hot).toBe(c.hotSessions)
+    expect(c.sessionsPerReplica).toBe(Math.floor(c.hotSessions / 0.25))
+  })
+
+  it('overloaded tier falls back to the HBM count', () => {
+    const c = sizeDeployment(tiered('network', 0.001)).chosen
+    expect(c?.tierOverloaded).toBe(true)
+    expect(c?.tierUsed).toBeNull()
+    expect(c?.sessionsPerReplica).toBe(c?.hotSessions)
+    expect(c?.decodeBatch).toBe(c?.hotSessions)
+  })
+
+  it('per-user speed is aggregate at the decode batch', () => {
+    const inp = {
+      ...input(llama8b, h100, 1000),
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'host-pcie' as const },
+    }
+    const c = evaluateReplica(inp, 1, 1)
+    expect(c.decodeBatch).toBeLessThan(c.sessionsPerReplica)
+    const direct = estimatePerformance({
+      model: llama8b,
+      gpu: h100,
+      quantization: 'fp16',
+      sequenceLength: 8192,
+      batchSize: c.decodeBatch,
+      kvQuantization: 'fp16',
+      multiGPUResult: null,
+    })
+    expect(c.perUserTokensPerSecond.toNumber()).toBeCloseTo(
+      direct.expected.tokensPerSecond.div(c.decodeBatch).toNumber(),
+      6,
+    )
   })
 })

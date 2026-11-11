@@ -4,6 +4,7 @@ import { fitsInference, maxConcurrentSessions } from './concurrency'
 import { validTPDegrees } from './config-rules'
 import { GPU_MEMORY_UTILIZATION } from './constants'
 import { calculateInferenceVRAM } from './inference'
+import { clampKVTier, kvTierSummary } from './kv-tier'
 import { calculateMultiNodeVRAM } from './multi-node'
 import { estimatePerformance } from './performance'
 import type { ReplicaCandidate, SizingInput, SizingResult, SizingUnit } from './types'
@@ -50,7 +51,7 @@ function perGPUBreakdown(input: SizingInput, tp: number, nodes: number, sessions
           quantization,
         })
       : null
-  return { perGPU: multi ? multi.perGPU : single, multi }
+  return { perGPU: multi ? multi.perGPU : single, multi, single }
 }
 
 export function evaluateReplica(
@@ -68,8 +69,42 @@ export function evaluateReplica(
     gpuVramGB: gpu.vram_gb,
   })
   // null: no KV on the GPU, memory does not bound sessions
-  const sessions = Math.max(1, Math.min(users, memorySessions ?? users))
+  const hot = Math.max(1, Math.min(users, memorySessions ?? users))
   const fits = fitsInference(totalPerGPUGB, gpu.vram_gb) && (memorySessions ?? 1) >= 1
+
+  const settings = clampKVTier(input.kvTier)
+  const tier =
+    memorySessions === null
+      ? null
+      : kvTierSummary({
+          settings,
+          maxHotSessions: memorySessions,
+          perGPUKVGB: one.perGPU.kvCache.toNumber(),
+          totalKVGB: one.single.kvCache.toNumber(),
+          concurrentUsers: 1,
+          multi: {
+            strategy: 'tensor-parallel',
+            gpusPerNode: tp,
+            numNodes: nodes,
+            numGPUs: tp * nodes,
+          },
+          // ceiling prefill at one session, as in Inference
+          recomputeSeconds:
+            estimatePerformance({
+              model,
+              gpu,
+              quantization,
+              sequenceLength,
+              batchSize: 1,
+              kvQuantization,
+              multiGPUResult: one.multi,
+            }).prefillSeconds?.toNumber() ?? null,
+          gpuId: gpu.id,
+        })
+  // An overloaded tier cannot sustain the churn: keep the HBM-only count
+  const used = tier && !tier.overloaded ? tier : null
+  const open = used ? Math.max(hot, Math.min(users, used.sessionsHeld)) : hot
+  const sessions = used ? Math.min(hot, Math.ceil(open * settings.activeShare)) : hot
 
   const real = perGPUBreakdown(input, tp, nodes, sessions)
   const perf = estimatePerformance({
@@ -86,7 +121,12 @@ export function evaluateReplica(
     tp,
     nodes,
     gpusPerReplica: tp * nodes,
-    sessionsPerReplica: sessions,
+    sessionsPerReplica: open,
+    hotSessions: hot,
+    decodeBatch: sessions,
+    tierUsed: used ? settings.tier : null,
+    tierOverloaded: tier?.overloaded ?? false,
+    resumeSeconds: used?.resumeSeconds ?? null,
     perUserTokensPerSecond: perUser(perf.expected.tokensPerSecond),
     perUserCeilingTokensPerSecond: perUser(perf.tokensPerSecond),
     timeToFirstToken: perf.expected.timeToFirstToken,
