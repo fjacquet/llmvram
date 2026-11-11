@@ -167,22 +167,23 @@ export function GuidePage() {
         {/* Sizing */}
         <SectionHeading id="sizing">Sizing</SectionHeading>
         <P>
-          <strong>Sizing</strong> mode answers the reverse question: how many servers or racks serve
-          N users at once? You give the model, format, context length, users and GPU; the solver
+          <strong>Sizing</strong> mode answers the reverse question: how many NVL72 racks serve N
+          users at once? You give the model, format, context length, users and GPU; the solver
           chooses the rest.
         </P>
         <P>
-          It tries every tensor-parallel degree vLLM accepts for the model (and, for 8-GPU servers,
-          replicas that span several servers), keeps those that fit in 90% of GPU memory, and counts
-          how many sessions one replica holds at your context length. Replicas are ceil(users ÷
-          sessions), packed into servers or NVL72 racks, and the layout with the fewest units wins.
+          It tries every tensor-parallel degree vLLM accepts for the model , keeps those that fit in
+          90% of GPU memory, and counts how many sessions one replica holds at your context length.
+          Replicas are ceil(users ÷ sessions), packed into NVL72 racks, and the layout with the
+          fewest units wins.
         </P>
         <P>
           Counts are set by memory (90% vLLM limit); the speed shown is expected, with the
           theoretical ceiling beside it. With a KV storage tier selected, a replica also holds
           parked sessions beyond what fits in HBM. The card then states the share of sessions
           assumed to decode at once, because that assumption can cut the unit count several times
-          over. NVL72 rack GPUs are available in Sizing only.
+          over. Sizing lists rack GPUs only (GB200, GB300, Vera Rubin NVL72); use Inference for
+          discrete servers (HGX, MI355X, cards).
         </P>
 
         {/* Model Configuration */}

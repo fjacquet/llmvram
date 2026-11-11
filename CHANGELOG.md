@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expected decode speed falls at batch > 32: efficiency is banded by load (ADR 0010), 0.47 up to 32, 0.425 for 33-128, 0.25 above 128 (provisional, one point). Prefill is unchanged.
 - FP8 KV on GLM 5.2 and Mistral Large 4 (DSA) is 656 B per token per layer (`fp8_ds_mla`), not 576: fewer sessions. Other MLA models are unchanged.
 - Rack GPUs (more than 8 per server, e.g. NVL72) are selectable only in Sizing. Training on NVL72 is no longer offered, and a shared link with a rack GPU in Inference or Training restores as Sizing.
+- Sizing now lists rack GPUs only (GB200, GB300, Vera Rubin NVL72); use Inference for discrete servers. A shared link with a server GPU in Sizing restores with the default rack GPU (GB300 NVL72), shown as "Shared link adjusted".
 
 ### Added
 

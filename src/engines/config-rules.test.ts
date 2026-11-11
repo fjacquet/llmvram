@@ -16,6 +16,7 @@ import {
   RULES,
   type RuleConfig,
   type RuleId,
+  rackGPUCorrection,
   softWarnings,
   validTPDegrees,
 } from './config-rules'
@@ -1076,11 +1077,31 @@ describe('sizing mode (2026-11-11, sizing T5)', () => {
     expect(normalizeConfig(cfg({ mode: 'sizing' }), L70, NVL72).corrections).toEqual([])
   })
 
-  it('gpuAllowed: rack GPUs only in sizing', () => {
+  it('gpuAllowed: machines split by mode, rack GPUs in sizing and servers elsewhere', () => {
     expect(gpuAllowed('inference', NVL72)).toBe(false)
     expect(gpuAllowed('training', NVL72)).toBe(false)
     expect(gpuAllowed('sizing', NVL72)).toBe(true)
     expect(gpuAllowed('inference', H100)).toBe(true)
+    expect(gpuAllowed('training', H100)).toBe(true)
+    expect(gpuAllowed('sizing', H100)).toBe(false)
+  })
+
+  it('rackGPUCorrection: a server GPU in sizing becomes the first rack GPU, once', () => {
+    const fix = rackGPUCorrection('sizing', H100, gpus)
+    expect(fix?.gpu.id).toBe('nvidia-gb300-nvl72')
+    expect(fix?.correction.message).toContain('Sizing lists rack GPUs only')
+    // converged: no further correction, and no R15 bounce (the mode stays sizing)
+    expect(fix && rackGPUCorrection('sizing', fix.gpu, gpus)).toBeNull()
+    expect(normalizeConfig(cfg({ mode: 'sizing' }), L70, fix?.gpu ?? null).config.mode).toBe(
+      'sizing',
+    )
+  })
+
+  it('rackGPUCorrection: inert outside sizing, with no GPU, or with a rack GPU', () => {
+    expect(rackGPUCorrection('inference', H100, gpus)).toBeNull()
+    expect(rackGPUCorrection('training', H100, gpus)).toBeNull()
+    expect(rackGPUCorrection('sizing', null, gpus)).toBeNull()
+    expect(rackGPUCorrection('sizing', NVL72, gpus)).toBeNull()
   })
 
   it('titles a sizing correction "Adjusted for sizing mode"', () => {

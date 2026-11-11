@@ -637,9 +637,35 @@ export function isRackGPU(gpu: GPU): boolean {
   return gpu.max_gpus_per_node > 8
 }
 
-/** Rack GPUs are selectable in Sizing only (R15); the selector lists what this allows */
+/** Machines split by mode: Sizing lists rack GPUs only, Inference/Training discrete servers only */
 export function gpuAllowed(mode: ConfigMode, gpu: GPU): boolean {
-  return mode === 'sizing' || !isRackGPU(gpu)
+  return (mode === 'sizing') === isRackGPU(gpu)
+}
+
+/**
+ * Mirror of R15: a server GPU in Sizing becomes the first rack GPU of the catalogue
+ * (deterministic; gpus.json lists the current-gen GB300 first). Not in RULES because the
+ * GPU is not a RuleConfig field: the store calls it before normalizeConfig, so the rule
+ * loop (and R15) only ever sees a consistent mode/GPU pair and cannot cycle.
+ */
+export function rackGPUCorrection(
+  mode: ConfigMode,
+  gpu: GPU | null,
+  gpus: readonly GPU[],
+): { gpu: GPU; correction: Correction } | null {
+  const rack = gpus.find(isRackGPU)
+  if (mode !== 'sizing' || !gpu || !rack || isRackGPU(gpu)) return null
+  return {
+    gpu: rack,
+    correction: {
+      rule: 'R15',
+      field: 'mode',
+      from: gpu.id,
+      to: rack.id,
+      subject: 'gpu',
+      message: `GPU set to ${rack.name}: Sizing lists rack GPUs only, ${gpu.name} is a discrete server (use Inference).`,
+    },
+  }
 }
 
 export type AllowedOptionsInput = Pick<

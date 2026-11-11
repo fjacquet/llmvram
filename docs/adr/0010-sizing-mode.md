@@ -74,3 +74,17 @@ Open items:
 - vLLM `flashmla_sparse.py`, `config.py` (`verify_and_update_config`)
 - `docs/calibration/2026-11-11-vllm-efficiency-points.md`
 - ADR 0009 (calibration, open items)
+
+## Amendment 2026-11-11: mode split
+
+**Decision (user).** Machines are split by mode. Inference and Training offer discrete machines only (server GPUs: HGX, MI355X, cards). Sizing offers integrated full racks only (`isRackGPU`: GB200, GB300, Vera Rubin NVL72). This reverses the spec line "Sizing also offers every server GPU".
+
+- `gpuAllowed(mode, gpu)` is `(mode === 'sizing') === isRackGPU(gpu)`; the selector lists only that.
+- Entering Sizing with a server GPU (mode toggle, GPU picker, or a shared link with `m=sizing`) swaps in the first rack GPU of the catalogue (`rackGPUCorrection`, currently GB300 NVL72), with the usual "Adjusted for ..." toast or "Shared link adjusted" on restore. It runs in `commit()` before `normalizeConfig`, since the GPU is not a rule field, so it cannot loop with R15: after it, mode and GPU agree.
+- Leaving Sizing with a rack GPU still clears it; R15 still sends rack-GPU links in Inference/Training to Sizing.
+
+**Consequences.**
+
+- Server sizing (units = servers, multi-server replicas) is unreachable from the UI. The solver keeps its server branch and tests; remove them once confirmed unused.
+- With rack GPUs only, R3 (host-grace without a Grace link) cannot fire in Sizing: every rack GPU has one.
+- Breaking: old Sizing links with a server GPU open with a rack GPU.

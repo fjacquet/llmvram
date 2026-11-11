@@ -30,7 +30,7 @@ export function GPUSelector() {
 
   // Filter and group GPUs
   const filteredGPUs = useMemo(() => {
-    // Rack GPUs are selectable in Sizing only (R15)
+    // Machines split by mode: rack GPUs in Sizing only, discrete servers elsewhere
     const offered = gpus.filter((gpu) => gpuAllowed(mode, gpu))
     const filtered =
       query === ''

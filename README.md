@@ -33,7 +33,7 @@ Browser-based tool for estimating VRAM requirements and performance when running
   every session's KV cache) and, on multiple GPUs, all-reduce latency and pipeline fill;
   prompt-processing time and time-to-first-token modelled from prefill FLOPs (linear weight term
   plus quadratic attention term), bottleneck analysis (roofline model)
-- **Sizing mode**: given a model and N simultaneous users, how many racks or servers (NVL72 racks can be chosen in Sizing only), the replica split, idle GPUs, and expected speed beside its ceiling; an optional KV storage tier can cut the count and the assumption is shown
+- **Sizing mode**: given a model and N simultaneous users, how many NVL72 racks (Sizing lists rack GPUs only; use Inference for discrete servers), the replica split, idle GPUs, and expected speed beside its ceiling; an optional KV storage tier can cut the count and the assumption is shown
 - **Configuration Comparison**: Save and diff up to 3 configurations side-by-side
 - **URL Sharing**: LZ-String compressed state in URL hash for shareable links
 - **MoE Architecture**: Correct handling of total vs active parameters

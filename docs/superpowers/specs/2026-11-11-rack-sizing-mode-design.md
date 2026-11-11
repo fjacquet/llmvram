@@ -17,7 +17,7 @@ Rack GPUs (NVL72) also don't belong in the per-replica calculator. Nobody runs o
 
 - **Input:** model, context size, number of users.
 - **One calculator, a third mode.** "Sizing" sits beside Inference and Training (mockup C). There is no new tab. To compare platforms, the user saves results to the existing Comparison tab.
-- **Rack GPUs move to Sizing.** GB200 NVL72, GB300 NVL72 and Vera Rubin NVL72 can be selected only in Sizing. Sizing also offers every server GPU (HGX, MI355X, and so on).
+- **Rack GPUs move to Sizing.** GB200 NVL72, GB300 NVL72 and Vera Rubin NVL72 can be selected only in Sizing. Sizing also offers every server GPU (HGX, MI355X, and so on). **Reversed 2026-11-11, see ADR 0010 amendment: Sizing lists rack GPUs only.**
 - **Answer:** in large type, "N racks <GPU>" or "N servers <GPU>". Below it: the replica size, sessions per replica and the expected per-user speed, with the ceiling beside it.
 - **Unit counts use expected speed,** never the ceiling. This was decided in the calibration piece.
 - **Engineering principles:** KISS, DRY, functional programming. Sizing reuses the existing pure engine functions (memory, sessions, expected performance) and adds one small pure solver. There is no second engine.

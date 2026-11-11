@@ -14,7 +14,7 @@ const MODES: { value: ConfigMode; label: string; title: string; description: str
     value: 'sizing',
     label: 'Sizing',
     title: 'Sizing Mode',
-    description: 'Size servers or racks for N simultaneous users',
+    description: 'Size NVL72 racks for N simultaneous users',
   },
   {
     value: 'training',
@@ -40,7 +40,7 @@ export function ModeToggle() {
     <div className="space-y-2">
       <div className="flex items-center gap-1">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{current?.title}</h2>
-        <InfoTip text="Inference mode estimates VRAM for running a model. Sizing mode counts the servers or racks that serve N simultaneous users. Training mode adds optimizer states, gradients, and activation memory for fine-tuning." />
+        <InfoTip text="Inference mode estimates VRAM for running a model. Sizing mode counts the racks that serve N simultaneous users. Training mode adds optimizer states, gradients, and activation memory for fine-tuning." />
       </div>
       <RadioGroup
         value={mode}

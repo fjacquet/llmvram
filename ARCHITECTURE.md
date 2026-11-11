@@ -218,7 +218,7 @@ One decode step produces one token for each of `batchSize` sequences:
 
 - `sizeDeployment` composes the engines above (ADR 0010): candidates are `validTPDegrees`, fit at 1 session via `fitsInference`, sessions from `maxConcurrentSessions` capped at users, speed at batch = sessions with `decodeEfficiency(batch)`. Tie-break: units, total GPUs, replica size. Idle GPUs are reported.
 - KV tier: open sessions from `kvTierSummary.sessionsHeld`; decode batch = min(hot, ceil(open x activeShare)) only when parked; `capacityTB` is per unit.
-- Rack GPUs (`isRackGPU`) are Sizing-only.
+- Machines are split by mode: Sizing lists rack GPUs only (`isRackGPU`), Inference and Training list discrete servers only (`gpuAllowed`). `rackGPUCorrection` swaps a server GPU in Sizing for the first rack GPU. The solver keeps its server branch, unreachable from the UI.
 
 ### Concurrency (`concurrency.ts`)
 
