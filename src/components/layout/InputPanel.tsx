@@ -1,5 +1,6 @@
 import { BatchSizeInput } from '@components/inputs/BatchSizeInput'
 import { ConcurrentUsersInput } from '@components/inputs/ConcurrentUsersInput'
+import { ContextMixEditor } from '@components/inputs/ContextMixEditor'
 import { GPUCountSelector } from '@components/inputs/GPUCountSelector'
 import { GPUSelector } from '@components/inputs/GPUSelector'
 import { InterconnectSelector } from '@components/inputs/InterconnectSelector'
@@ -14,6 +15,7 @@ import { QuantizationPicker } from '@components/inputs/QuantizationPicker'
 import { SequenceLengthInput } from '@components/inputs/SequenceLengthInput'
 import { ShardingStrategySelector } from '@components/inputs/ShardingStrategySelector'
 import { TrainingPanel } from '@components/inputs/TrainingPanel'
+import { TTFTTargetInput } from '@components/inputs/TTFTTargetInput'
 import { isRackGPU } from '@engines/config-rules'
 import { FRAMEWORK_PRESETS } from '@engines/frameworks'
 import { useUIStore } from '@store/uiStore'
@@ -66,7 +68,9 @@ export function InputPanel() {
           {/* Multi-node is inference-only (multi-node training is a spec Non-Goal) */}
           {selectedGPU && mode === 'inference' && <NodeCountSelector />}
           <SequenceLengthInput />
+          {isInference && <ContextMixEditor />}
           {isInference && <ConcurrentUsersInput />}
+          {isInference && <TTFTTargetInput />}
         </section>
 
         {!isInference && (

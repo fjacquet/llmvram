@@ -172,9 +172,9 @@ function fix<K extends keyof RuleConfig>(
   return { rule, field, from, to, subject, message, ...(silent ? { silent } : {}) }
 }
 
-const MIN_CONTEXT = 512
-const MIN_TTFT_TARGET = 0.1
-const MAX_TTFT_TARGET = 3600
+export const MIN_CONTEXT = 512
+export const MIN_TTFT_TARGET = 0.1
+export const MAX_TTFT_TARGET = 3600
 
 /** Same classes in the same order, shares equal to the link's precision (1e-8 share; 1 - 0.7 is not 0.3) */
 function sameMix(a: ContextMix, b: ContextMix): boolean {

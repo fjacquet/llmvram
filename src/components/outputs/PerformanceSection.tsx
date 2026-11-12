@@ -1,7 +1,14 @@
 import { perUserTokensPerSecond } from '@engines/concurrency'
-import { burstTTFT } from '@engines/ttft'
-import type { PerformanceEstimate } from '@engines/types'
+import { burstTTFT, maxUsersWithinTarget } from '@engines/ttft'
+import type { ClassPrefill, PerformanceEstimate } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
+import {
+  formatTokensShort,
+  maxUsersLine,
+  ttftCeilingLine,
+  ttftLine,
+  worstCaseLabel,
+} from '@utils/formatTTFT'
 import { firstTokenLabel } from '@utils/perfLabels'
 import type { ReactNode } from 'react'
 
@@ -9,6 +16,10 @@ interface PerformanceSectionProps {
   performance: PerformanceEstimate
   concurrentUsers: number
   batchSize: number
+  /** One batch-1 prefill per context class (classPrefills) */
+  classes: ClassPrefill[]
+  /** Seconds; null when no target is set */
+  ttftTargetSeconds: number | null
   /**
    * Rendered between the metric grid and the per-user metrics block — this is
    * where CapacitySection (max sessions, KV tier) sits, matching the DOM
@@ -28,21 +39,13 @@ export function PerformanceSection({
   performance,
   concurrentUsers,
   batchSize,
+  classes,
+  ttftTargetSeconds,
   children,
 }: PerformanceSectionProps) {
-  // TODO(task 6): replace with classPrefills over the real context mix; one class from the
-  // single-prompt estimate stands in until the section receives the model and GPU.
-  const burst = burstTTFT(
-    [
-      {
-        tokens: 0,
-        share: 1,
-        expectedTTFT: performance.expected.timeToFirstToken,
-        ceilingTTFT: performance.timeToFirstToken,
-      },
-    ],
-    concurrentUsers,
-  )
+  const burst = burstTTFT(classes, concurrentUsers)
+  const maxUsers =
+    ttftTargetSeconds === null ? null : maxUsersWithinTarget(classes, ttftTargetSeconds)
   return (
     <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -113,6 +116,21 @@ export function PerformanceSection({
 
       {children}
 
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 space-y-1">
+        <p className="text-sm font-semibold text-gray-900 dark:text-white">{ttftLine(burst)}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{worstCaseLabel(burst)}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{ttftCeilingLine(burst)}</p>
+        {classes.length > 1 &&
+          classes.map((c) => (
+            <p key={c.tokens} className="text-xs text-gray-500 dark:text-gray-400">
+              {`${formatTokensShort(c.tokens)} prompt alone: ${formatDuration(c.expectedTTFT)} (ceiling ${formatDuration(c.ceilingTTFT)})`}
+            </p>
+          ))}
+        {maxUsers !== null && (
+          <p className="text-xs text-gray-700 dark:text-gray-300">{maxUsersLine(maxUsers)}</p>
+        )}
+      </div>
+
       {/* Per-user metrics (only visible when concurrentUsers > 1) */}
       {concurrentUsers > 1 && (
         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
@@ -135,21 +153,7 @@ export function PerformanceSection({
                 tok/s
               </p>
             </div>
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Per-user TTFT (est.)</p>
-              <p className="text-base font-semibold text-gray-900 dark:text-white">
-                {formatDuration(burst.lastExpected)}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Theoretical ceiling: {formatDuration(burst.lastCeiling)}
-              </p>
-            </div>
           </div>
-          {batchSize < concurrentUsers && (
-            <p className="text-xs text-amber-700 dark:text-amber-400 mt-3">
-              {`Only ${batchSize} of ${concurrentUsers} users decode at once (batch size ${batchSize}); the rest queue, hence the long TTFT. Raise batch size to serve them concurrently.`}
-            </p>
-          )}
         </div>
       )}
     </div>

@@ -1,4 +1,9 @@
-import { fitsInference, maxConcurrentSessions, perUserTokensPerSecond } from '@engines/concurrency'
+import {
+  fitsInference,
+  largestClassFits,
+  maxConcurrentSessions,
+  perUserTokensPerSecond,
+} from '@engines/concurrency'
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
@@ -151,5 +156,16 @@ describe('fitsInference', () => {
   it('fits up to vLLM gpu_memory_utilization (278 x 0.9 = 250.2)', () => {
     expect(fitsInference(250, 278)).toBe(true)
     expect(fitsInference(251, 278)).toBe(false)
+  })
+})
+
+describe('largestClassFits', () => {
+  // 80 GB x 0.9 = 72 GB limit; fixed 40 GB, mix KV 10 GB for 10 sessions
+  const base = { totalPerGPUGB: 50, kvPerGPUGB: 10, mixKVGB: 10, gpuVramGB: 80 }
+  it('fits when one largest-class session stays under the limit', () => {
+    expect(largestClassFits({ ...base, largestSessionKVGB: 20 })).toBe(true)
+  })
+  it('does not fit when one largest-class session alone is too big', () => {
+    expect(largestClassFits({ ...base, largestSessionKVGB: 40 })).toBe(false)
   })
 })

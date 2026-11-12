@@ -10,13 +10,22 @@ import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownCha
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
 import { VerdictBlock } from '@components/outputs/VerdictBlock'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
-import { fitsInference, maxConcurrentSessions } from '@engines/concurrency'
+import { fitsInference, largestClassFits, maxConcurrentSessions } from '@engines/concurrency'
 import { softWarnings } from '@engines/config-rules'
 import { GPU_MEMORY_UTILIZATION } from '@engines/constants'
+import { isDefaultMix, largestContext } from '@engines/context-mix'
 import { resolveFabricSpec } from '@engines/fabric'
+import { calculateInferenceVRAM } from '@engines/inference'
 import { DECIMAL_GB_PER_GIB, kvTierSummary } from '@engines/kv-tier'
-import { defaultHostCapacityGB, roundOffloadSlowdown } from '@engines/offloading'
+import { applyInterconnectOverride } from '@engines/multi-gpu'
+import {
+  defaultHostCapacityGB,
+  hostLinkGBps,
+  offloadWeightFraction,
+  roundOffloadSlowdown,
+} from '@engines/offloading'
 import { weightSource } from '@engines/quantization'
+import { burstTTFT, classPrefills, meetsTarget } from '@engines/ttft'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
@@ -26,6 +35,7 @@ import { useTrainingCalculation } from '@hooks/useTrainingCalculation'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
+import { mixLabel } from '@utils/formatTTFT'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -259,6 +269,42 @@ function InferenceTrainingPanel() {
     cpuOffload,
   } = useTrainingCalculation()
 
+  // One batch-1 prefill per context class; null until a result exists (and in training)
+  const classes = useMemo(() => {
+    if (!result || !selectedModel || !selectedGPU || mode === 'training') return null
+    const gpu = applyInterconnectOverride(selectedGPU, interconnectOverride)
+    return classPrefills(
+      {
+        model: selectedModel,
+        gpu,
+        quantization,
+        kvQuantization,
+        multiGPUResult: result.multiGPU,
+        offload: offloadingConfig
+          ? {
+              weightFraction: offloadWeightFraction(
+                offloadingConfig,
+                selectedModel.num_hidden_layers,
+              ),
+              kvOffloaded: offloadingConfig.kvCacheOffload,
+              linkGBps: hostLinkGBps(offloadingConfig.target, gpu.id),
+            }
+          : null,
+      },
+      contextMix,
+    )
+  }, [
+    result,
+    selectedModel,
+    selectedGPU,
+    mode,
+    interconnectOverride,
+    quantization,
+    kvQuantization,
+    offloadingConfig,
+    contextMix,
+  ])
+
   // Show toast on error (only once per error change)
   useEffect(() => {
     if (error) {
@@ -345,7 +391,7 @@ function InferenceTrainingPanel() {
   }
 
   // State 4: Results
-  if (!result) {
+  if (!result || !classes) {
     return null
   }
 
@@ -382,7 +428,7 @@ function InferenceTrainingPanel() {
     : 0
   const hostExceeded =
     hostCapacityPerServerGB !== null && offloadedHostGB > hostCapacityPerServerGB * numNodes
-  const doesNotFit = deviceDoesNotFit || hostExceeded
+  const mixActive = !isDefaultMix(contextMix, sequenceLength)
 
   // Sessions that fit at this context, from the same per-GPU breakdown as the fit check
   const perGPU = result.multiGPU ? result.multiGPU.perGPU : displayBreakdown
@@ -392,6 +438,31 @@ function InferenceTrainingPanel() {
     concurrentUsers,
     gpuVramGB: selectedGPU.vram_gb,
   })
+
+  // One session at the largest class must fit on its own, whatever the mix average says
+  const largest = largestContext(contextMix)
+  const largestClassMiss =
+    mixActive &&
+    !largestClassFits({
+      totalPerGPUGB: perGPU.total.toNumber(),
+      kvPerGPUGB: perGPU.kvCache.toNumber(),
+      mixKVGB: result.vram.kvCache.toNumber(),
+      largestSessionKVGB: calculateInferenceVRAM({
+        model: selectedModel,
+        quantization,
+        sequenceLength: largest,
+        batchSize: 1,
+        kvQuantization,
+        concurrentUsers: 1,
+      }).kvCache.toNumber(),
+      gpuVramGB: selectedGPU.vram_gb,
+    })
+      ? largest
+      : null
+  const doesNotFit = deviceDoesNotFit || hostExceeded || largestClassMiss !== null
+  const ttftMissed =
+    ttftTargetSeconds !== null &&
+    meetsTarget(burstTTFT(classes, concurrentUsers), ttftTargetSeconds) === false
 
   // KV storage tier: sessions held with idle KV parked off-GPU (null = no tier)
   const tierSummary =
@@ -696,6 +767,10 @@ function InferenceTrainingPanel() {
           batchSize={batchSize}
           maxSessions={maxSessions}
           sequenceLength={sequenceLength}
+          classes={classes}
+          concurrentUsers={concurrentUsers}
+          ttftTargetSeconds={ttftTargetSeconds}
+          largestClassMiss={largestClassMiss}
         />
 
         {/* Warnings stay visible: they change the answer */}
@@ -731,7 +806,7 @@ function InferenceTrainingPanel() {
 
         {/* Recommendations: GPU/quantization advice, not applicable to a
             host-capacity-only problem (the red message above covers that). */}
-        {deviceDoesNotFit && (
+        {(deviceDoesNotFit || ttftMissed) && (
           <Recommendations
             gpu={selectedGPU}
             model={selectedModel}
@@ -744,6 +819,11 @@ function InferenceTrainingPanel() {
             // matching fallback in useResultExports above).
             numGPUs={result.multiGPU?.numGPUs ?? numGPUs}
             multiGPUBreakdown={result.multiGPU}
+            ttftMiss={
+              ttftMissed && ttftTargetSeconds !== null
+                ? { classes, users: concurrentUsers, targetSeconds: ttftTargetSeconds }
+                : undefined
+            }
           />
         )}
 
@@ -824,10 +904,13 @@ function InferenceTrainingPanel() {
                 performance={result.performance}
                 concurrentUsers={concurrentUsers}
                 batchSize={batchSize}
+                classes={classes}
+                ttftTargetSeconds={ttftTargetSeconds}
               >
                 <CapacitySection
                   maxSessions={maxSessions}
                   sequenceLength={sequenceLength}
+                  mixDescription={mixActive ? mixLabel(contextMix) : null}
                   concurrentUsers={concurrentUsers}
                   tierSummary={tierSummary}
                   kvTier={kvTier}
