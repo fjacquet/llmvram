@@ -7,17 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-12
+
 ### Added
 
 - Context mix (Inference and Sizing): one to three classes (presets Chat 4K, RAG 32K, Long documents 256K) with shares summing to 100%. KV memory and decode follow the mix; the context length is the largest class. The default, one class at the context, changes no figure (ADR 0012).
-- TTFT target (0.1 to 3600 s) in Inference and Sizing. Inference shows first served and last served ("worst case: all N prompts at once, first come first served, no prefix cache"), met or missed, and "Max users within target". Sizing sizes to the target and states "Sized by memory" or "Sized by TTFT target". Mix and target travel in the shared link (`cm`, `tt`) and the PDF, PPTX and Comparison.
+- TTFT target (0.1 to 3600 s) in Inference and Sizing. Inference shows first served and last served (one largest-class prompt plus the rest at the mix-weighted prompt time, "worst case: all N prompts at once, first come first served, no prefix cache"), met or missed, and "Max users within target". Sizing sizes to the target and states "Sized by memory" or "Sized by TTFT target". Mix and target travel in the shared link (`cm`, `tt`) and the PDF, PPTX and Comparison.
 
 ### Changed
 
-- Last served TTFT = one largest-class prompt + (B - 1) x the mix-weighted prompt, so it is never below first served with a skewed mix; the users-within-target cap follows (0 if the largest alone misses). One-class figures are unchanged.
 - With the default mix, the new context-mix and last-served lines appear in the exports, Comparison and the Inference slide where a target is set, but no figure changes.
-- Inference PPTX and Comparison show the mix, target and last served when set; "Max concurrent sessions" names the mix.
-- A closest-candidate Sizing result that fails only the largest-class guard now reports that deficit instead of 0 GB.
 - The multi-user time to first token in Inference is now the burst queue (the last of N prompts served), not the old waves figure (`perUserTimeToFirstToken`, removed). With a mix, memory is sized on the mix average, which can leave fewer units than a worst-case sizing (user decision, ADR 0012).
 - README rewritten for customers discovering the tool (link to the app, the three modes, how to read the figures). Developer content moved to `docs/development.md`; new documentation index `docs/README.md`.
 
