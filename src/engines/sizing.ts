@@ -203,7 +203,12 @@ export function evaluateReplica(
     classes,
     boundBy: open < memoryOpen ? 'ttft' : 'memory',
     fits,
-    lackingGB: Math.max(0, totalPerGPUGB - gpu.vram_gb * GPU_MEMORY_UTILIZATION),
+    // the largest-class guard can be the only thing failing: count its deficit too
+    lackingGB: Math.max(
+      0,
+      totalPerGPUGB - gpu.vram_gb * GPU_MEMORY_UTILIZATION,
+      guard.perGPU.total.toNumber() - gpu.vram_gb * GPU_MEMORY_UTILIZATION,
+    ),
   }
 }
 

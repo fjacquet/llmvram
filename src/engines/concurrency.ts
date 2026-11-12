@@ -55,6 +55,7 @@ export function fitsInference(totalGB: number, vramGB: number): boolean {
 /**
  * Per-GPU total with ONE session at the largest context class in place of the mix's KV.
  * shortcut: per-session fixed state (hybrid/SSM linear state) is scaled by the KV ratio, first-order; re-run the engine at the largest class if it matters.
+ * Linear state stays counted for every session (overstates, the safe side); with KV offload the guard has little to check.
  */
 export function largestClassPerGPUGB(params: {
   totalPerGPUGB: number

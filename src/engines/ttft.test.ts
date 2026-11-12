@@ -1,6 +1,7 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
 import { validateGPUs, validateModels } from '@utils/schemas'
+import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { FABRIC_SPECS } from './fabric'
 import { calculateInferenceVRAM } from './inference'
@@ -37,7 +38,7 @@ describe('burstTTFT', () => {
     expect(burstTTFT(classPrefills(base, [{ tokens: 4096, share: 1 }]), 0).burst).toBe(1)
   })
 
-  it('mix 90/10, burst 10: last is 10 x the share-weighted TTFT; first is the largest class', () => {
+  it('mix 90/10, burst 10: last is the largest class + 9 x the share-weighted TTFT', () => {
     const b = burstTTFT(
       classPrefills(base, [
         { tokens: 4096, share: 0.9 },
@@ -45,9 +46,67 @@ describe('burstTTFT', () => {
       ]),
       10,
     )
-    const want = ttft(4096).times(0.9).plus(ttft(262144).times(0.1)).times(10)
+    const mean = ttft(4096).times(0.9).plus(ttft(262144).times(0.1))
+    const want = ttft(262144).plus(mean.times(9))
     expect(b.lastExpected.toNumber()).toBeCloseTo(want.toNumber(), 9)
     expect(b.firstExpected.eq(ttft(262144))).toBe(true)
+  })
+
+  it('last >= first for a skewed mix at burst 1 and 2', () => {
+    const classes = classPrefills(base, [
+      { tokens: 4096, share: 0.99 },
+      { tokens: 131072, share: 0.01 },
+    ])
+    for (const n of [1, 2]) {
+      const b = burstTTFT(classes, n)
+      expect(b.lastExpected.gte(b.firstExpected)).toBe(true)
+      expect(b.lastCeiling.gte(b.firstCeiling)).toBe(true)
+    }
+    expect(burstTTFT(classes, 1).lastExpected.eq(ttft(131072))).toBe(true)
+  })
+
+  it('skewed mix: cap is 0 below the largest prompt, else (T - largest) / mean + 1', () => {
+    const classes = classPrefills(base, [
+      { tokens: 4096, share: 0.99 },
+      { tokens: 131072, share: 0.01 },
+    ])
+    const big = ttft(131072).toNumber()
+    const mean = ttft(4096).times(0.99).plus(ttft(131072).times(0.01)).toNumber()
+    expect(maxUsersWithinTarget(classes, big * 0.99)).toBe(0)
+    expect(maxUsersWithinTarget(classes, big + mean * 4.5)).toBe(5)
+  })
+
+  it('two-class multi-server: last is largest + (B - 1) x mean', () => {
+    const m = find(models, 'meta-llama-llama-3.1-405b')
+    const singleGPU = calculateInferenceVRAM({
+      model: m,
+      quantization: 'fp16',
+      sequenceLength: 32768,
+      batchSize: 1,
+    })
+    const multi = calculateMultiNodeVRAM({
+      singleGPU,
+      model: m,
+      gpuVramGB: gpu.vram_gb,
+      gpusPerNode: 8,
+      numNodes: 2,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu,
+      fabric: FABRIC_SPECS['infiniband-ndr'],
+      batchSize: 1,
+      sequenceLength: 32768,
+      quantization: 'fp16',
+    })
+    const cs = classPrefills({ model: m, gpu, quantization: 'fp16', multiGPUResult: multi }, [
+      { tokens: 4096, share: 0.5 },
+      { tokens: 32768, share: 0.5 },
+    ])
+    const [a, b] = cs
+    const mean = (a?.expectedTTFT.plus(b?.expectedTTFT ?? 0) ?? new Decimal(0)).div(2)
+    expect(burstTTFT(cs, 4).lastExpected.toNumber()).toBeCloseTo(
+      (b?.expectedTTFT.plus(mean.times(3)) ?? new Decimal(0)).toNumber(),
+      9,
+    )
   })
 
   it('multi-server batch 1: classes equal the engine at batchSize 1, hop counted once per prompt', () => {
@@ -88,6 +147,7 @@ describe('burstTTFT', () => {
     ])
     expect(meetsTarget(burstTTFT(classes, 100), 10)).toBe(false)
     expect(maxUsersWithinTarget(classes, 10)).toBe(0)
+    expect(burstTTFT(classes, 1).lastExpected.toNumber()).toBeGreaterThan(10)
   })
 
   it('meetsTarget is null without a target; maxUsersWithinTarget floors target / mean', () => {

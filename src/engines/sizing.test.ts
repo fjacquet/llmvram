@@ -429,6 +429,25 @@ describe.each([
   })
 })
 
+describe('closest candidate when only the largest-class guard fails', () => {
+  it('reports the guard deficit, not 0', () => {
+    const r = evaluateReplica(
+      {
+        ...input(llama8b, h100, 100),
+        sequenceLength: 524288,
+        contextMix: [
+          { tokens: 4096, share: 0.99 },
+          { tokens: 524288, share: 0.01 },
+        ],
+      },
+      1,
+      1,
+    )
+    expect(r.fits).toBe(false)
+    expect(r.lackingGB).toBeGreaterThan(0)
+  })
+})
+
 describe('TTFT target (rack GPU)', () => {
   const llama70 = model('meta-llama-llama-3.3-70b')
   const base = (users: number): SizingInput => ({
@@ -474,6 +493,35 @@ describe('TTFT target (rack GPU)', () => {
     })
     expect(r.neverMeetsTarget).toEqual({ largestClassTokens: 262144 })
     expect(r.chosen).toBeNull()
+  })
+
+  it('skewed mix: a target below the lone largest prompt is neverMeetsTarget', () => {
+    const mix = [
+      { tokens: 4096, share: 0.99 },
+      { tokens: 131072, share: 0.01 },
+    ]
+    const big = evaluateReplica(
+      { ...base(100), sequenceLength: 131072, contextMix: mix },
+      8,
+      1,
+    ).classes.find((c) => c.tokens === 131072)?.expectedTTFT.toNumber() ?? 0
+    const r = sizeDeployment({
+      ...base(100),
+      sequenceLength: 131072,
+      contextMix: mix,
+      ttftTargetSeconds: big * 0.02,
+    })
+    expect(r.neverMeetsTarget).toEqual({ largestClassTokens: 131072 })
+  })
+
+  it('last served is never below first served, at burst 1 with a mix', () => {
+    const mix = [
+      { tokens: 4096, share: 0.99 },
+      { tokens: 131072, share: 0.01 },
+    ]
+    const t = sizeDeployment({ ...base(1), sequenceLength: 131072, contextMix: mix }).chosen?.ttft
+    expect(t?.burst).toBe(1)
+    expect(t?.lastExpected.gte(t.firstExpected)).toBe(true)
   })
 
   it('with a tier the burst is the decode batch, not the open sessions', () => {
