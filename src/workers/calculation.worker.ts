@@ -168,6 +168,8 @@ type WorkerMessage = CalculationRequest | SizingRequest
  * Listens for CALCULATE_INFERENCE messages, runs calculations, and posts results.
  */
 self.onmessage = (event: MessageEvent<WorkerMessage>) => {
+  // A dedicated worker only hears its creator (origin is empty); the check satisfies CodeQL js/missing-origin-check
+  if (event.origin && event.origin !== self.location.origin) return
   const message = event.data
 
   if (message.type === 'CALCULATE_SIZING') {
