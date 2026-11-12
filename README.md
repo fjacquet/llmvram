@@ -1,8 +1,13 @@
 # LLM VRAM Calculator
 
-[![Release](https://img.shields.io/github/v/release/fjacquet/llmvram?sort=semver)](https://github.com/fjacquet/llmvram/releases/latest)
 [![CI](https://github.com/fjacquet/llmvram/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fjacquet/llmvram/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Release](https://img.shields.io/github/v/release/fjacquet/llmvram?sort=semver)](https://github.com/fjacquet/llmvram/releases/latest)
+[![License](https://img.shields.io/github/license/fjacquet/llmvram)](https://github.com/fjacquet/llmvram/blob/HEAD/LICENSE)
 
 **Open the calculator: <https://fjacquet.github.io/llmvram/>** (runs in your browser, nothing is sent to a server)
 
