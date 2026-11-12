@@ -488,4 +488,34 @@ describe('TTFT target (rack GPU)', () => {
     expect(c?.decodeBatch).toBeLessThanOrEqual(c?.burstCap ?? 0)
     expect(c?.sessionsPerReplica).toBeGreaterThan(c?.decodeBatch ?? 0)
   })
+
+  it('sequenceLength cannot disagree with the mix: its largest class wins', () => {
+    const mix = [
+      { tokens: 4096, share: 0.5 },
+      { tokens: 32768, share: 0.5 },
+    ]
+    const a = sizeDeployment({ ...base(500), sequenceLength: 4096, contextMix: mix })
+    const b = sizeDeployment({ ...base(500), sequenceLength: 32768, contextMix: mix })
+    expect(a.units).toBe(b.units)
+    expect(a.chosen?.totalPerGPUGB).toBe(b.chosen?.totalPerGPUGB)
+    expect(a.chosen?.timeToFirstToken.toString()).toBe(b.chosen?.timeToFirstToken.toString())
+  })
+
+  it('decode batch never exceeds the cap whatever the active share', () => {
+    const tiered = (activeShare: number, ttftTargetSeconds: number | null) => ({
+      ...base(5000),
+      // long context keeps few sessions in HBM, so parked sessions exceed them and the cap bites
+      sequenceLength: 131072,
+      contextMix: defaultMix(131072),
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace' as const, activeShare },
+      ttftTargetSeconds,
+    })
+    for (const activeShare of [0.07, 0.14, 0.28]) {
+      const ttft = evaluateReplica(tiered(activeShare, null), 8, 1).classes[0]?.expectedTTFT
+      for (let k = 1; k <= 80; k++) {
+        const c = evaluateReplica(tiered(activeShare, (ttft?.toNumber() ?? 1) * (k + 0.5)), 8, 1)
+        expect(c.decodeBatch).toBeLessThanOrEqual(c.burstCap ?? Number.POSITIVE_INFINITY)
+      }
+    }
+  })
 })

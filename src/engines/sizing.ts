@@ -62,10 +62,12 @@ export function perGPUBreakdown(
 }
 
 export function evaluateReplica(
-  input: SizingInput,
+  raw: SizingInput,
   tp: number,
   nodes: number,
 ): ReplicaCandidate & { fits: boolean; lackingGB: number } {
+  // One source for the context length: the mix's largest class (activations, recompute, guard)
+  const input = { ...raw, sequenceLength: largestContext(raw.contextMix) }
   const { model, gpu, quantization, kvQuantization, sequenceLength, users, contextMix } = input
   // KV of one session, activations at the real batch (capped), so the count never assumes
   // room the activations take
@@ -152,7 +154,8 @@ export function evaluateReplica(
     const cap = Math.max(1, burstCap)
     if (used) {
       open = Math.min(open, Math.floor(cap / settings.activeShare + 1e-9))
-      sessions = Math.min(hot, Math.ceil(open * settings.activeShare))
+      // min with cap: 0.07 x 100 = 7.000000000000001 would ceil to 8
+      sessions = Math.min(hot, cap, Math.ceil(open * settings.activeShare))
     }
     if (!used || open <= hot) {
       used = null
