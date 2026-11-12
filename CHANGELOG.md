@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- README rewritten for customers discovering the tool (link to the app, the three modes, how to read the figures). Developer content moved to `docs/development.md`; new documentation index `docs/README.md`.
+
 ## [2.1.0] - 2026-11-11
 
 ### Breaking changes
