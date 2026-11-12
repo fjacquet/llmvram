@@ -210,17 +210,18 @@ export function GuidePage() {
         <SectionHeading id="ttft-target">TTFT target</SectionHeading>
         <P>
           Enter a TTFT target in seconds (0.1 to 3600) to check a response-time promise. The
-          headline time to first token stays the first served: a lone prompt at the largest class.
+          headline time to first token stays the first served: in Inference a lone prompt at the
+          largest class, in Sizing the figure priced at the replica's real batch and fabric hops.
           Under it, the last served is the worst case, with all N prompts sent at once, first come
           first served and no prefix cache, so the last user waits for everyone before. The target
           is checked against that figure.
         </P>
         <P>
-          In Inference, a miss shows &quot;Max users within target&quot; and advises how many
-          machines like this one (one replica each) are needed. In Sizing, users per replica is the
-          smaller of what memory holds and what the target allows, and the result reads &quot;Sized
-          by memory&quot; or &quot;Sized by TTFT target&quot;. If even one user per replica misses,
-          the result names the largest class that drives it.
+          In Inference, a target shows &quot;Max users within target&quot;, and a miss also advises
+          how many machines like this one (one replica each) are needed. In Sizing, users per
+          replica is the smaller of what memory holds and what the target allows, and the result
+          reads &quot;Sized by memory&quot; or &quot;Sized by TTFT target&quot;. If even one user
+          per replica misses, the result names the largest class that drives it.
         </P>
 
         {/* Model Configuration */}

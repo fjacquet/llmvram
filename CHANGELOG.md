@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The multi-user time to first token in Inference is now the burst queue (the last of N prompts served), not the old waves figure (`perUserTimeToFirstToken`, removed). With a mix, memory is sized on the mix average, which can leave fewer units than a worst-case sizing (user decision, ADR 0012).
-
 - README rewritten for customers discovering the tool (link to the app, the three modes, how to read the figures). Developer content moved to `docs/development.md`; new documentation index `docs/README.md`.
 
 ## [2.1.0] - 2026-11-11

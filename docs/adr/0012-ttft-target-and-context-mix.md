@@ -21,8 +21,9 @@ context, and prompts never wait for each other. Prefill is compute-bound, so a b
     Chat 4K, RAG 32K, Long documents 256K, sizes editable). The default is one class at the
     chosen context, so no existing figure changes.
   - KV memory and decode follow the mix; `sequenceLength` is the largest class.
-  - The headline TTFT stays first served (a lone prompt at the largest class). The last served
-    sits under it and carries the target.
+  - The headline TTFT stays first served: in Inference a lone prompt at the largest class; in
+    Sizing the figure the card always showed, priced at the replica's real decode batch and
+    fabric hops. The last served sits under it and carries the target.
 - **D2 The burst is a worst case, not "expected".** Last served = burst x the share-weighted
   per-class TTFT at batch 1. It is labelled "worst case: all N prompts at once, first come first
   served, no prefix cache". ADR 0009 keeps "expected" for medians of published points. No
@@ -30,18 +31,19 @@ context, and prompts never wait for each other. Prefill is compute-bound, so a b
   the total is the same whichever class is last).
 - **D3 No double count of queueing.** The 0.469 prefill efficiency was fitted against mean TTFT
   with a closed-loop correction (`docs/calibration/2026-11-11-vllm-efficiency-points.md`), so it
-  already removes queueing. Each prompt's expected prefill times the queue length counts the
+  already removes queueing, per the calibration note
+  (`docs/calibration/2026-11-11-vllm-efficiency-points.md`). Each prompt's expected prefill times the queue length counts the
   queue once.
 - **D4 Batch 1 per class.** `performance.ts` divides hop and pipeline-fill costs by the batch
   (ADR 0007); the queue multiplies a batch-1 prefill, so multi-server cost is not divided twice.
 - **D5 Sizing.** Burst cap = the largest B whose last-served TTFT meets the target. Users per
   replica = min(memory sessions, burst cap). Replicas = ceil(users / users per replica). The
-  result reads "Sized by memory" or "Sized by TTFT target". If one user per replica at the
-  largest replica still misses, `neverMeetsTarget` names the largest class. With a KV tier the
+  result reads "Sized by memory" or "Sized by TTFT target". If one user per replica on every
+  replica shape still misses, `neverMeetsTarget` names the largest class. With a KV tier the
   burst is the active sessions.
 - **D6 Inference.** It models one replica, so more servers mean deeper pipelines, not a shorter
-  queue. A miss shows "Max users within target" and the recommendation "{k} machines like this
-  one (one replica each)".
+  queue. With a target set, it shows "Max users within target"; a miss also
+  advises "{k} machines like this one (one replica each)".
 - **D7 Memory guard.** One session at the largest class must fit at the 90% limit; otherwise
   "does not fit", naming that class.
 - **D8 Mix-mean memory overrides "never too few units"** (user decision, 2026-11-12). Per-session
