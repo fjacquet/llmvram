@@ -438,3 +438,38 @@ describe('Recommendations', () => {
     })
   })
 })
+
+describe('Recommendations: TTFT target missed', () => {
+  const classes = [
+    {
+      tokens: 4096,
+      share: 1,
+      expectedTTFT: new Decimal(1),
+      ceilingTTFT: new Decimal(0.5),
+    },
+  ]
+  const big = gpu({ vram_gb: 80 })
+  const view = (targetSeconds: number, users: number) =>
+    render(
+      <Recommendations
+        gpu={big}
+        model={anyModel}
+        breakdown={breakdown(10)}
+        currentQuantization="fp16"
+        currentSequenceLength={4096}
+        ttftMiss={{ classes, users, targetSeconds }}
+      />,
+    )
+
+  it('counts machines as ceil(users / max users within target), even when the model fits', () => {
+    view(2.5, 5) // cap = floor(2.5 / 1) = 2 -> ceil(5 / 2) = 3
+    expect(screen.getByText(/3 machines like this one \(one replica each\)/)).toBeInTheDocument()
+  })
+
+  it('says no number of machines helps when one prompt alone misses the target', () => {
+    view(0.5, 5)
+    expect(
+      screen.getByText(/No number of these machines meets 500\.0 ms at 4,096 tokens/),
+    ).toBeInTheDocument()
+  })
+})

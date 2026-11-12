@@ -1,7 +1,9 @@
+import { isDefaultMix } from '@engines/context-mix'
 import { KV_TIER_PRESETS } from '@engines/kv-tier'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { formatDurationMs } from '@utils/formatDuration'
+import { mixList } from '@utils/formatTTFT'
 import { useMemo, useState } from 'react'
 
 interface ComparisonColumnProps {
@@ -70,6 +72,8 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
         fits: false,
         tokensPerSecond: false,
         sizing: false,
+        contextMix: false,
+        ttftTarget: false,
       }
     }
 
@@ -99,6 +103,12 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
       offloadTarget: others.some((s) => s.config.offloadTarget !== snapshot.config.offloadTarget),
       offloadPercentage: others.some(
         (s) => s.config.offloadPercentage !== snapshot.config.offloadPercentage,
+      ),
+      contextMix: others.some(
+        (s) => JSON.stringify(s.config.contextMix) !== JSON.stringify(snapshot.config.contextMix),
+      ),
+      ttftTarget: others.some(
+        (s) => s.config.ttftTargetSeconds !== snapshot.config.ttftTargetSeconds,
       ),
       // Sizing and inference figures mean different things (per replica / per user vs whole
       // deployment), so they are only diffed against the same kind of snapshot
@@ -263,6 +273,34 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
           value={sizing ? sizing.users.toLocaleString('en-US') : '—'}
           isDifferent={diffMap.sizing}
         />
+        {sizing && (
+          <Field
+            label="Sized by"
+            value={sizing.boundBy === 'ttft' ? 'TTFT target' : 'memory'}
+            isDifferent={diffMap.sizing}
+          />
+        )}
+        {!isDefaultMix(snapshot.config.contextMix, snapshot.config.sequenceLength) && (
+          <Field
+            label="Context mix"
+            value={mixList(snapshot.config.contextMix)}
+            isDifferent={diffMap.contextMix}
+          />
+        )}
+        {snapshot.config.ttftTargetSeconds !== null && (
+          <Field
+            label="TTFT target"
+            value={formatDurationMs(snapshot.config.ttftTargetSeconds * 1000)}
+            isDifferent={diffMap.ttftTarget}
+          />
+        )}
+        {sizing?.ttftLastSeconds !== undefined && (
+          <Field
+            label="TTFT last served"
+            value={formatDurationMs(sizing.ttftLastSeconds * 1000)}
+            isDifferent={diffMap.sizing}
+          />
+        )}
         {sizing?.tier && (
           <Field
             label="KV tier"

@@ -1,5 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
+import { defaultMix } from '@engines/context-mix'
 import { resolveFabricSpec } from '@engines/fabric'
 import { DEFAULT_KV_TIER } from '@engines/kv-tier'
 import { estimatePerformance } from '@engines/performance'
@@ -200,6 +201,8 @@ describe('useSizingExports', () => {
     users: 500,
     fabric: resolveFabricSpec('ethernet-800g', null),
     kvTier: DEFAULT_KV_TIER,
+    contextMix: defaultMix(8192),
+    ttftTargetSeconds: null,
   })
   const sizingParams = {
     selectedModel: llama,
@@ -209,6 +212,8 @@ describe('useSizingExports', () => {
     users: 500,
     kvQuantization: 'fp16' as const,
     fabricLabel: '800GbE (SONiC / RoCEv2)',
+    contextMix: [{ tokens: 8192, share: 1 }],
+    ttftTargetSeconds: 2,
     result: sizing,
   }
 
@@ -240,6 +245,8 @@ describe('useSizingExports', () => {
         kvQuantization: 'fp16',
         fabricLabel: '800GbE (SONiC / RoCEv2)',
         users: 500,
+        ttftTargetSeconds: 2,
+        contextMix: [{ tokens: 8192, share: 1 }],
       }),
     )
   })

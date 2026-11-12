@@ -21,6 +21,15 @@ export {
   OPTIMIZER_STATE_BYTES,
   TRAINING_FRAMEWORK_OVERHEAD_GB,
 } from './constants'
+// Context mix
+export {
+  CONTEXT_PRESETS,
+  defaultMix,
+  isDefaultMix,
+  largestContext,
+  mixWeighted,
+  normalizeMix,
+} from './context-mix'
 // DeepSpeed ZeRO engine
 export { calculateCPUOffloadMemory, calculateZeROMemoryPerGPU } from './deepspeed'
 // Scale-out fabric
@@ -78,6 +87,8 @@ export {
 // Types
 export type {
   CalculationInput,
+  ContextClass,
+  ContextMix,
   FabricSpec,
   FabricType,
   FineTuningMethod,

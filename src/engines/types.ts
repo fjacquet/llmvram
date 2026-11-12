@@ -492,6 +492,10 @@ export interface SizingInput {
   users: number
   fabric: FabricSpec
   kvTier: KVTierSettings
+  /** Context classes; sequenceLength is its largest class */
+  contextMix: ContextMix
+  /** Last-served expected TTFT bound under a burst; null = no target */
+  ttftTargetSeconds: number | null
 }
 
 /** One replica shape (tp GPUs per server across `nodes` pipeline stages), evaluated */
@@ -521,6 +525,12 @@ export interface ReplicaCandidate {
   timeToFirstToken: Decimal
   ceilingTimeToFirstToken: Decimal
   totalPerGPUGB: number
+  /** Largest burst whose last prompt meets the target; null without a target */
+  burstCap: number | null
+  /** Burst of the decode batch: the last served prompt waits for the others */
+  ttft: BurstTTFT
+  classes: ClassPrefill[]
+  boundBy: 'memory' | 'ttft'
 }
 
 export interface SizingResult {
@@ -535,4 +545,32 @@ export interface SizingResult {
   chosen: ReplicaCandidate | null
   /** Set when !fits: the candidate nearest to fitting */
   closest: { candidate: ReplicaCandidate; lackingGB: number } | null
+  /** Memory fits but even one prompt misses the target; the largest class length */
+  neverMeetsTarget: { largestClassTokens: number } | null
+}
+
+/** One context-length class of the traffic: its prompt length and its share of requests */
+export interface ContextClass {
+  tokens: number
+  share: number
+}
+
+/** 1 to 3 classes whose shares sum to 1 */
+export type ContextMix = ContextClass[]
+
+export interface ClassPrefill {
+  tokens: number
+  share: number
+  expectedTTFT: Decimal
+  ceilingTTFT: Decimal
+}
+
+export interface BurstTTFT {
+  burst: number
+  /** A lone prompt at the largest class */
+  firstExpected: Decimal
+  firstCeiling: Decimal
+  /** Worst case: the last of `burst` prompts, prefill serialised (compute-bound) */
+  lastExpected: Decimal
+  lastCeiling: Decimal
 }

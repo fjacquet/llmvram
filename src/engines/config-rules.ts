@@ -1,6 +1,7 @@
 import { maxGPUsFor, minGPUsFor } from '@utils/gpuLimits'
 import { type GPU, MAX_SEQUENCE_LENGTH, type Model } from '@utils/schemas'
 import { INTERCONNECT_LABELS, MAX_CONCURRENT_USERS } from './constants'
+import { defaultMix, largestContext, normalizeMix } from './context-mix'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from './frameworks'
 import { splitMoEParams } from './inference'
 import {
@@ -11,7 +12,7 @@ import {
   type KVTierSettings,
   type KVTierType,
 } from './kv-tier'
-import type { OffloadTarget, ShardingStrategy } from './types'
+import type { ContextMix, OffloadTarget, ShardingStrategy } from './types'
 
 /**
  * One configuration rule set (ADR 0004, spec Section 1).
@@ -36,6 +37,10 @@ export interface RuleConfig {
   batchSize: number
   concurrentUsers: number
   sequenceLength: number
+  /** Context classes (1-3, shares sum to 1); sequenceLength is its largest class */
+  contextMix: ContextMix
+  /** Target time to first token in seconds, or null for no target */
+  ttftTargetSeconds: number | null
   loraRank: number
   gradientAccumulationSteps: number
   offloadingEnabled: boolean
@@ -59,6 +64,8 @@ export const DEFAULT_RULE_CONFIG: RuleConfig = {
   batchSize: 1,
   concurrentUsers: 1,
   sequenceLength: 4096,
+  contextMix: defaultMix(4096),
+  ttftTargetSeconds: null,
   loraRank: 16,
   gradientAccumulationSteps: 1,
   offloadingEnabled: false,
@@ -83,6 +90,8 @@ export function pickRuleConfig(source: RuleConfig): RuleConfig {
     batchSize: source.batchSize,
     concurrentUsers: source.concurrentUsers,
     sequenceLength: source.sequenceLength,
+    contextMix: source.contextMix,
+    ttftTargetSeconds: source.ttftTargetSeconds,
     loraRank: source.loraRank,
     gradientAccumulationSteps: source.gradientAccumulationSteps,
     offloadingEnabled: source.offloadingEnabled,
@@ -112,6 +121,8 @@ export type RuleId =
   | 'R12'
   | 'R14'
   | 'R15'
+  | 'R16'
+  | 'R17'
 
 /** What the correction was adjusted for; picks the notice title for a plain setting change */
 export type CorrectionSubject = 'gpu' | 'model' | 'mode' | 'preset' | 'offload' | 'range'
@@ -124,6 +135,8 @@ export interface Correction {
   subject: CorrectionSubject
   /** English UI text, spec Section 1 */
   message: string
+  /** A derived follow-on (e.g. the mix tracking the context slider): applied, never shown */
+  silent?: boolean
 }
 
 export interface RuleContext {
@@ -154,8 +167,21 @@ function fix<K extends keyof RuleConfig>(
   to: RuleConfig[K],
   subject: CorrectionSubject,
   message: string,
+  silent = false,
 ): Correction {
-  return { rule, field, from, to, subject, message }
+  return { rule, field, from, to, subject, message, ...(silent ? { silent } : {}) }
+}
+
+export const MIN_CONTEXT = 512
+export const MIN_TTFT_TARGET = 0.1
+export const MAX_TTFT_TARGET = 3600
+
+/** Same classes in the same order, shares equal to the link's precision (1e-8 share; 1 - 0.7 is not 0.3) */
+function sameMix(a: ContextMix, b: ContextMix): boolean {
+  return (
+    a.length === b.length &&
+    a.every((k, i) => k.tokens === b[i]?.tokens && Math.abs(k.share - (b[i]?.share ?? NaN)) < 1e-6)
+  )
 }
 
 /** Integer clamp; a non-finite value falls to the minimum */
@@ -229,7 +255,7 @@ const RANGE_BOUNDS_BATCH: RangeBound[] = [
   { field: 'batchSize', min: 1, max: Number.MAX_SAFE_INTEGER },
 ]
 const RANGE_BOUNDS_CONTEXT: RangeBound[] = [
-  { field: 'sequenceLength', min: 512, max: MAX_SEQUENCE_LENGTH },
+  { field: 'sequenceLength', min: MIN_CONTEXT, max: MAX_SEQUENCE_LENGTH },
 ]
 const RANGE_BOUNDS_TRAINING: RangeBound[] = [
   { field: 'loraRank', min: 1, max: Number.MAX_SAFE_INTEGER },
@@ -531,6 +557,89 @@ export const RULES: readonly Rule[] = [
     },
   },
   {
+    id: 'R16',
+    modes: INFERENCE_SIZING,
+    // Mix and sequenceLength are one fact. One class: sequenceLength is the truth (the slider
+    // moves it; R10 clamps it) and the class follows silently, but only when its tokens are
+    // outside the context range (the follow-on of an R10 clamp): a restored class that merely
+    // disagrees with sl is shown. Several classes: the mix is the truth, its tokens are clamped,
+    // and sequenceLength is the largest class, silently. A share that is off, or a class
+    // clamped, is shown.
+    check: (c) => {
+      let shares: ContextMix
+      try {
+        shares = normalizeMix(c.contextMix)
+      } catch {
+        shares = defaultMix(c.sequenceLength)
+      }
+      const next =
+        shares.length === 1
+          ? defaultMix(c.sequenceLength)
+          : shares.map((k) => ({
+              tokens: clampInt(k.tokens, MIN_CONTEXT, MAX_SEQUENCE_LENGTH),
+              share: k.share,
+            }))
+      const out: Correction[] = []
+      if (!sameMix(next, c.contextMix)) {
+        const only = next.length === 1 && c.contextMix.length === 1
+        const first = c.contextMix[0]
+        const followsClamp =
+          only &&
+          Math.abs((first?.share ?? 0) - 1) < 1e-9 &&
+          ((first?.tokens ?? 0) < MIN_CONTEXT || (first?.tokens ?? 0) > MAX_SEQUENCE_LENGTH)
+        out.push(
+          fix(
+            'R16',
+            'contextMix',
+            c.contextMix,
+            next,
+            'range',
+            'Context mix adjusted: 1 to 3 classes, shares summing to 100%, each within the allowed context range.',
+            followsClamp,
+          ),
+        )
+      }
+      const seq = largestContext(next)
+      if (seq !== c.sequenceLength && next.length > 1) {
+        out.push(
+          fix(
+            'R16',
+            'sequenceLength',
+            c.sequenceLength,
+            seq,
+            'range',
+            `Context length set to ${seq}: the largest class of the context mix.`,
+            true,
+          ),
+        )
+      }
+      return out
+    },
+  },
+  {
+    id: 'R17',
+    modes: INFERENCE_SIZING,
+    check: (c) => {
+      const t = c.ttftTargetSeconds
+      if (t === null) return []
+      const v = Number.isFinite(t) ? Math.min(MAX_TTFT_TARGET, Math.max(MIN_TTFT_TARGET, t)) : null
+      return v === t
+        ? []
+        : [
+            fix(
+              'R17',
+              'ttftTargetSeconds',
+              t,
+              v,
+              'range',
+              v === null
+                ? 'TTFT target removed: it must be a number of seconds.'
+                : `TTFT target set to ${v} s: outside the allowed range.`,
+            ),
+          ]
+    },
+  },
+  {
     id: 'R10',
     modes: INFERENCE,
     check: rangeCheck(RANGE_BOUNDS_INFERENCE),
@@ -736,7 +845,7 @@ export function allowedOptions(
   }
 }
 
-export type SoftWarningId = 'W3' | 'W6' | 'W8' | 'W9'
+export type SoftWarningId = 'W3' | 'W6' | 'W8' | 'W9' | 'W10'
 
 /** A soft rule: shown inline, the value is kept (spec Section 1). W1/W2/W4/W5 live where they already render. */
 export interface SoftWarning {
@@ -745,12 +854,26 @@ export interface SoftWarning {
 }
 
 export function softWarnings(
-  config: Pick<RuleConfig, 'mode' | 'numGPUs' | 'numNodes' | 'shardingStrategy'>,
+  config: Pick<RuleConfig, 'mode' | 'numGPUs' | 'numNodes' | 'shardingStrategy'> & {
+    contextMix?: ContextMix
+  },
   model: Model | null,
   gpu: GPU | null,
 ): SoftWarning[] {
-  if (config.mode !== 'inference') return []
   const out: SoftWarning[] = []
+  // Beyond the native context the value is kept: the class may rely on rope scaling
+  const native = model?.context_length
+  if (native && config.mode !== 'training') {
+    for (const k of config.contextMix ?? []) {
+      if (k.tokens > native) {
+        out.push({
+          id: 'W10',
+          message: `A ${k.tokens}-token class exceeds ${model.name}'s native context of ${native} tokens; quality beyond it is not guaranteed.`,
+        })
+      }
+    }
+  }
+  if (config.mode !== 'inference') return out
   if (config.numNodes > 1 && gpu && (gpu.unified_memory === true || gpu.max_gpus_per_node === 1)) {
     const isDGX = gpu.id === 'nvidia-gb10' || gpu.id === 'nvidia-gb300-desktop-252gb'
     out.push({
@@ -844,10 +967,11 @@ export function buildNotice(
   source: NoticeSource,
   ctx: NoticeContext,
 ): Notice | null {
-  const first = corrections[0]
+  const shown = corrections.filter((c) => !c.silent)
+  const first = shown[0]
   if (!first) return null
   const lines = new Map<string, string>()
-  for (const c of corrections) lines.set(`${c.rule}:${c.field}`, c.message)
+  for (const c of shown) lines.set(`${c.rule}:${c.field}`, c.message)
   let title: string
   if (source === 'link') title = 'Shared link adjusted'
   else if (source === 'reset') title = 'Reset to defaults'

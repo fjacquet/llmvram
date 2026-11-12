@@ -1,5 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
+import { defaultMix } from '@engines/context-mix'
 import { FABRIC_SPECS, resolveFabricSpec } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { DEFAULT_KV_TIER } from '@engines/kv-tier'
@@ -7,8 +8,10 @@ import { applyInterconnectOverride } from '@engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '@engines/multi-node'
 import { estimatePerformance } from '@engines/performance'
 import { sizeDeployment } from '@engines/sizing'
+import { burstTTFT, classPrefills } from '@engines/ttft'
 import { formatDuration } from '@utils/formatDuration'
 import { type GPU, type Model, validateGPUs, validateModels } from '@utils/schemas'
+import Decimal from 'decimal.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // pptxgenjs drives real browser/Node file I/O (pptx.writeFile) and canvas-ish
@@ -419,6 +422,46 @@ describe('exportPptx', () => {
     expect(perfRows).toContainEqual(['Weights', 'measured from meta-llama/Llama-3.1-70B'])
   })
 
+  it('Inference slide: a mix and a target add their rows and name the mix on max sessions', async () => {
+    const mix = [
+      { tokens: 4096, share: 0.9 },
+      { tokens: 32768, share: 0.1 },
+    ]
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 32768,
+      batchSize: 1,
+    })
+    const classes = classPrefills({ model, gpu, quantization: 'fp16' }, mix)
+    const ttftBurst = burstTTFT(classes, 3)
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 32768,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: 7,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 3,
+      offload: null,
+      contextMix: mix,
+      ttftTargetSeconds: 5,
+      ttftBurst,
+    })
+    const rows = tableRows(2)
+    expect(rows).toContainEqual(['Max concurrent sessions (mix: 90% 4K, 10% 32K)', '7'])
+    expect(rows).toContainEqual(['Context mix', '90% 4K, 10% 32K'])
+    expect(rows).toContainEqual(['TTFT target', formatDuration(new Decimal(5))])
+    expect(rows.some(([k]) => k.startsWith('Time to first token (last served'))).toBe(true)
+  })
+
   it('reports expected decode, first-token and prefill with the ceiling beside each (spec P3)', async () => {
     const singleGPU = calculateInferenceVRAM({
       model,
@@ -786,6 +829,8 @@ describe('exportSizingPptx', () => {
       users: 2000,
       fabric: resolveFabricSpec('ethernet-800g', null),
       kvTier,
+      contextMix: defaultMix(32768),
+      ttftTargetSeconds: null,
     })
   const run = (result: ReturnType<typeof size>) =>
     exportSizingPptx({
@@ -796,6 +841,8 @@ describe('exportSizingPptx', () => {
       fabricLabel: resolveFabricSpec('ethernet-800g', null).label,
       sequenceLength: 32768,
       users: 2000,
+      contextMix: defaultMix(32768),
+      ttftTargetSeconds: null,
       result,
     })
 
@@ -858,6 +905,8 @@ describe('exportSizingPptx', () => {
       users: 50,
       fabric: resolveFabricSpec('ethernet-800g', null),
       kvTier: DEFAULT_KV_TIER,
+      contextMix: defaultMix(32768),
+      ttftTargetSeconds: null,
     })
     await exportSizingPptx({
       model: realModel,
@@ -867,6 +916,8 @@ describe('exportSizingPptx', () => {
       fabricLabel: '800GbE (SONiC / RoCEv2)',
       sequenceLength: 32768,
       users: 50,
+      contextMix: defaultMix(32768),
+      ttftTargetSeconds: null,
       result: r,
     })
     const rows = tableRows(0)
@@ -886,6 +937,8 @@ describe('exportSizingPptx', () => {
       users: 20000,
       fabric: resolveFabricSpec('ethernet-800g', null),
       kvTier: DEFAULT_KV_TIER,
+      contextMix: defaultMix(512),
+      ttftTargetSeconds: null,
     })
     expect(r.chosen?.decodeBatch).toBeGreaterThan(256)
     await exportSizingPptx({
@@ -896,8 +949,47 @@ describe('exportSizingPptx', () => {
       fabricLabel: 'x',
       sequenceLength: 512,
       users: 20000,
+      contextMix: defaultMix(512),
+      ttftTargetSeconds: null,
       result: r,
     })
     expect(tableRows(0).find(([k]) => k === 'Note')?.[1]).toContain('--max-num-seqs')
+  })
+
+  it('names the mix, the target, sized-by and both TTFTs', async () => {
+    const mix = [
+      { tokens: 4096, share: 0.9 },
+      { tokens: 32768, share: 0.1 },
+    ]
+    const r = sizeDeployment({
+      model: realModel,
+      gpu: sizingGpu,
+      quantization: 'fp8',
+      kvQuantization: 'fp16',
+      sequenceLength: 32768,
+      users: 50,
+      fabric: resolveFabricSpec('ethernet-800g', null),
+      kvTier: DEFAULT_KV_TIER,
+      contextMix: mix,
+      ttftTargetSeconds: 60,
+    })
+    await exportSizingPptx({
+      model: realModel,
+      gpu: sizingGpu,
+      quantization: 'fp8',
+      kvQuantization: 'fp16',
+      fabricLabel: 'x',
+      sequenceLength: 32768,
+      users: 50,
+      contextMix: mix,
+      ttftTargetSeconds: 60,
+      result: r,
+    })
+    const rows = tableRows(0)
+    expect(rows).toContainEqual(['Context mix', '90% 4K, 10% 32K'])
+    expect(rows).toContainEqual(['TTFT target', '1.0 min'])
+    expect(rows.some(([k]) => k === 'Sized by')).toBe(true)
+    expect(rows.some(([k]) => k.startsWith('Time to first token (first'))).toBe(true)
+    expect(rows.some(([k]) => k.startsWith('Time to first token (last'))).toBe(true)
   })
 })

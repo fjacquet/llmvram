@@ -7,6 +7,8 @@ type TierSummary = ReturnType<typeof kvTierSummary>
 interface CapacitySectionProps {
   maxSessions: number | null
   sequenceLength: number
+  /** Set when the context mix is not the default: replaces the single-context label */
+  mixDescription?: string | null
   concurrentUsers: number
   tierSummary: TierSummary
   kvTier: KVTierSettings
@@ -23,6 +25,7 @@ interface CapacitySectionProps {
 export function CapacitySection({
   maxSessions,
   sequenceLength,
+  mixDescription = null,
   concurrentUsers,
   tierSummary,
   kvTier,
@@ -34,7 +37,9 @@ export function CapacitySection({
       {maxSessions !== null && (
         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-            Max concurrent sessions at {sequenceLength.toLocaleString('en-US')} tokens
+            {mixDescription
+              ? `Max concurrent sessions (${mixDescription})`
+              : `Max concurrent sessions at ${sequenceLength.toLocaleString('en-US')} tokens`}
           </p>
           <p
             className={`text-base font-semibold ${

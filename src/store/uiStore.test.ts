@@ -326,6 +326,7 @@ describe('uiStore: every action normalizes, one notice per action', () => {
       numNodes: 2,
       quantization: 'fp8',
       sequenceLength: 8192,
+      contextMix: [{ tokens: 8192, share: 1 }],
       concurrentUsers: 10,
       batchSize: 8,
       kvQuantization: 'fp8',
@@ -674,5 +675,147 @@ describe('uiStore: sizing mode and rack GPUs (2026-11-11, sizing T5)', () => {
     expect(state.mode).toBe('sizing')
     expect(state.selectedGPU?.id).toBe(NVL72.id)
     expect(state.pendingNotice?.title).toBe('Shared link adjusted')
+  })
+})
+
+describe('uiStore: context mix and TTFT target', () => {
+  async function restore(json: Record<string, unknown>) {
+    const store = await freshStore()
+    const { deserializeFromURL, urlStateToConfig } = await import('@store/urlSerializer')
+    const { findGPUById, findModelById } = await import('@store/uiStore')
+    const decoded = deserializeFromURL(compressToEncodedURIComponent(JSON.stringify(json)))
+    if (!decoded) throw new Error('expected the link to parse')
+    const { patch } = urlStateToConfig(decoded, { findModel: findModelById, findGPU: findGPUById })
+    store.getState().restoreConfig(patch)
+    return store.getState()
+  }
+  const base = {
+    q: 'fp16',
+    sl: 4096,
+    bs: 1,
+    kvq: 'fp16',
+    ng: 1,
+    ss: 'tensor-parallel',
+    modelId: L70.id,
+    gpuId: H100.id,
+  }
+
+  it('an old link restores the default mix and no target, without a notice', async () => {
+    const s = await restore(base)
+    expect(s.contextMix).toEqual([{ tokens: 4096, share: 1 }])
+    expect(s.ttftTargetSeconds).toBeNull()
+    expect(s.pendingNotice).toBeNull()
+  })
+
+  it('shares at 120% restore at 100% with "Shared link adjusted"', async () => {
+    const s = await restore({
+      ...base,
+      cm: [
+        [4096, 70],
+        [32768, 50],
+      ],
+    })
+    expect(s.contextMix.reduce((a, k) => a + k.share, 0)).toBeCloseTo(1)
+    expect(s.sequenceLength).toBe(32768)
+    expect(s.pendingNotice?.title).toBe('Shared link adjusted')
+  })
+
+  it('tt: 0 restores 0.1 and is noticed', async () => {
+    const s = await restore({ ...base, tt: 0 })
+    expect(s.ttftTargetSeconds).toBe(0.1)
+    expect(s.pendingNotice?.title).toBe('Shared link adjusted')
+  })
+
+  it('setContextMix sets sequenceLength to the largest class, no toast', async () => {
+    const store = await freshStore()
+    store.getState().setContextMix([
+      { tokens: 4096, share: 0.7 },
+      { tokens: 262144, share: 0.3 },
+    ])
+    expect(store.getState().sequenceLength).toBe(262144)
+    expect(store.getState().pendingNotice).toBeNull()
+  })
+
+  it('the sequence slider edits the one class, or the largest of several', async () => {
+    const store = await freshStore()
+    store.getState().setSequenceLength(8192)
+    expect(store.getState().contextMix).toEqual([{ tokens: 8192, share: 1 }])
+    store.getState().setContextMix([
+      { tokens: 4096, share: 0.7 },
+      { tokens: 32768, share: 0.3 },
+    ])
+    store.getState().setSequenceLength(65536)
+    expect(store.getState().contextMix.map((k) => k.tokens)).toEqual([4096, 65536])
+    expect(store.getState().sequenceLength).toBe(65536)
+  })
+
+  it('training leaves the mix and target as they are', async () => {
+    const store = await freshStore()
+    store.getState().setMode('training')
+    store.getState().setTTFTTarget(0)
+    expect(store.getState().ttftTargetSeconds).toBe(0)
+  })
+
+  it('Training edits sequenceLength even with a several-class mix', async () => {
+    const store = await freshStore()
+    store.getState().setContextMix([
+      { tokens: 4096, share: 0.7 },
+      { tokens: 32768, share: 0.3 },
+    ])
+    store.getState().setMode('training')
+    store.getState().setSequenceLength(8192)
+    expect(store.getState().sequenceLength).toBe(8192)
+  })
+
+  it('a restored one-class cm that disagrees with sl is noticed', async () => {
+    const s = await restore({ ...base, cm: [[8192, 100]] })
+    expect(s.pendingNotice?.title).toBe('Shared link adjusted')
+  })
+
+  it('a thirds mix round-trips with no notice', async () => {
+    const store = await freshStore()
+    const { serializeToURL, deserializeFromURL, urlStateToConfig } = await import(
+      '@store/urlSerializer'
+    )
+    const { findGPUById, findModelById } = await import('@store/uiStore')
+    store.getState().setSelectedModel(L70)
+    store.getState().setSelectedGPU(H100)
+    store.getState().setContextMix([
+      { tokens: 4096, share: 1 / 3 },
+      { tokens: 32768, share: 1 / 3 },
+      { tokens: 131072, share: 1 / 3 },
+    ])
+    const url = serializeToURL(store.getState())
+    const d = deserializeFromURL(url)
+    if (!d) throw new Error('parse')
+    const fresh = await freshStore()
+    fresh
+      .getState()
+      .restoreConfig(urlStateToConfig(d, { findModel: findModelById, findGPU: findGPUById }).patch)
+    expect(fresh.getState().pendingNotice).toBeNull()
+    expect(serializeToURL(fresh.getState())).toBe(url)
+  })
+
+  it('round-trips URL, store, URL identically', async () => {
+    const store = await freshStore()
+    const { serializeToURL, deserializeFromURL, urlStateToConfig } = await import(
+      '@store/urlSerializer'
+    )
+    const { findGPUById, findModelById } = await import('@store/uiStore')
+    store.getState().setSelectedModel(L70)
+    store.getState().setSelectedGPU(H100)
+    store.getState().setContextMix([
+      { tokens: 4096, share: 0.7 },
+      { tokens: 131072, share: 0.3 },
+    ])
+    store.getState().setTTFTTarget(2.5)
+    const url = serializeToURL(store.getState())
+    const d = deserializeFromURL(url)
+    if (!d) throw new Error('parse')
+    const fresh = await freshStore()
+    fresh
+      .getState()
+      .restoreConfig(urlStateToConfig(d, { findModel: findModelById, findGPU: findGPUById }).patch)
+    expect(serializeToURL(fresh.getState())).toBe(url)
   })
 })

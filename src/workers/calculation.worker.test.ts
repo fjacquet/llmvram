@@ -8,7 +8,8 @@ import { reconstructPerformanceEstimate } from '@hooks/useInferenceCalculation'
 import type { GPU } from '@utils/schemas'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it, vi } from 'vitest'
-import { reconstructSizingResult } from './sizing-serialize'
+import { defaultMix } from '../engines/context-mix'
+import { reconstructSizingResult, serializeSizingResult } from './sizing-serialize'
 
 // The hook module imports the persisted store, which needs browser APIs jsdom lacks
 vi.mock('@store/uiStore', () => ({ useUIStore: vi.fn() }))
@@ -108,6 +109,8 @@ describe('sizing worker round trip', () => {
               quantization: 'fp8',
               kvQuantization: 'fp16',
               sequenceLength: 32768,
+              contextMix: defaultMix(32768),
+              ttftTargetSeconds: null,
               users: 2000,
               interNodeFabric: 'ethernet-800g',
               customFabric: null,
@@ -127,6 +130,8 @@ describe('sizing worker round trip', () => {
         users: 2000,
         fabric: resolveFabricSpec('ethernet-800g', null),
         kvTier: DEFAULT_KV_TIER,
+        contextMix: defaultMix(32768),
+        ttftTargetSeconds: null,
       })
       const back = reconstructSizingResult(response.result)
       expect(back.units).toBe(direct.units)
@@ -140,5 +145,41 @@ describe('sizing worker round trip', () => {
     } finally {
       post.mockRestore()
     }
+  })
+})
+
+describe('sizing serialisation with a TTFT target', () => {
+  const gb300 = validateGPUs(gpusData).find((g) => g.id === 'nvidia-gb300-nvl72')
+  if (!gb300) throw new Error('fixture row missing')
+  const run = (ttftTargetSeconds: number) =>
+    sizeDeployment({
+      model,
+      gpu: gb300,
+      quantization: 'fp8',
+      kvQuantization: 'fp16',
+      sequenceLength: 4096,
+      users: 2000,
+      fabric: resolveFabricSpec('ethernet-800g', null),
+      kvTier: DEFAULT_KV_TIER,
+      contextMix: defaultMix(4096),
+      ttftTargetSeconds,
+    })
+  const wire = (r: ReturnType<typeof run>) =>
+    reconstructSizingResult(structuredClone(serializeSizingResult(r)))
+
+  it('keeps ttft, classes, burstCap and boundBy', () => {
+    const lone = run(3600).chosen?.classes[0]?.expectedTTFT.toNumber() ?? 1
+    const direct = run(lone * 2)
+    const back = wire(direct)
+    expect(back.chosen?.boundBy).toBe('ttft')
+    expect(back.chosen?.burstCap).toBe(direct.chosen?.burstCap)
+    expect(back.chosen?.ttft.lastExpected.equals(direct.chosen?.ttft.lastExpected ?? -1)).toBe(true)
+    expect(
+      back.chosen?.classes[0]?.expectedTTFT.equals(direct.chosen?.classes[0]?.expectedTTFT ?? -1),
+    ).toBe(true)
+  })
+
+  it('keeps neverMeetsTarget', () => {
+    expect(wire(run(1e-6)).neverMeetsTarget).toEqual({ largestClassTokens: 4096 })
   })
 })

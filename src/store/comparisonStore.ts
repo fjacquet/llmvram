@@ -1,5 +1,5 @@
 import type { KVTierType } from '@engines/kv-tier'
-import type { FabricType, SizingUnit } from '@engines/types'
+import type { ContextMix, FabricType, SizingUnit } from '@engines/types'
 import { create } from 'zustand'
 
 export interface ConfigSnapshot {
@@ -16,6 +16,8 @@ export interface ConfigSnapshot {
     gpuVramGb: number
     quantization: string
     sequenceLength: number
+    contextMix: ContextMix
+    ttftTargetSeconds: number | null
     batchSize: number
     kvQuantization: string
     numGPUs: number
@@ -56,6 +58,9 @@ export interface ConfigSnapshot {
       activeShare: number
       /** KV storage tier the open-session count relied on; null when none */
       tier: Exclude<KVTierType, 'none'> | null
+      boundBy?: 'memory' | 'ttft'
+      /** Expected TTFT of the last served prompt, seconds */
+      ttftLastSeconds?: number
     }
   }
 }

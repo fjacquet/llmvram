@@ -19,28 +19,6 @@ export function perUserTokensPerSecond(
 }
 
 /**
- * Per-user time to first token under concurrent load
- *
- * `timeToFirstToken` is a per-request latency for ONE sequence — prefill
- * deliberately does not apply batch (see performance.ts). Users are served
- * batchSize at a time, so a user waits for the waves ahead of them plus their
- * own: ceil(concurrentUsers / batchSize).
- *
- * The result is therefore never below the single-request figure. Concurrency
- * cannot make time-to-first-token faster than an idle machine, which the
- * previous `× users ÷ batch` form claimed whenever batchSize exceeded the
- * user count.
- */
-export function perUserTimeToFirstToken(
-  timeToFirstToken: Decimal,
-  concurrentUsers: number,
-  batchSize: number,
-): Decimal {
-  const waves = Math.ceil(Math.max(1, concurrentUsers) / Math.max(1, batchSize))
-  return timeToFirstToken.mul(Math.max(1, waves))
-}
-
-/**
  * Maximum concurrent sessions at the configured context length
  *
  * Mirrors vLLM's "Maximum concurrency for N tokens per request" log line
@@ -72,4 +50,35 @@ export function maxConcurrentSessions(params: {
 /** The one inference fit rule: vLLM claims GPU_MEMORY_UTILIZATION of the device, no more. */
 export function fitsInference(totalGB: number, vramGB: number): boolean {
   return totalGB <= vramGB * GPU_MEMORY_UTILIZATION
+}
+
+/**
+ * Per-GPU total with ONE session at the largest context class in place of the mix's KV.
+ * shortcut: per-session fixed state (hybrid/SSM linear state) is scaled by the KV ratio, first-order; re-run the engine at the largest class if it matters.
+ * Linear state stays counted for every session (overstates, the safe side); with KV offload the guard has little to check.
+ */
+export function largestClassPerGPUGB(params: {
+  totalPerGPUGB: number
+  kvPerGPUGB: number
+  mixKVGB: number
+  largestSessionKVGB: number
+}): number {
+  const { totalPerGPUGB, kvPerGPUGB, mixKVGB, largestSessionKVGB } = params
+  const oneSession = mixKVGB > 0 ? (kvPerGPUGB * largestSessionKVGB) / mixKVGB : 0
+  return totalPerGPUGB - kvPerGPUGB + oneSession
+}
+
+/**
+ * One session at the largest context class must fit on its own, whatever the mix-weighted KV says.
+ * KV is linear in sessions and tokens, so the per-GPU share of that session scales from the
+ * breakdown already computed: kvPerGPU x (one largest-class session / the mix's total KV).
+ */
+export function largestClassFits(params: {
+  totalPerGPUGB: number
+  kvPerGPUGB: number
+  mixKVGB: number
+  largestSessionKVGB: number
+  gpuVramGB: number
+}): boolean {
+  return fitsInference(largestClassPerGPUGB(params), params.gpuVramGB)
 }

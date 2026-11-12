@@ -1,6 +1,14 @@
-import { perUserTimeToFirstToken, perUserTokensPerSecond } from '@engines/concurrency'
-import type { PerformanceEstimate } from '@engines/types'
+import { perUserTokensPerSecond } from '@engines/concurrency'
+import { burstTTFT, maxUsersWithinTarget } from '@engines/ttft'
+import type { ClassPrefill, PerformanceEstimate } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
+import {
+  formatTokensShort,
+  maxUsersLine,
+  ttftCeilingLine,
+  ttftLine,
+  worstCaseLabel,
+} from '@utils/formatTTFT'
 import { firstTokenLabel } from '@utils/perfLabels'
 import type { ReactNode } from 'react'
 
@@ -8,6 +16,10 @@ interface PerformanceSectionProps {
   performance: PerformanceEstimate
   concurrentUsers: number
   batchSize: number
+  /** One batch-1 prefill per context class (classPrefills) */
+  classes: ClassPrefill[]
+  /** Seconds; null when no target is set */
+  ttftTargetSeconds: number | null
   /**
    * Rendered between the metric grid and the per-user metrics block — this is
    * where CapacitySection (max sessions, KV tier) sits, matching the DOM
@@ -27,8 +39,13 @@ export function PerformanceSection({
   performance,
   concurrentUsers,
   batchSize,
+  classes,
+  ttftTargetSeconds,
   children,
 }: PerformanceSectionProps) {
+  const burst = burstTTFT(classes, concurrentUsers)
+  const maxUsers =
+    ttftTargetSeconds === null ? null : maxUsersWithinTarget(classes, ttftTargetSeconds)
   return (
     <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -99,6 +116,27 @@ export function PerformanceSection({
 
       {children}
 
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 space-y-1">
+        <p className="text-sm font-semibold text-gray-900 dark:text-white">{ttftLine(burst)}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {worstCaseLabel(
+            burst,
+            classes.length > 1 ? Math.max(...classes.map((c) => c.tokens)) : undefined,
+          )}
+        </p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{ttftCeilingLine(burst)}</p>
+        {classes.length > 1 &&
+          classes.map((c, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: two classes may share a size
+            <p key={i} className="text-xs text-gray-500 dark:text-gray-400">
+              {`${formatTokensShort(c.tokens)} prompt alone: ${formatDuration(c.expectedTTFT)} (ceiling ${formatDuration(c.ceilingTTFT)})`}
+            </p>
+          ))}
+        {maxUsers !== null && (
+          <p className="text-xs text-gray-700 dark:text-gray-300">{maxUsersLine(maxUsers)}</p>
+        )}
+      </div>
+
       {/* Per-user metrics (only visible when concurrentUsers > 1) */}
       {concurrentUsers > 1 && (
         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
@@ -121,30 +159,7 @@ export function PerformanceSection({
                 tok/s
               </p>
             </div>
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Per-user TTFT (est.)</p>
-              <p className="text-base font-semibold text-gray-900 dark:text-white">
-                {formatDuration(
-                  perUserTimeToFirstToken(
-                    performance.expected.timeToFirstToken,
-                    concurrentUsers,
-                    batchSize,
-                  ),
-                )}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Theoretical ceiling:{' '}
-                {formatDuration(
-                  perUserTimeToFirstToken(performance.timeToFirstToken, concurrentUsers, batchSize),
-                )}
-              </p>
-            </div>
           </div>
-          {batchSize < concurrentUsers && (
-            <p className="text-xs text-amber-700 dark:text-amber-400 mt-3">
-              {`Only ${batchSize} of ${concurrentUsers} users decode at once (batch size ${batchSize}); the rest queue, hence the long TTFT. Raise batch size to serve them concurrently.`}
-            </p>
-          )}
         </div>
       )}
     </div>

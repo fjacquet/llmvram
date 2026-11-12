@@ -13,10 +13,12 @@ import {
   type RuleConfig,
   rackGPUCorrection,
 } from '@engines/config-rules'
+import { largestContext } from '@engines/context-mix'
 import { resolveFabricSpec } from '@engines/fabric'
 import { FRAMEWORK_PRESETS, type FrameworkPreset } from '@engines/frameworks'
 import type { KVTierSettings } from '@engines/kv-tier'
 import type {
+  ContextMix,
   FabricType,
   FineTuningMethod,
   KVCachePrecision,
@@ -137,6 +139,8 @@ interface UIState extends UIConfig {
   setFrameworkPreset: (preset: FrameworkPreset) => void
   setCpuOffloadOptimizer: (enabled: boolean) => void
   setConcurrentUsers: (n: number) => void
+  setContextMix: (mix: ContextMix) => void
+  setTTFTTarget: (seconds: number | null) => void
   setKVTier: (patch: Partial<KVTierSettings>) => void
   /** Apply a whole shared-link configuration, normalized once ("Shared link adjusted") */
   restoreConfig: (patch: Partial<UIConfig>) => void
@@ -276,7 +280,26 @@ export const useUIStore = create<UIState>()(
       setSelectedGPU: (gpu) => commit(set, get, { selectedGPU: gpu }, 'gpu'),
       setInterconnectOverride: (v) => commit(set, get, { interconnectOverride: v }, 'setting'),
       setQuantization: (quantization) => commit(set, get, { quantization }, 'setting'),
-      setSequenceLength: (sequenceLength) => commit(set, get, { sequenceLength }, 'setting'),
+      setSequenceLength: (sequenceLength) => {
+        // With several classes the slider edits the largest one (R16 derives sequenceLength),
+        // except in Training, where the mix is hidden and sequenceLength is the input.
+        // One class follows the slider, so R16 has nothing to restore.
+        const { contextMix, mode } = get()
+        const top = largestContext(contextMix)
+        const patch: Partial<UIConfig> =
+          contextMix.length > 1 && mode !== 'training'
+            ? {
+                contextMix: contextMix.map((k, i) =>
+                  i === contextMix.findIndex((c) => c.tokens === top)
+                    ? { ...k, tokens: sequenceLength }
+                    : k,
+                ),
+              }
+            : contextMix.length > 1
+              ? { sequenceLength }
+              : { sequenceLength, contextMix: [{ tokens: sequenceLength, share: 1 }] }
+        commit(set, get, patch, 'setting')
+      },
       setBatchSize: (batchSize) => commit(set, get, { batchSize }, 'setting'),
       setKVQuantization: (kvQuantization) => commit(set, get, { kvQuantization }, 'setting'),
       setNumGPUs: (numGPUs) => commit(set, get, { numGPUs }, 'setting'),
@@ -381,6 +404,18 @@ export const useUIStore = create<UIState>()(
       setCpuOffloadOptimizer: (cpuOffloadOptimizer) =>
         commit(set, get, { cpuOffloadOptimizer }, 'setting'),
       setConcurrentUsers: (concurrentUsers) => commit(set, get, { concurrentUsers }, 'setting'),
+      // One class: sequenceLength follows the class here (R16 would otherwise restore it)
+      setContextMix: (contextMix) =>
+        commit(
+          set,
+          get,
+          {
+            contextMix,
+            ...(contextMix.length > 0 ? { sequenceLength: largestContext(contextMix) } : {}),
+          },
+          'setting',
+        ),
+      setTTFTTarget: (ttftTargetSeconds) => commit(set, get, { ttftTargetSeconds }, 'setting'),
       setKVTier: (patch) => commit(set, get, { kvTier: { ...get().kvTier, ...patch } }, 'setting'),
       restoreConfig: (patch) => commit(set, get, patch, 'link'),
       resetAdvancedSettings: () => {

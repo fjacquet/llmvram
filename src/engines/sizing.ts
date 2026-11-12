@@ -3,10 +3,12 @@ import type Decimal from 'decimal.js'
 import { fitsInference, maxConcurrentSessions } from './concurrency'
 import { isRackGPU, validTPDegrees } from './config-rules'
 import { GPU_MEMORY_UTILIZATION } from './constants'
+import { defaultMix, largestContext } from './context-mix'
 import { calculateInferenceVRAM } from './inference'
 import { clampKVTier, kvTierSummary } from './kv-tier'
 import { calculateMultiNodeVRAM } from './multi-node'
 import { estimatePerformance } from './performance'
+import { burstTTFT, classPrefills, maxUsersWithinTarget } from './ttft'
 import type { ReplicaCandidate, SizingInput, SizingResult, SizingUnit } from './types'
 
 /** Every replica shape vLLM accepts: TP inside one server/rack, plus full servers as pipeline stages */
@@ -30,7 +32,7 @@ export function perGPUBreakdown(
   sessions: number,
   batch = sessions,
 ) {
-  const { model, gpu, quantization, kvQuantization, sequenceLength, fabric } = input
+  const { model, gpu, quantization, kvQuantization, sequenceLength, fabric, contextMix } = input
   const single = calculateInferenceVRAM({
     model,
     quantization,
@@ -38,6 +40,7 @@ export function perGPUBreakdown(
     batchSize: batch,
     kvQuantization,
     concurrentUsers: sessions,
+    contextMix,
   })
   const multi =
     tp * nodes > 1
@@ -59,11 +62,13 @@ export function perGPUBreakdown(
 }
 
 export function evaluateReplica(
-  input: SizingInput,
+  raw: SizingInput,
   tp: number,
   nodes: number,
 ): ReplicaCandidate & { fits: boolean; lackingGB: number } {
-  const { model, gpu, quantization, kvQuantization, sequenceLength, users } = input
+  // One source for the context length: the mix's largest class (activations, recompute, guard)
+  const input = { ...raw, sequenceLength: largestContext(raw.contextMix) }
+  const { model, gpu, quantization, kvQuantization, sequenceLength, users, contextMix } = input
   // KV of one session, activations at the real batch (capped), so the count never assumes
   // room the activations take
   const one = perGPUBreakdown(input, tp, nodes, 1, Math.max(1, users))
@@ -76,7 +81,23 @@ export function evaluateReplica(
   })
   // null: no KV on the GPU, memory does not bound sessions
   const hot = Math.max(1, Math.min(users, memorySessions ?? users))
-  const fits = fitsInference(totalPerGPUGB, gpu.vram_gb) && (memorySessions ?? 1) >= 1
+  // One session at the largest class must fit as well, whatever the mix-weighted KV says
+  const longest = largestContext(contextMix)
+  const guard = perGPUBreakdown(
+    { ...input, sequenceLength: longest, contextMix: defaultMix(longest) },
+    tp,
+    nodes,
+    1,
+    Math.max(1, users),
+  )
+  const fits =
+    fitsInference(totalPerGPUGB, gpu.vram_gb) &&
+    fitsInference(guard.perGPU.total.toNumber(), gpu.vram_gb) &&
+    (memorySessions ?? 1) >= 1
+  const classes = classPrefills(
+    { model, gpu, quantization, kvQuantization, multiGPUResult: one.multi },
+    contextMix,
+  )
 
   const clamped = clampKVTier(input.kvTier)
   // capacityTB is per unit (server or rack): a replica gets its share; a multi-server replica
@@ -120,9 +141,28 @@ export function evaluateReplica(
   // An overloaded tier cannot sustain the churn: keep the HBM-only count
   const held = tier && !tier.overloaded ? Math.min(users, tier.sessionsHeld) : hot
   // Nothing parked (open <= hot): every open session decodes, no active-share discount
-  const used = held > hot ? tier : null
-  const open = used ? held : hot
-  const sessions = used ? Math.min(hot, Math.ceil(open * settings.activeShare)) : hot
+  let used = held > hot ? tier : null
+  let open = used ? held : hot
+  let sessions = used ? Math.min(hot, Math.ceil(open * settings.activeShare)) : hot
+  const memoryOpen = open
+
+  // server branch unreachable from the UI (ADR 0010 amendment): no cap, the target is not applied
+  const target = isRackGPU(gpu) ? input.ttftTargetSeconds : null
+  const burstCap = target === null ? null : maxUsersWithinTarget(classes, target)
+  if (burstCap !== null) {
+    // The cap bounds decoding sessions: ceil(open x activeShare) <= cap  <=>  open <= floor(cap / activeShare)
+    const cap = Math.max(1, burstCap)
+    if (used) {
+      open = Math.min(open, Math.floor(cap / settings.activeShare + 1e-9))
+      // min with cap: 0.07 x 100 = 7.000000000000001 would ceil to 8
+      sessions = Math.min(hot, cap, Math.ceil(open * settings.activeShare))
+    }
+    if (!used || open <= hot) {
+      used = null
+      open = Math.min(open, cap)
+      sessions = open
+    }
+  }
 
   const real = perGPUBreakdown(input, tp, nodes, sessions)
   const perf = estimatePerformance({
@@ -133,6 +173,7 @@ export function evaluateReplica(
     batchSize: sessions,
     kvQuantization,
     multiGPUResult: real.multi,
+    contextMix,
   })
   const perUser = (aggregate: Decimal) => aggregate.div(sessions)
   return {
@@ -152,8 +193,22 @@ export function evaluateReplica(
     timeToFirstToken: perf.expected.timeToFirstToken,
     ceilingTimeToFirstToken: perf.timeToFirstToken,
     totalPerGPUGB,
+    burstCap,
+    // first served = the figure the card always showed (priced at the real batch and fabric hops)
+    ttft: {
+      ...burstTTFT(classes, sessions),
+      firstExpected: perf.expected.timeToFirstToken,
+      firstCeiling: perf.timeToFirstToken,
+    },
+    classes,
+    boundBy: open < memoryOpen ? 'ttft' : 'memory',
     fits,
-    lackingGB: Math.max(0, totalPerGPUGB - gpu.vram_gb * GPU_MEMORY_UTILIZATION),
+    // the largest-class guard can be the only thing failing: count its deficit too
+    lackingGB: Math.max(
+      0,
+      totalPerGPUGB - gpu.vram_gb * GPU_MEMORY_UTILIZATION,
+      guard.perGPU.total.toNumber() - gpu.vram_gb * GPU_MEMORY_UTILIZATION,
+    ),
   }
 }
 
@@ -180,7 +235,7 @@ export function sizeDeployment(input: SizingInput): SizingResult {
     evaluateReplica(input, tp, nodes),
   )
   const options = evaluated
-    .filter((c) => c.fits)
+    .filter((c) => c.fits && c.burstCap !== 0)
     .map((c) => ({ c, p: pack(input, c) }))
     .sort(
       (a, b) =>
@@ -189,7 +244,21 @@ export function sizeDeployment(input: SizingInput): SizingResult {
         a.c.gpusPerReplica - b.c.gpusPerReplica,
     )
   const best = options[0]
-  if (best) return { fits: true, chosen: best.c, closest: null, ...best.p }
+  if (best) return { fits: true, chosen: best.c, closest: null, neverMeetsTarget: null, ...best.p }
+  if (evaluated.some((c) => c.fits)) {
+    // Memory holds, but one prompt at the largest class misses the target on every shape
+    return {
+      fits: true,
+      unit,
+      units: 0,
+      replicas: 0,
+      replicasPerUnit: 0,
+      idleGPUsPerUnit: 0,
+      chosen: null,
+      closest: null,
+      neverMeetsTarget: { largestClassTokens: largestContext(input.contextMix) },
+    }
+  }
   const closest = evaluated.reduce((a, b) => (b.lackingGB < a.lackingGB ? b : a))
   return {
     fits: false,
@@ -200,5 +269,6 @@ export function sizeDeployment(input: SizingInput): SizingResult {
     idleGPUsPerUnit: 0,
     chosen: null,
     closest: { candidate: closest, lackingGB: closest.lackingGB },
+    neverMeetsTarget: null,
   }
 }

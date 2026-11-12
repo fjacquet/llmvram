@@ -70,6 +70,7 @@ describe('ResultsPanel composition', () => {
       numGPUs: 1,
       selectedGPU: gpu('nvidia-h100-80gb-sxm'),
       sequenceLength: 16384,
+      contextMix: [{ tokens: 16384, share: 1 }],
     })
     render(<ResultsPanel />)
     await screen.findAllByText(/\d+%/)
@@ -83,6 +84,7 @@ describe('ResultsPanel composition', () => {
       numGPUs: 1,
       selectedGPU: gpu('nvidia-h100-80gb-sxm'),
       sequenceLength: 16384,
+      contextMix: [{ tokens: 16384, share: 1 }],
       offloadingEnabled: true,
       offloadTarget: 'cpu-ram',
       offloadMode: 'percentage',
@@ -233,5 +235,43 @@ describe('ResultsPanel in sizing mode', () => {
     await screen.findByTestId('sizing-replicas')
     expect(screen.getByRole('button', { name: 'Export PDF' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export PPTX' })).toBeInTheDocument()
+  })
+})
+
+describe('ResultsPanel: largest-class guard', () => {
+  beforeEach(() => {
+    useUIStore.setState({
+      ...DEFAULT_UI_CONFIG,
+      selectedModel: model('meta-llama-llama-3.1-8b'),
+      selectedGPU: gpu('nvidia-rtx-4090'),
+      quantization: 'fp8',
+      numGPUs: 1,
+      concurrentUsers: 1,
+      pendingNotice: null,
+    })
+    // The mix average fits; one 1M-token session alone does not
+    useUIStore.getState().setContextMix([
+      { tokens: 4096, share: 0.99 },
+      { tokens: 1048576, share: 0.01 },
+    ])
+  })
+
+  it('says does not fit naming the class, and still gives advice', async () => {
+    render(<ResultsPanel />)
+    expect(
+      await screen.findByText(/Does not fit: one session at the largest class/),
+    ).toHaveTextContent('1M tokens')
+    expect(
+      screen.getByRole('complementary', { name: 'Optimization recommendations' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Reduce context length')).toBeInTheDocument()
+  })
+
+  it('offers no "machines like this one" while this machine does not fit', async () => {
+    useUIStore.getState().setTTFTTarget(0.1)
+    useUIStore.getState().setConcurrentUsers(64)
+    render(<ResultsPanel />)
+    await screen.findByText(/Does not fit: one session at the largest class/)
+    expect(screen.queryByText(/machines like this one/)).not.toBeInTheDocument()
   })
 })

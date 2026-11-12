@@ -1,13 +1,17 @@
 import { fitsInference } from '@engines/concurrency'
 import { validTPDegrees } from '@engines/config-rules'
 import { GPU_MEMORY_UTILIZATION, NCCL_BUFFER_PER_GPU_GB } from '@engines/constants'
+import { maxUsersWithinTarget } from '@engines/ttft'
 import type {
+  ClassPrefill,
   InferenceVRAMBreakdown,
   MultiGPUVRAMBreakdown,
   QuantizationFormat,
 } from '@engines/types'
 import { useUIStore } from '@store/uiStore'
+import { formatDuration } from '@utils/formatDuration'
 import { maxGPUsFor, minGPUsFor } from '@utils/gpuLimits'
+import Decimal from 'decimal.js'
 import type { GPU } from '@/types/gpu'
 import type { Model } from '@/types/model'
 
@@ -19,6 +23,8 @@ interface RecommendationsProps {
   currentSequenceLength: number
   numGPUs?: number
   multiGPUBreakdown?: MultiGPUVRAMBreakdown | null
+  /** Set when the TTFT target is missed: more machines (one replica each) share the burst */
+  ttftMiss?: { classes: ClassPrefill[]; users: number; targetSeconds: number }
 }
 
 interface Recommendation {
@@ -35,17 +41,34 @@ export function Recommendations({
   currentSequenceLength,
   numGPUs = 1,
   multiGPUBreakdown,
+  ttftMiss,
 }: RecommendationsProps) {
   const offloadingEnabled = useUIStore((s) => s.offloadingEnabled)
 
   const deficit = breakdown.total.minus(gpu.vram_gb * GPU_MEMORY_UTILIZATION).toNumber()
 
-  // If model fits, don't show recommendations
-  if (deficit <= 0) {
+  // If model fits and no TTFT target is missed, don't show recommendations
+  if (deficit <= 0 && !ttftMiss) {
     return null
   }
 
   const recommendations: Recommendation[] = []
+
+  if (ttftMiss) {
+    const cap = maxUsersWithinTarget(ttftMiss.classes, ttftMiss.targetSeconds)
+    const t = formatDuration(new Decimal(ttftMiss.targetSeconds))
+    const largest = Math.max(...ttftMiss.classes.map((c) => c.tokens))
+    recommendations.push({
+      title: 'Meet the TTFT target',
+      description:
+        cap === 0
+          ? `No number of these machines meets ${t} at ${largest.toLocaleString('en-US')} tokens`
+          : `${Math.ceil(ttftMiss.users / cap)} machines like this one (one replica each)`,
+      impact: 'each takes a share of the concurrent prompts',
+    })
+  }
+  if (deficit <= 0)
+    return <RecommendationList recommendations={recommendations} deficit={deficit} />
 
   // 1. Lower quantization (if not already at minimum)
   const quantizationOrder: QuantizationFormat[] = [
@@ -259,6 +282,16 @@ export function Recommendations({
     })
   }
 
+  return <RecommendationList recommendations={recommendations} deficit={deficit} />
+}
+
+function RecommendationList({
+  recommendations,
+  deficit,
+}: {
+  recommendations: Recommendation[]
+  deficit: number
+}) {
   return (
     <aside
       aria-label="Optimization recommendations"
@@ -268,7 +301,7 @@ export function Recommendations({
         Recommendations
       </h3>
       <p className="text-sm text-blue-800 dark:text-blue-200 mb-4">
-        Need {deficit.toFixed(2)} GB more VRAM. Try:
+        {deficit > 0 ? `Need ${deficit.toFixed(2)} GB more VRAM. Try:` : 'TTFT target missed. Try:'}
       </p>
 
       <ol className="space-y-3">

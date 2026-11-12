@@ -24,6 +24,8 @@ const makeSnapshot = (
     gpuVramGb: 80,
     quantization: 'fp16',
     sequenceLength: 2048,
+    contextMix: [{ tokens: 2048, share: 1 }],
+    ttftTargetSeconds: null,
     batchSize: 1,
     kvQuantization: 'fp16',
     numGPUs: 1,
@@ -161,6 +163,54 @@ describe('ComparisonColumn', () => {
     expect(screen.getByText('Replica').nextElementSibling).toHaveTextContent('TP 8 × 1')
     expect(screen.getByText('KV tier')).toBeInTheDocument()
     expect(screen.getByText('Users').nextElementSibling).toHaveTextContent('2,000')
+  })
+
+  it('sizing rows: Sized by, mix, target and TTFT last, only when they apply', () => {
+    const snapshot = makeSnapshot(
+      'a',
+      {
+        contextMix: [
+          { tokens: 4096, share: 0.9 },
+          { tokens: 262144, share: 0.1 },
+        ],
+        sequenceLength: 262144,
+        ttftTargetSeconds: 2,
+      },
+      {
+        sizing: {
+          unit: 'rack',
+          units: 3,
+          replicas: 20,
+          tp: 8,
+          nodes: 1,
+          sessionsPerReplica: 100,
+          users: 2000,
+          activeShare: 0.25,
+          tier: null,
+          boundBy: 'ttft',
+          ttftLastSeconds: 1.5,
+        },
+      },
+    )
+    render(<ComparisonColumn snapshot={snapshot} allSnapshots={[snapshot]} onRemove={() => {}} />)
+    expect(screen.getByText('Sized by').nextElementSibling).toHaveTextContent('TTFT target')
+    expect(screen.getByText('Context mix').nextElementSibling).toHaveTextContent('90% 4K, 10% 256K')
+    expect(screen.getAllByText('TTFT target')[1]?.nextElementSibling).toHaveTextContent('2.00 s')
+    expect(screen.getByText('TTFT last served').nextElementSibling).toHaveTextContent('1.50 s')
+  })
+
+  it('an inference snapshot shows its mix and target rows', () => {
+    const snapshot = makeSnapshot('a', {
+      contextMix: [
+        { tokens: 4096, share: 0.9 },
+        { tokens: 262144, share: 0.1 },
+      ],
+      sequenceLength: 262144,
+      ttftTargetSeconds: 2,
+    })
+    render(<ComparisonColumn snapshot={snapshot} allSnapshots={[snapshot]} onRemove={() => {}} />)
+    expect(screen.getByText('Context mix').nextElementSibling).toHaveTextContent('90% 4K, 10% 256K')
+    expect(screen.getByText('TTFT target').nextElementSibling).toHaveTextContent('2.00 s')
   })
 
   it('leaves Units and Replica blank for an inference snapshot', () => {

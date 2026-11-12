@@ -2020,3 +2020,38 @@ describe('expected figures: ceiling x measured vLLM efficiency (spec P1, P2)', (
     }
   })
 })
+
+describe('estimatePerformance - context mix', () => {
+  const base = {
+    model: llama3_70b,
+    gpu: h100_80gb_sxm,
+    quantization: 'fp16' as const,
+    batchSize: 8,
+  }
+  const tps = (sequenceLength: number, contextMix?: { tokens: number; share: number }[]) =>
+    estimatePerformance({ ...base, sequenceLength, contextMix })
+  it('decode sits between the two classes; TTFT stays at sequenceLength', () => {
+    const mix = [
+      { tokens: 4096, share: 0.9 },
+      { tokens: 262144, share: 0.1 },
+    ]
+    const m = tps(262144, mix)
+    expect(m.tokensPerSecond.lt(tps(4096).tokensPerSecond)).toBe(true)
+    expect(m.tokensPerSecond.gt(tps(262144).tokensPerSecond)).toBe(true)
+    const alone = tps(262144)
+    expect(m.prefillSeconds).toEqual(alone.prefillSeconds)
+    expect(m.timeToFirstToken).toEqual(alone.timeToFirstToken)
+    expect(m.expected.timeToFirstToken).toEqual(alone.expected.timeToFirstToken)
+  })
+
+  it('TTFT ignores the mix on the no-FLOPS fallback too', () => {
+    const run = (contextMix?: { tokens: number; share: number }[]) =>
+      estimatePerformance({ ...base, gpu: gpu_no_flops, sequenceLength: 262144, contextMix })
+    const mix = [
+      { tokens: 4096, share: 0.9 },
+      { tokens: 262144, share: 0.1 },
+    ]
+    expect(run(mix).timeToFirstToken).toEqual(run().timeToFirstToken)
+    expect(run(mix).expected.timeToFirstToken).toEqual(run().expected.timeToFirstToken)
+  })
+})

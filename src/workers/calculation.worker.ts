@@ -20,6 +20,7 @@ import { calculateOffloadedVRAM, hostLinkGBps, offloadWeightFraction } from '../
 import { estimatePerformance } from '../engines/performance'
 import { sizeDeployment } from '../engines/sizing'
 import type {
+  ContextMix,
   FabricType,
   KVCachePrecision,
   OffloadingConfig,
@@ -40,6 +41,7 @@ interface CalculationRequest {
     gpu: GPU
     quantization: QuantizationFormat
     sequenceLength: number
+    contextMix?: ContextMix
     batchSize: number
     kvQuantization?: KVCachePrecision
     numGPUs: number
@@ -149,6 +151,8 @@ interface SizingRequest {
     quantization: QuantizationFormat
     kvQuantization: KVCachePrecision
     sequenceLength: number
+    contextMix: ContextMix
+    ttftTargetSeconds: number | null
     users: number
     interNodeFabric: FabricType
     customFabric: CustomFabricInput | null
@@ -194,6 +198,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         gpu,
         quantization,
         sequenceLength,
+        contextMix,
         batchSize,
         kvQuantization,
         numGPUs,
@@ -215,6 +220,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         model,
         quantization,
         sequenceLength,
+        contextMix,
         batchSize,
         kvQuantization,
         concurrentUsers,
@@ -287,6 +293,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         gpu,
         quantization,
         sequenceLength,
+        contextMix,
         batchSize,
         kvQuantization,
         multiGPUResult,

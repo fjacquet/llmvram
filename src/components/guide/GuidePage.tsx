@@ -5,6 +5,8 @@ const SECTIONS = [
   { id: 'whats-new', label: "What's new in 2.0" },
   { id: 'mode-toggle', label: 'Mode Toggle' },
   { id: 'sizing', label: 'Sizing' },
+  { id: 'context-mix', label: 'Context mix' },
+  { id: 'ttft-target', label: 'TTFT target' },
   { id: 'model-config', label: 'Model Configuration' },
   { id: 'gpu-selection', label: 'GPU Selection' },
   { id: 'hardware-config', label: 'Hardware Configuration' },
@@ -185,6 +187,43 @@ export function GuidePage() {
           assumed to decode at once, because that assumption can cut the unit count several times
           over. Sizing lists rack GPUs only (GB200, GB300, Vera Rubin NVL72); use Inference for
           discrete servers (HGX, MI355X, cards).
+        </P>
+
+        {/* Context mix */}
+        <SectionHeading id="context-mix">Context mix</SectionHeading>
+        <P>
+          Not every user sends a prompt as long as the context. The mix editor (Inference and
+          Sizing) takes one to three classes, each a context size and a share of users, with presets
+          Chat 4K, RAG 32K and Long documents 256K. Shares always sum to 100%; the last class takes
+          the remainder. The default is one class at your context length, which leaves every figure
+          unchanged.
+        </P>
+        <P>
+          Memory and decode follow the mix: each session reserves the share-weighted average KV, as
+          vLLM allocates by tokens present, and the context length becomes the largest class. One
+          session at the largest class must still fit within 90% of GPU memory. Because memory is
+          sized on the average, a rack can run short if many users land in the long class at once;
+          Sizing says &quot;memory sized on the mix average&quot;.
+        </P>
+
+        {/* TTFT target */}
+        <SectionHeading id="ttft-target">TTFT target</SectionHeading>
+        <P>
+          Enter a TTFT target in seconds (0.1 to 3600) to check a response-time promise. The
+          headline time to first token stays the first served: in Inference a lone prompt at the
+          largest class, in Sizing the figure priced at the replica's real batch and fabric hops.
+          Under it, the last served is the worst case, with all N prompts sent at once, first come
+          first served and no prefix cache, so the last user waits for everyone before. It counts
+          one prompt of the largest class plus N - 1 prompts at the mix average, and the target is
+          checked against that figure. In Inference every concurrent user is in the burst; Sizing
+          with a KV tier counts only the sessions assumed active.
+        </P>
+        <P>
+          In Inference, a target shows &quot;Max users within target&quot;, and a miss also advises
+          how many machines like this one (one replica each) are needed. In Sizing, users per
+          replica is the smaller of what memory holds and what the target allows, and the result
+          reads &quot;Sized by memory&quot; or &quot;Sized by TTFT target&quot;. If even one user
+          per replica misses, the result names the largest class that drives it.
         </P>
 
         {/* Model Configuration */}

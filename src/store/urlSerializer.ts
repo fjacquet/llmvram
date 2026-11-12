@@ -1,7 +1,9 @@
 import type { ConfigMode } from '@engines/config-rules'
+import { defaultMix, isDefaultMix } from '@engines/context-mix'
 import type { FrameworkPreset } from '@engines/frameworks'
 import { DEFAULT_KV_TIER, KV_TIER_TYPES, type KVTierSettings } from '@engines/kv-tier'
 import type {
+  ContextMix,
   FabricType,
   FineTuningMethod,
   KVCachePrecision,
@@ -69,6 +71,10 @@ export const URLStateSchema = z.object({
   ng: z.number(), // numGPUs — parallel degree of one replica, per server; see CHANGELOG.md "Multi-node inference" entry
   ss: z.string(), // shardingStrategy
   cu: z.number().optional(), // concurrentUsers (absent = 1)
+  // Context mix: [tokens, share in percent] per class (absent = one class at sl). Not
+  // range-checked; config-rules R16 corrects it after restore.
+  cm: z.array(z.tuple([z.number(), z.number()])).optional(),
+  tt: z.number().optional(), // ttftTargetSeconds (absent = no target; R17 clamps 0.1-3600)
   kt: z
     .object({
       t: z.enum(KV_TIER_TYPES), // tier
@@ -160,6 +166,8 @@ export function serializeToURL(state: {
   selectedGPU: GPU | null
   quantization: QuantizationFormat
   sequenceLength: number
+  contextMix: ContextMix
+  ttftTargetSeconds: number | null
   batchSize: number
   kvQuantization: KVCachePrecision
   numGPUs: number
@@ -232,6 +240,16 @@ export function serializeToURL(state: {
     ng: state.numGPUs,
     ss: state.shardingStrategy,
     ...(state.concurrentUsers > 1 ? { cu: state.concurrentUsers } : {}),
+    // Percent, rounded so float noise (1 - 0.7) never reaches the link
+    ...(isDefaultMix(state.contextMix, state.sequenceLength)
+      ? {}
+      : {
+          cm: state.contextMix.map((k): [number, number] => [
+            k.tokens,
+            Math.round(k.share * 1e8) / 1e6,
+          ]),
+        }),
+    ...(state.ttftTargetSeconds !== null ? { tt: state.ttftTargetSeconds } : {}),
     // JSON.stringify drops the undefined g / c
     ...(state.kvTier.tier !== 'none'
       ? {
@@ -392,6 +410,10 @@ export function urlStateToConfig(state: URLState, lookups: URLLookups): Restored
   patch.shardingStrategy = state.ss as ShardingStrategy
   // Absent in links made before these keys existed: 1 user, no tier, one node
   patch.concurrentUsers = state.cu ?? 1
+  patch.contextMix = state.cm
+    ? state.cm.map(([tokens, pct]) => ({ tokens, share: pct / 100 }))
+    : defaultMix(state.sl)
+  patch.ttftTargetSeconds = state.tt ?? null
   patch.kvTier = state.kt
     ? {
         tier: state.kt.t,

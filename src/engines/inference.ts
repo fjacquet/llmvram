@@ -1,9 +1,15 @@
 import type { Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { BYTES_PER_GB, FRAMEWORK_OVERHEAD_GB, PREFILL_CHUNK_TOKENS } from './constants'
+import { isDefaultMix, mixWeighted } from './context-mix'
 import { calculateKVCacheVRAM, calculateLinearStateVRAM } from './kv-cache'
 import { calculateModelWeightVRAM, weightRef } from './quantization'
-import type { InferenceVRAMBreakdown, KVCachePrecision, QuantizationFormat } from './types'
+import type {
+  ContextMix,
+  InferenceVRAMBreakdown,
+  KVCachePrecision,
+  QuantizationFormat,
+} from './types'
 
 /**
  * Calculate active parameters for MoE models
@@ -306,6 +312,8 @@ export function calculateInferenceVRAM(params: {
   batchSize: number
   kvQuantization?: KVCachePrecision
   concurrentUsers?: number
+  /** Context classes; KV follows the mix, sequenceLength is its largest class (activations) */
+  contextMix?: ContextMix
 }): InferenceVRAMBreakdown {
   const {
     model,
@@ -314,6 +322,7 @@ export function calculateInferenceVRAM(params: {
     batchSize,
     kvQuantization = 'fp16',
     concurrentUsers,
+    contextMix,
   } = params
 
   // 1. Model weights (uses TOTAL params for MoE, not active)
@@ -321,12 +330,17 @@ export function calculateInferenceVRAM(params: {
 
   // 2. KV cache (applies GQA/MQA reduction automatically)
   // concurrentUsers drives KV cache sizing — each active session holds its full context
-  const kvCache = calculateKVCacheVRAM({
-    model,
-    sequenceLength,
-    batchSize: concurrentUsers ?? batchSize,
-    kvPrecision: kvQuantization,
-  })
+  const kvAt = (tokens: number) =>
+    calculateKVCacheVRAM({
+      model,
+      sequenceLength: tokens,
+      batchSize: concurrentUsers ?? batchSize,
+      kvPrecision: kvQuantization,
+    })
+  const kvCache =
+    contextMix && !isDefaultMix(contextMix, sequenceLength)
+      ? mixWeighted(contextMix, kvAt)
+      : kvAt(sequenceLength)
   const linearState = calculateLinearStateVRAM(model, concurrentUsers ?? batchSize)
 
   // 3. Activation memory (uses active params for MoE)

@@ -10,13 +10,22 @@ import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownCha
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
 import { VerdictBlock } from '@components/outputs/VerdictBlock'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
-import { fitsInference, maxConcurrentSessions } from '@engines/concurrency'
+import { fitsInference, largestClassPerGPUGB, maxConcurrentSessions } from '@engines/concurrency'
 import { softWarnings } from '@engines/config-rules'
 import { GPU_MEMORY_UTILIZATION } from '@engines/constants'
+import { isDefaultMix, largestContext } from '@engines/context-mix'
 import { resolveFabricSpec } from '@engines/fabric'
+import { calculateInferenceVRAM } from '@engines/inference'
 import { DECIMAL_GB_PER_GIB, kvTierSummary } from '@engines/kv-tier'
-import { defaultHostCapacityGB, roundOffloadSlowdown } from '@engines/offloading'
+import { applyInterconnectOverride } from '@engines/multi-gpu'
+import {
+  defaultHostCapacityGB,
+  hostLinkGBps,
+  offloadWeightFraction,
+  roundOffloadSlowdown,
+} from '@engines/offloading'
 import { weightSource } from '@engines/quantization'
+import { burstTTFT, classPrefills, meetsTarget } from '@engines/ttft'
 import type { OffloadingConfig } from '@engines/types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import { useInferenceCalculation } from '@hooks/useInferenceCalculation'
@@ -26,6 +35,8 @@ import { useTrainingCalculation } from '@hooks/useTrainingCalculation'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
+import { mixLabel } from '@utils/formatTTFT'
+import Decimal from 'decimal.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -48,6 +59,8 @@ function SizingPanel() {
   const quantization = useUIStore((s) => s.quantization)
   const kvQuantization = useUIStore((s) => s.kvQuantization)
   const sequenceLength = useUIStore((s) => s.sequenceLength)
+  const contextMix = useUIStore((s) => s.contextMix)
+  const ttftTargetSeconds = useUIStore((s) => s.ttftTargetSeconds)
   const users = useUIStore((s) => s.concurrentUsers)
   const interNodeFabric = useUIStore((s) => s.interNodeFabric)
   const customFabric = useUIStore((s) => s.customFabric)
@@ -60,6 +73,8 @@ function SizingPanel() {
     sequenceLength,
     users,
     kvQuantization,
+    contextMix,
+    ttftTargetSeconds,
     fabricLabel: resolveFabricSpec(interNodeFabric, customFabric).label,
     result,
   })
@@ -96,6 +111,8 @@ function SizingPanel() {
         gpuVramGb: selectedGPU.vram_gb,
         quantization,
         sequenceLength,
+        contextMix,
+        ttftTargetSeconds,
         batchSize: c.decodeBatch,
         kvQuantization,
         numGPUs: c.tp,
@@ -131,6 +148,8 @@ function SizingPanel() {
           tier: c.tierUsed === 'none' ? null : c.tierUsed,
           users,
           activeShare: c.activeShare,
+          boundBy: c.boundBy,
+          ttftLastSeconds: c.ttft.lastExpected.toNumber(),
         },
       },
     })
@@ -159,7 +178,13 @@ function SizingPanel() {
           </button>
         </div>
       )}
-      <SizingResults result={result} gpu={selectedGPU} />
+      <SizingResults
+        result={result}
+        gpu={selectedGPU}
+        sequenceLength={sequenceLength}
+        contextMix={contextMix}
+        ttftTargetSeconds={ttftTargetSeconds}
+      />
     </div>
   )
 }
@@ -188,6 +213,8 @@ function InferenceTrainingPanel() {
     offloadHostCapacityGB,
     concurrentUsers,
     kvTier,
+    contextMix,
+    ttftTargetSeconds,
   } = useUIStore()
 
   // Read comparison store for save functionality
@@ -252,6 +279,42 @@ function InferenceTrainingPanel() {
     zeroResult,
     cpuOffload,
   } = useTrainingCalculation()
+
+  // One batch-1 prefill per context class; null until a result exists (and in training)
+  const classes = useMemo(() => {
+    if (!result || !selectedModel || !selectedGPU || mode === 'training') return null
+    const gpu = applyInterconnectOverride(selectedGPU, interconnectOverride)
+    return classPrefills(
+      {
+        model: selectedModel,
+        gpu,
+        quantization,
+        kvQuantization,
+        multiGPUResult: result.multiGPU,
+        offload: offloadingConfig
+          ? {
+              weightFraction: offloadWeightFraction(
+                offloadingConfig,
+                selectedModel.num_hidden_layers,
+              ),
+              kvOffloaded: offloadingConfig.kvCacheOffload,
+              linkGBps: hostLinkGBps(offloadingConfig.target, gpu.id),
+            }
+          : null,
+      },
+      contextMix,
+    )
+  }, [
+    result,
+    selectedModel,
+    selectedGPU,
+    mode,
+    interconnectOverride,
+    quantization,
+    kvQuantization,
+    offloadingConfig,
+    contextMix,
+  ])
 
   // Show toast on error (only once per error change)
   useEffect(() => {
@@ -339,7 +402,7 @@ function InferenceTrainingPanel() {
   }
 
   // State 4: Results
-  if (!result) {
+  if (!result || !classes) {
     return null
   }
 
@@ -376,7 +439,7 @@ function InferenceTrainingPanel() {
     : 0
   const hostExceeded =
     hostCapacityPerServerGB !== null && offloadedHostGB > hostCapacityPerServerGB * numNodes
-  const doesNotFit = deviceDoesNotFit || hostExceeded
+  const mixActive = !isDefaultMix(contextMix, sequenceLength)
 
   // Sessions that fit at this context, from the same per-GPU breakdown as the fit check
   const perGPU = result.multiGPU ? result.multiGPU.perGPU : displayBreakdown
@@ -386,6 +449,31 @@ function InferenceTrainingPanel() {
     concurrentUsers,
     gpuVramGB: selectedGPU.vram_gb,
   })
+
+  // One session at the largest class must fit on its own, whatever the mix average says
+  const largest = largestContext(contextMix)
+  const largestOne = calculateInferenceVRAM({
+    model: selectedModel,
+    quantization,
+    sequenceLength: largest,
+    batchSize: 1,
+    kvQuantization,
+    concurrentUsers: 1,
+  })
+  const guardPerGPUGB = largestClassPerGPUGB({
+    totalPerGPUGB: perGPU.total.toNumber(),
+    kvPerGPUGB: perGPU.kvCache.toNumber(),
+    mixKVGB: result.vram.kvCache.toNumber(),
+    largestSessionKVGB: largestOne.kvCache.toNumber(),
+  })
+  const largestClassMiss =
+    mixActive && !fitsInference(guardPerGPUGB, selectedGPU.vram_gb) ? largest : null
+  const doesNotFit = deviceDoesNotFit || hostExceeded || largestClassMiss !== null
+  const ttftMissed =
+    ttftTargetSeconds !== null &&
+    meetsTarget(burstTTFT(classes, concurrentUsers), ttftTargetSeconds) === false
+  // Only the largest-class guard fails: advise on the memory of one session of that class
+  const guardOnly = largestClassMiss !== null && !deviceDoesNotFit
 
   // KV storage tier: sessions held with idle KV parked off-GPU (null = no tier)
   const tierSummary =
@@ -432,6 +520,8 @@ function InferenceTrainingPanel() {
         gpuVramGb: selectedGPU.vram_gb,
         quantization,
         sequenceLength,
+        contextMix,
+        ttftTargetSeconds,
         batchSize,
         kvQuantization,
         numGPUs,
@@ -645,6 +735,9 @@ function InferenceTrainingPanel() {
                   tierSessionsHeld: tierSummary?.sessionsHeld ?? null,
                   weightSource: weightSourceRepo,
                   concurrentUsers,
+                  contextMix,
+                  ttftTargetSeconds,
+                  ttftBurst: burstTTFT(classes, concurrentUsers),
                   offload: result.offloading
                     ? {
                         target: offloadTarget,
@@ -688,6 +781,10 @@ function InferenceTrainingPanel() {
           batchSize={batchSize}
           maxSessions={maxSessions}
           sequenceLength={sequenceLength}
+          classes={classes}
+          concurrentUsers={concurrentUsers}
+          ttftTargetSeconds={ttftTargetSeconds}
+          largestClassMiss={largestClassMiss}
         />
 
         {/* Warnings stay visible: they change the answer */}
@@ -715,7 +812,7 @@ function InferenceTrainingPanel() {
 
         <SoftWarnings
           warnings={softWarnings(
-            { mode, numGPUs, numNodes, shardingStrategy },
+            { mode, numGPUs, numNodes, shardingStrategy, contextMix },
             selectedModel,
             selectedGPU,
           )}
@@ -723,11 +820,11 @@ function InferenceTrainingPanel() {
 
         {/* Recommendations: GPU/quantization advice, not applicable to a
             host-capacity-only problem (the red message above covers that). */}
-        {deviceDoesNotFit && (
+        {(deviceDoesNotFit || ttftMissed || guardOnly) && (
           <Recommendations
             gpu={selectedGPU}
             model={selectedModel}
-            breakdown={result.vram}
+            breakdown={guardOnly ? largestOne : result.vram}
             currentQuantization={quantization}
             currentSequenceLength={sequenceLength}
             // numGPUs from the store is per-node; Recommendations renders
@@ -735,7 +832,17 @@ function InferenceTrainingPanel() {
             // (see IMPORTANT-1 in the multi-node fix wave, and the
             // matching fallback in useResultExports above).
             numGPUs={result.multiGPU?.numGPUs ?? numGPUs}
-            multiGPUBreakdown={result.multiGPU}
+            multiGPUBreakdown={
+              guardOnly && result.multiGPU
+                ? { ...result.multiGPU, totalPerGPU: new Decimal(guardPerGPUGB) }
+                : result.multiGPU
+            }
+            // Memory first: more machines only help a machine that holds the model
+            ttftMiss={
+              ttftMissed && ttftTargetSeconds !== null && !doesNotFit
+                ? { classes, users: concurrentUsers, targetSeconds: ttftTargetSeconds }
+                : undefined
+            }
           />
         )}
 
@@ -816,10 +923,13 @@ function InferenceTrainingPanel() {
                 performance={result.performance}
                 concurrentUsers={concurrentUsers}
                 batchSize={batchSize}
+                classes={classes}
+                ttftTargetSeconds={ttftTargetSeconds}
               >
                 <CapacitySection
                   maxSessions={maxSessions}
                   sequenceLength={sequenceLength}
+                  mixDescription={mixActive ? mixLabel(contextMix) : null}
                   concurrentUsers={concurrentUsers}
                   tierSummary={tierSummary}
                   kvTier={kvTier}

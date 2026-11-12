@@ -1,7 +1,7 @@
 import {
   fitsInference,
+  largestClassFits,
   maxConcurrentSessions,
-  perUserTimeToFirstToken,
   perUserTokensPerSecond,
 } from '@engines/concurrency'
 import type { GPU, Model } from '@utils/schemas'
@@ -36,42 +36,6 @@ describe('perUserTokensPerSecond', () => {
 
   it('does not divide by zero on a degenerate user count', () => {
     expect(perUserTokensPerSecond(new Decimal(500), 0).toNumber()).toBe(500)
-  })
-})
-
-describe('perUserTimeToFirstToken', () => {
-  it('is never faster than the idle single-request latency', () => {
-    // The defect this replaces: `× users ÷ batch` reported 28.41s per user
-    // against a 56.82s single-request TTFT — concurrency making the machine
-    // faster than having it to yourself.
-    const ttft = new Decimal(56.82)
-
-    for (const [users, batch] of [
-      [8, 16],
-      [1, 64],
-      [2, 2],
-      [64, 64],
-    ] as const) {
-      expect(perUserTimeToFirstToken(ttft, users, batch).toNumber()).toBeGreaterThanOrEqual(
-        ttft.toNumber(),
-      )
-    }
-  })
-
-  it('charges one wave when every user fits in a single batch', () => {
-    const ttft = new Decimal(10)
-    expect(perUserTimeToFirstToken(ttft, 8, 16).toNumber()).toBe(10)
-    expect(perUserTimeToFirstToken(ttft, 16, 16).toNumber()).toBe(10)
-  })
-
-  it('charges a wave per batch once users exceed the batch', () => {
-    const ttft = new Decimal(10)
-    expect(perUserTimeToFirstToken(ttft, 32, 16).toNumber()).toBe(20)
-    expect(perUserTimeToFirstToken(ttft, 33, 16).toNumber()).toBe(30)
-  })
-
-  it('does not divide by zero on a degenerate batch size', () => {
-    expect(perUserTimeToFirstToken(new Decimal(10), 4, 0).toNumber()).toBe(40)
   })
 })
 
@@ -192,5 +156,16 @@ describe('fitsInference', () => {
   it('fits up to vLLM gpu_memory_utilization (278 x 0.9 = 250.2)', () => {
     expect(fitsInference(250, 278)).toBe(true)
     expect(fitsInference(251, 278)).toBe(false)
+  })
+})
+
+describe('largestClassFits', () => {
+  // 80 GB x 0.9 = 72 GB limit; fixed 40 GB, mix KV 10 GB for 10 sessions
+  const base = { totalPerGPUGB: 50, kvPerGPUGB: 10, mixKVGB: 10, gpuVramGB: 80 }
+  it('fits when one largest-class session stays under the limit', () => {
+    expect(largestClassFits({ ...base, largestSessionKVGB: 20 })).toBe(true)
+  })
+  it('does not fit when one largest-class session alone is too big', () => {
+    expect(largestClassFits({ ...base, largestSessionKVGB: 40 })).toBe(false)
   })
 })

@@ -8,6 +8,7 @@ import {
   PREFILL_EFFICIENCY,
   PREFILL_MFU_BY_PRECISION,
 } from './constants'
+import { isDefaultMix, mixWeighted } from './context-mix'
 import { fabricHopSeconds } from './fabric'
 import {
   calculateMoEActiveParams,
@@ -20,6 +21,7 @@ import { attendedTokens, calculateDecodeKVReadVRAM, calculateLinearStateVRAM } f
 import { kvCacheTPShards, resolveInterconnect } from './multi-gpu'
 import { calculateModelWeightVRAM } from './quantization'
 import type {
+  ContextMix,
   KVCachePrecision,
   MultiGPUVRAMBreakdown,
   PerformanceEstimate,
@@ -61,6 +63,8 @@ export interface PerformanceParams {
   multiGPUResult?: MultiGPUVRAMBreakdown | null
   /** CPU/RAM or NVMe offloading; null/undefined when offloading is disabled */
   offload?: OffloadDecodeParams | null
+  /** Context classes; only the decode KV read follows it (prefill stays at sequenceLength) */
+  contextMix?: ContextMix
 }
 
 /**
@@ -204,12 +208,19 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     weightSplit && touched !== null
       ? weightSplit.baseGiB.add(weightSplit.routedGiB.mul(touched)).mul(BYTES_PER_GB)
       : calculateModelWeightVRAM(decodeParams, quantization, model).mul(BYTES_PER_GB)
-  const kvBytes = calculateDecodeKVReadVRAM({
-    model,
-    sequenceLength,
-    batchSize,
-    kvPrecision: kvQuantization,
-  }).mul(BYTES_PER_GB)
+  const decodeKVAt = (tokens: number) =>
+    calculateDecodeKVReadVRAM({
+      model,
+      sequenceLength: tokens,
+      batchSize,
+      kvPrecision: kvQuantization,
+    })
+  const { contextMix } = params
+  const kvBytes = (
+    contextMix && !isDefaultMix(contextMix, sequenceLength)
+      ? mixWeighted(contextMix, decodeKVAt)
+      : decodeKVAt(sequenceLength)
+  ).mul(BYTES_PER_GB)
 
   // 2. Per-GPU share of one step. Each pipeline stage holds 1/stages of the layers.
   //    Inside a stage, tensor parallelism splits the weights gpusPerStage ways and the
@@ -408,6 +419,11 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     ? 'attention'
     : 'linear'
 
+  // TTFT is a lone prompt at the largest class: its decode step ignores the mix.
+  const ttftTokensPerSecond =
+    contextMix && !isDefaultMix(contextMix, sequenceLength)
+      ? estimatePerformance({ ...params, contextMix: undefined }).tokensPerSecond
+      : tokensPerSecond
   let prefillSeconds: Decimal | null = null
   let prefillEstimateDegraded = false
   let timeToFirstToken: Decimal
@@ -444,14 +460,14 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     // The terms run at different rates, so the label is about time, not FLOPs
     prefillBottleneck = attentionSeconds.greaterThan(linearSeconds) ? 'attention' : 'linear'
     prefillSeconds = linearSeconds.add(attentionSeconds).add(hopSeconds)
-    timeToFirstToken = prefillSeconds.add(new Decimal(1).div(tokensPerSecond))
+    timeToFirstToken = prefillSeconds.add(new Decimal(1).div(ttftTokensPerSecond))
   } else {
     // No usable FLOPS data (missing, zero, or negative): prefill time is not
     // computable. Fall back to the previous heuristic rather than returning
     // Infinity or NaN, and mark the estimate degraded. Still gets the same
     // multi-node hop term as the FLOPS path above, so TTFT stays consistent.
     prefillEstimateDegraded = true
-    timeToFirstToken = new Decimal(1).div(tokensPerSecond.mul(0.5)).add(hopSeconds)
+    timeToFirstToken = new Decimal(1).div(ttftTokensPerSecond.mul(0.5)).add(hopSeconds)
   }
 
   return {

@@ -16,6 +16,8 @@ export function useSizingCalculation(): UseSizingCalculationResult {
   const quantization = useUIStore((s) => s.quantization)
   const kvQuantization = useUIStore((s) => s.kvQuantization)
   const sequenceLength = useUIStore((s) => s.sequenceLength)
+  const contextMix = useUIStore((s) => s.contextMix)
+  const ttftTargetSeconds = useUIStore((s) => s.ttftTargetSeconds)
   const users = useUIStore((s) => s.concurrentUsers)
   const interNodeFabric = useUIStore((s) => s.interNodeFabric)
   const customFabric = useUIStore((s) => s.customFabric)
@@ -40,6 +42,8 @@ export function useSizingCalculation(): UseSizingCalculationResult {
       quantization,
       kvQuantization,
       sequenceLength,
+      contextMix,
+      ttftTargetSeconds,
       users,
       interNodeFabric,
       customFabric,
@@ -74,7 +78,10 @@ export function useSizingCalculation(): UseSizingCalculationResult {
     Promise.all([import('@engines/sizing'), import('@engines/fabric')])
       .then(([sizing, fabric]) => {
         const { interNodeFabric: f, customFabric: c, ...rest } = payload
-        const input: SizingInput = { ...rest, fabric: fabric.resolveFabricSpec(f, c) }
+        const input: SizingInput = {
+          ...rest,
+          fabric: fabric.resolveFabricSpec(f, c),
+        }
         if (!stale) setResult(sizing.sizeDeployment(input))
       })
       .catch((err) => !stale && setError(err instanceof Error ? err.message : String(err)))
@@ -88,6 +95,8 @@ export function useSizingCalculation(): UseSizingCalculationResult {
     quantization,
     kvQuantization,
     sequenceLength,
+    contextMix,
+    ttftTargetSeconds,
     users,
     interNodeFabric,
     customFabric,
