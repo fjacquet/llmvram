@@ -31,8 +31,8 @@ describe('formatTTFT', () => {
   })
 
   it('reports a target as met or missed by the last-served overshoot', () => {
-    expect(targetLine(b, 10)).toBe('Target 10.00 s: met')
-    expect(targetLine(b, 4)).toBe('Target 4.00 s: missed by 6.00 s')
+    expect(targetLine(b, 10)).toEqual({ text: 'Target 10.00 s: met', met: true })
+    expect(targetLine(b, 4)).toEqual({ text: 'Target 4.00 s: missed by 6.00 s', met: false })
     expect(targetLine(b, null)).toBeNull()
   })
 

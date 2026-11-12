@@ -28,13 +28,20 @@ export function ttftCeilingLine(b: BurstTTFT): string {
   return `Theoretical ceiling: ${formatDuration(b.firstCeiling)} first, ${formatDuration(b.lastCeiling)} last`
 }
 
-/** The target applies to the last served; null target gives no line */
-export function targetLine(b: BurstTTFT, targetSeconds: number | null): string | null {
+/** The target applies to the last served; null target gives no line. `met` comes from the data, never from the text. */
+export function targetLine(
+  b: BurstTTFT,
+  targetSeconds: number | null,
+): { text: string; met: boolean } | null {
   if (targetSeconds === null) return null
   const t = `Target ${formatDuration(new Decimal(targetSeconds))}`
-  return b.lastExpected.lte(targetSeconds)
-    ? `${t}: met`
-    : `${t}: missed by ${formatDuration(b.lastExpected.minus(targetSeconds))}`
+  const met = b.lastExpected.lte(targetSeconds)
+  return {
+    met,
+    text: met
+      ? `${t}: met`
+      : `${t}: missed by ${formatDuration(b.lastExpected.minus(targetSeconds))}`,
+  }
 }
 
 export function maxUsersLine(n: number): string {

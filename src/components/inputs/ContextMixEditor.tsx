@@ -97,9 +97,14 @@ export function ContextMixEditor() {
               type="number"
               min={1}
               max={99}
-              value={pct(c.share)}
-              readOnly={i === lastIndex}
-              onChange={(e) => setShare(i, Number(e.target.value))}
+              {...(i === lastIndex
+                ? { value: pct(c.share), readOnly: true }
+                : {
+                    key: `share-${pct(c.share)}`,
+                    defaultValue: pct(c.share),
+                    onBlur: (e: React.FocusEvent<HTMLInputElement>) =>
+                      setShare(i, Number(e.target.value)),
+                  })}
               className={`w-16 ${FIELD} read-only:opacity-70`}
               aria-label={`Class ${i + 1} share`}
             />

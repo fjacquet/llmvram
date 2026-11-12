@@ -51,12 +51,33 @@ describe('ContextMixEditor', () => {
       sequenceLength: 262144,
     })
     render(<ContextMixEditor />)
-    fireEvent.change(screen.getByLabelText('Class 1 share'), { target: { value: '90' } })
+    const share = screen.getByLabelText('Class 1 share')
+    fireEvent.change(share, { target: { value: '90' } })
+    fireEvent.blur(share)
     const [a, b] = useUIStore.getState().contextMix
     expect(a?.share).toBeCloseTo(0.9)
     expect(b?.share).toBeCloseTo(0.1)
     expect(screen.getByLabelText('Class 2 share')).toHaveValue(10)
     expect(screen.getByLabelText('Class 2 share')).toHaveAttribute('readonly')
+  })
+
+  it('lets the share be cleared and retyped, committing on blur', () => {
+    useUIStore.setState({
+      contextMix: [
+        { tokens: 4096, share: 0.5 },
+        { tokens: 262144, share: 0.5 },
+      ],
+      sequenceLength: 262144,
+    })
+    render(<ContextMixEditor />)
+    const field = screen.getByLabelText('Class 1 share')
+    fireEvent.change(field, { target: { value: '' } })
+    expect(useUIStore.getState().contextMix[0]?.share).toBe(0.5)
+    fireEvent.change(field, { target: { value: '25' } })
+    fireEvent.blur(field)
+    const [a, b] = useUIStore.getState().contextMix
+    expect(a?.share).toBeCloseTo(0.25)
+    expect(b?.share).toBeCloseTo(0.75)
   })
 
   it('cannot add a fourth class', () => {

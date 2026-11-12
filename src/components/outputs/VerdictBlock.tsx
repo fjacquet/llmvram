@@ -84,12 +84,10 @@ export function VerdictBlock({
       {target !== null && (
         <p
           className={`text-sm font-medium ${
-            target.endsWith(': met')
-              ? 'text-green-700 dark:text-green-400'
-              : 'text-red-700 dark:text-red-400'
+            target.met ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
           }`}
         >
-          {target}
+          {target.text}
         </p>
       )}
     </section>

@@ -10,7 +10,7 @@ import { TrainingBreakdownChart } from '@components/outputs/TrainingBreakdownCha
 import { TrainingBreakdownTable } from '@components/outputs/TrainingBreakdownTable'
 import { VerdictBlock } from '@components/outputs/VerdictBlock'
 import { VRAMBreakdownChart } from '@components/outputs/VRAMBreakdownChart'
-import { fitsInference, largestClassFits, maxConcurrentSessions } from '@engines/concurrency'
+import { fitsInference, largestClassPerGPUGB, maxConcurrentSessions } from '@engines/concurrency'
 import { softWarnings } from '@engines/config-rules'
 import { GPU_MEMORY_UTILIZATION } from '@engines/constants'
 import { isDefaultMix, largestContext } from '@engines/context-mix'
@@ -36,6 +36,7 @@ import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { useUIStore } from '@store/uiStore'
 import { mixLabel } from '@utils/formatTTFT'
+import Decimal from 'decimal.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -441,28 +442,28 @@ function InferenceTrainingPanel() {
 
   // One session at the largest class must fit on its own, whatever the mix average says
   const largest = largestContext(contextMix)
+  const largestOne = calculateInferenceVRAM({
+    model: selectedModel,
+    quantization,
+    sequenceLength: largest,
+    batchSize: 1,
+    kvQuantization,
+    concurrentUsers: 1,
+  })
+  const guardPerGPUGB = largestClassPerGPUGB({
+    totalPerGPUGB: perGPU.total.toNumber(),
+    kvPerGPUGB: perGPU.kvCache.toNumber(),
+    mixKVGB: result.vram.kvCache.toNumber(),
+    largestSessionKVGB: largestOne.kvCache.toNumber(),
+  })
   const largestClassMiss =
-    mixActive &&
-    !largestClassFits({
-      totalPerGPUGB: perGPU.total.toNumber(),
-      kvPerGPUGB: perGPU.kvCache.toNumber(),
-      mixKVGB: result.vram.kvCache.toNumber(),
-      largestSessionKVGB: calculateInferenceVRAM({
-        model: selectedModel,
-        quantization,
-        sequenceLength: largest,
-        batchSize: 1,
-        kvQuantization,
-        concurrentUsers: 1,
-      }).kvCache.toNumber(),
-      gpuVramGB: selectedGPU.vram_gb,
-    })
-      ? largest
-      : null
+    mixActive && !fitsInference(guardPerGPUGB, selectedGPU.vram_gb) ? largest : null
   const doesNotFit = deviceDoesNotFit || hostExceeded || largestClassMiss !== null
   const ttftMissed =
     ttftTargetSeconds !== null &&
     meetsTarget(burstTTFT(classes, concurrentUsers), ttftTargetSeconds) === false
+  // Only the largest-class guard fails: advise on the memory of one session of that class
+  const guardOnly = largestClassMiss !== null && !deviceDoesNotFit
 
   // KV storage tier: sessions held with idle KV parked off-GPU (null = no tier)
   const tierSummary =
@@ -806,11 +807,11 @@ function InferenceTrainingPanel() {
 
         {/* Recommendations: GPU/quantization advice, not applicable to a
             host-capacity-only problem (the red message above covers that). */}
-        {(deviceDoesNotFit || ttftMissed) && (
+        {(deviceDoesNotFit || ttftMissed || guardOnly) && (
           <Recommendations
             gpu={selectedGPU}
             model={selectedModel}
-            breakdown={result.vram}
+            breakdown={guardOnly ? largestOne : result.vram}
             currentQuantization={quantization}
             currentSequenceLength={sequenceLength}
             // numGPUs from the store is per-node; Recommendations renders
@@ -818,9 +819,14 @@ function InferenceTrainingPanel() {
             // (see IMPORTANT-1 in the multi-node fix wave, and the
             // matching fallback in useResultExports above).
             numGPUs={result.multiGPU?.numGPUs ?? numGPUs}
-            multiGPUBreakdown={result.multiGPU}
+            multiGPUBreakdown={
+              guardOnly && result.multiGPU
+                ? { ...result.multiGPU, totalPerGPU: new Decimal(guardPerGPUGB) }
+                : result.multiGPU
+            }
+            // Memory first: more machines only help a machine that holds the model
             ttftMiss={
-              ttftMissed && ttftTargetSeconds !== null
+              ttftMissed && ttftTargetSeconds !== null && !doesNotFit
                 ? { classes, users: concurrentUsers, targetSeconds: ttftTargetSeconds }
                 : undefined
             }

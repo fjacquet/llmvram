@@ -53,6 +53,21 @@ export function fitsInference(totalGB: number, vramGB: number): boolean {
 }
 
 /**
+ * Per-GPU total with ONE session at the largest context class in place of the mix's KV.
+ * shortcut: per-session fixed state (hybrid/SSM linear state) is scaled by the KV ratio, first-order; re-run the engine at the largest class if it matters.
+ */
+export function largestClassPerGPUGB(params: {
+  totalPerGPUGB: number
+  kvPerGPUGB: number
+  mixKVGB: number
+  largestSessionKVGB: number
+}): number {
+  const { totalPerGPUGB, kvPerGPUGB, mixKVGB, largestSessionKVGB } = params
+  const oneSession = mixKVGB > 0 ? (kvPerGPUGB * largestSessionKVGB) / mixKVGB : 0
+  return totalPerGPUGB - kvPerGPUGB + oneSession
+}
+
+/**
  * One session at the largest context class must fit on its own, whatever the mix-weighted KV says.
  * KV is linear in sessions and tokens, so the per-GPU share of that session scales from the
  * breakdown already computed: kvPerGPU x (one largest-class session / the mix's total KV).
@@ -64,7 +79,5 @@ export function largestClassFits(params: {
   largestSessionKVGB: number
   gpuVramGB: number
 }): boolean {
-  const { totalPerGPUGB, kvPerGPUGB, mixKVGB, largestSessionKVGB, gpuVramGB } = params
-  const oneSessionPerGPU = mixKVGB > 0 ? (kvPerGPUGB * largestSessionKVGB) / mixKVGB : 0
-  return fitsInference(totalPerGPUGB - kvPerGPUGB + oneSessionPerGPU, gpuVramGB)
+  return fitsInference(largestClassPerGPUGB(params), params.gpuVramGB)
 }
