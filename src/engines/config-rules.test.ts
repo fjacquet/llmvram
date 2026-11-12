@@ -1187,11 +1187,34 @@ describe('context mix and TTFT target (R16, R17)', () => {
     expect(ruleFixes(r, 'R16').some((c) => !c.silent)).toBe(true)
   })
 
-  it('one class follows sequenceLength silently; R10 still clamps and notices', () => {
+  it('a one-class mix that disagrees with sequenceLength is shown, not dropped silently', () => {
     const r = normalizeConfig(cfg({ sequenceLength: 8192 }), L70, H100)
     expect(r.config.contextMix).toEqual([{ tokens: 8192, share: 1 }])
-    expect(r.corrections.every((c) => c.silent)).toBe(true)
-    const low = normalizeConfig(cfg({ sequenceLength: 100 }), L70, H100)
+    expect(r.corrections.some((c) => !c.silent)).toBe(true)
+  })
+
+  it('shares at the link precision (thirds) are not a correction', () => {
+    const third = 0.33333333
+    const r = normalizeConfig(
+      cfg({
+        contextMix: [
+          { tokens: 4096, share: third },
+          { tokens: 8192, share: third },
+          { tokens: 32768, share: third },
+        ],
+      }),
+      L70,
+      H100,
+    )
+    expect(ruleFixes(r, 'R16').filter((c) => c.field === 'contextMix')).toEqual([])
+  })
+
+  it('one class follows an R10 clamp silently; R10 still notices', () => {
+    const low = normalizeConfig(
+      cfg({ sequenceLength: 100, contextMix: [{ tokens: 100, share: 1 }] }),
+      L70,
+      H100,
+    )
     expect(low.config.sequenceLength).toBe(512)
     expect(low.config.contextMix).toEqual([{ tokens: 512, share: 1 }])
     expect(

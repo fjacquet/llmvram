@@ -281,11 +281,13 @@ export const useUIStore = create<UIState>()(
       setInterconnectOverride: (v) => commit(set, get, { interconnectOverride: v }, 'setting'),
       setQuantization: (quantization) => commit(set, get, { quantization }, 'setting'),
       setSequenceLength: (sequenceLength) => {
-        // With several classes the slider edits the largest one (R16 derives sequenceLength)
-        const { contextMix } = get()
+        // With several classes the slider edits the largest one (R16 derives sequenceLength),
+        // except in Training, where the mix is hidden and sequenceLength is the input.
+        // One class follows the slider, so R16 has nothing to restore.
+        const { contextMix, mode } = get()
         const top = largestContext(contextMix)
         const patch: Partial<UIConfig> =
-          contextMix.length > 1
+          contextMix.length > 1 && mode !== 'training'
             ? {
                 contextMix: contextMix.map((k, i) =>
                   i === contextMix.findIndex((c) => c.tokens === top)
@@ -293,7 +295,9 @@ export const useUIStore = create<UIState>()(
                     : k,
                 ),
               }
-            : { sequenceLength }
+            : contextMix.length > 1
+              ? { sequenceLength }
+              : { sequenceLength, contextMix: [{ tokens: sequenceLength, share: 1 }] }
         commit(set, get, patch, 'setting')
       },
       setBatchSize: (batchSize) => commit(set, get, { batchSize }, 'setting'),

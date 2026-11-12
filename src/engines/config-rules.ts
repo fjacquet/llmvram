@@ -176,11 +176,11 @@ const MIN_CONTEXT = 512
 const MIN_TTFT_TARGET = 0.1
 const MAX_TTFT_TARGET = 3600
 
-/** Same classes in the same order, shares equal to float noise (1 - 0.7 is not 0.3) */
+/** Same classes in the same order, shares equal to the link's precision (1e-8 share; 1 - 0.7 is not 0.3) */
 function sameMix(a: ContextMix, b: ContextMix): boolean {
   return (
     a.length === b.length &&
-    a.every((k, i) => k.tokens === b[i]?.tokens && Math.abs(k.share - (b[i]?.share ?? NaN)) < 1e-9)
+    a.every((k, i) => k.tokens === b[i]?.tokens && Math.abs(k.share - (b[i]?.share ?? NaN)) < 1e-6)
   )
 }
 
@@ -560,9 +560,11 @@ export const RULES: readonly Rule[] = [
     id: 'R16',
     modes: INFERENCE_SIZING,
     // Mix and sequenceLength are one fact. One class: sequenceLength is the truth (the slider
-    // moves it; R10 clamps it) and the class follows silently. Several classes: the mix is the
-    // truth, its tokens are clamped, and sequenceLength is the largest class, silently. A class
-    // share that is off, or a class clamped, is shown.
+    // moves it; R10 clamps it) and the class follows silently, but only when its tokens are
+    // outside the context range (the follow-on of an R10 clamp): a restored class that merely
+    // disagrees with sl is shown. Several classes: the mix is the truth, its tokens are clamped,
+    // and sequenceLength is the largest class, silently. A share that is off, or a class
+    // clamped, is shown.
     check: (c) => {
       let shares: ContextMix
       try {
@@ -580,7 +582,11 @@ export const RULES: readonly Rule[] = [
       const out: Correction[] = []
       if (!sameMix(next, c.contextMix)) {
         const only = next.length === 1 && c.contextMix.length === 1
-        const sameShare = only && Math.abs((c.contextMix[0]?.share ?? 0) - 1) < 1e-9
+        const first = c.contextMix[0]
+        const followsClamp =
+          only &&
+          Math.abs((first?.share ?? 0) - 1) < 1e-9 &&
+          ((first?.tokens ?? 0) < MIN_CONTEXT || (first?.tokens ?? 0) > MAX_SEQUENCE_LENGTH)
         out.push(
           fix(
             'R16',
@@ -589,7 +595,7 @@ export const RULES: readonly Rule[] = [
             next,
             'range',
             'Context mix adjusted: 1 to 3 classes, shares summing to 100%, each within the allowed context range.',
-            only && sameShare,
+            followsClamp,
           ),
         )
       }

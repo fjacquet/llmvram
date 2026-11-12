@@ -326,6 +326,7 @@ describe('uiStore: every action normalizes, one notice per action', () => {
       numNodes: 2,
       quantization: 'fp8',
       sequenceLength: 8192,
+      contextMix: [{ tokens: 8192, share: 1 }],
       concurrentUsers: 10,
       batchSize: 8,
       kvQuantization: 'fp8',
@@ -753,6 +754,46 @@ describe('uiStore: context mix and TTFT target', () => {
     store.getState().setMode('training')
     store.getState().setTTFTTarget(0)
     expect(store.getState().ttftTargetSeconds).toBe(0)
+  })
+
+  it('Training edits sequenceLength even with a several-class mix', async () => {
+    const store = await freshStore()
+    store.getState().setContextMix([
+      { tokens: 4096, share: 0.7 },
+      { tokens: 32768, share: 0.3 },
+    ])
+    store.getState().setMode('training')
+    store.getState().setSequenceLength(8192)
+    expect(store.getState().sequenceLength).toBe(8192)
+  })
+
+  it('a restored one-class cm that disagrees with sl is noticed', async () => {
+    const s = await restore({ ...base, cm: [[8192, 100]] })
+    expect(s.pendingNotice?.title).toBe('Shared link adjusted')
+  })
+
+  it('a thirds mix round-trips with no notice', async () => {
+    const store = await freshStore()
+    const { serializeToURL, deserializeFromURL, urlStateToConfig } = await import(
+      '@store/urlSerializer'
+    )
+    const { findGPUById, findModelById } = await import('@store/uiStore')
+    store.getState().setSelectedModel(L70)
+    store.getState().setSelectedGPU(H100)
+    store.getState().setContextMix([
+      { tokens: 4096, share: 1 / 3 },
+      { tokens: 32768, share: 1 / 3 },
+      { tokens: 131072, share: 1 / 3 },
+    ])
+    const url = serializeToURL(store.getState())
+    const d = deserializeFromURL(url)
+    if (!d) throw new Error('parse')
+    const fresh = await freshStore()
+    fresh
+      .getState()
+      .restoreConfig(urlStateToConfig(d, { findModel: findModelById, findGPU: findGPUById }).patch)
+    expect(fresh.getState().pendingNotice).toBeNull()
+    expect(serializeToURL(fresh.getState())).toBe(url)
   })
 
   it('round-trips URL, store, URL identically', async () => {
