@@ -7,7 +7,6 @@
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Release](https://img.shields.io/github/v/release/fjacquet/llmvram?sort=semver)](https://github.com/fjacquet/llmvram/releases/latest)
-[![License](https://img.shields.io/github/license/fjacquet/llmvram)](https://github.com/fjacquet/llmvram/blob/HEAD/LICENSE)
 
 **Open the calculator: <https://fjacquet.github.io/llmvram/>** (runs in your browser, nothing is sent to a server)
 
