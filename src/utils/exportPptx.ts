@@ -1,9 +1,10 @@
-import { isDefaultMix } from '@engines/context-mix'
+import { isDefaultMix, largestContext } from '@engines/context-mix'
 import { DECIMAL_GB_PER_GIB, KV_TIER_PRESETS } from '@engines/kv-tier'
 import { interconnectLabel } from '@engines/multi-gpu'
 import { roundOffloadSlowdown } from '@engines/offloading'
 import type { weightSource } from '@engines/quantization'
 import type {
+  BurstTTFT,
   ContextMix,
   InferenceVRAMBreakdown,
   MultiGPUVRAMBreakdown,
@@ -12,7 +13,7 @@ import type {
 } from '@engines/types'
 import { formatCapacity, totalCapacityLine } from '@utils/formatCapacity'
 import { formatDuration } from '@utils/formatDuration'
-import { mixList, worstCaseLabel } from '@utils/formatTTFT'
+import { mixLabel, mixList, worstCaseLabel } from '@utils/formatTTFT'
 import { firstTokenLabel } from '@utils/perfLabels'
 import type { GPU, Model } from '@utils/schemas'
 import { decodeBatchNote, SIZING_SPEED_NOTE } from '@utils/sizingNote'
@@ -60,6 +61,11 @@ export interface ExportPptxParams {
   weightSource: ReturnType<typeof weightSource>
   /** CPU/RAM or NVMe offloading state; null when offloading is disabled */
   offload: ExportPptxOffload | null
+  /** Request mix; absent or single-class = the default (no row) */
+  contextMix?: ContextMix
+  ttftTargetSeconds?: number | null
+  /** Burst of all concurrent users, for the last-served row */
+  ttftBurst?: BurstTTFT | null
 }
 
 function gbStr(val: Decimal): string {
@@ -148,6 +154,9 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
     weightSource,
     concurrentUsers,
     offload,
+    contextMix,
+    ttftTargetSeconds,
+    ttftBurst,
   } = params
 
   const pptx = await newDeck(`LLM VRAM Estimate — ${model.name}`)
@@ -587,10 +596,22 @@ export async function exportPptx(params: ExportPptxParams): Promise<void> {
   // configuration has a KV tier, and a GPU without FLOPS data can still lack
   // a max-sessions figure).
   const capacityRows: [string, string][] = []
+  const mixActive = contextMix !== undefined && !isDefaultMix(contextMix, sequenceLength)
+  const target = ttftTargetSeconds ?? null
   if (maxSessions != null) {
     capacityRows.push([
-      `Max concurrent sessions (at ${sequenceLength.toLocaleString('en-US')} tokens)`,
+      `Max concurrent sessions (${mixActive ? mixLabel(contextMix) : `at ${sequenceLength.toLocaleString('en-US')} tokens`})`,
       maxSessions.toLocaleString('en-US'),
+    ])
+  }
+  if (mixActive) capacityRows.push(['Context mix', mixList(contextMix)])
+  if (target !== null) {
+    capacityRows.push(['TTFT target', formatDuration(new Decimal(target))])
+  }
+  if (ttftBurst && (mixActive || target !== null)) {
+    capacityRows.push([
+      `Time to first token (last served, ${worstCaseLabel(ttftBurst, mixActive ? largestContext(contextMix) : undefined)})`,
+      `${formatDuration(ttftBurst.lastExpected)} (ceiling ${formatDuration(ttftBurst.lastCeiling)})`,
     ])
   }
   if (tierSessionsHeld != null) {
@@ -738,7 +759,7 @@ export async function exportSizingPptx(params: ExportSizingPptxParams): Promise<
       `${formatDuration(c.ttft.firstExpected)} (ceiling ${formatDuration(c.ttft.firstCeiling)})`,
     ],
     [
-      `Time to first token (last served, ${worstCaseLabel(c.ttft)})`,
+      `Time to first token (last served, ${worstCaseLabel(c.ttft, isDefaultMix(contextMix, sequenceLength) ? undefined : largestContext(contextMix))})`,
       `${formatDuration(c.ttft.lastExpected)} (ceiling ${formatDuration(c.ttft.lastCeiling)})`,
     ],
   ]

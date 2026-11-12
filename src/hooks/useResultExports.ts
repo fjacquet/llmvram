@@ -15,7 +15,14 @@ import { toast } from 'sonner'
  */
 type ExportPptxCapacity = Pick<
   ExportPptxParams,
-  'maxSessions' | 'tierSessionsHeld' | 'weightSource' | 'concurrentUsers' | 'offload'
+  | 'maxSessions'
+  | 'tierSessionsHeld'
+  | 'weightSource'
+  | 'concurrentUsers'
+  | 'offload'
+  | 'contextMix'
+  | 'ttftTargetSeconds'
+  | 'ttftBurst'
 >
 
 interface UseResultExportsParams {

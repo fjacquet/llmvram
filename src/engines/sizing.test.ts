@@ -500,11 +500,10 @@ describe('TTFT target (rack GPU)', () => {
       { tokens: 4096, share: 0.99 },
       { tokens: 131072, share: 0.01 },
     ]
-    const big = evaluateReplica(
-      { ...base(100), sequenceLength: 131072, contextMix: mix },
-      8,
-      1,
-    ).classes.find((c) => c.tokens === 131072)?.expectedTTFT.toNumber() ?? 0
+    const big =
+      evaluateReplica({ ...base(100), sequenceLength: 131072, contextMix: mix }, 8, 1)
+        .classes.find((c) => c.tokens === 131072)
+        ?.expectedTTFT.toNumber() ?? 0
     const r = sizeDeployment({
       ...base(100),
       sequenceLength: 131072,

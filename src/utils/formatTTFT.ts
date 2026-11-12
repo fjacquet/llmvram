@@ -25,8 +25,12 @@ export function ttftLine(b: BurstTTFT): string {
   return `TTFT ${formatDuration(b.firstExpected)} first, ${formatDuration(b.lastExpected)} last (${b.burst} ${b.burst === 1 ? 'user' : 'users'} at once)`
 }
 
-export function worstCaseLabel(b: BurstTTFT): string {
-  return `worst case: all ${b.burst} prompts at once, first come first served, no prefix cache`
+/** `largestTokens` is passed only for a non-default mix: the last served includes one such prompt. */
+export function worstCaseLabel(b: BurstTTFT, largestTokens?: number): string {
+  const base = `worst case: all ${b.burst} prompts at once, first come first served, no prefix cache`
+  return largestTokens === undefined
+    ? base
+    : `${base}, includes one ${formatTokensShort(largestTokens)} prompt`
 }
 
 export function ttftCeilingLine(b: BurstTTFT): string {

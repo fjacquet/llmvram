@@ -27,6 +27,12 @@ describe('formatTTFT', () => {
     expect(ttftCeilingLine(b)).toBe('Theoretical ceiling: 50.0 ms first, 5.00 s last')
   })
 
+  it('names the largest class when the mix is not the default', () => {
+    expect(worstCaseLabel(b, 131072)).toBe(
+      'worst case: all 100 prompts at once, first come first served, no prefix cache, includes one 128K prompt',
+    )
+  })
+
   it('says "1 user" for a burst of one', () => {
     expect(ttftLine(burstTTFT(one, 1))).toContain('(1 user at once)')
   })

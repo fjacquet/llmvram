@@ -118,7 +118,12 @@ export function PerformanceSection({
 
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 space-y-1">
         <p className="text-sm font-semibold text-gray-900 dark:text-white">{ttftLine(burst)}</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{worstCaseLabel(burst)}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {worstCaseLabel(
+            burst,
+            classes.length > 1 ? Math.max(...classes.map((c) => c.tokens)) : undefined,
+          )}
+        </p>
         <p className="text-xs text-gray-500 dark:text-gray-400">{ttftCeilingLine(burst)}</p>
         {classes.length > 1 &&
           classes.map((c) => (

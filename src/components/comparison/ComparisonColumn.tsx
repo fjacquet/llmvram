@@ -272,14 +272,14 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
             isDifferent={diffMap.sizing}
           />
         )}
-        {sizing && !isDefaultMix(snapshot.config.contextMix, snapshot.config.sequenceLength) && (
+        {!isDefaultMix(snapshot.config.contextMix, snapshot.config.sequenceLength) && (
           <Field
             label="Context mix"
             value={mixList(snapshot.config.contextMix)}
             isDifferent={diffMap.sizing}
           />
         )}
-        {sizing && snapshot.config.ttftTargetSeconds !== null && (
+        {snapshot.config.ttftTargetSeconds !== null && (
           <Field
             label="TTFT target"
             value={formatDurationMs(snapshot.config.ttftTargetSeconds * 1000)}

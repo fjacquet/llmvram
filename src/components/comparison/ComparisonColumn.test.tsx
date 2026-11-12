@@ -199,6 +199,20 @@ describe('ComparisonColumn', () => {
     expect(screen.getByText('TTFT last served').nextElementSibling).toHaveTextContent('1.50 s')
   })
 
+  it('an inference snapshot shows its mix and target rows', () => {
+    const snapshot = makeSnapshot('a', {
+      contextMix: [
+        { tokens: 4096, share: 0.9 },
+        { tokens: 262144, share: 0.1 },
+      ],
+      sequenceLength: 262144,
+      ttftTargetSeconds: 2,
+    })
+    render(<ComparisonColumn snapshot={snapshot} allSnapshots={[snapshot]} onRemove={() => {}} />)
+    expect(screen.getByText('Context mix').nextElementSibling).toHaveTextContent('90% 4K, 10% 256K')
+    expect(screen.getByText('TTFT target').nextElementSibling).toHaveTextContent('2.00 s')
+  })
+
   it('leaves Units and Replica blank for an inference snapshot', () => {
     const snapshot = makeSnapshot('a')
     render(<ComparisonColumn snapshot={snapshot} allSnapshots={[snapshot]} onRemove={() => {}} />)

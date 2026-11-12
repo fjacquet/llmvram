@@ -1,5 +1,5 @@
 import { InfoTip } from '@components/common/InfoTip'
-import { isDefaultMix } from '@engines/context-mix'
+import { isDefaultMix, largestContext } from '@engines/context-mix'
 import { KV_TIER_PRESETS } from '@engines/kv-tier'
 import type { ContextMix, ReplicaCandidate, SizingResult } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
@@ -170,7 +170,9 @@ export function SizingResults({
             </p>
             <p className={MUTED}>{ttftCeilingLine(c.ttft)}</p>
             <p className={MUTED}>{ttftLine(c.ttft)}</p>
-            <p className={MUTED}>{worstCaseLabel(c.ttft)}</p>
+            <p className={MUTED}>
+              {worstCaseLabel(c.ttft, mixActive ? largestContext(contextMix) : undefined)}
+            </p>
             {target && (
               <p
                 className={`text-sm ${target.met ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}

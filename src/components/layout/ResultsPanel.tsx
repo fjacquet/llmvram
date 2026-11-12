@@ -735,6 +735,9 @@ function InferenceTrainingPanel() {
                   tierSessionsHeld: tierSummary?.sessionsHeld ?? null,
                   weightSource: weightSourceRepo,
                   concurrentUsers,
+                  contextMix,
+                  ttftTargetSeconds,
+                  ttftBurst: burstTTFT(classes, concurrentUsers),
                   offload: result.offloading
                     ? {
                         target: offloadTarget,

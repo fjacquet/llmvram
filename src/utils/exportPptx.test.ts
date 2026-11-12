@@ -8,8 +8,10 @@ import { applyInterconnectOverride } from '@engines/multi-gpu'
 import { calculateMultiNodeVRAM } from '@engines/multi-node'
 import { estimatePerformance } from '@engines/performance'
 import { sizeDeployment } from '@engines/sizing'
+import { burstTTFT, classPrefills } from '@engines/ttft'
 import { formatDuration } from '@utils/formatDuration'
 import { type GPU, type Model, validateGPUs, validateModels } from '@utils/schemas'
+import Decimal from 'decimal.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // pptxgenjs drives real browser/Node file I/O (pptx.writeFile) and canvas-ish
@@ -418,6 +420,46 @@ describe('exportPptx', () => {
     expect(perfRows).toContainEqual(['Max concurrent sessions (at 4,096 tokens)', '42'])
     expect(perfRows).toContainEqual(['Sessions held with KV tier', '100'])
     expect(perfRows).toContainEqual(['Weights', 'measured from meta-llama/Llama-3.1-70B'])
+  })
+
+  it('Inference slide: a mix and a target add their rows and name the mix on max sessions', async () => {
+    const mix = [
+      { tokens: 4096, share: 0.9 },
+      { tokens: 32768, share: 0.1 },
+    ]
+    const singleGPU = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 32768,
+      batchSize: 1,
+    })
+    const classes = classPrefills({ model, gpu, quantization: 'fp16' }, mix)
+    const ttftBurst = burstTTFT(classes, 3)
+    await exportPptx({
+      model,
+      gpu,
+      quantization: 'fp16',
+      numGPUs: 1,
+      numNodes: 1,
+      sequenceLength: 32768,
+      batchSize: 1,
+      vram: singleGPU,
+      performance,
+      multiGPU: null,
+      maxSessions: 7,
+      tierSessionsHeld: null,
+      weightSource: null,
+      concurrentUsers: 3,
+      offload: null,
+      contextMix: mix,
+      ttftTargetSeconds: 5,
+      ttftBurst,
+    })
+    const rows = tableRows(2)
+    expect(rows).toContainEqual(['Max concurrent sessions (mix: 90% 4K, 10% 32K)', '7'])
+    expect(rows).toContainEqual(['Context mix', '90% 4K, 10% 32K'])
+    expect(rows).toContainEqual(['TTFT target', formatDuration(new Decimal(5))])
+    expect(rows.some(([k]) => k.startsWith('Time to first token (last served'))).toBe(true)
   })
 
   it('reports expected decode, first-token and prefill with the ceiling beside each (spec P3)', async () => {
