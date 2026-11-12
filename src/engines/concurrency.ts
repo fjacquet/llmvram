@@ -19,28 +19,6 @@ export function perUserTokensPerSecond(
 }
 
 /**
- * Per-user time to first token under concurrent load
- *
- * `timeToFirstToken` is a per-request latency for ONE sequence — prefill
- * deliberately does not apply batch (see performance.ts). Users are served
- * batchSize at a time, so a user waits for the waves ahead of them plus their
- * own: ceil(concurrentUsers / batchSize).
- *
- * The result is therefore never below the single-request figure. Concurrency
- * cannot make time-to-first-token faster than an idle machine, which the
- * previous `× users ÷ batch` form claimed whenever batchSize exceeded the
- * user count.
- */
-export function perUserTimeToFirstToken(
-  timeToFirstToken: Decimal,
-  concurrentUsers: number,
-  batchSize: number,
-): Decimal {
-  const waves = Math.ceil(Math.max(1, concurrentUsers) / Math.max(1, batchSize))
-  return timeToFirstToken.mul(Math.max(1, waves))
-}
-
-/**
  * Maximum concurrent sessions at the configured context length
  *
  * Mirrors vLLM's "Maximum concurrency for N tokens per request" log line

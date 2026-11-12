@@ -57,11 +57,11 @@ describe('PerformanceSection', () => {
         `Theoretical ceiling: ${performance.tokensPerSecond.div(4).toFixed(1)} tok/s`,
       ),
     ).toBeInTheDocument()
-    // 4 users served 2 at a time: two waves
-    expect(screen.getByText(formatDuration(expected.timeToFirstToken.mul(2)))).toBeInTheDocument()
+    // TODO(task 6): burst of 4 prompts, last served = 4 x one prompt (compute-bound prefill)
+    expect(screen.getByText(formatDuration(expected.timeToFirstToken.mul(4)))).toBeInTheDocument()
     expect(
       screen.getByText(
-        `Theoretical ceiling: ${formatDuration(performance.timeToFirstToken.mul(2))}`,
+        `Theoretical ceiling: ${formatDuration(performance.timeToFirstToken.mul(4))}`,
       ),
     ).toBeInTheDocument()
   })

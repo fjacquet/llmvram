@@ -1,4 +1,5 @@
-import { perUserTimeToFirstToken, perUserTokensPerSecond } from '@engines/concurrency'
+import { perUserTokensPerSecond } from '@engines/concurrency'
+import { burstTTFT } from '@engines/ttft'
 import type { PerformanceEstimate } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
 import { firstTokenLabel } from '@utils/perfLabels'
@@ -29,6 +30,19 @@ export function PerformanceSection({
   batchSize,
   children,
 }: PerformanceSectionProps) {
+  // TODO(task 6): replace with classPrefills over the real context mix; one class from the
+  // single-prompt estimate stands in until the section receives the model and GPU.
+  const burst = burstTTFT(
+    [
+      {
+        tokens: 0,
+        share: 1,
+        expectedTTFT: performance.expected.timeToFirstToken,
+        ceilingTTFT: performance.timeToFirstToken,
+      },
+    ],
+    concurrentUsers,
+  )
   return (
     <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -124,19 +138,10 @@ export function PerformanceSection({
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Per-user TTFT (est.)</p>
               <p className="text-base font-semibold text-gray-900 dark:text-white">
-                {formatDuration(
-                  perUserTimeToFirstToken(
-                    performance.expected.timeToFirstToken,
-                    concurrentUsers,
-                    batchSize,
-                  ),
-                )}
+                {formatDuration(burst.lastExpected)}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Theoretical ceiling:{' '}
-                {formatDuration(
-                  perUserTimeToFirstToken(performance.timeToFirstToken, concurrentUsers, batchSize),
-                )}
+                Theoretical ceiling: {formatDuration(burst.lastCeiling)}
               </p>
             </div>
           </div>

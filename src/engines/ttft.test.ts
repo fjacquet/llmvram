@@ -1,0 +1,103 @@
+import gpusData from '@data/gpus.json'
+import modelsData from '@data/models.json'
+import { validateGPUs, validateModels } from '@utils/schemas'
+import { describe, expect, it } from 'vitest'
+import { FABRIC_SPECS } from './fabric'
+import { calculateInferenceVRAM } from './inference'
+import { calculateMultiNodeVRAM } from './multi-node'
+import { estimatePerformance } from './performance'
+import { burstTTFT, classPrefills, maxUsersWithinTarget, meetsTarget } from './ttft'
+
+const models = validateModels(modelsData)
+const gpus = validateGPUs(gpusData)
+const find = <T extends { id: string }>(xs: T[], id: string): T => {
+  const x = xs.find((v) => v.id === id)
+  if (!x) throw new Error(`fixture ${id}`)
+  return x
+}
+const model = find(models, 'meta-llama-llama-3.1-70b')
+const gpu = find(gpus, 'nvidia-h100-80gb-sxm')
+const base = { model, gpu, quantization: 'fp16' as const }
+const ttft = (tokens: number) =>
+  estimatePerformance({ ...base, batchSize: 1, sequenceLength: tokens }).expected.timeToFirstToken
+
+describe('burstTTFT', () => {
+  it('one class, burst 1: last equals first equals the engine batch-1 TTFT', () => {
+    const b = burstTTFT(classPrefills(base, [{ tokens: 4096, share: 1 }]), 1)
+    expect(b.lastExpected.eq(b.firstExpected)).toBe(true)
+    expect(b.firstExpected.eq(ttft(4096))).toBe(true)
+  })
+
+  it('one class, burst 100: last is 100 x first', () => {
+    const b = burstTTFT(classPrefills(base, [{ tokens: 4096, share: 1 }]), 100)
+    expect(b.lastExpected.toNumber()).toBeCloseTo(b.firstExpected.times(100).toNumber(), 9)
+  })
+
+  it('burst below 1 clamps to 1', () => {
+    expect(burstTTFT(classPrefills(base, [{ tokens: 4096, share: 1 }]), 0).burst).toBe(1)
+  })
+
+  it('mix 90/10, burst 10: last is 10 x the share-weighted TTFT; first is the largest class', () => {
+    const b = burstTTFT(
+      classPrefills(base, [
+        { tokens: 4096, share: 0.9 },
+        { tokens: 262144, share: 0.1 },
+      ]),
+      10,
+    )
+    const want = ttft(4096).times(0.9).plus(ttft(262144).times(0.1)).times(10)
+    expect(b.lastExpected.toNumber()).toBeCloseTo(want.toNumber(), 9)
+    expect(b.firstExpected.eq(ttft(262144))).toBe(true)
+  })
+
+  it('multi-server batch 1: classes equal the engine at batchSize 1, hop counted once per prompt', () => {
+    const m = find(models, 'meta-llama-llama-3.1-405b')
+    const singleGPU = calculateInferenceVRAM({
+      model: m,
+      quantization: 'fp16',
+      sequenceLength: 4096,
+      batchSize: 1,
+    })
+    const multi = calculateMultiNodeVRAM({
+      singleGPU,
+      model: m,
+      gpuVramGB: gpu.vram_gb,
+      gpusPerNode: 8,
+      numNodes: 2,
+      intraNodeStrategy: 'tensor-parallel',
+      gpu,
+      fabric: FABRIC_SPECS['infiniband-ndr'],
+      batchSize: 1,
+      sequenceLength: 4096,
+      quantization: 'fp16',
+    })
+    const p = { model: m, gpu, quantization: 'fp16' as const, multiGPUResult: multi }
+    const [c] = classPrefills(p, [{ tokens: 4096, share: 1 }])
+    const direct = estimatePerformance({ ...p, batchSize: 1, sequenceLength: 4096 })
+    expect(c?.expectedTTFT.eq(direct.expected.timeToFirstToken)).toBe(true)
+    expect(c?.ceilingTTFT.eq(direct.timeToFirstToken)).toBe(true)
+    const b = burstTTFT(c ? [c] : [], 3)
+    expect(b.lastExpected.toNumber()).toBeCloseTo(c?.expectedTTFT.times(3).toNumber() ?? 0, 9)
+  })
+
+  it('M5 Max, Qwen3.6 35B A3B, 262144 tokens, 100 users, 10 s target: misses', () => {
+    const q = find(models, 'qwen-qwen3.6-35b-a3b')
+    const m5 = find(gpus, 'apple-m5-max')
+    const classes = classPrefills({ model: q, gpu: m5, quantization: 'fp16' }, [
+      { tokens: 262144, share: 1 },
+    ])
+    expect(meetsTarget(burstTTFT(classes, 100), 10)).toBe(false)
+    expect(maxUsersWithinTarget(classes, 10)).toBe(0)
+  })
+
+  it('meetsTarget is null without a target; maxUsersWithinTarget floors target / mean', () => {
+    const classes = classPrefills(base, [{ tokens: 4096, share: 1 }])
+    expect(meetsTarget(burstTTFT(classes, 5), null)).toBeNull()
+    const t = ttft(4096).toNumber()
+    expect(maxUsersWithinTarget(classes, t * 3.5)).toBe(3)
+  })
+
+  it.todo(
+    'calibration: InferenceX rows with c > 1 are TP4/TP8 runs of "llama70b" (3.1 vs 3.3 unstated) with no recorded multiGPUResult, so they cannot be rebuilt from models.json and gpus.json alone',
+  )
+})

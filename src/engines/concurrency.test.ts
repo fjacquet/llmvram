@@ -1,9 +1,4 @@
-import {
-  fitsInference,
-  maxConcurrentSessions,
-  perUserTimeToFirstToken,
-  perUserTokensPerSecond,
-} from '@engines/concurrency'
+import { fitsInference, maxConcurrentSessions, perUserTokensPerSecond } from '@engines/concurrency'
 import type { GPU, Model } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
@@ -36,42 +31,6 @@ describe('perUserTokensPerSecond', () => {
 
   it('does not divide by zero on a degenerate user count', () => {
     expect(perUserTokensPerSecond(new Decimal(500), 0).toNumber()).toBe(500)
-  })
-})
-
-describe('perUserTimeToFirstToken', () => {
-  it('is never faster than the idle single-request latency', () => {
-    // The defect this replaces: `× users ÷ batch` reported 28.41s per user
-    // against a 56.82s single-request TTFT — concurrency making the machine
-    // faster than having it to yourself.
-    const ttft = new Decimal(56.82)
-
-    for (const [users, batch] of [
-      [8, 16],
-      [1, 64],
-      [2, 2],
-      [64, 64],
-    ] as const) {
-      expect(perUserTimeToFirstToken(ttft, users, batch).toNumber()).toBeGreaterThanOrEqual(
-        ttft.toNumber(),
-      )
-    }
-  })
-
-  it('charges one wave when every user fits in a single batch', () => {
-    const ttft = new Decimal(10)
-    expect(perUserTimeToFirstToken(ttft, 8, 16).toNumber()).toBe(10)
-    expect(perUserTimeToFirstToken(ttft, 16, 16).toNumber()).toBe(10)
-  })
-
-  it('charges a wave per batch once users exceed the batch', () => {
-    const ttft = new Decimal(10)
-    expect(perUserTimeToFirstToken(ttft, 32, 16).toNumber()).toBe(20)
-    expect(perUserTimeToFirstToken(ttft, 33, 16).toNumber()).toBe(30)
-  })
-
-  it('does not divide by zero on a degenerate batch size', () => {
-    expect(perUserTimeToFirstToken(new Decimal(10), 4, 0).toNumber()).toBe(40)
   })
 })
 
