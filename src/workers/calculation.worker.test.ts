@@ -109,6 +109,8 @@ describe('sizing worker round trip', () => {
               quantization: 'fp8',
               kvQuantization: 'fp16',
               sequenceLength: 32768,
+              contextMix: defaultMix(32768),
+              ttftTargetSeconds: null,
               users: 2000,
               interNodeFabric: 'ethernet-800g',
               customFabric: null,

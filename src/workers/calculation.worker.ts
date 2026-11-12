@@ -11,7 +11,6 @@
  * - Returns CALCULATION_ERROR on failure
  */
 
-import { defaultMix } from '../engines/context-mix'
 import { resolveFabricSpec } from '../engines/fabric'
 import { calculateInferenceVRAM } from '../engines/inference'
 import type { KVTierSettings } from '../engines/kv-tier'
@@ -21,6 +20,7 @@ import { calculateOffloadedVRAM, hostLinkGBps, offloadWeightFraction } from '../
 import { estimatePerformance } from '../engines/performance'
 import { sizeDeployment } from '../engines/sizing'
 import type {
+  ContextMix,
   FabricType,
   KVCachePrecision,
   OffloadingConfig,
@@ -41,6 +41,7 @@ interface CalculationRequest {
     gpu: GPU
     quantization: QuantizationFormat
     sequenceLength: number
+    contextMix?: ContextMix
     batchSize: number
     kvQuantization?: KVCachePrecision
     numGPUs: number
@@ -150,6 +151,8 @@ interface SizingRequest {
     quantization: QuantizationFormat
     kvQuantization: KVCachePrecision
     sequenceLength: number
+    contextMix: ContextMix
+    ttftTargetSeconds: number | null
     users: number
     interNodeFabric: FabricType
     customFabric: CustomFabricInput | null
@@ -173,8 +176,6 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
       const result = sizeDeployment({
         ...rest,
         fabric: resolveFabricSpec(interNodeFabric, customFabric),
-        contextMix: defaultMix(rest.sequenceLength),
-        ttftTargetSeconds: null,
       })
       self.postMessage({ type: 'SIZING_RESULT', result: serializeSizingResult(result) })
     } catch (error) {
@@ -195,6 +196,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         gpu,
         quantization,
         sequenceLength,
+        contextMix,
         batchSize,
         kvQuantization,
         numGPUs,
@@ -216,6 +218,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         model,
         quantization,
         sequenceLength,
+        contextMix,
         batchSize,
         kvQuantization,
         concurrentUsers,
@@ -288,6 +291,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
         gpu,
         quantization,
         sequenceLength,
+        contextMix,
         batchSize,
         kvQuantization,
         multiGPUResult,

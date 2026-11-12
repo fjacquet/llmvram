@@ -70,6 +70,7 @@ describe('ResultsPanel composition', () => {
       numGPUs: 1,
       selectedGPU: gpu('nvidia-h100-80gb-sxm'),
       sequenceLength: 16384,
+      contextMix: [{ tokens: 16384, share: 1 }],
     })
     render(<ResultsPanel />)
     await screen.findAllByText(/\d+%/)
@@ -83,6 +84,7 @@ describe('ResultsPanel composition', () => {
       numGPUs: 1,
       selectedGPU: gpu('nvidia-h100-80gb-sxm'),
       sequenceLength: 16384,
+      contextMix: [{ tokens: 16384, share: 1 }],
       offloadingEnabled: true,
       offloadTarget: 'cpu-ram',
       offloadMode: 'percentage',

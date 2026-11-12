@@ -1,5 +1,5 @@
 import type { KVTierType } from '@engines/kv-tier'
-import type { FabricType, SizingUnit } from '@engines/types'
+import type { ContextMix, FabricType, SizingUnit } from '@engines/types'
 import { create } from 'zustand'
 
 export interface ConfigSnapshot {
@@ -16,6 +16,8 @@ export interface ConfigSnapshot {
     gpuVramGb: number
     quantization: string
     sequenceLength: number
+    contextMix: ContextMix
+    ttftTargetSeconds: number | null
     batchSize: number
     kvQuantization: string
     numGPUs: number

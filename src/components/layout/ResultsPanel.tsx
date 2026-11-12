@@ -48,6 +48,8 @@ function SizingPanel() {
   const quantization = useUIStore((s) => s.quantization)
   const kvQuantization = useUIStore((s) => s.kvQuantization)
   const sequenceLength = useUIStore((s) => s.sequenceLength)
+  const contextMix = useUIStore((s) => s.contextMix)
+  const ttftTargetSeconds = useUIStore((s) => s.ttftTargetSeconds)
   const users = useUIStore((s) => s.concurrentUsers)
   const interNodeFabric = useUIStore((s) => s.interNodeFabric)
   const customFabric = useUIStore((s) => s.customFabric)
@@ -96,6 +98,8 @@ function SizingPanel() {
         gpuVramGb: selectedGPU.vram_gb,
         quantization,
         sequenceLength,
+        contextMix,
+        ttftTargetSeconds,
         batchSize: c.decodeBatch,
         kvQuantization,
         numGPUs: c.tp,
@@ -188,6 +192,8 @@ function InferenceTrainingPanel() {
     offloadHostCapacityGB,
     concurrentUsers,
     kvTier,
+    contextMix,
+    ttftTargetSeconds,
   } = useUIStore()
 
   // Read comparison store for save functionality
@@ -432,6 +438,8 @@ function InferenceTrainingPanel() {
         gpuVramGb: selectedGPU.vram_gb,
         quantization,
         sequenceLength,
+        contextMix,
+        ttftTargetSeconds,
         batchSize,
         kvQuantization,
         numGPUs,
@@ -715,7 +723,7 @@ function InferenceTrainingPanel() {
 
         <SoftWarnings
           warnings={softWarnings(
-            { mode, numGPUs, numNodes, shardingStrategy },
+            { mode, numGPUs, numNodes, shardingStrategy, contextMix },
             selectedModel,
             selectedGPU,
           )}

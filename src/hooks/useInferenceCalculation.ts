@@ -249,6 +249,7 @@ export function useInferenceCalculation(
 
   const interconnectOverride = useUIStore((s) => s.interconnectOverride)
   const numNodes = useUIStore((s) => s.numNodes)
+  const contextMix = useUIStore((s) => s.contextMix)
   const interNodeFabric = useUIStore((s) => s.interNodeFabric)
   const customFabric = useUIStore((s) => s.customFabric)
 
@@ -307,6 +308,7 @@ export function useInferenceCalculation(
           gpu: effectiveGPU,
           quantization,
           sequenceLength,
+          contextMix,
           batchSize,
           kvQuantization,
           numGPUs: numGPUs ?? 1,
@@ -352,6 +354,7 @@ export function useInferenceCalculation(
             model,
             quantization,
             sequenceLength,
+            contextMix,
             batchSize,
             kvQuantization,
             concurrentUsers: concurrentUsers ?? batchSize,
@@ -417,6 +420,7 @@ export function useInferenceCalculation(
             gpu: effectiveGPU,
             quantization,
             sequenceLength,
+            contextMix,
             batchSize,
             kvQuantization,
             multiGPUResult: multiGPU,
@@ -446,6 +450,7 @@ export function useInferenceCalculation(
     customFabric,
     interNodeFabric,
     numNodes,
+    contextMix,
   ])
 
   return { result, loading, error }

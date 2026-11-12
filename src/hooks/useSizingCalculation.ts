@@ -16,6 +16,8 @@ export function useSizingCalculation(): UseSizingCalculationResult {
   const quantization = useUIStore((s) => s.quantization)
   const kvQuantization = useUIStore((s) => s.kvQuantization)
   const sequenceLength = useUIStore((s) => s.sequenceLength)
+  const contextMix = useUIStore((s) => s.contextMix)
+  const ttftTargetSeconds = useUIStore((s) => s.ttftTargetSeconds)
   const users = useUIStore((s) => s.concurrentUsers)
   const interNodeFabric = useUIStore((s) => s.interNodeFabric)
   const customFabric = useUIStore((s) => s.customFabric)
@@ -40,6 +42,8 @@ export function useSizingCalculation(): UseSizingCalculationResult {
       quantization,
       kvQuantization,
       sequenceLength,
+      contextMix,
+      ttftTargetSeconds,
       users,
       interNodeFabric,
       customFabric,
@@ -71,18 +75,12 @@ export function useSizingCalculation(): UseSizingCalculationResult {
     }
 
     let stale = false
-    Promise.all([
-      import('@engines/sizing'),
-      import('@engines/fabric'),
-      import('@engines/context-mix'),
-    ])
-      .then(([sizing, fabric, { defaultMix }]) => {
+    Promise.all([import('@engines/sizing'), import('@engines/fabric')])
+      .then(([sizing, fabric]) => {
         const { interNodeFabric: f, customFabric: c, ...rest } = payload
         const input: SizingInput = {
           ...rest,
           fabric: fabric.resolveFabricSpec(f, c),
-          contextMix: defaultMix(rest.sequenceLength),
-          ttftTargetSeconds: null,
         }
         if (!stale) setResult(sizing.sizeDeployment(input))
       })
@@ -97,6 +95,8 @@ export function useSizingCalculation(): UseSizingCalculationResult {
     quantization,
     kvQuantization,
     sequenceLength,
+    contextMix,
+    ttftTargetSeconds,
     users,
     interNodeFabric,
     customFabric,

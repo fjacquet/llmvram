@@ -1057,7 +1057,7 @@ describe('sizing mode (2026-11-11, sizing T5)', () => {
       concurrentUsers: MAX_CONCURRENT_USERS,
       sequenceLength: 512,
     })
-    expect(ids(result)).toEqual(['R10:concurrentUsers', 'R10:sequenceLength'])
+    expect(ids(result)).toEqual(['R16:contextMix', 'R10:concurrentUsers', 'R10:sequenceLength'])
   })
 
   it.each(['inference', 'training'] as const)(
@@ -1154,5 +1154,108 @@ describe('machine unit (min_gpus_per_node)', () => {
     expect(corrections.filter((c) => c.rule === 'R14')).toEqual([])
     expect(softWarnings(config, gemma, B300).map((w) => w.id)).toContain('W9')
     expect(softWarnings(config, L70, B300).map((w) => w.id)).not.toContain('W9')
+  })
+})
+
+describe('context mix and TTFT target (R16, R17)', () => {
+  const MIXED = [
+    { tokens: 4096, share: 0.7 },
+    { tokens: 262144, share: 0.3 },
+  ]
+
+  it('a several-class mix sets sequenceLength to its largest class, silently', () => {
+    const r = normalizeConfig(cfg({ contextMix: MIXED }), L70, H100)
+    expect(r.config.sequenceLength).toBe(262144)
+    expect(r.config.contextMix).toEqual(MIXED)
+    expect(buildNotice(r.corrections, 'setting', { model: L70, gpu: H100, config: r.config })).toBe(
+      null,
+    )
+  })
+
+  it('shares summing to 120% are corrected to 100% and noticed', () => {
+    const r = normalizeConfig(
+      cfg({
+        contextMix: [
+          { tokens: 4096, share: 0.7 },
+          { tokens: 32768, share: 0.5 },
+        ],
+      }),
+      L70,
+      H100,
+    )
+    expect(r.config.contextMix.map((k) => k.share).reduce((a, b) => a + b)).toBeCloseTo(1)
+    expect(ruleFixes(r, 'R16').some((c) => !c.silent)).toBe(true)
+  })
+
+  it('one class follows sequenceLength silently; R10 still clamps and notices', () => {
+    const r = normalizeConfig(cfg({ sequenceLength: 8192 }), L70, H100)
+    expect(r.config.contextMix).toEqual([{ tokens: 8192, share: 1 }])
+    expect(r.corrections.every((c) => c.silent)).toBe(true)
+    const low = normalizeConfig(cfg({ sequenceLength: 100 }), L70, H100)
+    expect(low.config.sequenceLength).toBe(512)
+    expect(low.config.contextMix).toEqual([{ tokens: 512, share: 1 }])
+    expect(
+      buildNotice(low.corrections, 'link', { model: L70, gpu: H100, config: low.config })?.lines,
+    ).toHaveLength(1)
+  })
+
+  it('a class outside the context range is clamped and noticed', () => {
+    const r = normalizeConfig(
+      cfg({
+        contextMix: [
+          { tokens: 100, share: 0.5 },
+          { tokens: 8192, share: 0.5 },
+        ],
+      }),
+      L70,
+      H100,
+    )
+    expect(r.config.contextMix[0]?.tokens).toBe(512)
+  })
+
+  it('R17 clamps the target to 0.1-3600 s, keeps null', () => {
+    expect(normalizeConfig(cfg({ ttftTargetSeconds: 0 }), L70, H100).config.ttftTargetSeconds).toBe(
+      0.1,
+    )
+    expect(
+      normalizeConfig(cfg({ ttftTargetSeconds: 9999 }), L70, H100).config.ttftTargetSeconds,
+    ).toBe(3600)
+    expect(
+      normalizeConfig(cfg({ ttftTargetSeconds: Number.NaN }), L70, H100).config.ttftTargetSeconds,
+    ).toBeNull()
+    expect(normalizeConfig(cfg({ ttftTargetSeconds: 2 }), L70, H100).corrections).toEqual([])
+  })
+
+  it('training leaves the mix and target inert', () => {
+    const bad = {
+      contextMix: [{ tokens: 100, share: 3 }],
+      ttftTargetSeconds: 0,
+      mode: 'training' as const,
+    }
+    const r = normalizeConfig(cfg(bad), L70, H100)
+    expect(r.config.contextMix).toEqual(bad.contextMix)
+    expect(r.config.ttftTargetSeconds).toBe(0)
+  })
+
+  it('W10 names a class beyond the native context, never clamps', () => {
+    const native = L70.context_length
+    if (!native) throw new Error('fixture needs a native context')
+    const mix = [
+      { tokens: 4096, share: 0.7 },
+      { tokens: native * 2, share: 0.3 },
+    ]
+    const w = softWarnings(
+      {
+        mode: 'inference',
+        numGPUs: 1,
+        numNodes: 1,
+        shardingStrategy: 'tensor-parallel',
+        contextMix: mix,
+      },
+      L70,
+      H100,
+    )
+    expect(w.map((x) => x.id)).toEqual(['W10'])
+    expect(w[0]?.message).toContain(String(native * 2))
   })
 })

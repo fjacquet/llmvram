@@ -34,6 +34,8 @@ const baseState = {
   },
   quantization: 'gptq' as const,
   sequenceLength: 4096,
+  contextMix: [{ tokens: 4096, share: 1 }],
+  ttftTargetSeconds: null,
   batchSize: 1,
   kvQuantization: 'fp16' as const,
   numGPUs: 2,
@@ -931,5 +933,50 @@ describe('sizing mode links (2026-11-11, sizing T5)', () => {
       }),
     )
     expect(decoded?.fab).toBe('ethernet-1600g')
+  })
+})
+
+describe('context mix and TTFT target links', () => {
+  const lookups = { findModel: () => null, findGPU: () => null }
+  const mixed = [
+    { tokens: 4096, share: 0.7 },
+    { tokens: 262144, share: 0.3 },
+  ]
+
+  it('writes cm and tt only when set, and restores them', () => {
+    const plain = deserializeFromURL(
+      serializeToURL({
+        ...baseState,
+        contextMix: [{ tokens: 4096, share: 1 }],
+        ttftTargetSeconds: null,
+      }),
+    )
+    expect(plain?.cm).toBeUndefined()
+    expect(plain?.tt).toBeUndefined()
+    const d = deserializeFromURL(
+      serializeToURL({ ...baseState, contextMix: mixed, ttftTargetSeconds: 2 }),
+    )
+    expect(d?.cm).toEqual([
+      [4096, 70],
+      [262144, 30],
+    ])
+    expect(d?.tt).toBe(2)
+    const { patch } = urlStateToConfig(d as NonNullable<typeof d>, lookups)
+    expect(patch.contextMix?.[1]).toEqual({ tokens: 262144, share: 0.3 })
+    expect(patch.ttftTargetSeconds).toBe(2)
+  })
+
+  it('an old link restores the default mix and no target', () => {
+    const d = deserializeFromURL(
+      serializeToURL({
+        ...baseState,
+        sequenceLength: 8192,
+        contextMix: [{ tokens: 8192, share: 1 }],
+        ttftTargetSeconds: null,
+      }),
+    )
+    const { patch } = urlStateToConfig(d as NonNullable<typeof d>, lookups)
+    expect(patch.contextMix).toEqual([{ tokens: 8192, share: 1 }])
+    expect(patch.ttftTargetSeconds).toBeNull()
   })
 })
