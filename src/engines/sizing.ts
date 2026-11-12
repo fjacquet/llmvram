@@ -194,7 +194,12 @@ export function evaluateReplica(
     ceilingTimeToFirstToken: perf.timeToFirstToken,
     totalPerGPUGB,
     burstCap,
-    ttft: burstTTFT(classes, sessions),
+    // first served = the figure the card always showed (priced at the real batch and fabric hops)
+    ttft: {
+      ...burstTTFT(classes, sessions),
+      firstExpected: perf.expected.timeToFirstToken,
+      firstCeiling: perf.timeToFirstToken,
+    },
     classes,
     boundBy: open < memoryOpen ? 'ttft' : 'memory',
     fits,

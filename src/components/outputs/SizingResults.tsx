@@ -166,10 +166,11 @@ export function SizingResults({
           <div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Time to first token</p>
             <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              {ttftLine(c.ttft)}
+              {formatDuration(c.ttft.firstExpected)}
             </p>
-            <p className={MUTED}>{worstCaseLabel(c.ttft)}</p>
             <p className={MUTED}>{ttftCeilingLine(c.ttft)}</p>
+            <p className={MUTED}>{ttftLine(c.ttft)}</p>
+            <p className={MUTED}>{worstCaseLabel(c.ttft)}</p>
             {target && (
               <p
                 className={`text-sm ${target.met ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}

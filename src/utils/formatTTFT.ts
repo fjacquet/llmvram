@@ -10,9 +10,14 @@ export function formatTokensShort(tokens: number): string {
   return String(tokens)
 }
 
+/** "90% 4K, 10% 256K" */
+export function mixList(mix: ContextMix): string {
+  return mix.map((c) => `${Math.round(c.share * 100)}% ${formatTokensShort(c.tokens)}`).join(', ')
+}
+
 /** "mix: 90% 4K, 10% 256K" */
 export function mixLabel(mix: ContextMix): string {
-  return `mix: ${mix.map((c) => `${Math.round(c.share * 100)}% ${formatTokensShort(c.tokens)}`).join(', ')}`
+  return `mix: ${mixList(mix)}`
 }
 
 /** The TTFT line shared by Inference, Sizing and the exports; first = headline, last = worst case */

@@ -5,7 +5,7 @@ import { FRAMEWORK_PRESETS } from '@engines/frameworks'
 import { KV_TIER_PRESETS } from '@engines/kv-tier'
 import { useUIStore } from '@store/uiStore'
 import { formatDuration } from '@utils/formatDuration'
-import { mixLabel } from '@utils/formatTTFT'
+import { mixList } from '@utils/formatTTFT'
 import Decimal from 'decimal.js'
 import { toast } from 'sonner'
 
@@ -59,7 +59,7 @@ export function assumptionRows(s: UIState): Row[] {
     rows.push(['Network between servers', fabric])
   if (s.mode !== 'training') {
     if (!isDefaultMix(s.contextMix, s.sequenceLength))
-      rows.push(['Context mix', mixLabel(s.contextMix).replace('mix: ', '')])
+      rows.push(['Context mix', mixList(s.contextMix)])
     if (s.ttftTargetSeconds !== null)
       rows.push(['TTFT target', formatDuration(new Decimal(s.ttftTargetSeconds))])
   }

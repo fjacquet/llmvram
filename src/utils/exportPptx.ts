@@ -12,7 +12,7 @@ import type {
 } from '@engines/types'
 import { formatCapacity, totalCapacityLine } from '@utils/formatCapacity'
 import { formatDuration } from '@utils/formatDuration'
-import { mixLabel, worstCaseLabel } from '@utils/formatTTFT'
+import { mixList, worstCaseLabel } from '@utils/formatTTFT'
 import { firstTokenLabel } from '@utils/perfLabels'
 import type { GPU, Model } from '@utils/schemas'
 import { decodeBatchNote, SIZING_SPEED_NOTE } from '@utils/sizingNote'
@@ -717,7 +717,7 @@ export async function exportSizingPptx(params: ExportSizingPptxParams): Promise<
     ['Context', `${sequenceLength.toLocaleString('en-US')} tokens`],
     ...(isDefaultMix(contextMix, sequenceLength)
       ? []
-      : ([['Context mix', mixLabel(contextMix).replace('mix: ', '')]] as [string, string][])),
+      : ([['Context mix', mixList(contextMix)]] as [string, string][])),
     ...(ttftTargetSeconds === null
       ? []
       : ([['TTFT target', formatDuration(new Decimal(ttftTargetSeconds))]] as [string, string][])),

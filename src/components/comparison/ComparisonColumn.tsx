@@ -3,7 +3,7 @@ import { KV_TIER_PRESETS } from '@engines/kv-tier'
 import type { ConfigSnapshot } from '@store/comparisonStore'
 import { useComparisonStore } from '@store/comparisonStore'
 import { formatDurationMs } from '@utils/formatDuration'
-import { mixLabel } from '@utils/formatTTFT'
+import { mixList } from '@utils/formatTTFT'
 import { useMemo, useState } from 'react'
 
 interface ComparisonColumnProps {
@@ -275,7 +275,7 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
         {sizing && !isDefaultMix(snapshot.config.contextMix, snapshot.config.sequenceLength) && (
           <Field
             label="Context mix"
-            value={mixLabel(snapshot.config.contextMix).replace('mix: ', '')}
+            value={mixList(snapshot.config.contextMix)}
             isDifferent={diffMap.sizing}
           />
         )}

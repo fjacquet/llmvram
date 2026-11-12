@@ -6,6 +6,7 @@ import {
   formatTokensShort,
   maxUsersLine,
   mixLabel,
+  mixList,
   targetLine,
   ttftCeilingLine,
   ttftLine,
@@ -46,5 +47,16 @@ describe('formatTTFT', () => {
     ).toBe('mix: 90% 4K, 10% 256K')
     expect(formatTokensShort(1048576)).toBe('1M')
     expect(formatTokensShort(512)).toBe('512')
+  })
+})
+
+describe('mixList', () => {
+  it('lists shares and sizes without the mix prefix', () => {
+    expect(
+      mixList([
+        { tokens: 4096, share: 0.9 },
+        { tokens: 262144, share: 0.1 },
+      ]),
+    ).toBe('90% 4K, 10% 256K')
   })
 })

@@ -6,6 +6,7 @@ import { DEFAULT_KV_TIER, type KVTierSettings } from '@engines/kv-tier'
 import { sizeDeployment } from '@engines/sizing'
 import type { SizingInput, SizingResult } from '@engines/types'
 import { render, screen } from '@testing-library/react'
+import { formatDuration } from '@utils/formatDuration'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 import { SizingResults } from './SizingResults'
@@ -218,5 +219,15 @@ describe('SizingResults', () => {
       screen.getByRole('heading', { name: /^No rack replica meets .* at 32K tokens$/ }),
     ).toBeVisible()
     expect(screen.queryByText(/0 racks/)).toBeNull()
+  })
+
+  it('headline is the first-served figure, equal to the single-prompt TTFT', () => {
+    const r = size({ model: model('zai-org-glm-5.2'), gpu: gb300 })
+    const c = r.chosen
+    if (!c) throw new Error('expected a fit')
+    expect(c.ttft.firstExpected.toNumber()).toBe(c.timeToFirstToken.toNumber())
+    expect(c.ttft.firstCeiling.toNumber()).toBe(c.ceilingTimeToFirstToken.toNumber())
+    show(r)
+    expect(screen.getByText(formatDuration(c.timeToFirstToken))).toBeVisible()
   })
 })
