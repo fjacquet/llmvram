@@ -1,7 +1,17 @@
 import { InfoTip } from '@components/common/InfoTip'
+import { isDefaultMix } from '@engines/context-mix'
 import { KV_TIER_PRESETS } from '@engines/kv-tier'
-import type { ReplicaCandidate, SizingResult } from '@engines/types'
+import type { ContextMix, ReplicaCandidate, SizingResult } from '@engines/types'
 import { formatDuration } from '@utils/formatDuration'
+import {
+  formatTokensShort,
+  maxUsersLine,
+  mixLabel,
+  targetLine,
+  ttftCeilingLine,
+  ttftLine,
+  worstCaseLabel,
+} from '@utils/formatTTFT'
 import type { GPU } from '@utils/schemas'
 import { decodeBatchNote, SIZING_SPEED_NOTE } from '@utils/sizingNote'
 import Decimal from 'decimal.js'
@@ -9,6 +19,9 @@ import Decimal from 'decimal.js'
 interface SizingResultsProps {
   result: SizingResult
   gpu: GPU
+  sequenceLength: number
+  contextMix: ContextMix
+  ttftTargetSeconds: number | null
 }
 
 const CARD =
@@ -63,8 +76,23 @@ function Sessions({ c }: { c: ReplicaCandidate }) {
 }
 
 /** The answer in servers or racks: replica shape, packing and per-user speed (expected, with ceiling) */
-export function SizingResults({ result, gpu }: SizingResultsProps) {
-  const { chosen: c, closest } = result
+export function SizingResults({
+  result,
+  gpu,
+  sequenceLength,
+  contextMix,
+  ttftTargetSeconds,
+}: SizingResultsProps) {
+  const { chosen: c, closest, neverMeetsTarget } = result
+  if (result.fits && !c && neverMeetsTarget && ttftTargetSeconds !== null) {
+    return (
+      <div className={CARD}>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          {`No ${result.unit} replica meets ${formatDuration(new Decimal(ttftTargetSeconds))} at ${formatTokensShort(neverMeetsTarget.largestClassTokens)} tokens`}
+        </h2>
+      </div>
+    )
+  }
   if (!result.fits || !c) {
     return (
       <div className={CARD}>
@@ -79,12 +107,17 @@ export function SizingResults({ result, gpu }: SizingResultsProps) {
   }
   const multiServer = c.nodes > 1
   const batchNote = decodeBatchNote(c.decodeBatch)
+  const mixActive = !isDefaultMix(contextMix, sequenceLength)
+  const target = targetLine(c.ttft, ttftTargetSeconds)
   return (
     <div className={CARD}>
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
           {`${plural(result.units, result.unit)} ${gpu.name}`}
         </h2>
+        <p data-testid="sized-by" className="text-sm text-gray-600 dark:text-gray-400">
+          {`Sized by ${c.boundBy === 'ttft' ? 'TTFT target' : 'memory'}${mixActive ? ` (memory sized on the mix average, ${mixLabel(contextMix)})` : ''}`}
+        </p>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           {`replica = ${c.tp} GPUs (tensor parallel)${multiServer ? ` × ${c.nodes} servers` : ''}`}
         </p>
@@ -133,11 +166,18 @@ export function SizingResults({ result, gpu }: SizingResultsProps) {
           <div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Time to first token</p>
             <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              {formatDuration(c.timeToFirstToken)}
+              {ttftLine(c.ttft)}
             </p>
-            <p className={MUTED}>
-              Theoretical ceiling: {formatDuration(c.ceilingTimeToFirstToken)}
-            </p>
+            <p className={MUTED}>{worstCaseLabel(c.ttft)}</p>
+            <p className={MUTED}>{ttftCeilingLine(c.ttft)}</p>
+            {target && (
+              <p
+                className={`text-sm ${target.met ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}
+              >
+                {target.text}
+              </p>
+            )}
+            {c.burstCap !== null && <p className={MUTED}>{maxUsersLine(c.burstCap)}</p>}
           </div>
         </div>
       </div>

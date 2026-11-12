@@ -1,8 +1,12 @@
 import { isRackGPU } from '@engines/config-rules'
+import { isDefaultMix } from '@engines/context-mix'
 import { resolveFabricSpec } from '@engines/fabric'
 import { FRAMEWORK_PRESETS } from '@engines/frameworks'
 import { KV_TIER_PRESETS } from '@engines/kv-tier'
 import { useUIStore } from '@store/uiStore'
+import { formatDuration } from '@utils/formatDuration'
+import { mixLabel } from '@utils/formatTTFT'
+import Decimal from 'decimal.js'
 import { toast } from 'sonner'
 
 /** The element the PDF captures: the results column, never the input form */
@@ -53,6 +57,12 @@ export function assumptionRows(s: UIState): Row[] {
   }
   if ((s.mode === 'sizing' && !isRackGPU(gpu)) || (s.mode !== 'sizing' && s.numNodes > 1))
     rows.push(['Network between servers', fabric])
+  if (s.mode !== 'training') {
+    if (!isDefaultMix(s.contextMix, s.sequenceLength))
+      rows.push(['Context mix', mixLabel(s.contextMix).replace('mix: ', '')])
+    if (s.ttftTargetSeconds !== null)
+      rows.push(['TTFT target', formatDuration(new Decimal(s.ttftTargetSeconds))])
+  }
   if (tier && s.mode !== 'training') rows.push(['KV tier', tier])
   return rows
 }

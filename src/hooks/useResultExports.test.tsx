@@ -212,6 +212,8 @@ describe('useSizingExports', () => {
     users: 500,
     kvQuantization: 'fp16' as const,
     fabricLabel: '800GbE (SONiC / RoCEv2)',
+    contextMix: [{ tokens: 8192, share: 1 }],
+    ttftTargetSeconds: 2,
     result: sizing,
   }
 
@@ -243,6 +245,8 @@ describe('useSizingExports', () => {
         kvQuantization: 'fp16',
         fabricLabel: '800GbE (SONiC / RoCEv2)',
         users: 500,
+        ttftTargetSeconds: 2,
+        contextMix: [{ tokens: 8192, share: 1 }],
       }),
     )
   })

@@ -73,6 +73,8 @@ function SizingPanel() {
     sequenceLength,
     users,
     kvQuantization,
+    contextMix,
+    ttftTargetSeconds,
     fabricLabel: resolveFabricSpec(interNodeFabric, customFabric).label,
     result,
   })
@@ -146,6 +148,8 @@ function SizingPanel() {
           tier: c.tierUsed === 'none' ? null : c.tierUsed,
           users,
           activeShare: c.activeShare,
+          boundBy: c.boundBy,
+          ttftLastSeconds: c.ttft.lastExpected.toNumber(),
         },
       },
     })
@@ -174,7 +178,13 @@ function SizingPanel() {
           </button>
         </div>
       )}
-      <SizingResults result={result} gpu={selectedGPU} />
+      <SizingResults
+        result={result}
+        gpu={selectedGPU}
+        sequenceLength={sequenceLength}
+        contextMix={contextMix}
+        ttftTargetSeconds={ttftTargetSeconds}
+      />
     </div>
   )
 }

@@ -799,6 +799,8 @@ describe('exportSizingPptx', () => {
       fabricLabel: resolveFabricSpec('ethernet-800g', null).label,
       sequenceLength: 32768,
       users: 2000,
+      contextMix: defaultMix(32768),
+      ttftTargetSeconds: null,
       result,
     })
 
@@ -872,6 +874,8 @@ describe('exportSizingPptx', () => {
       fabricLabel: '800GbE (SONiC / RoCEv2)',
       sequenceLength: 32768,
       users: 50,
+      contextMix: defaultMix(32768),
+      ttftTargetSeconds: null,
       result: r,
     })
     const rows = tableRows(0)
@@ -903,8 +907,47 @@ describe('exportSizingPptx', () => {
       fabricLabel: 'x',
       sequenceLength: 512,
       users: 20000,
+      contextMix: defaultMix(512),
+      ttftTargetSeconds: null,
       result: r,
     })
     expect(tableRows(0).find(([k]) => k === 'Note')?.[1]).toContain('--max-num-seqs')
+  })
+
+  it('names the mix, the target, sized-by and both TTFTs', async () => {
+    const mix = [
+      { tokens: 4096, share: 0.9 },
+      { tokens: 32768, share: 0.1 },
+    ]
+    const r = sizeDeployment({
+      model: realModel,
+      gpu: sizingGpu,
+      quantization: 'fp8',
+      kvQuantization: 'fp16',
+      sequenceLength: 32768,
+      users: 50,
+      fabric: resolveFabricSpec('ethernet-800g', null),
+      kvTier: DEFAULT_KV_TIER,
+      contextMix: mix,
+      ttftTargetSeconds: 60,
+    })
+    await exportSizingPptx({
+      model: realModel,
+      gpu: sizingGpu,
+      quantization: 'fp8',
+      kvQuantization: 'fp16',
+      fabricLabel: 'x',
+      sequenceLength: 32768,
+      users: 50,
+      contextMix: mix,
+      ttftTargetSeconds: 60,
+      result: r,
+    })
+    const rows = tableRows(0)
+    expect(rows).toContainEqual(['Context mix', '90% 4K, 10% 32K'])
+    expect(rows).toContainEqual(['TTFT target', '1.0 min'])
+    expect(rows.some(([k]) => k === 'Sized by')).toBe(true)
+    expect(rows.some(([k]) => k.startsWith('Time to first token (first'))).toBe(true)
+    expect(rows.some(([k]) => k.startsWith('Time to first token (last'))).toBe(true)
   })
 })

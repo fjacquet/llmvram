@@ -33,6 +33,23 @@ describe('assumptionRows', () => {
     expect(r.GPUs).toBeUndefined()
   })
 
+  it('context mix and TTFT target rows appear only when set', () => {
+    const plain = rows({ mode: 'sizing', ttftTargetSeconds: null })
+    expect(plain['Context mix']).toBeUndefined()
+    expect(plain['TTFT target']).toBeUndefined()
+    const r = rows({
+      mode: 'sizing',
+      sequenceLength: 262144,
+      contextMix: [
+        { tokens: 4096, share: 0.9 },
+        { tokens: 262144, share: 0.1 },
+      ],
+      ttftTargetSeconds: 2,
+    })
+    expect(r['Context mix']).toBe('90% 4K, 10% 256K')
+    expect(r['TTFT target']).toBe('2.00 s')
+  })
+
   it('training: method, optimizer and precision replace the quantization rows', () => {
     const r = rows({ mode: 'training', trainingMethod: 'qlora' })
     expect(r.Method).toBe('QLORA')

@@ -58,6 +58,9 @@ export interface ConfigSnapshot {
       activeShare: number
       /** KV storage tier the open-session count relied on; null when none */
       tier: Exclude<KVTierType, 'none'> | null
+      boundBy?: 'memory' | 'ttft'
+      /** Expected TTFT of the last served prompt, seconds */
+      ttftLastSeconds?: number
     }
   }
 }

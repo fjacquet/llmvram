@@ -1,8 +1,10 @@
+import { isDefaultMix } from '@engines/context-mix'
 import { DECIMAL_GB_PER_GIB, KV_TIER_PRESETS } from '@engines/kv-tier'
 import { interconnectLabel } from '@engines/multi-gpu'
 import { roundOffloadSlowdown } from '@engines/offloading'
 import type { weightSource } from '@engines/quantization'
 import type {
+  ContextMix,
   InferenceVRAMBreakdown,
   MultiGPUVRAMBreakdown,
   PerformanceEstimate,
@@ -10,10 +12,11 @@ import type {
 } from '@engines/types'
 import { formatCapacity, totalCapacityLine } from '@utils/formatCapacity'
 import { formatDuration } from '@utils/formatDuration'
+import { mixLabel, worstCaseLabel } from '@utils/formatTTFT'
 import { firstTokenLabel } from '@utils/perfLabels'
 import type { GPU, Model } from '@utils/schemas'
 import { decodeBatchNote, SIZING_SPEED_NOTE } from '@utils/sizingNote'
-import type Decimal from 'decimal.js'
+import Decimal from 'decimal.js'
 
 export interface ExportPptxOffload {
   target: 'cpu-ram' | 'nvme'
@@ -660,13 +663,25 @@ export interface ExportSizingPptxParams {
   kvQuantization: string
   /** Scale-out fabric the multi-server replicas are costed on; shown for server GPUs only */
   fabricLabel: string
+  contextMix: ContextMix
+  ttftTargetSeconds: number | null
   result: SizingResult
 }
 
 /** One summary slide: the answer in racks or servers, with the assumptions it rests on */
 export async function exportSizingPptx(params: ExportSizingPptxParams): Promise<void> {
-  const { model, gpu, quantization, kvQuantization, fabricLabel, sequenceLength, users, result } =
-    params
+  const {
+    model,
+    gpu,
+    quantization,
+    kvQuantization,
+    fabricLabel,
+    sequenceLength,
+    users,
+    result,
+    contextMix,
+    ttftTargetSeconds,
+  } = params
   const c = result.chosen
   if (!result.fits || !c) throw new Error('Nothing fits: no sizing to export')
 
@@ -700,6 +715,13 @@ export async function exportSizingPptx(params: ExportSizingPptxParams): Promise<
     ['KV precision', kvQuantization.toUpperCase()],
     ...(result.unit === 'server' ? ([['Fabric', fabricLabel]] as [string, string][]) : []),
     ['Context', `${sequenceLength.toLocaleString('en-US')} tokens`],
+    ...(isDefaultMix(contextMix, sequenceLength)
+      ? []
+      : ([['Context mix', mixLabel(contextMix).replace('mix: ', '')]] as [string, string][])),
+    ...(ttftTargetSeconds === null
+      ? []
+      : ([['TTFT target', formatDuration(new Decimal(ttftTargetSeconds))]] as [string, string][])),
+    ['Sized by', c.boundBy === 'ttft' ? 'TTFT target' : 'memory'],
     ['Users', users.toLocaleString('en-US')],
     [
       tier ? 'Open sessions per replica' : 'Sessions per replica',
@@ -712,8 +734,12 @@ export async function exportSizingPptx(params: ExportSizingPptxParams): Promise<
       `${c.perUserTokensPerSecond.toFixed(1)} tok/s (ceiling ${c.perUserCeilingTokensPerSecond.toFixed(1)})`,
     ],
     [
-      'Time to first token',
-      `${formatDuration(c.timeToFirstToken)} (ceiling ${formatDuration(c.ceilingTimeToFirstToken)})`,
+      'Time to first token (first served)',
+      `${formatDuration(c.ttft.firstExpected)} (ceiling ${formatDuration(c.ttft.firstCeiling)})`,
+    ],
+    [
+      `Time to first token (last served, ${worstCaseLabel(c.ttft)})`,
+      `${formatDuration(c.ttft.lastExpected)} (ceiling ${formatDuration(c.ttft.lastCeiling)})`,
     ],
   ]
   const batchNote = decodeBatchNote(c.decodeBatch)

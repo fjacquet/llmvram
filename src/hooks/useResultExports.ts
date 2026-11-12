@@ -1,5 +1,5 @@
 import { applyInterconnectOverride } from '@engines/multi-gpu'
-import type { QuantizationFormat, SizingResult } from '@engines/types'
+import type { ContextMix, QuantizationFormat, SizingResult } from '@engines/types'
 import type { UseInferenceCalculationResult } from '@hooks/useInferenceCalculation'
 import { exportCalculatorPdf } from '@utils/exportPdf'
 import { type ExportPptxParams, exportPptx, exportSizingPptx } from '@utils/exportPptx'
@@ -88,6 +88,8 @@ interface UseSizingExportsParams {
   users: number
   kvQuantization: QuantizationFormat
   fabricLabel: string
+  contextMix: ContextMix
+  ttftTargetSeconds: number | null
   result: SizingResult | null
 }
 
@@ -105,6 +107,8 @@ export function useSizingExports(p: UseSizingExportsParams) {
         users: p.users,
         kvQuantization: p.kvQuantization,
         fabricLabel: p.fabricLabel,
+        contextMix: p.contextMix,
+        ttftTargetSeconds: p.ttftTargetSeconds,
         result: p.result,
       })
     } catch (err) {
