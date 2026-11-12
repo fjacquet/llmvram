@@ -28,19 +28,20 @@ context, and prompts never wait for each other. Prefill is compute-bound, so a b
 - **D2 The burst is a worst case, not "expected".** Last served = one largest-class prompt
   plus (B - 1) x the share-weighted per-class TTFT at batch 1: a burst holds at least one prompt
   of the largest class, so last is never below first (a plain B x mean fell below it with a
-  skewed mix, e.g. 99% 4K / 1% 128K at burst 1). One class is unchanged (t + (B - 1)t = Bt). It is labelled "worst case: all N prompts at once, first come first
-  served, no prefix cache". ADR 0009 keeps "expected" for medians of published points. No
+  skewed mix, e.g. 99% 4K / 1% 128K at burst 1). One class is unchanged (t + (B - 1)t = Bt).
+  It is labelled "worst case: all N prompts at once, first come first served, no prefix
+  cache". ADR 0009 keeps "expected" for medians of published points. No
   Poisson arrivals, no percentiles, no per-class worst case (in a first-come-first-served queue
   the total is the same whichever class is last).
 - **D3 No double count of queueing.** The 0.469 prefill efficiency was fitted against mean TTFT
   with a closed-loop correction, so it already removes queueing, per the calibration note
-  (`docs/calibration/2026-11-11-vllm-efficiency-points.md`). Each prompt's expected prefill times the queue length counts the
-  queue once.
+  (`docs/calibration/2026-11-11-vllm-efficiency-points.md`). Each prompt's expected prefill
+  times the queue length counts the queue once.
 - **D4 Batch 1 per class.** `performance.ts` divides hop and pipeline-fill costs by the batch
   (ADR 0007); the queue multiplies a batch-1 prefill, so multi-server cost is not divided twice.
 - **D5 Sizing.** Burst cap = the largest B whose last-served TTFT meets the target: 0 if the
-  largest class alone misses, else floor((T - largest) / mean) + 1 (one class: floor(T / t)). Users per
-  replica = min(memory sessions, burst cap). Replicas = ceil(users / users per replica). The
+  largest class alone misses, else floor((T - largest) / mean) + 1 (one class: floor(T / t)).
+  Users per replica = min(memory sessions, burst cap). Replicas = ceil(users / users per replica). The
   result reads "Sized by memory" or "Sized by TTFT target". If one user per replica on every
   replica shape still misses, `neverMeetsTarget` names the largest class. With a KV tier the
   burst is the active sessions (Sizing only; see D1).

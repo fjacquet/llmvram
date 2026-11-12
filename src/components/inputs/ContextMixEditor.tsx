@@ -58,7 +58,7 @@ export function ContextMixEditor() {
         <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Context mix
         </span>
-        <InfoTip text="Up to 3 prompt-size classes with the share of requests each carries. Memory is sized on the mix average; one session at the largest class must still fit. The TTFT of a burst is the share-weighted mean prefill times the number of prompts." />
+        <InfoTip text="Up to 3 prompt-size classes with the share of requests each carries. Memory is sized on the mix average; one session at the largest class must still fit. In a burst, the last prompt waits for one largest-class prompt plus the others at the share-weighted mean prefill." />
       </div>
 
       {contextMix.map((c, i) => (
@@ -94,13 +94,13 @@ export function ContextMixEditor() {
             />
             <span className="text-xs text-gray-500 dark:text-gray-400">tokens</span>
             <input
+              key={i === lastIndex ? 'share-last' : `share-${pct(c.share)}`}
               type="number"
               min={1}
               max={99}
               {...(i === lastIndex
                 ? { value: pct(c.share), readOnly: true }
                 : {
-                    key: `share-${pct(c.share)}`,
                     defaultValue: pct(c.share),
                     onBlur: (e: React.FocusEvent<HTMLInputElement>) =>
                       setShare(i, Number(e.target.value)),

@@ -126,8 +126,9 @@ export function PerformanceSection({
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-400">{ttftCeilingLine(burst)}</p>
         {classes.length > 1 &&
-          classes.map((c) => (
-            <p key={c.tokens} className="text-xs text-gray-500 dark:text-gray-400">
+          classes.map((c, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: two classes may share a size
+            <p key={i} className="text-xs text-gray-500 dark:text-gray-400">
               {`${formatTokensShort(c.tokens)} prompt alone: ${formatDuration(c.expectedTTFT)} (ceiling ${formatDuration(c.ceilingTTFT)})`}
             </p>
           ))}
