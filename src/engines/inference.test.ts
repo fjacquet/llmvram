@@ -3,6 +3,7 @@ import { type Model, validateModels } from '@utils/schemas'
 import Decimal from 'decimal.js'
 import { describe, expect, it } from 'vitest'
 import { PREFILL_CHUNK_TOKENS } from './constants'
+import { defaultMix } from './context-mix'
 import {
   calculateActivationMemory,
   calculateInferenceVRAM,
@@ -12,6 +13,8 @@ import {
   routedTouchedFraction,
   splitMoEParams,
 } from './inference'
+import { calculateKVCacheVRAM } from './kv-cache'
+import { calculateOffloadedVRAM } from './offloading'
 import { calculateModelWeightVRAM } from './quantization'
 
 // Test fixtures - inline model definitions for test isolation
@@ -632,5 +635,97 @@ describe('routedTouchedFraction', () => {
       (split?.baseB ?? 0) + (split?.routedB ?? 0) * (1 - (1 - 16 / 896) ** 64),
       6,
     )
+  })
+})
+
+describe('calculateInferenceVRAM - context mix', () => {
+  const mix = [
+    { tokens: 4096, share: 0.9 },
+    { tokens: 262144, share: 0.1 },
+  ]
+  const kv = (model: Model, t: number, users: number) =>
+    calculateKVCacheVRAM({ model, sequenceLength: t, batchSize: users, kvPrecision: 'fp16' })
+  const pick = (id: string) => {
+    const m = validateModels(modelsData).find((x) => x.id === id)
+    if (!m) throw new Error(id)
+    return m
+  }
+
+  it('kvCache is the share-weighted KV of each class', () => {
+    const model = pick('meta-llama-llama-3.3-70b')
+    const r = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 262144,
+      batchSize: 10,
+      concurrentUsers: 10,
+      contextMix: mix,
+    })
+    const expected = kv(model, 4096, 10)
+      .mul(0.9)
+      .add(kv(model, 262144, 10).mul(0.1))
+    expect(r.kvCache.sub(expected).abs().toNumber()).toBeLessThan(1e-9)
+  })
+
+  it('default mix equals no mix', () => {
+    const model = pick('meta-llama-llama-3.3-70b')
+    const base = { model, quantization: 'fp16' as const, sequenceLength: 8192, batchSize: 10 }
+    expect(calculateInferenceVRAM({ ...base, contextMix: defaultMix(8192) })).toEqual(
+      calculateInferenceVRAM(base),
+    )
+  })
+
+  it('sliding window is weighted per class at min(window, tokens)', () => {
+    const model = pick('google-gemma-3-27b')
+    const m = [
+      { tokens: 512, share: 0.5 },
+      { tokens: 32768, share: 0.5 },
+    ]
+    const r = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 32768,
+      batchSize: 4,
+      contextMix: m,
+    })
+    const expected = kv(model, 512, 4)
+      .add(kv(model, 32768, 4))
+      .div(2)
+    expect(r.kvCache.sub(expected).abs().toNumber()).toBeLessThan(1e-9)
+    expect(r.kvCache.lt(kv(model, 32768, 4))).toBe(true)
+  })
+
+  it('linearState stays per session', () => {
+    const model = pick('moonshotai-kimi-k3')
+    const base = { model, quantization: 'fp16' as const, sequenceLength: 32768, batchSize: 4 }
+    const r = calculateInferenceVRAM({
+      ...base,
+      contextMix: [
+        { tokens: 4096, share: 0.5 },
+        { tokens: 32768, share: 0.5 },
+      ],
+    })
+    expect(r.linearState).toEqual(calculateInferenceVRAM(base).linearState)
+  })
+
+  it('offloading moves the mix KV', () => {
+    const model = pick('meta-llama-llama-3.3-70b')
+    const b = calculateInferenceVRAM({
+      model,
+      quantization: 'fp16',
+      sequenceLength: 262144,
+      batchSize: 10,
+      contextMix: mix,
+    })
+    const o = calculateOffloadedVRAM(b, {
+      enabled: true,
+      target: 'cpu-ram',
+      mode: 'percentage',
+      offloadPercentage: 0,
+      offloadLayers: 0,
+      kvCacheOffload: true,
+    })
+    expect(o.offloaded.kvCache).toEqual(b.kvCache)
+    expect(b.kvCache.lt(kv(model, 262144, 10))).toBe(true)
   })
 })

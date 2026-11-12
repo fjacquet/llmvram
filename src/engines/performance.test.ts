@@ -2020,3 +2020,26 @@ describe('expected figures: ceiling x measured vLLM efficiency (spec P1, P2)', (
     }
   })
 })
+
+describe('estimatePerformance - context mix', () => {
+  const base = {
+    model: llama3_70b,
+    gpu: h100_80gb_sxm,
+    quantization: 'fp16' as const,
+    batchSize: 8,
+  }
+  const tps = (sequenceLength: number, contextMix?: { tokens: number; share: number }[]) =>
+    estimatePerformance({ ...base, sequenceLength, contextMix })
+  it('decode sits between the two classes; TTFT stays at sequenceLength', () => {
+    const mix = [
+      { tokens: 4096, share: 0.9 },
+      { tokens: 262144, share: 0.1 },
+    ]
+    const m = tps(262144, mix)
+    expect(m.tokensPerSecond.lt(tps(4096).tokensPerSecond)).toBe(true)
+    expect(m.tokensPerSecond.gt(tps(262144).tokensPerSecond)).toBe(true)
+    // prefill is exact; TTFT adds one decode step, which follows the mix (<0.1% apart here)
+    expect(m.prefillSeconds).toEqual(tps(262144).prefillSeconds)
+    expect(m.timeToFirstToken.toNumber()).toBeCloseTo(tps(262144).timeToFirstToken.toNumber(), 1)
+  })
+})
