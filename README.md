@@ -7,39 +7,36 @@
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Release](https://img.shields.io/github/v/release/fjacquet/llmvram?sort=semver)](https://github.com/fjacquet/llmvram/releases/latest)
-[![License](https://img.shields.io/github/license/fjacquet/llmvram)](https://github.com/fjacquet/llmvram/blob/HEAD/LICENSE)
 
-Browser-based tool for estimating VRAM requirements and performance when running large language models on various GPU configurations. Pure client-side with no backend dependency.
+**Open the calculator: <https://fjacquet.github.io/llmvram/>** (runs in your browser, nothing is sent to a server)
 
-## Features
+How much GPU memory does a large language model need, how fast will it answer, and how many
+servers or racks does it take to serve your users? This calculator answers those three
+questions for 59 current open-weight models on datacenter, workstation and Apple hardware.
 
-> **Reference engine: vLLM.** Memory (90% utilisation, KV layout, tensor-parallel degrees) and the measured efficiencies follow vLLM. Other engines (TensorRT-LLM, SGLang, llama.cpp) will differ; treat their figures as indicative. See [ADR 0011](docs/adr/0011-vllm-reference-engine.md).
-- **VRAM Estimation**: Model weights, KV cache, activations, and framework overhead
-- **24 Quantization Formats**: FP32, FP16, BF16, FP8, MXFP4, INT8, INT4, NF4, GPTQ, AWQ, GGUF Q2-Q8, NVFP4/6
-- **Measured weights**: weight sizes come from published checkpoints per format where one exists, and the results say whether a figure is measured or estimated
-- **KV Cache Quantization**: Independent from weight quantization (FP16, FP8, INT8, INT4)
-- **Concurrent Users**: Size KV cache for 1–65,536 simultaneous sessions; shows per-user tok/s and TTFT (expected speed from measured vLLM efficiency, with the theoretical ceiling beside it), and the maximum sessions that fit at the chosen context
-- **KV Storage Tier**: Park idle sessions on host memory, NVMe or network storage; shows sessions held, resume vs recompute and tier traffic
-- **Long Context**: Sequence lengths up to 1,048,576 tokens (and beyond for models with a larger
-  native context, up to 10,485,760), with a native-context marker and a warning — never a clamp —
-  when the requested length exceeds it
-- **Multi-GPU Support**: Tensor and pipeline parallelism with bandwidth-aware NCCL overhead (NVLink 6/5/4/3 and NVLink bridges, Infinity Fabric, PCIe 5/4)
-  HGX/OAM baseboards (H100/H200 SXM, B200, HGX B300, Rubin NVL8, A100 SXM, MI300X-MI355X) are one 8-GPU machine, not splittable; results state per-GPU and machine-total capacity
-- **Multi-Node Scaling**: Configure GPUs per server and server count, with a selectable scale-out
-  fabric (1.6TbE / 800GbE SONiC RoCEv2, InfiniBand XDR/NDR, 400GbE, 100GbE, or a custom port speed).
-  Tensor parallelism runs inside each server; pipeline parallelism runs across servers
-- **Configuration rules**: impossible combinations are not offered; any correction (including on a shared link) is explained in one notice
-- **Offloading**: CPU/RAM and NVMe offloading simulation; decode reads offloaded bytes over the host link every step (PCIe, NVMe, or Grace NVLink-C2C), and a host-capacity check flags offloaded memory that doesn't fit the host(s)
-- **Performance Estimation**: Tokens/sec from the bytes each decode step reads (active weights plus
-  every session's KV cache) and, on multiple GPUs, all-reduce latency and pipeline fill;
-  prompt-processing time and time-to-first-token modelled from prefill FLOPs (linear weight term
-  plus quadratic attention term), bottleneck analysis (roofline model)
-- **Sizing mode**: given a model and N simultaneous users, how many NVL72 racks (Sizing lists rack GPUs only; use Inference for discrete servers), the replica split, idle GPUs, and expected speed beside its ceiling; an optional KV storage tier can cut the count and the assumption is shown
-- **Configuration Comparison**: Save and diff up to 3 configurations side-by-side
-- **URL Sharing**: LZ-String compressed state in URL hash for shareable links
-- **MoE Architecture**: Correct handling of total vs active parameters
-- **Export**: PDF (assumptions table plus the results, light theme, A4) and PowerPoint (PPTX) export of the full analysis
-- **Dark Mode**: Follows OS `prefers-color-scheme` on first visit, tracks live changes, manual toggle
+## Three modes
+
+- **Inference**: pick a model, a quantization and a machine; see whether it fits, the memory
+  breakdown, decode speed and time to first token, and how many sessions fit at your context.
+- **Sizing**: give a model, a context and a number of simultaneous users; get the number of
+  NVL72 racks, the replica split and the expected speed per user.
+- **Training**: memory for full fine-tuning, LoRA and QLoRA, with DeepSpeed ZeRO sharding.
+
+Save up to three results side by side in **Comparison**, share any setup as a link, and export
+a PDF report or a PowerPoint deck.
+
+## How to read the figures
+
+- **Estimates, not benchmarks.** The memory figures follow what vLLM allocates. Speeds show an
+  _expected_ figure, calibrated on published vLLM runs, beside the _theoretical ceiling_ of
+  the hardware.
+- **vLLM is the reference engine.** TensorRT-LLM, SGLang or llama.cpp will differ; read their
+  figures as indicative ([ADR 0011](docs/adr/0011-vllm-reference-engine.md)).
+- **Memory is per GPU.** An HGX or OAM baseboard counts as one 8-GPU machine, and results show
+  both the per-GPU share and the machine total. Inference fits at 90% of memory, vLLM's
+  default.
+- **Model origin** is the publisher's headquarters country. It says nothing about where a
+  model was trained, and it is not a measure of bias.
 
 ## Supported Hardware
 
@@ -71,56 +68,21 @@ npm run dev
 
 Open <http://localhost:5173> in your browser.
 
-## Development
+Plus custom GPU input for any hardware.
 
-```bash
-npm run build          # TypeScript check + Vite production build
-npm run typecheck      # TypeScript only (tsc -b --force, project-reference aware)
-npm run lint           # Biome linting
-npm run lint:fix       # Biome auto-fix
-npm run format         # Biome format
-npm run test           # Vitest watch mode
-npm run test:coverage  # Coverage report (75% thresholds on engines/utils)
-npm run refresh:all    # Refresh model/GPU data from HuggingFace
-```
+## Models
 
-Or use `make help` for all available targets.
+59 curated models, from Gemma, Qwen, Llama, DeepSeek, GLM, Kimi, Ling, Mistral, MiniMax,
+Nemotron, LFM and GPT OSS, with weight sizes measured from published checkpoints per
+quantization format. Custom models can be entered by hand.
 
-## Technology Stack
+## Learn more
 
-- React 19 + Vite 7
-- TypeScript (strict mode, `noUncheckedIndexedAccess`)
-- Zustand (state management with URL hash persistence)
-- Tailwind CSS v4 (dark mode)
-- Recharts (visualization)
-- Decimal.js (precision arithmetic)
-- Zod (schema validation, single source of truth for types)
-- Web Workers (non-blocking calculations)
-- Biome (linting + formatting)
-- Vitest (testing)
-
-## Project Structure
-
-```
-src/
-├── engines/        # Pure calculation logic (VRAM, performance, multi-GPU, offloading)
-├── components/
-│   ├── inputs/     # Model/GPU selectors, quantization, parameters
-│   ├── outputs/    # Charts, tables, fit indicator, recommendations
-│   ├── comparison/ # Side-by-side config comparison
-│   ├── common/     # Dark mode toggle, shared components
-│   └── layout/     # App layout, input/results panels
-├── data/           # Static JSON databases (gpus.json, models.json)
-├── store/          # Zustand stores (UI state, comparison, URL serialization)
-├── hooks/          # useInferenceCalculation, useDarkMode, useURLSync
-├── utils/          # Zod schemas, validation helpers
-├── types/          # TypeScript type re-exports from Zod
-├── workers/        # Web Worker for calculation offloading
-└── test/           # Test setup
-scripts/            # Data refresh scripts (HuggingFace fetch)
-```
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed technical documentation.
+- **In-app Guide**: the Guide tab explains every input and result.
+- [Documentation index](docs/README.md): design decisions, calibration data, hardware sources
+  and calculation pitfalls.
+- [CHANGELOG](CHANGELOG.md): what changed in each release.
+- [Developer guide](docs/development.md): build, test and contribute.
 
 ## License
 
