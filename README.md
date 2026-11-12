@@ -35,6 +35,13 @@ a PDF report or a PowerPoint deck.
 - **Memory is per GPU.** An HGX or OAM baseboard counts as one 8-GPU machine, and results show
   both the per-GPU share and the machine total. Inference fits at 90% of memory, vLLM's
   default.
+- **Context mix.** Users rarely all send the same length. Describe up to three kinds (for
+  example chat 4K, RAG 32K, long documents 256K) and their shares; memory is sized on the
+  average mix, and the longest kind must still fit on its own.
+- **Worst-case TTFT.** The headline time to first token is a lone prompt. Under load the prompts
+  queue: the last of N simultaneous users waits for the N-1 before it. That figure is a worst
+  case (everyone at once, first come first served, no prefix cache), and it is what a TTFT
+  target is checked against ([ADR 0012](docs/adr/0012-ttft-target-and-context-mix.md)).
 - **Model origin** is the publisher's headquarters country. It says nothing about where a
   model was trained, and it is not a measure of bias.
 

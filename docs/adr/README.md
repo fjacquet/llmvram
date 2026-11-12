@@ -17,3 +17,4 @@ Proposed, Accepted or Superseded. Detailed designs live in
 | [0009](0009-calibrated-expected-speed-and-sparse-attention.md) | Expected speed from measured vLLM efficiency beside the ceiling; sparse attention; inference fit at 90% | Accepted           |
 | [0010](0010-sizing-mode.md)                                    | Sizing mode, decode efficiency by load band, FP8 DSA KV                                                 | Accepted           |
 | [0011](0011-vllm-reference-engine.md)                          | vLLM is the reference engine: memory, KV layout, TP degrees and calibration follow it                   | Accepted           |
+| [0012](0012-ttft-target-and-context-mix.md)                    | TTFT target under a burst and a context mix; mix-mean memory; per-user TTFT replaced by the queue       | Accepted           |
