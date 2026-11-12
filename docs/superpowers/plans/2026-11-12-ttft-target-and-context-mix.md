@@ -33,7 +33,7 @@ Sizing sizes to.
 - **Mix in the UI:** shown in Inference and Sizing, hidden in Training. Training keeps
   `sequenceLength`.
 - **Headline TTFT** = first served: a lone prompt at the largest class, today's figure.
-- **Last served** = the sum over classes of burst x share x the class's expected TTFT at batch 1.
+- **Last served** = the largest class's expected TTFT + (burst - 1) x the share-weighted mean expected TTFT at batch 1 (final review 2026-11-12; was burst x the share-weighted sum, which fell below first served with a skewed mix).
   - It is labelled "worst case: all N prompts at once, first come first served, no prefix cache".
   - It is never labelled "expected".
 - **The target applies to last served.**
@@ -168,7 +168,7 @@ Sizing sizes to.
   - `interface BurstTTFT { burst: number; firstExpected: Decimal; firstCeiling: Decimal; lastExpected: Decimal; lastCeiling: Decimal }`
   - `burstTTFT(classes: ClassPrefill[], burst: number): BurstTTFT`:
     - first = the largest class's TTFT;
-    - last = burst x the sum over classes of share x TTFT;
+    - last = largest-class TTFT + (burst - 1) x the sum over classes of share x TTFT (final review 2026-11-12);
     - burst is clamped to at least 1.
   - `maxUsersWithinTarget(classes: ClassPrefill[], targetSeconds: number): number`:
     floor(target / the sum of share x expectedTTFT). 0 when one prompt misses.

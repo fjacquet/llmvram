@@ -33,9 +33,10 @@ against a target, shows it.
 - **Headline TTFT stays first served** (a lone request, today's figure). The last served sits
   under it and carries the target. With the default mix no existing figure changes, in results,
   Sizing, Comparison, PDF and PPTX.
-- **With a KV tier, the burst is the active sessions**: ceil(open sessions x active share), the
-  assumption the tier already shows. A resumed session reloads its KV and does not prefill. Without
-  a tier, the burst is all users.
+- **With a KV tier, the burst is the active sessions in Sizing**: ceil(open sessions x active
+  share), the assumption the tier already shows. A resumed session reloads its KV and does not
+  prefill. Inference keeps all concurrent users in the burst (the safe direction), as does Sizing
+  without a tier.
 - **One target, global worst case.** The target applies to the last prompt served in the burst, all classes together, in a first-come-first-served queue. A short chat prompt can wait behind long documents, and the result says so.
 
 ## How it works
@@ -70,8 +71,8 @@ against a target, shows it.
 - **Queue.** N concurrent users send a prompt at once, the burst being the users of one replica.
   Prompts are processed back to back at the machine's prefill rate.
   - **First served:** the prefill of one prompt.
-  - **Last served:** the sum of the prefill times of all prompts in the burst, with classes in
-    their shares.
+  - **Last served:** one largest-class prompt plus (B - 1) prompts at the share-weighted mean
+    (a burst holds at least one prompt of the largest class, so last is never below first).
   - **Per class, worst case:** a prompt of that class served last.
 - **Shown:**
   - "TTFT 4.2 s first, 3.1 min last (100 users at once)".
@@ -147,9 +148,11 @@ against a target, shows it.
     entered.
   - Sizing spreads users evenly over replicas, so the burst is ceil(users / replicas).
   - Prefill runs on the replica's own GPUs; replicas do not share a queue.
-- **Fractional users are expected values.** Class counts are users x share, not rounded. The
-  queue sums each class's prefill times its expected count. With one class at 100%, the sum is
-  exactly B x one prompt, so today's figures are reproduced.
+- **Fractional users are expected values.** Class counts are users x share, not rounded.
+  Amended (final review 2026-11-12): the queue is one largest-class prompt plus (B - 1) prompts
+  at the share-weighted mean, not B x the share-weighted sum, which fell below first served with
+  a skewed mix. With one class at 100%, the total is exactly B x one prompt, so today's figures
+  are reproduced.
 - **Memory uses the mix mean.** KV per session is the weighted mean (the user's decision). One
   extra guard: one session at the largest class must fit at the 90% limit. There is no "all users
   in the largest class" worst case.

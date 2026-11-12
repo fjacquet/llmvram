@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Last served TTFT = one largest-class prompt + (B - 1) x the mix-weighted prompt, so it is never below first served with a skewed mix; the users-within-target cap follows (0 if the largest alone misses). One-class figures are unchanged.
+- With the default mix, the new context-mix and last-served lines appear in the exports, Comparison and the Inference slide where a target is set, but no figure changes.
+- Inference PPTX and Comparison show the mix, target and last served when set; "Max concurrent sessions" names the mix.
+- A closest-candidate Sizing result that fails only the largest-class guard now reports that deficit instead of 0 GB.
 - The multi-user time to first token in Inference is now the burst queue (the last of N prompts served), not the old waves figure (`perUserTimeToFirstToken`, removed). With a mix, memory is sized on the mix average, which can leave fewer units than a worst-case sizing (user decision, ADR 0012).
 - README rewritten for customers discovering the tool (link to the app, the three modes, how to read the figures). Developer content moved to `docs/development.md`; new documentation index `docs/README.md`.
 

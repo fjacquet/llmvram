@@ -139,15 +139,49 @@ describe('burstTTFT', () => {
     expect(b.lastExpected.toNumber()).toBeCloseTo(c?.expectedTTFT.times(3).toNumber() ?? 0, 9)
   })
 
-  it('M5 Max, Qwen3.6 35B A3B, 262144 tokens, 100 users, 10 s target: misses', () => {
+  it('M5 Max, Qwen3.6 35B A3B NVFP4, 262144 tokens: 29.0 min (ceiling 13.6 min); 10 s target misses', () => {
     const q = find(models, 'qwen-qwen3.6-35b-a3b')
     const m5 = find(gpus, 'apple-m5-max')
-    const classes = classPrefills({ model: q, gpu: m5, quantization: 'fp16' }, [
+    const p = estimatePerformance({
+      model: q,
+      gpu: m5,
+      quantization: 'nvfp4',
+      batchSize: 1,
+      sequenceLength: 262144,
+    })
+    expect(p.expected.timeToFirstToken.toNumber() / 60).toBeCloseTo(29.0, 1)
+    expect(p.timeToFirstToken.toNumber() / 60).toBeCloseTo(13.6, 1)
+    const classes = classPrefills({ model: q, gpu: m5, quantization: 'nvfp4' }, [
       { tokens: 262144, share: 1 },
     ])
-    expect(meetsTarget(burstTTFT(classes, 100), 10)).toBe(false)
     expect(maxUsersWithinTarget(classes, 10)).toBe(0)
     expect(burstTTFT(classes, 1).lastExpected.toNumber()).toBeGreaterThan(10)
+    expect(meetsTarget(burstTTFT(classes, 100), 10)).toBe(false)
+  })
+
+  it('cap ties to the queue: last(cap) <= target < last(cap + 1), one class and skewed mix', () => {
+    const t = ttft(4096).toNumber()
+    const one = classPrefills(base, [{ tokens: 4096, share: 1 }])
+    const skew = classPrefills(base, [
+      { tokens: 4096, share: 0.99 },
+      { tokens: 131072, share: 0.01 },
+    ])
+    const big = ttft(131072).toNumber()
+    const mean = ttft(4096).times(0.99).plus(ttft(131072).times(0.01)).toNumber()
+    const cases: [typeof one, number][] = [
+      [one, t * 3], // exact multiple of one prompt
+      [one, t * 3.5],
+      [skew, big + mean * 4], // exact: largest + 4 means
+      [skew, big + mean * 4.5],
+    ]
+    for (const [cs, target] of cases) {
+      const cap = maxUsersWithinTarget(cs, target)
+      expect(cap).toBeGreaterThan(0)
+      expect(burstTTFT(cs, cap).lastExpected.toNumber()).toBeLessThanOrEqual(target + 1e-9)
+      expect(burstTTFT(cs, cap + 1).lastExpected.toNumber()).toBeGreaterThan(target - 1e-9)
+    }
+    expect(maxUsersWithinTarget(one, t * 3)).toBe(3)
+    expect(maxUsersWithinTarget(skew, big + mean * 4)).toBe(5)
   })
 
   it('meetsTarget is null without a target; maxUsersWithinTarget floors target / mean', () => {

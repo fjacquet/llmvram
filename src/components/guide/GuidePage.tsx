@@ -213,8 +213,10 @@ export function GuidePage() {
           headline time to first token stays the first served: in Inference a lone prompt at the
           largest class, in Sizing the figure priced at the replica's real batch and fabric hops.
           Under it, the last served is the worst case, with all N prompts sent at once, first come
-          first served and no prefix cache, so the last user waits for everyone before. The target
-          is checked against that figure.
+          first served and no prefix cache, so the last user waits for everyone before. It counts
+          one prompt of the largest class plus N - 1 prompts at the mix average, and the target is
+          checked against that figure. In Inference every concurrent user is in the burst; Sizing
+          with a KV tier counts only the sessions assumed active.
         </P>
         <P>
           In Inference, a target shows &quot;Max users within target&quot;, and a miss also advises
