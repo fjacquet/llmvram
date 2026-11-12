@@ -11,6 +11,7 @@
  * - Returns CALCULATION_ERROR on failure
  */
 
+import { defaultMix } from '../engines/context-mix'
 import { resolveFabricSpec } from '../engines/fabric'
 import { calculateInferenceVRAM } from '../engines/inference'
 import type { KVTierSettings } from '../engines/kv-tier'
@@ -172,6 +173,8 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
       const result = sizeDeployment({
         ...rest,
         fabric: resolveFabricSpec(interNodeFabric, customFabric),
+        contextMix: defaultMix(rest.sequenceLength),
+        ttftTargetSeconds: null,
       })
       self.postMessage({ type: 'SIZING_RESULT', result: serializeSizingResult(result) })
     } catch (error) {

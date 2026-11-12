@@ -8,6 +8,7 @@ import { reconstructPerformanceEstimate } from '@hooks/useInferenceCalculation'
 import type { GPU } from '@utils/schemas'
 import { validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it, vi } from 'vitest'
+import { defaultMix } from '../engines/context-mix'
 import { reconstructSizingResult } from './sizing-serialize'
 
 // The hook module imports the persisted store, which needs browser APIs jsdom lacks
@@ -127,6 +128,8 @@ describe('sizing worker round trip', () => {
         users: 2000,
         fabric: resolveFabricSpec('ethernet-800g', null),
         kvTier: DEFAULT_KV_TIER,
+        contextMix: defaultMix(32768),
+        ttftTargetSeconds: null,
       })
       const back = reconstructSizingResult(response.result)
       expect(back.units).toBe(direct.units)

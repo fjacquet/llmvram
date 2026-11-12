@@ -1,5 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
+import { defaultMix } from '@engines/context-mix'
 import { resolveFabricSpec } from '@engines/fabric'
 import { DEFAULT_KV_TIER, type KVTierSettings } from '@engines/kv-tier'
 import { sizeDeployment } from '@engines/sizing'
@@ -32,6 +33,8 @@ function size(patch: Partial<SizingInput> & Pick<SizingInput, 'gpu' | 'model'>) 
     users: 2000,
     fabric: resolveFabricSpec('ethernet-800g', null),
     kvTier: DEFAULT_KV_TIER,
+    contextMix: defaultMix(32768),
+    ttftTargetSeconds: null,
     ...patch,
   })
 }
@@ -124,7 +127,13 @@ describe('SizingResults', () => {
 
   // 2026-11-11, sizing final review I1: a decode batch above vLLM's default max_num_seqs
   const wide = () =>
-    size({ model: model('meta-llama-llama-3.1-8b'), gpu: gb300, sequenceLength: 512, users: 20000 })
+    size({
+      model: model('meta-llama-llama-3.1-8b'),
+      gpu: gb300,
+      sequenceLength: 512,
+      contextMix: defaultMix(512),
+      users: 20000,
+    })
 
   it('notes --max-num-seqs when more than 256 sequences decode at once (soft, not an alert)', () => {
     const r = wide()

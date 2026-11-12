@@ -1,5 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
+import { defaultMix } from '@engines/context-mix'
 import { FABRIC_SPECS, resolveFabricSpec } from '@engines/fabric'
 import { calculateInferenceVRAM } from '@engines/inference'
 import { DEFAULT_KV_TIER } from '@engines/kv-tier'
@@ -786,6 +787,8 @@ describe('exportSizingPptx', () => {
       users: 2000,
       fabric: resolveFabricSpec('ethernet-800g', null),
       kvTier,
+      contextMix: defaultMix(32768),
+      ttftTargetSeconds: null,
     })
   const run = (result: ReturnType<typeof size>) =>
     exportSizingPptx({
@@ -858,6 +861,8 @@ describe('exportSizingPptx', () => {
       users: 50,
       fabric: resolveFabricSpec('ethernet-800g', null),
       kvTier: DEFAULT_KV_TIER,
+      contextMix: defaultMix(32768),
+      ttftTargetSeconds: null,
     })
     await exportSizingPptx({
       model: realModel,
@@ -886,6 +891,8 @@ describe('exportSizingPptx', () => {
       users: 20000,
       fabric: resolveFabricSpec('ethernet-800g', null),
       kvTier: DEFAULT_KV_TIER,
+      contextMix: defaultMix(512),
+      ttftTargetSeconds: null,
     })
     expect(r.chosen?.decodeBatch).toBeGreaterThan(256)
     await exportSizingPptx({

@@ -1,23 +1,8 @@
 import Decimal from 'decimal.js'
 import { estimatePerformance, type PerformanceParams } from './performance'
-import type { ContextMix } from './types'
+import type { BurstTTFT, ClassPrefill, ContextMix } from './types'
 
-export interface ClassPrefill {
-  tokens: number
-  share: number
-  expectedTTFT: Decimal
-  ceilingTTFT: Decimal
-}
-
-export interface BurstTTFT {
-  burst: number
-  /** A lone prompt at the largest class */
-  firstExpected: Decimal
-  firstCeiling: Decimal
-  /** Worst case: the last of `burst` prompts, prefill serialised (compute-bound) */
-  lastExpected: Decimal
-  lastCeiling: Decimal
-}
+export type { BurstTTFT, ClassPrefill }
 
 /** One batch-1 estimate per class; prefill is per-prompt, so no batch enters it. */
 export function classPrefills(

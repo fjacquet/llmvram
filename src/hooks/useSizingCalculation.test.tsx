@@ -43,6 +43,7 @@ describe('useSizingCalculation', () => {
     vi.stubGlobal('Worker', FakeWorker)
     const { sizeDeployment } = await import('@engines/sizing')
     const { resolveFabricSpec } = await import('@engines/fabric')
+    const { defaultMix } = await import('@engines/context-mix')
     const good = sizeDeployment({
       model,
       gpu,
@@ -52,6 +53,8 @@ describe('useSizingCalculation', () => {
       users: 10,
       fabric: resolveFabricSpec('ethernet-800g', null),
       kvTier: DEFAULT_KV_TIER,
+      contextMix: defaultMix(4096),
+      ttftTargetSeconds: null,
     })
     const { result } = renderHook(() => useSizingCalculation())
     const { serializeSizingResult } = await import('../workers/sizing-serialize')

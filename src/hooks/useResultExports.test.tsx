@@ -1,5 +1,6 @@
 import gpusData from '@data/gpus.json'
 import modelsData from '@data/models.json'
+import { defaultMix } from '@engines/context-mix'
 import { resolveFabricSpec } from '@engines/fabric'
 import { DEFAULT_KV_TIER } from '@engines/kv-tier'
 import { estimatePerformance } from '@engines/performance'
@@ -200,6 +201,8 @@ describe('useSizingExports', () => {
     users: 500,
     fabric: resolveFabricSpec('ethernet-800g', null),
     kvTier: DEFAULT_KV_TIER,
+    contextMix: defaultMix(8192),
+    ttftTargetSeconds: null,
   })
   const sizingParams = {
     selectedModel: llama,

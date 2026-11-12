@@ -5,6 +5,7 @@ import { validateGPUs, validateModels } from '@utils/schemas'
 import { describe, expect, it } from 'vitest'
 import { fitsInference, maxConcurrentSessions } from './concurrency'
 import { isRackGPU, validTPDegrees } from './config-rules'
+import { defaultMix } from './context-mix'
 import { resolveFabricSpec } from './fabric'
 import { calculateInferenceVRAM } from './inference'
 import { DEFAULT_KV_TIER, kvTierSummary } from './kv-tier'
@@ -35,6 +36,8 @@ const input = (m: Model, g: GPU, users: number, quantization = 'fp16' as const):
   users,
   fabric,
   kvTier: DEFAULT_KV_TIER,
+  contextMix: defaultMix(8192),
+  ttftTargetSeconds: null,
 })
 
 const h100 = gpu('nvidia-h100-80gb-sxm')
@@ -311,7 +314,11 @@ describe('KV storage tier', () => {
 describe('activations at the real batch (final review C2)', () => {
   const llama70 = model('meta-llama-llama-3.3-70b')
   const at = (g: string, ctx: number, users: number, q: SizingInput['quantization']) =>
-    sizeDeployment({ ...input(llama70, gpu(g), users, q), sequenceLength: ctx })
+    sizeDeployment({
+      ...input(llama70, gpu(g), users, q),
+      sequenceLength: ctx,
+      contextMix: defaultMix(ctx),
+    })
 
   // 2026-11-11, sizing final review C2: was 1 server, now 2 because the one-session
   // breakdown sized activations at batch 1; at 100 users they hit their cap and the
@@ -335,7 +342,11 @@ describe('activations at the real batch (final review C2)', () => {
       const c = r.chosen
       expect(c).not.toBeNull()
       if (!c) continue
-      const inp = { ...input(llama70, gpu(g), users, q), sequenceLength: ctx }
+      const inp = {
+        ...input(llama70, gpu(g), users, q),
+        sequenceLength: ctx,
+        contextMix: defaultMix(ctx),
+      }
       const real = perGPUBreakdown(inp, c.tp, c.nodes, c.hotSessions)
       expect(fitsInference(real.perGPU.total.toNumber(), inp.gpu.vram_gb)).toBe(true)
     }
@@ -358,6 +369,7 @@ describe('final review I4: Review Focus cases', () => {
       ...input(glm, gb300, users, 'fp8'),
       kvQuantization: 'fp8' as const,
       sequenceLength: 32768,
+      contextMix: defaultMix(32768),
     }
     const c = evaluateReplica(inp, 8, 1)
     // Inference path: the same model, one replica of TP 8, activations at the real batch
@@ -414,5 +426,66 @@ describe.each([
     expect(r.unit).toBe(unit)
     expect(Number.isFinite(r.units) && r.units > 0).toBe(true)
     expect(Number.isFinite(r.chosen?.perUserTokensPerSecond.toNumber() ?? Number.NaN)).toBe(true)
+  })
+})
+
+describe('TTFT target (rack GPU)', () => {
+  const llama70 = model('meta-llama-llama-3.3-70b')
+  const base = (users: number): SizingInput => ({
+    ...input(llama70, gb300, users, 'fp8' as never),
+    sequenceLength: 4096,
+    contextMix: defaultMix(4096),
+  })
+  const lone = sizeDeployment(base(2000)).chosen?.classes[0]?.expectedTTFT.toNumber() ?? 0
+  const none = sizeDeployment(base(2000))
+
+  it('no target: nothing is bounded by TTFT', () => {
+    expect(none.chosen?.burstCap).toBeNull()
+    expect(none.chosen?.boundBy).toBe('memory')
+    expect(none.neverMeetsTarget).toBeNull()
+  })
+
+  it('a tight target caps users per replica and never lowers the unit count', () => {
+    const r = sizeDeployment({ ...base(2000), ttftTargetSeconds: lone * 2 })
+    expect(r.chosen?.boundBy).toBe('ttft')
+    expect(r.chosen?.sessionsPerReplica).toBeLessThanOrEqual(2)
+    expect(r.units).toBeGreaterThanOrEqual(none.units)
+    expect(r.chosen?.ttft.lastExpected.toNumber()).toBeLessThanOrEqual(lone * 2 + 1e-9)
+  })
+
+  it('a generous target changes nothing', () => {
+    const r = sizeDeployment({ ...base(2000), ttftTargetSeconds: 3600 })
+    expect(r.units).toBe(none.units)
+    expect(r.replicas).toBe(none.replicas)
+    expect(r.chosen?.sessionsPerReplica).toBe(none.chosen?.sessionsPerReplica)
+    expect(r.chosen?.boundBy).toBe('memory')
+  })
+
+  it('below a lone prompt: neverMeetsTarget names the largest class', () => {
+    const mix = [
+      { tokens: 4096, share: 0.9 },
+      { tokens: 262144, share: 0.1 },
+    ]
+    const r = sizeDeployment({
+      ...base(100),
+      sequenceLength: 262144,
+      contextMix: mix,
+      ttftTargetSeconds: 1e-6,
+    })
+    expect(r.neverMeetsTarget).toEqual({ largestClassTokens: 262144 })
+    expect(r.chosen).toBeNull()
+  })
+
+  it('with a tier the burst is the decode batch, not the open sessions', () => {
+    const r = sizeDeployment({
+      ...base(2000),
+      kvTier: { ...DEFAULT_KV_TIER, tier: 'host-grace', activeShare: 0.1 },
+      ttftTargetSeconds: lone * 20,
+    })
+    const c = r.chosen
+    expect(c?.tierUsed).toBe('host-grace')
+    expect(c?.ttft.burst).toBe(c?.decodeBatch)
+    expect(c?.decodeBatch).toBeLessThanOrEqual(c?.burstCap ?? 0)
+    expect(c?.sessionsPerReplica).toBeGreaterThan(c?.decodeBatch ?? 0)
   })
 })

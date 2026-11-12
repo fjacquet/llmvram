@@ -71,10 +71,19 @@ export function useSizingCalculation(): UseSizingCalculationResult {
     }
 
     let stale = false
-    Promise.all([import('@engines/sizing'), import('@engines/fabric')])
-      .then(([sizing, fabric]) => {
+    Promise.all([
+      import('@engines/sizing'),
+      import('@engines/fabric'),
+      import('@engines/context-mix'),
+    ])
+      .then(([sizing, fabric, { defaultMix }]) => {
         const { interNodeFabric: f, customFabric: c, ...rest } = payload
-        const input: SizingInput = { ...rest, fabric: fabric.resolveFabricSpec(f, c) }
+        const input: SizingInput = {
+          ...rest,
+          fabric: fabric.resolveFabricSpec(f, c),
+          contextMix: defaultMix(rest.sequenceLength),
+          ttftTargetSeconds: null,
+        }
         if (!stale) setResult(sizing.sizeDeployment(input))
       })
       .catch((err) => !stale && setError(err instanceof Error ? err.message : String(err)))
