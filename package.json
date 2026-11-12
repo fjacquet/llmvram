@@ -44,7 +44,10 @@
     "filelist": {
       "brace-expansion": "^2.1.2"
     },
-    "image-size": "^2.0.4"
+    "image-size": "^2.0.4",
+    "workbox-build": {
+      "glob": "^14.0.5"
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.3",
