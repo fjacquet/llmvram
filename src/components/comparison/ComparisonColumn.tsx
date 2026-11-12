@@ -72,6 +72,8 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
         fits: false,
         tokensPerSecond: false,
         sizing: false,
+        contextMix: false,
+        ttftTarget: false,
       }
     }
 
@@ -101,6 +103,12 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
       offloadTarget: others.some((s) => s.config.offloadTarget !== snapshot.config.offloadTarget),
       offloadPercentage: others.some(
         (s) => s.config.offloadPercentage !== snapshot.config.offloadPercentage,
+      ),
+      contextMix: others.some(
+        (s) => JSON.stringify(s.config.contextMix) !== JSON.stringify(snapshot.config.contextMix),
+      ),
+      ttftTarget: others.some(
+        (s) => s.config.ttftTargetSeconds !== snapshot.config.ttftTargetSeconds,
       ),
       // Sizing and inference figures mean different things (per replica / per user vs whole
       // deployment), so they are only diffed against the same kind of snapshot
@@ -276,14 +284,14 @@ export function ComparisonColumn({ snapshot, allSnapshots, onRemove }: Compariso
           <Field
             label="Context mix"
             value={mixList(snapshot.config.contextMix)}
-            isDifferent={diffMap.sizing}
+            isDifferent={diffMap.contextMix}
           />
         )}
         {snapshot.config.ttftTargetSeconds !== null && (
           <Field
             label="TTFT target"
             value={formatDurationMs(snapshot.config.ttftTargetSeconds * 1000)}
-            isDifferent={diffMap.sizing}
+            isDifferent={diffMap.ttftTarget}
           />
         )}
         {sizing?.ttftLastSeconds !== undefined && (
