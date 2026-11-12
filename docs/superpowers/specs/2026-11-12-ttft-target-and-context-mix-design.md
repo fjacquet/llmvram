@@ -158,6 +158,45 @@ against a target, shows it.
   - A candidate is valid when it meets both memory and the TTFT target.
 - **The M5 Max test** uses 100 users. A single user at 256K already misses 10 s.
 
+## Calls made after the advisor review (_our call_, 2026-11-12)
+
+- **"Last served" is a worst case, not an "expected" figure.** It is labelled "worst case: all N
+  prompts at once, first come first served, no prefix cache". ADR 0009 keeps "expected" for medians
+  of published points.
+  - The prefill efficiency 0.469 already removes queueing: it was fitted against mean TTFT with a
+    closed-loop correction 0.9 + 0.1 x (c + 1) / 2 (`docs/calibration/2026-11-11-vllm-efficiency-points.md`).
+    Each prompt's expected prefill (ceiling / 0.469) times the queue therefore does not count the
+    queue twice.
+  - Where the calibration has TTFT rows at several concurrencies, a test checks the queue model
+    against them and records the gap.
+- **Each per-class engine call runs at batch 1.** `performance.ts` divides hop and pipeline-fill
+  costs by the batch (ADR 0007), so the queue multiplies a batch-1 prefill. A multi-server
+  Inference test pins this.
+- **One solver formulation.**
+  - Burst cap = the largest B whose last-served TTFT meets the target.
+  - Users per replica = min(memory sessions, burst cap).
+  - Replicas = ceil(users / users per replica).
+  - The result says which bound decided: memory or TTFT.
+- **Inference shows "max users within target"** (the burst cap). This is the "consumer hardware
+  does not scale" figure. Inference cannot add replicas, and more servers there means deeper
+  pipeline stages, not a shorter queue. So when the target is missed the recommendation reads
+  "N machines like this one (one replica each)", not "add servers".
+- **No per-class worst case.** In a first-come-first-served queue the total is the same whichever
+  class is last. Each class shows its own solo prompt time.
+- **`sequenceLength` with a mix = the largest class.** Consumers that stay on it, listed so none is
+  missed:
+  - the native-context warning, checked per class (a 256K preset on a 128K model warns);
+  - the "Max sessions at N tokens" label, which states the mix;
+  - the KV tier resume/recompute and tier traffic, priced on the mix mean KV;
+  - offloading and multi-node hop bytes, on the mix;
+  - "Reduce context" recommendations, which act on the largest class;
+  - `assumptionRows` (PDF), the PPTX slide and the Comparison snapshot, which list the mix and
+    the target.
+- **The server branch of `sizing.ts` is not extended.** It is unreachable from the UI (ADR 0010
+  amendment).
+- **ADR 0012 records that mix-mean memory overrides "never too few units".** This is the user's
+  decision, 2026-11-12. The result reads "memory sized on the mix average".
+
 ## Left to the builder
 
 - The exact layout of the mix editor and the TTFT line.
