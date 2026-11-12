@@ -419,6 +419,11 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     ? 'attention'
     : 'linear'
 
+  // TTFT is a lone prompt at the largest class: its decode step ignores the mix.
+  const ttftTokensPerSecond =
+    contextMix && !isDefaultMix(contextMix, sequenceLength)
+      ? estimatePerformance({ ...params, contextMix: undefined }).tokensPerSecond
+      : tokensPerSecond
   let prefillSeconds: Decimal | null = null
   let prefillEstimateDegraded = false
   let timeToFirstToken: Decimal
@@ -455,14 +460,14 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     // The terms run at different rates, so the label is about time, not FLOPs
     prefillBottleneck = attentionSeconds.greaterThan(linearSeconds) ? 'attention' : 'linear'
     prefillSeconds = linearSeconds.add(attentionSeconds).add(hopSeconds)
-    timeToFirstToken = prefillSeconds.add(new Decimal(1).div(tokensPerSecond))
+    timeToFirstToken = prefillSeconds.add(new Decimal(1).div(ttftTokensPerSecond))
   } else {
     // No usable FLOPS data (missing, zero, or negative): prefill time is not
     // computable. Fall back to the previous heuristic rather than returning
     // Infinity or NaN, and mark the estimate degraded. Still gets the same
     // multi-node hop term as the FLOPS path above, so TTFT stays consistent.
     prefillEstimateDegraded = true
-    timeToFirstToken = new Decimal(1).div(tokensPerSecond.mul(0.5)).add(hopSeconds)
+    timeToFirstToken = new Decimal(1).div(ttftTokensPerSecond.mul(0.5)).add(hopSeconds)
   }
 
   return {

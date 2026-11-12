@@ -2038,8 +2038,20 @@ describe('estimatePerformance - context mix', () => {
     const m = tps(262144, mix)
     expect(m.tokensPerSecond.lt(tps(4096).tokensPerSecond)).toBe(true)
     expect(m.tokensPerSecond.gt(tps(262144).tokensPerSecond)).toBe(true)
-    // prefill is exact; TTFT adds one decode step, which follows the mix (<0.1% apart here)
-    expect(m.prefillSeconds).toEqual(tps(262144).prefillSeconds)
-    expect(m.timeToFirstToken.toNumber()).toBeCloseTo(tps(262144).timeToFirstToken.toNumber(), 1)
+    const alone = tps(262144)
+    expect(m.prefillSeconds).toEqual(alone.prefillSeconds)
+    expect(m.timeToFirstToken).toEqual(alone.timeToFirstToken)
+    expect(m.expected.timeToFirstToken).toEqual(alone.expected.timeToFirstToken)
+  })
+
+  it('TTFT ignores the mix on the no-FLOPS fallback too', () => {
+    const run = (contextMix?: { tokens: number; share: number }[]) =>
+      estimatePerformance({ ...base, gpu: gpu_no_flops, sequenceLength: 262144, contextMix })
+    const mix = [
+      { tokens: 4096, share: 0.9 },
+      { tokens: 262144, share: 0.1 },
+    ]
+    expect(run(mix).timeToFirstToken).toEqual(run().timeToFirstToken)
+    expect(run(mix).expected.timeToFirstToken).toEqual(run().expected.timeToFirstToken)
   })
 })
