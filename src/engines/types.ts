@@ -536,3 +536,12 @@ export interface SizingResult {
   /** Set when !fits: the candidate nearest to fitting */
   closest: { candidate: ReplicaCandidate; lackingGB: number } | null
 }
+
+/** One context-length class of the traffic: its prompt length and its share of requests */
+export interface ContextClass {
+  tokens: number
+  share: number
+}
+
+/** 1 to 3 classes whose shares sum to 1 */
+export type ContextMix = ContextClass[]
