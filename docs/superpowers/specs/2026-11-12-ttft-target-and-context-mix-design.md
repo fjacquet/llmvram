@@ -30,6 +30,12 @@ against a target, shows it.
   concurrent users is shown beside the TTFT.
 - **Contexts differ per user: a mix that sums to 100%.**
 - **KV memory follows the mix, as vLLM allocates it.** It is not the maximum for everyone.
+- **Headline TTFT stays first served** (a lone request, today's figure). The last served sits
+  under it and carries the target. With the default mix no existing figure changes, in results,
+  Sizing, Comparison, PDF and PPTX.
+- **With a KV tier, the burst is the active sessions**: ceil(open sessions x active share), the
+  assumption the tier already shows. A resumed session reloads its KV and does not prefill. Without
+  a tier, the burst is all users.
 - **One target, global worst case.** The target applies to the last prompt served in the burst, all classes together, in a first-come-first-served queue. A short chat prompt can wait behind long documents, and the result says so.
 
 ## How it works
