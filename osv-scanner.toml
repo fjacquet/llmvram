@@ -3,7 +3,7 @@
 
 [[IgnoredVulns]]
 id = "GHSA-5p2g-fcmc-qvqq"
-ignoreUntil = 2026-11-08
+effectiveUntil = 2026-11-08
 reason = """
 image-size JXL and HEIF parser infinite-loop denial of service.
 Dependency path: root -> pptxgenjs@4.0.1 -> image-size@^1.2.1 (production).
@@ -25,7 +25,7 @@ release or pptxgenjs stops depending on it.
 
 [[IgnoredVulns]]
 id = "GHSA-w3rx-r6r6-pgpr"
-ignoreUntil = 2026-11-08
+effectiveUntil = 2026-11-08
 reason = """
 image-size ICNS parser infinite-loop denial of service.
 Dependency path: root -> pptxgenjs@4.0.1 -> image-size@^1.2.1 (production).
