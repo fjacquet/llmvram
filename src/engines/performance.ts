@@ -3,6 +3,7 @@ import Decimal from 'decimal.js'
 import { attentionComputeRate, linearComputeRate } from './compute'
 import {
   BYTES_PER_GB,
+  DECODE_LAYER_FLOOR_SECONDS,
   decodeEfficiency,
   INTERCONNECT_SPECS,
   PREFILL_EFFICIENCY,
@@ -479,7 +480,11 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
     offloadSlowdown,
     // One multiplication / division at the output: the roofline above stays the ceiling
     expected: {
-      tokensPerSecond: tokensPerSecond.mul(decodeEfficiency(batchSize)),
+      // Expected ITL (batch / tok/s) never drops below the per-layer launch floor
+      tokensPerSecond: Decimal.min(
+        tokensPerSecond.mul(decodeEfficiency(batchSize)),
+        new Decimal(batchSize).div(model.num_hidden_layers * DECODE_LAYER_FLOOR_SECONDS),
+      ),
       timeToFirstToken: timeToFirstToken.div(PREFILL_EFFICIENCY),
       prefillSeconds: prefillSeconds?.div(PREFILL_EFFICIENCY) ?? null,
     },

@@ -545,12 +545,89 @@ describe('attention FLOPs layer mix', () => {
     expect(withMix.length).toBeGreaterThan(10)
     for (const m of withMix) {
       const perLayer = 2 * (m.num_kv_heads ?? m.num_attention_heads) * (m.head_dim ?? 0)
-      expect(m.num_full_attention_layers * perLayer, m.id).toBe(m.kv_cache_elements_per_token)
+      const fullPerLayer =
+        2 *
+        (m.full_attention_kv_heads ?? m.num_kv_heads ?? m.num_attention_heads) *
+        (m.full_attention_head_dim ?? m.head_dim ?? 0)
+      // MLA caches one latent per layer: kv_lora_rank 512 + rope 64 (config.json of each)
+      const cachePerLayer = m.use_mla ? 576 : fullPerLayer
+      expect(m.num_full_attention_layers * cachePerLayer, m.id).toBe(m.kv_cache_elements_per_token)
       if (m.num_sliding_attention_layers) {
         expect(m.num_sliding_attention_layers * perLayer, m.id).toBe(
           m.kv_sliding_elements_per_token,
         )
       }
     }
+  })
+
+  it('compressed layers (DeepSeek V4) read the window plus min(t / ratio, topk)', () => {
+    const base = {
+      ...lightning,
+      num_full_attention_layers: undefined,
+      num_hidden_layers: 3,
+      kv_sliding_window: 2,
+    }
+    const indexed = {
+      ...base,
+      compressed_attention: {
+        topk: 2,
+        indexer_heads: 1,
+        indexer_head_dim: 8,
+        classes: [{ layers: 3, ratio: 4, indexed: true, indexer_layers: 1 }],
+      },
+    }
+    // T = 10: window 2*10 - 2 = 18; entries t/4 capped at 2 from t = 8: 8 + 2*2 = 12
+    // indexer: 2 * (1 * 8) * 1 layer * T^2 / (2 * 4) = 2 * 8 * 12.5 = 200
+    expect(prefillAttentionFLOPs(indexed, 10).toNumber()).toBe(4 * 4096 * 3 * (18 + 12) + 200)
+    const all = {
+      ...base,
+      compressed_attention: {
+        topk: 2,
+        indexer_heads: 1,
+        indexer_head_dim: 8,
+        classes: [{ layers: 3, ratio: 4, indexed: false }],
+      },
+    }
+    expect(prefillAttentionFLOPs(all, 10).toNumber()).toBe(4 * 4096 * 3 * (18 + 12.5))
+    // decode token at T = 10: window 2 + min(10 / 4, 2) = 4 reads per layer
+    // + indexer 2 * 8 * 1 * (10 / 4) = 40
+    expect(decodeAttentionFLOPsPerToken(indexed, 10).toNumber()).toBe(4 * 4096 * 3 * 4 + 40)
+  })
+
+  it('DeepSeek V4 layer classes add up to num_hidden_layers', () => {
+    const v4 = (modelsData as Model[]).filter((m) => m.compressed_attention)
+    expect(v4).toHaveLength(3)
+    for (const m of v4) {
+      const n =
+        (m.num_sliding_attention_layers ?? 0) +
+        (m.compressed_attention?.classes.reduce((a, c) => a + c.layers, 0) ?? 0)
+      expect(n, m.id).toBe(m.num_hidden_layers)
+    }
+  })
+
+  it('chunked layers (Llama 4) read only their own chunk', () => {
+    const m = {
+      ...lightning,
+      num_full_attention_layers: undefined,
+      num_sliding_attention_layers: 3,
+      num_hidden_layers: 3,
+      kv_sliding_window: 4,
+      kv_window_chunked: true,
+    }
+    // T = 10, chunk 4: two full chunks 2 * (4 * 5 / 2) = 20, then 2 tokens 2 * 3 / 2 = 3
+    expect(prefillAttentionFLOPs(m, 10).toNumber()).toBe(4 * 4096 * 3 * 23)
+    // the 10th token is the 2nd of its chunk: reads 2
+    expect(decodeAttentionFLOPsPerToken(m, 10).toNumber()).toBe(4 * 4096 * 3 * 2)
+  })
+
+  it('MLA decode runs absorbed (544 per head), prefill keeps head_dim', () => {
+    const kimi = (modelsData as Model[]).find((x) => x.id === 'moonshotai-kimi-k3') as Model
+    const T = 1000
+    expect(decodeAttentionFLOPsPerToken(kimi, T).toNumber()).toBe(
+      4 * (96 * 544) * (kimi.num_full_attention_layers ?? 0) * T,
+    )
+    expect(prefillAttentionFLOPs(kimi, T).toNumber()).toBe(
+      4 * (96 * 160) * (kimi.num_full_attention_layers ?? 0) * ((T * T) / 2),
+    )
   })
 })

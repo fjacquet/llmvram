@@ -77,6 +77,9 @@ read at most `topk` KV positions per token, not the whole context.
   confidence. Full reads are the safe direction, per the spec source rule. Its
   long-context speed does not change. Commit 0d1f339 (Task 4) has "and DeepSeek
   V4" in its subject but adds no DeepSeek values. History is not rewritten.
+  Update 2026-11-23: prefill and decode attention FLOPs (compute only) now follow the
+  per-layer classes of vLLM `deepseek_v4` / `deepseek_v41` (`compressed_attention`). The
+  KV memory and the decode KV read are still full reads.
 - **D10 Mistral Large 4** (`mistralai-mistral-large-4-1t-a52b`): 1053.2B total,
   52.3B active. KV 36,288 = 63 KV-owning layers x 576. Nine layers share layer
   35's cache (vLLM kv_sharing plus the HF config), so the spec's 41,472 (72 x 576)

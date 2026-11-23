@@ -183,6 +183,43 @@ const ModelFields = z.object({
   num_full_attention_layers: z.number().int().positive().optional(),
   num_sliding_attention_layers: z.number().int().positive().optional(),
   head_dim: z.number().int().positive().optional(),
+  // Llama 4: the windowed layers are chunked (attention_chunk_size = kv_sliding_window): a query
+  // sees only its own chunk, not the last `window` tokens.
+  kv_window_chunked: z.boolean().optional(),
+  // MLA models: decode runs absorbed (vLLM MLA backends). Each cached token costs 2 * heads *
+  // (kv_lora_rank + rope) for the scores plus 2 * heads * kv_lora_rank for the values, so the
+  // per-head width in the 4 * width form is (576 + 512) / 2 = 544. Prefill keeps head_dim.
+  decode_head_dim: z.number().int().positive().optional(),
+  // MLA models: head_dim is the mean of qk_head_dim and v_head_dim (prefill scores at qk width,
+  // values at v width), so 2 * heads * head_dim * T^2 stays the causal FLOP count.
+  // shortcut: decode really runs absorbed MLA (kv_lora_rank + rope wide), 3x this, still far
+  // below the memory term; split it out if decode attention ever binds.
+  // DeepSeek V4 (vLLM models/deepseek_v4, deepseek_v41): besides the window every layer reads
+  // a compressed cache holding one entry per `ratio` tokens. `indexed` layers (C4A, and every
+  // compressed layer of V4.1) keep only the `topk` best entries (config index_topk); the rest
+  // read them all. Compute only: KV memory and the decode read stay as stored (ADR 0009 D9).
+  compressed_attention: z
+    .object({
+      topk: z.number().int().positive(),
+      // Indexer scoring (config index_n_heads, index_head_dim): each indexer layer scores every
+      // compressed entry; `indexer_layers` counts the class's layers that own one.
+      indexer_heads: z.number().int().positive(),
+      indexer_head_dim: z.number().int().positive(),
+      classes: z.array(
+        z.object({
+          layers: z.number().int().positive(),
+          ratio: z.number().int().positive(),
+          indexed: z.boolean(),
+          indexer_layers: z.number().int().positive().optional(),
+        }),
+      ),
+    })
+    .optional(),
+  // Gemma 4: the full-attention layers use their own head width and KV head count
+  // (global_head_dim, num_global_key_value_heads); head_dim and num_kv_heads then describe the
+  // windowed layers.
+  full_attention_head_dim: z.number().int().positive().optional(),
+  full_attention_kv_heads: z.number().int().positive().optional(),
   // Tensor-parallel all-reduces per layer per decode step. Absent: 2 (attention o_proj + MLP
   // down_proj). NemotronH layers are one mixer each (vLLM nemotron_h.py: Mamba out_proj,
   // attention o_proj, MoE with the shared expert's reduce_results=False): 1.

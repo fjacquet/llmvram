@@ -228,7 +228,27 @@
         }
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_sliding_attention_layers": 2,
+    "head_dim": 512,
+    "compressed_attention": {
+      "topk": 512,
+      "indexer_heads": 64,
+      "indexer_head_dim": 128,
+      "classes": [
+        {
+          "layers": 21,
+          "ratio": 4,
+          "indexed": true,
+          "indexer_layers": 21
+        },
+        {
+          "layers": 20,
+          "ratio": 128,
+          "indexed": false
+        }
+      ]
+    }
   },
   {
     "id": "deepseek-v4-pro",
@@ -259,7 +279,26 @@
         }
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "head_dim": 512,
+    "compressed_attention": {
+      "topk": 1024,
+      "indexer_heads": 64,
+      "indexer_head_dim": 128,
+      "classes": [
+        {
+          "layers": 30,
+          "ratio": 4,
+          "indexed": true,
+          "indexer_layers": 30
+        },
+        {
+          "layers": 31,
+          "ratio": 128,
+          "indexed": false
+        }
+      ]
+    }
   },
   {
     "id": "deepseek-ai-deepseek-v4.1-flash-1017",
@@ -298,7 +337,28 @@
         }
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_sliding_attention_layers": 2,
+    "head_dim": 512,
+    "compressed_attention": {
+      "topk": 512,
+      "indexer_heads": 32,
+      "indexer_head_dim": 128,
+      "classes": [
+        {
+          "layers": 18,
+          "ratio": 2,
+          "indexed": true,
+          "indexer_layers": 3
+        },
+        {
+          "layers": 20,
+          "ratio": 1,
+          "indexed": true,
+          "indexer_layers": 5
+        }
+      ]
+    }
   },
   {
     "id": "mistralai-devstral-2-123b",
@@ -846,7 +906,10 @@
         "gib": 4.44
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 8,
+    "num_sliding_attention_layers": 40,
+    "head_dim": 256
   },
   {
     "id": "google-gemma-3-1b",
@@ -898,7 +961,10 @@
         "gib": 0.67
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 4,
+    "num_sliding_attention_layers": 22,
+    "head_dim": 256
   },
   {
     "id": "google-gemma-3-27b",
@@ -970,7 +1036,10 @@
         "gib": 9.78
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 10,
+    "num_sliding_attention_layers": 52,
+    "head_dim": 128
   },
   {
     "id": "google-gemma-3-4b",
@@ -1038,7 +1107,10 @@
         "gib": 1.61
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 5,
+    "num_sliding_attention_layers": 29,
+    "head_dim": 256
   },
   {
     "id": "google-gemma-4-12b",
@@ -1106,7 +1178,12 @@
         "gib": 4.78
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 8,
+    "num_sliding_attention_layers": 40,
+    "head_dim": 256,
+    "full_attention_head_dim": 512,
+    "full_attention_kv_heads": 1
   },
   {
     "id": "google-gemma-4-26b-a4b",
@@ -1165,7 +1242,12 @@
         }
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 5,
+    "num_sliding_attention_layers": 25,
+    "head_dim": 256,
+    "full_attention_head_dim": 512,
+    "full_attention_kv_heads": 2
   },
   {
     "id": "google-gemma-4-31b",
@@ -1233,7 +1315,12 @@
         "gib": 12.3
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 10,
+    "num_sliding_attention_layers": 50,
+    "head_dim": 256,
+    "full_attention_head_dim": 512,
+    "full_attention_kv_heads": 4
   },
   {
     "id": "moonshotai-kimi-k2-instruct",
@@ -1586,7 +1673,10 @@
         }
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_full_attention_layers": 24,
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "moonshotai-kimi-k3.1-pro",
@@ -1629,7 +1719,10 @@
     "sparse_indexer_bytes_per_token": 3168,
     "sparse_indexer_heads": 32,
     "sparse_indexer_layers": 24,
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_full_attention_layers": 24,
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "moonshotai-kimi-linear-48b-a3b",
@@ -1732,7 +1825,10 @@
         "gib": 16.33
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_full_attention_layers": 7,
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "liquidai-lfm2.5-2.6b",
@@ -2104,7 +2200,10 @@
         "gib": 42.75
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_full_attention_layers": 7,
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "inclusionai-ling-3.0-tiny",
@@ -2191,7 +2290,10 @@
         "gib": 2.79
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_full_attention_layers": 6,
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "inclusionai-ling-3.1-flash-1019",
@@ -2266,7 +2368,10 @@
         "gib": 204.12
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_full_attention_layers": 9,
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "meta-llama-llama-4-maverick",
@@ -2357,7 +2462,11 @@
         "gib": 135.64
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 12,
+    "num_sliding_attention_layers": 36,
+    "head_dim": 128,
+    "kv_window_chunked": true
   },
   {
     "id": "meta-llama-llama-4-scout",
@@ -2456,7 +2565,11 @@
         "gib": 36.85
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 12,
+    "num_sliding_attention_layers": 36,
+    "head_dim": 128,
+    "kv_window_chunked": true
   },
   {
     "id": "mistralai-magistral-small-2507",
