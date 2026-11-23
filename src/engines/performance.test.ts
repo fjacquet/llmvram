@@ -2055,3 +2055,35 @@ describe('estimatePerformance - context mix', () => {
     expect(run(mix).expected.timeToFirstToken).toEqual(run().expected.timeToFirstToken)
   })
 })
+
+describe('allreduces_per_layer', () => {
+  it('one all-reduce per layer (NemotronH) beats the default 2 under tensor parallelism', () => {
+    const m = (modelsData as Model[]).find(
+      (x) => x.id === 'nvidia-nemotron-3-nano-30b-a3b',
+    ) as Model
+    const gpu = (gpusData as GPU[]).find((g) => g.name.includes('RTX PRO 6000 Server')) as GPU
+    const run = (model: Model) =>
+      estimatePerformance({
+        model,
+        gpu,
+        quantization: 'nvfp4',
+        sequenceLength: 4096,
+        batchSize: 1,
+        multiGPUResult: calculateMultiGPUVRAM(
+          calculateInferenceVRAM({
+            model,
+            quantization: 'nvfp4',
+            sequenceLength: 4096,
+            batchSize: 1,
+            kvQuantization: 'fp16',
+          }),
+          model,
+          gpu.vram_gb,
+          2,
+          'tensor-parallel',
+          gpu,
+        ),
+      }).tokensPerSecond.toNumber()
+    expect(run(m)).toBeGreaterThan(run({ ...m, allreduces_per_layer: undefined }))
+  })
+})

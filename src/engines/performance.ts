@@ -17,7 +17,12 @@ import {
   routedTouchedFraction,
   splitMoEParams,
 } from './inference'
-import { attendedTokens, calculateDecodeKVReadVRAM, calculateLinearStateVRAM } from './kv-cache'
+import {
+  calculateDecodeKVReadVRAM,
+  calculateLinearStateVRAM,
+  decodeAttentionFLOPsPerToken,
+  prefillAttentionFLOPs,
+} from './kv-cache'
 import { kvCacheTPShards, resolveInterconnect } from './multi-gpu'
 import { calculateModelWeightVRAM } from './quantization'
 import type {
@@ -285,10 +290,7 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   const linearRate = linearComputeRate(gpu, quantization)
   const attentionRate = attentionComputeRate(gpu)
   const linearFLOPsPerToken = new Decimal(activeParams).mul(2e9)
-  const attentionFLOPsPerToken = new Decimal(4)
-    .mul(model.num_hidden_layers)
-    .mul(attendedTokens(model, sequenceLength))
-    .mul(model.hidden_size)
+  const attentionFLOPsPerToken = decodeAttentionFLOPsPerToken(model, sequenceLength)
   // DSA indexer: vLLM scores every cached token each step (fp8_fp4_paged_mqa_logits over
   // seq_lens) in FP8, so it runs at the FP8 rate (16-bit without one). Its weights are
   // ReplicatedLinear and its cache is replicated, so TP does not split it: it divides only
@@ -329,7 +331,7 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   const layersPerStage = model.num_hidden_layers / layout.stages
   let commSecondsPerLayer = 0
   if (layout.strategy === 'tensor-parallel') {
-    commSecondsPerLayer = (2 * link.allreduceLatencyUs) / 1e6
+    commSecondsPerLayer = ((model.allreduces_per_layer ?? 2) * link.allreduceLatencyUs) / 1e6
   } else if (layout.strategy === 'expert-parallel' && split) {
     // bandwidthGBps is bidirectional per GPU; one direction carries each transfer
     commSecondsPerLayer = expertAllToAllSeconds(
@@ -404,12 +406,7 @@ export function estimatePerformance(params: PerformanceParams): PerformanceEstim
   //    fill (prefillScalingEfficiency) and N - 1 hops of the prompt are amortized the same way.
   const promptTokens = new Decimal(sequenceLength)
   const linearFLOPs = new Decimal(activeParams).mul(2e9).mul(promptTokens)
-  const attended = attendedTokens(model, sequenceLength)
-  const attentionFLOPs = new Decimal(2)
-    .mul(model.num_hidden_layers)
-    .mul(model.hidden_size)
-    .mul(attended)
-    .mul(promptTokens.mul(2).sub(attended))
+  const attentionFLOPs = prefillAttentionFLOPs(model, sequenceLength)
   const indexerFLOPs = indexerScoringFLOPs(model, sequenceLength).mul(promptTokens)
 
   // FLOP comparison only when no FLOPS data; otherwise compared by time below

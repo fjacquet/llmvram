@@ -8,6 +8,8 @@ import {
   calculateKVCacheVRAM,
   calculateLinearStateVRAM,
   calculateSparseIndexerVRAM,
+  decodeAttentionFLOPsPerToken,
+  prefillAttentionFLOPs,
 } from './kv-cache'
 
 // Test fixtures - inline model definitions for test isolation
@@ -505,5 +507,50 @@ describe('FP8 KV on DSA models (vLLM fp8_ds_mla, 656 B per token per layer)', ()
     const r1 = byId('deepseek-r1')
     const expected = new Decimal(r1.kv_cache_elements_per_token ?? 0).mul(1024).div(1024 ** 3)
     expect(gb(r1, 'fp8').toNumber()).toBeCloseTo(expected.toNumber(), 12)
+  })
+})
+
+describe('attention FLOPs layer mix', () => {
+  const lightning = (modelsData as Model[]).find(
+    (m) => m.id === 'nvidia-nemotron-3.5-lightning-30b-a3b',
+  ) as Model
+
+  it('charges only the 6 attention layers at heads x head_dim width (config.json layers_block_type)', () => {
+    const T = 262144
+    // 2 * (32 * 128) * 6 * T * T
+    expect(prefillAttentionFLOPs(lightning, T).toNumber()).toBe(2 * 4096 * 6 * T * T)
+    expect(decodeAttentionFLOPsPerToken(lightning, T).toNumber()).toBe(4 * 4096 * 6 * T)
+  })
+
+  it('falls back to every layer at hidden_size without the mix fields', () => {
+    const plain = { ...lightning, num_full_attention_layers: undefined, head_dim: undefined }
+    expect(prefillAttentionFLOPs(plain, 1000).toNumber()).toBe(2 * 2688 * 52 * 1000 * 1000)
+  })
+
+  it('windowed layers cost T*W, not T^2', () => {
+    const m = {
+      ...lightning,
+      num_full_attention_layers: 2,
+      num_sliding_attention_layers: 4,
+      kv_sliding_window: 128,
+    }
+    const T = 1000
+    expect(prefillAttentionFLOPs(m, T).toNumber()).toBe(
+      2 * 4096 * (2 * T * T + 4 * 128 * (2 * T - 128)),
+    )
+  })
+
+  it('layer counts x 2 x kv_heads x head_dim equal the stored KV elements, every model that sets them', () => {
+    const withMix = (modelsData as Model[]).filter((m) => m.num_full_attention_layers)
+    expect(withMix.length).toBeGreaterThan(10)
+    for (const m of withMix) {
+      const perLayer = 2 * (m.num_kv_heads ?? m.num_attention_heads) * (m.head_dim ?? 0)
+      expect(m.num_full_attention_layers * perLayer, m.id).toBe(m.kv_cache_elements_per_token)
+      if (m.num_sliding_attention_layers) {
+        expect(m.num_sliding_attention_layers * perLayer, m.id).toBe(
+          m.kv_sliding_elements_per_token,
+        )
+      }
+    }
   })
 })

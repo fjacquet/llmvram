@@ -705,7 +705,10 @@
         "gib": 58.27
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 18,
+    "head_dim": 64,
+    "num_sliding_attention_layers": 18
   },
   {
     "id": "openai-gpt-oss-20b",
@@ -768,7 +771,10 @@
         "gib": 10.68
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 12,
+    "head_dim": 64,
+    "num_sliding_attention_layers": 12
   },
   {
     "id": "google-gemma-3-12b",
@@ -1757,7 +1763,9 @@
         "gib": 2.76
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 8,
+    "head_dim": 64
   },
   {
     "id": "meta-llama-llama-3.1-405b",
@@ -3117,7 +3125,10 @@
         "gib": 58.82
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 6,
+    "head_dim": 128,
+    "allreduces_per_layer": 1
   },
   {
     "id": "nvidia-nemotron-3-nano-4b",
@@ -3140,7 +3151,10 @@
         "gib": 7.4
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 4,
+    "head_dim": 128,
+    "allreduces_per_layer": 1
   },
   {
     "id": "nvidia-nemotron-3-super-120b-a12b",
@@ -3166,7 +3180,10 @@
         "gib": 230.25
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 8,
+    "head_dim": 128,
+    "allreduces_per_layer": 1
   },
   {
     "id": "nvidia-nemotron-3-ultra-550b-a55b",
@@ -3192,7 +3209,10 @@
         "gib": 1044.06
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 12,
+    "head_dim": 128,
+    "allreduces_per_layer": 1
   },
   {
     "id": "nvidia-nemotron-3.5-lightning-30b-a3b",
@@ -3218,7 +3238,10 @@
         "gib": 61.31
       }
     },
-    "origin_country": "US"
+    "origin_country": "US",
+    "num_full_attention_layers": 6,
+    "head_dim": 128,
+    "allreduces_per_layer": 1
   },
   {
     "id": "nvidia-llama-3.1-nemotron-ultra-253b",
@@ -3448,7 +3471,9 @@
         "gib": 11.51
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_full_attention_layers": 16,
+    "head_dim": 256
   },
   {
     "id": "qwen-qwen3.6-35b-a3b",
@@ -3494,7 +3519,9 @@
         "gib": 34.37
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_full_attention_layers": 10,
+    "head_dim": 256
   },
   {
     "id": "qwen-qwen3.8-2.4t-a95b",
@@ -3540,7 +3567,9 @@
         "gib": 2421.67
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_full_attention_layers": 23,
+    "head_dim": 256
   },
   {
     "id": "qwen-qwen3.8-27b",
@@ -3575,6 +3604,8 @@
         "gib": 27.05
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_full_attention_layers": 16,
+    "head_dim": 256
   }
 ]
