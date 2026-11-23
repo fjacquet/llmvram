@@ -604,4 +604,30 @@ describe('attention FLOPs layer mix', () => {
       expect(n, m.id).toBe(m.num_hidden_layers)
     }
   })
+
+  it('chunked layers (Llama 4) read only their own chunk', () => {
+    const m = {
+      ...lightning,
+      num_full_attention_layers: undefined,
+      num_sliding_attention_layers: 3,
+      num_hidden_layers: 3,
+      kv_sliding_window: 4,
+      kv_window_chunked: true,
+    }
+    // T = 10, chunk 4: two full chunks 2 * (4 * 5 / 2) = 20, then 2 tokens 2 * 3 / 2 = 3
+    expect(prefillAttentionFLOPs(m, 10).toNumber()).toBe(4 * 4096 * 3 * 23)
+    // the 10th token is the 2nd of its chunk: reads 2
+    expect(decodeAttentionFLOPsPerToken(m, 10).toNumber()).toBe(4 * 4096 * 3 * 2)
+  })
+
+  it('MLA decode runs absorbed (544 per head), prefill keeps head_dim', () => {
+    const kimi = (modelsData as Model[]).find((x) => x.id === 'moonshotai-kimi-k3') as Model
+    const T = 1000
+    expect(decodeAttentionFLOPsPerToken(kimi, T).toNumber()).toBe(
+      4 * (96 * 544) * (kimi.num_full_attention_layers ?? 0) * T,
+    )
+    expect(prefillAttentionFLOPs(kimi, T).toNumber()).toBe(
+      4 * (96 * 160) * (kimi.num_full_attention_layers ?? 0) * ((T * T) / 2),
+    )
+  })
 })

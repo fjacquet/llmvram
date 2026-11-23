@@ -1675,7 +1675,8 @@
     },
     "origin_country": "CN",
     "num_full_attention_layers": 24,
-    "head_dim": 160
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "moonshotai-kimi-k3.1-pro",
@@ -1720,7 +1721,8 @@
     "sparse_indexer_layers": 24,
     "origin_country": "CN",
     "num_full_attention_layers": 24,
-    "head_dim": 160
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "moonshotai-kimi-linear-48b-a3b",
@@ -1825,7 +1827,8 @@
     },
     "origin_country": "CN",
     "num_full_attention_layers": 7,
-    "head_dim": 160
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "liquidai-lfm2.5-2.6b",
@@ -2199,7 +2202,8 @@
     },
     "origin_country": "CN",
     "num_full_attention_layers": 7,
-    "head_dim": 160
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "inclusionai-ling-3.0-tiny",
@@ -2288,7 +2292,8 @@
     },
     "origin_country": "CN",
     "num_full_attention_layers": 6,
-    "head_dim": 160
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "inclusionai-ling-3.1-flash-1019",
@@ -2365,7 +2370,8 @@
     },
     "origin_country": "CN",
     "num_full_attention_layers": 9,
-    "head_dim": 160
+    "head_dim": 160,
+    "decode_head_dim": 544
   },
   {
     "id": "meta-llama-llama-4-maverick",
@@ -2459,7 +2465,8 @@
     "origin_country": "US",
     "num_full_attention_layers": 12,
     "num_sliding_attention_layers": 36,
-    "head_dim": 128
+    "head_dim": 128,
+    "kv_window_chunked": true
   },
   {
     "id": "meta-llama-llama-4-scout",
@@ -2561,7 +2568,8 @@
     "origin_country": "US",
     "num_full_attention_layers": 12,
     "num_sliding_attention_layers": 36,
-    "head_dim": 128
+    "head_dim": 128,
+    "kv_window_chunked": true
   },
   {
     "id": "mistralai-magistral-small-2507",

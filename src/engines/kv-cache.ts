@@ -93,8 +93,7 @@ export function attendedTokens(model: Model, contextTokens: number): number {
 export function prefillAttentionFLOPs(model: Model, T: number): Decimal {
   const { full, sliding, compressed, fullWidth, slidingWidth } = attentionLayout(model)
   const a = attendedTokens(model, T)
-  const w = Math.min(T, model.kv_sliding_window ?? T)
-  const windowSum = w * T - (w * w) / 2
+  const windowSum = windowReadSum(model, T)
   let compressedSum = new Decimal(0)
   let indexerFLOPs = new Decimal(0)
   for (const c of compressed) {
@@ -119,8 +118,8 @@ export function prefillAttentionFLOPs(model: Model, T: number): Decimal {
 
 /** Attention FLOPs for one decode token reading a context of T tokens: 4 * width * layers * read */
 export function decodeAttentionFLOPsPerToken(model: Model, T: number): Decimal {
-  const { full, sliding, compressed, fullWidth, slidingWidth } = attentionLayout(model)
-  const w = Math.min(T, model.kv_sliding_window ?? T)
+  const { full, sliding, compressed, fullDecodeWidth, slidingWidth } = attentionLayout(model)
+  const w = windowRead(model, T)
   let compressedReads = new Decimal(0)
   let indexerFLOPs = new Decimal(0)
   for (const c of compressed) {
@@ -133,13 +132,31 @@ export function decodeAttentionFLOPsPerToken(model: Model, T: number): Decimal {
   }
   return indexerFLOPs.add(
     new Decimal(4).mul(
-      new Decimal(fullWidth)
+      new Decimal(fullDecodeWidth)
         .mul(full)
         .mul(attendedTokens(model, T))
         .add(new Decimal(slidingWidth).mul(sliding).mul(w))
         .add(new Decimal(slidingWidth).mul(compressedReads)),
     ),
   )
+}
+
+/** Sum over t = 1..T of the tokens a windowed layer reads: min(t, W), or t within its chunk */
+function windowReadSum(model: Model, T: number): number {
+  const W = model.kv_sliding_window ?? T
+  if (model.kv_window_chunked) {
+    const n = Math.floor(T / W)
+    const r = T - n * W
+    return (n * W * (W + 1)) / 2 + (r * (r + 1)) / 2
+  }
+  const w = Math.min(T, W)
+  return w * T - (w * w) / 2
+}
+
+/** Tokens a windowed layer reads for the next decode token at context T */
+function windowRead(model: Model, T: number): number {
+  const W = model.kv_sliding_window ?? T
+  return model.kv_window_chunked ? ((T - 1) % W) + 1 : Math.min(T, W)
 }
 
 /** Sum over t = 1..T of min(t / ratio, topk): ramps to topk at t = topk * ratio, then flat */
@@ -166,6 +183,9 @@ function attentionLayout(model: Model) {
     sliding,
     compressed,
     fullWidth: width(model.full_attention_head_dim ?? model.head_dim),
+    fullDecodeWidth: width(
+      model.decode_head_dim ?? model.full_attention_head_dim ?? model.head_dim,
+    ),
     slidingWidth: width(model.head_dim),
   }
 }

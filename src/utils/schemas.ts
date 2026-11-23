@@ -183,6 +183,13 @@ const ModelFields = z.object({
   num_full_attention_layers: z.number().int().positive().optional(),
   num_sliding_attention_layers: z.number().int().positive().optional(),
   head_dim: z.number().int().positive().optional(),
+  // Llama 4: the windowed layers are chunked (attention_chunk_size = kv_sliding_window): a query
+  // sees only its own chunk, not the last `window` tokens.
+  kv_window_chunked: z.boolean().optional(),
+  // MLA models: decode runs absorbed (vLLM MLA backends). Each cached token costs 2 * heads *
+  // (kv_lora_rank + rope) for the scores plus 2 * heads * kv_lora_rank for the values, so the
+  // per-head width in the 4 * width form is (576 + 512) / 2 = 544. Prefill keeps head_dim.
+  decode_head_dim: z.number().int().positive().optional(),
   // MLA models: head_dim is the mean of qk_head_dim and v_head_dim (prefill scores at qk width,
   // values at v width), so 2 * heads * head_dim * T^2 stays the causal FLOP count.
   // shortcut: decode really runs absorbed MLA (kv_lora_rank + rope wide), 3x this, still far
