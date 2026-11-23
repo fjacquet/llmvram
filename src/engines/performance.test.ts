@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BYTES_PER_GB,
   DECODE_EFFICIENCY_BANDS,
+  DECODE_LAYER_FLOOR_SECONDS,
   decodeEfficiency,
   INTERCONNECT_SPECS,
   PREFILL_EFFICIENCY,
@@ -2085,5 +2086,41 @@ describe('allreduces_per_layer', () => {
         ),
       }).tokensPerSecond.toNumber()
     expect(run(m)).toBeGreaterThan(run({ ...m, allreduces_per_layer: undefined }))
+  })
+})
+
+describe('decode step floor per layer', () => {
+  it('expected tok/s never implies an ITL below num_hidden_layers x 50 us (hybrid, batch 1)', () => {
+    const m = (modelsData as Model[]).find(
+      (x) => x.id === 'nvidia-nemotron-3.5-lightning-30b-a3b',
+    ) as Model
+    const gpu = (gpusData as GPU[]).find((g) => g.id === 'nvidia-b200-192gb') as GPU
+    const p = estimatePerformance({
+      model: m,
+      gpu,
+      quantization: 'nvfp4',
+      sequenceLength: 7834,
+      batchSize: 1,
+    })
+    // roofline ceiling ITL is 0.22 ms; vLLM measured 2.6 ms (Lambda, B200, c1)
+    expect(1 / p.expected.tokensPerSecond.toNumber()).toBeCloseTo(
+      52 * DECODE_LAYER_FLOOR_SECONDS,
+      9,
+    )
+    expect(1 / p.tokensPerSecond.toNumber()).toBeLessThan(52 * DECODE_LAYER_FLOOR_SECONDS)
+  })
+
+  it('does not bind for a dense model at a realistic step (Llama 3 70B on H100)', () => {
+    const p = estimatePerformance({
+      model: llama3_70b,
+      gpu: h100_80gb_sxm,
+      quantization: 'fp8',
+      sequenceLength: 1152,
+      batchSize: 1,
+    })
+    expect(p.expected.tokensPerSecond.toNumber()).toBeCloseTo(
+      p.tokensPerSecond.mul(decodeEfficiency(1)).toNumber(),
+      9,
+    )
   })
 })

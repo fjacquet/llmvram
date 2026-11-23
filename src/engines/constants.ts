@@ -543,6 +543,17 @@ export const DECODE_EFFICIENCY_BANDS: readonly {
   { maxBatch: Number.POSITIVE_INFINITY, efficiency: 0.25, n: 1, provisional: true },
 ]
 
+/**
+ * Decode step floor per layer: launch and kernel latency that the bandwidth roofline cannot see,
+ * visible when the step is a few milliseconds (hybrid Mamba/MoE models, batch 1). Expected ITL is
+ * never below num_hidden_layers x this. Measured ITL / layers at concurrency 1, vLLM, ISL 8192
+ * (Lambda, 2026-11): Nemotron 3.5 Lightning 50 us (B200) and 56 us (H100), Nemotron 3 Super
+ * 53 us (2x B200) and 69 us (2x H100). The lowest 50 us is used. No accepted point of
+ * docs/calibration is below 67 us per layer (742 InferenceX rows), so the floor is not binding
+ * there. See docs/calibration, section "Lambda hybrid points".
+ */
+export const DECODE_LAYER_FLOOR_SECONDS = 50e-6
+
 export function decodeEfficiency(batchSize: number): Decimal {
   const band = DECODE_EFFICIENCY_BANDS.find((b) => batchSize <= b.maxBatch)
   return new Decimal(band?.efficiency ?? 0.25)

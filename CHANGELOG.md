@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Calibration rechecked with the new formula: gpt-oss prefill points move 3.4 %, median stays 0.469; gpt-oss decode moves 0.000 %. Constants unchanged (`docs/calibration`).
 - Tensor-parallel decode charged two all-reduces per layer; NemotronH layers are one mixer each, so the new `allreduces_per_layer: 1` applies to the Nemotron 3 family.
 - Llama 4 chunked layers read only their own chunk (`kv_window_chunked`), and MLA decode attention runs absorbed at 544 per head (`decode_head_dim`; Kimi, Ling). Both were approximations.
+- Expected decode now has a floor of 50 us per layer (`DECODE_LAYER_FLOOR_SECONDS`): vLLM measured 2.6 to 6.1 ms per token at batch 1 for Nemotron 3.5 Lightning and Nemotron 3 Super (Lambda, H100 and B200), 2 to 5x the roofline estimate. No existing calibration point is affected. Points recorded in `docs/calibration`; the prefill and decode efficiency constants are unchanged.
 - Qwen3.6 35B A3B at 262144 tokens on M5 Max: expected TTFT 29.0 to 16.3 min.
 
 ## [2.2.0] - 2026-11-12
