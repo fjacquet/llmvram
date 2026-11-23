@@ -930,22 +930,22 @@ checkpoints, about 8192 input and 1024 output tokens, 512 prompts per point, TTF
 Lightning TP1 on H100 (W4A16 Humming fallback) and B200; Super TP2 on 2x H100 and 2x B200.
 Engine = `estimatePerformance`, decode at context 7834, prefill of 7373 tokens.
 
-| model / GPU          | c   | measured ITL ms | engine ceiling ms | ceiling / measured | measured TTFT ms | engine prefill ms |
-| -------------------- | --- | --------------- | ----------------- | ------------------ | ---------------- | ----------------- |
-| Lightning H100       | 1   | 2.9             | 0.53              | 0.18               | 152              | 105               |
-| Lightning H100       | 16  | 9.9             | 3.43              | 0.35               | 1231             |                   |
-| Lightning H100       | 64  | 23.2            | 6.93              | 0.30               | 1035             |                   |
-| Lightning H100       | 256 | 52.5            | 12.73             | 0.24               | 1812             |                   |
-| Lightning B200       | 1   | 2.6             | 0.22              | 0.09               | 179              | 24                |
-| Lightning B200       | 16  | 5.8             | 1.44              | 0.25               | 1733             |                   |
-| Lightning B200       | 64  | 15.9            | 2.90              | 0.18               | 2104             |                   |
-| Lightning B200       | 256 | 48.9            | 5.33              | 0.11               | 3478             |                   |
-| Super 2x H100        | 1   | 6.1             | 2.01              | 0.33               | 415              | 220               |
-| Super 2x H100        | 16  | 16.0            | 7.06              | 0.44               | 3358             |                   |
-| Super 2x H100        | 64  | 42.4            | 13.00             | 0.31               | 2983             |                   |
-| Super 2x B200        | 1   | 4.7             | 1.40              | 0.30               | 131              | 47                |
-| Super 2x B200        | 16  | 8.0             | 3.52              | 0.44               | 954              |                   |
-| Super 2x B200        | 64  | 15.9            | 6.00              | 0.38               | 1175             |                   |
+| model / GPU    | c   | measured ITL ms | engine ceiling ms | ceiling / measured | measured TTFT ms | engine prefill ms |
+| -------------- | --- | --------------- | ----------------- | ------------------ | ---------------- | ----------------- |
+| Lightning H100 | 1   | 2.9             | 0.53              | 0.18               | 152              | 105               |
+| Lightning H100 | 16  | 9.9             | 3.43              | 0.35               | 1231             |                   |
+| Lightning H100 | 64  | 23.2            | 6.93              | 0.30               | 1035             |                   |
+| Lightning H100 | 256 | 52.5            | 12.73             | 0.24               | 1812             |                   |
+| Lightning B200 | 1   | 2.6             | 0.22              | 0.09               | 179              | 24                |
+| Lightning B200 | 16  | 5.8             | 1.44              | 0.25               | 1733             |                   |
+| Lightning B200 | 64  | 15.9            | 2.90              | 0.18               | 2104             |                   |
+| Lightning B200 | 256 | 48.9            | 5.33              | 0.11               | 3478             |                   |
+| Super 2x H100  | 1   | 6.1             | 2.01              | 0.33               | 415              | 220               |
+| Super 2x H100  | 16  | 16.0            | 7.06              | 0.44               | 3358             |                   |
+| Super 2x H100  | 64  | 42.4            | 13.00             | 0.31               | 2983             |                   |
+| Super 2x B200  | 1   | 4.7             | 1.40              | 0.30               | 131              | 47                |
+| Super 2x B200  | 16  | 8.0             | 3.52              | 0.44               | 954              |                   |
+| Super 2x B200  | 64  | 15.9            | 6.00              | 0.38               | 1175             |                   |
 
 Reading, under the rules above:
 
