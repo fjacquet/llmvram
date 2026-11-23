@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-23
+
 ### Fixed
 
 - Prefill and decode attention FLOPs charged every layer at `hidden_size`. New optional model fields `num_full_attention_layers`, `num_sliding_attention_layers` and `head_dim` charge only the attention layers, windowed layers at min(T, window), at width heads × head_dim. Filled for Nemotron 3.5 Lightning (6 of 52 layers): single-GPU 256K prefill 192 s to 46 s. Also filled: Nemotron 3 Nano 30B/4B, Super, Ultra, Qwen3.6 27B/35B, Qwen3.8 2.4T/27B, LFM2.5 2.6B, gpt-oss 20B/120B (every count equals the stored KV elements per layer x layers). Gemma 3 (config via a public mirror), Gemma 4 (own full-attention width `full_attention_head_dim`, `full_attention_kv_heads`), Llama 4 (chunked layers charged like sliding ones, about 2x high on a negligible term), Kimi K3/K3.1/Linear and Ling 3.0/3.1 (MLA: `head_dim` is the mean of qk and v widths, latent 576 per full layer checked against the stored KV). DeepSeek V4 Flash/Pro/4.1 (new `compressed_attention`: window plus compressed entries per layer class, top-k on indexed layers, indexer scoring; read from vLLM `models/deepseek_v4` and `deepseek_v41`): 256K prefill attention 24 to about 1.3 PFLOP (Flash). Compute only; KV memory and the decode read stay as before (ADR 0009 D9).
