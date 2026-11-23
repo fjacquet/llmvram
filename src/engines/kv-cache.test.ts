@@ -559,4 +559,49 @@ describe('attention FLOPs layer mix', () => {
       }
     }
   })
+
+  it('compressed layers (DeepSeek V4) read the window plus min(t / ratio, topk)', () => {
+    const base = {
+      ...lightning,
+      num_full_attention_layers: undefined,
+      num_hidden_layers: 3,
+      kv_sliding_window: 2,
+    }
+    const indexed = {
+      ...base,
+      compressed_attention: {
+        topk: 2,
+        indexer_heads: 1,
+        indexer_head_dim: 8,
+        classes: [{ layers: 3, ratio: 4, indexed: true, indexer_layers: 1 }],
+      },
+    }
+    // T = 10: window 2*10 - 2 = 18; entries t/4 capped at 2 from t = 8: 8 + 2*2 = 12
+    // indexer: 2 * (1 * 8) * 1 layer * T^2 / (2 * 4) = 2 * 8 * 12.5 = 200
+    expect(prefillAttentionFLOPs(indexed, 10).toNumber()).toBe(4 * 4096 * 3 * (18 + 12) + 200)
+    const all = {
+      ...base,
+      compressed_attention: {
+        topk: 2,
+        indexer_heads: 1,
+        indexer_head_dim: 8,
+        classes: [{ layers: 3, ratio: 4, indexed: false }],
+      },
+    }
+    expect(prefillAttentionFLOPs(all, 10).toNumber()).toBe(4 * 4096 * 3 * (18 + 12.5))
+    // decode token at T = 10: window 2 + min(10 / 4, 2) = 4 reads per layer
+    // + indexer 2 * 8 * 1 * (10 / 4) = 40
+    expect(decodeAttentionFLOPsPerToken(indexed, 10).toNumber()).toBe(4 * 4096 * 3 * 4 + 40)
+  })
+
+  it('DeepSeek V4 layer classes add up to num_hidden_layers', () => {
+    const v4 = (modelsData as Model[]).filter((m) => m.compressed_attention)
+    expect(v4).toHaveLength(3)
+    for (const m of v4) {
+      const n =
+        (m.num_sliding_attention_layers ?? 0) +
+        (m.compressed_attention?.classes.reduce((a, c) => a + c.layers, 0) ?? 0)
+      expect(n, m.id).toBe(m.num_hidden_layers)
+    }
+  })
 })

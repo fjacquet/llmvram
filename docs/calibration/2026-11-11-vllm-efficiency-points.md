@@ -908,3 +908,16 @@ engine single-prompt prefill x (0.9 + 0.1 x (c + 1) / 2). "Ratio (burst)" uses (
 | gptoss120b | h100   | mxfp4  | fp16 | tp8 | c32  | 1024/8192 | vllm/vllm-openai:v0.18.0      | 2026-03-27 | 5.51   | 2.59          | 0.470        | accepted                                                   | 58.6    | 38.3           | 2.9               | 7.4                        | 0.126         | 0.817         | 0.076               | rejected: concurrency > 4                                          | https://github.com/SemiAnalysisAI/InferenceX/actions/runs/23636886937/attempts/2 |
 | gptoss120b | h100   | mxfp4  | fp16 | tp8 | c64  | 1024/1024 | vllm/vllm-openai:v0.21.0      | 2026-05-17 | 7.38   | 3.05          | 0.414        | accepted                                                   | 102.3   | 52.6           | 2.9               | 12.0                       | 0.118         | 0.921         | 0.055               | rejected: concurrency > 4                                          | https://github.com/SemiAnalysisAI/InferenceX/actions/runs/25956497716/attempts/2 |
 | gptoss120b | h100   | mxfp4  | fp16 | tp8 | c64  | 1024/8192 | vllm/vllm-openai:v0.18.0      | 2026-03-27 | 7.08   | 3.34          | 0.472        | accepted                                                   | 83.2    | 39.7           | 2.9               | 12.0                       | 0.145         | 1.133         | 0.073               | rejected: concurrency > 4                                          | https://github.com/SemiAnalysisAI/InferenceX/actions/runs/23636886937/attempts/2 |
+
+## Recheck after the attention layer mix (2026-11-23)
+
+gpt-oss-120b now charges attention on its 18 full layers at 4096 width (64 heads x 64), its 18
+windowed layers at min(T, 128), instead of 36 layers at hidden_size 2880. The engine was rerun
+(same harness as Method, old values reproduced exactly: 105.6, 79.0, 147.0, 194.3, 52.8 ms).
+
+- **Prefill:** the 9 accepted gpt-oss points (ISL 8192, c = 4) drop their engine prefill by 3.4 %
+  (e.g. H100 TP2 105.6 to 102.0 ms; H200 TP1 194.3 to 187.6 ms). The 53 llama70b points are dense
+  and unchanged. Median of the 62 ratios stays **0.469**; `PREFILL_EFFICIENCY` is unchanged.
+- **Decode:** over H100, H200, MI300X, MI325X x TP 1/2/4/8 x batch 1..128 at context 1382, the
+  gpt-oss decode estimate changes by 0.000 %: decode is memory-bound and its attention term is far
+  below the weight and KV read. `DECODE_EFFICIENCY_BANDS` are unchanged.

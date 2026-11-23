@@ -228,7 +228,27 @@
         }
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_sliding_attention_layers": 2,
+    "head_dim": 512,
+    "compressed_attention": {
+      "topk": 512,
+      "indexer_heads": 64,
+      "indexer_head_dim": 128,
+      "classes": [
+        {
+          "layers": 21,
+          "ratio": 4,
+          "indexed": true,
+          "indexer_layers": 21
+        },
+        {
+          "layers": 20,
+          "ratio": 128,
+          "indexed": false
+        }
+      ]
+    }
   },
   {
     "id": "deepseek-v4-pro",
@@ -259,7 +279,26 @@
         }
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "head_dim": 512,
+    "compressed_attention": {
+      "topk": 1024,
+      "indexer_heads": 64,
+      "indexer_head_dim": 128,
+      "classes": [
+        {
+          "layers": 30,
+          "ratio": 4,
+          "indexed": true,
+          "indexer_layers": 30
+        },
+        {
+          "layers": 31,
+          "ratio": 128,
+          "indexed": false
+        }
+      ]
+    }
   },
   {
     "id": "deepseek-ai-deepseek-v4.1-flash-1017",
@@ -298,7 +337,28 @@
         }
       }
     },
-    "origin_country": "CN"
+    "origin_country": "CN",
+    "num_sliding_attention_layers": 2,
+    "head_dim": 512,
+    "compressed_attention": {
+      "topk": 512,
+      "indexer_heads": 32,
+      "indexer_head_dim": 128,
+      "classes": [
+        {
+          "layers": 18,
+          "ratio": 2,
+          "indexed": true,
+          "indexer_layers": 3
+        },
+        {
+          "layers": 20,
+          "ratio": 1,
+          "indexed": true,
+          "indexer_layers": 5
+        }
+      ]
+    }
   },
   {
     "id": "mistralai-devstral-2-123b",

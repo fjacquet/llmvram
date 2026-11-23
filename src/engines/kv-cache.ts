@@ -85,47 +85,86 @@ export function attendedTokens(model: Model, contextTokens: number): number {
 }
 
 /**
- * Causal attention score+value FLOPs for one prompt of T tokens: 2 * width * sum over layer
- * classes of layers * a * (2T - a), a = tokens a query reads (full: attendedTokens, windowed:
- * min(T, window)). Models without the layer-mix fields keep num_hidden_layers x hidden_size.
+ * Causal attention score+value FLOPs for one prompt of T tokens: 4 * width * layers * sum over
+ * query positions t of reads(t). Full layers read t (sparse: min(t, topk)), windowed layers
+ * min(t, window), compressed layers (DeepSeek V4) the window plus min(t / ratio, topk).
+ * Models without the layer-mix fields keep num_hidden_layers x hidden_size.
  */
 export function prefillAttentionFLOPs(model: Model, T: number): Decimal {
-  const { full, sliding, fullWidth, slidingWidth } = attentionLayout(model)
+  const { full, sliding, compressed, fullWidth, slidingWidth } = attentionLayout(model)
   const a = attendedTokens(model, T)
   const w = Math.min(T, model.kv_sliding_window ?? T)
-  return new Decimal(2).mul(
-    new Decimal(fullWidth)
-      .mul(full)
-      .mul(a)
-      .mul(2 * T - a)
-      .add(
-        new Decimal(slidingWidth)
-          .mul(sliding)
-          .mul(w)
-          .mul(2 * T - w),
-      ),
+  const windowSum = w * T - (w * w) / 2
+  let compressedSum = new Decimal(0)
+  let indexerFLOPs = new Decimal(0)
+  for (const c of compressed) {
+    compressedSum = compressedSum.add(
+      new Decimal(c.layers).mul(windowSum + compressedReadSum(T, c.ratio, c.topk)),
+    )
+    // scores every compressed entry: sum over t of t / ratio = T^2 / (2 ratio)
+    indexerFLOPs = indexerFLOPs.add(
+      new Decimal(2 * c.indexerWidth * c.indexerLayers).mul((T * T) / (2 * c.ratio)),
+    )
+  }
+  return indexerFLOPs.add(
+    new Decimal(4).mul(
+      new Decimal(fullWidth)
+        .mul(full)
+        .mul(a * T - (a * a) / 2)
+        .add(new Decimal(slidingWidth).mul(sliding).mul(windowSum))
+        .add(new Decimal(slidingWidth).mul(compressedSum)),
+    ),
   )
 }
 
 /** Attention FLOPs for one decode token reading a context of T tokens: 4 * width * layers * read */
 export function decodeAttentionFLOPsPerToken(model: Model, T: number): Decimal {
-  const { full, sliding, fullWidth, slidingWidth } = attentionLayout(model)
+  const { full, sliding, compressed, fullWidth, slidingWidth } = attentionLayout(model)
   const w = Math.min(T, model.kv_sliding_window ?? T)
-  return new Decimal(4).mul(
-    new Decimal(fullWidth)
-      .mul(full)
-      .mul(attendedTokens(model, T))
-      .add(new Decimal(slidingWidth).mul(sliding).mul(w)),
+  let compressedReads = new Decimal(0)
+  let indexerFLOPs = new Decimal(0)
+  for (const c of compressed) {
+    compressedReads = compressedReads.add(
+      new Decimal(c.layers).mul(w + Math.min(T / c.ratio, c.topk)),
+    )
+    indexerFLOPs = indexerFLOPs.add(
+      new Decimal(2 * c.indexerWidth * c.indexerLayers).mul(T / c.ratio),
+    )
+  }
+  return indexerFLOPs.add(
+    new Decimal(4).mul(
+      new Decimal(fullWidth)
+        .mul(full)
+        .mul(attendedTokens(model, T))
+        .add(new Decimal(slidingWidth).mul(sliding).mul(w))
+        .add(new Decimal(slidingWidth).mul(compressedReads)),
+    ),
   )
+}
+
+/** Sum over t = 1..T of min(t / ratio, topk): ramps to topk at t = topk * ratio, then flat */
+function compressedReadSum(T: number, ratio: number, topk: number): number {
+  const t0 = topk * ratio
+  return T <= t0 ? (T * T) / (2 * ratio) : (topk * t0) / 2 + topk * (T - t0)
 }
 
 function attentionLayout(model: Model) {
   const sliding = model.num_sliding_attention_layers ?? 0
+  const spec = model.compressed_attention
+  const compressed = (spec?.classes ?? []).map((c) => ({
+    layers: c.layers,
+    ratio: c.ratio,
+    topk: c.indexed && spec ? spec.topk : Number.POSITIVE_INFINITY,
+    indexerLayers: c.indexer_layers ?? 0,
+    indexerWidth: spec ? spec.indexer_heads * spec.indexer_head_dim : 0,
+  }))
+  const compressedLayers = compressed.reduce((n, c) => n + c.layers, 0)
   const width = (headDim?: number) =>
     headDim ? model.num_attention_heads * headDim : model.hidden_size
   return {
-    full: model.num_full_attention_layers ?? model.num_hidden_layers - sliding,
+    full: model.num_full_attention_layers ?? model.num_hidden_layers - sliding - compressedLayers,
     sliding,
+    compressed,
     fullWidth: width(model.full_attention_head_dim ?? model.head_dim),
     slidingWidth: width(model.head_dim),
   }

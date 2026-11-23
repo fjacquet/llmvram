@@ -187,6 +187,27 @@ const ModelFields = z.object({
   // values at v width), so 2 * heads * head_dim * T^2 stays the causal FLOP count.
   // shortcut: decode really runs absorbed MLA (kv_lora_rank + rope wide), 3x this, still far
   // below the memory term; split it out if decode attention ever binds.
+  // DeepSeek V4 (vLLM models/deepseek_v4, deepseek_v41): besides the window every layer reads
+  // a compressed cache holding one entry per `ratio` tokens. `indexed` layers (C4A, and every
+  // compressed layer of V4.1) keep only the `topk` best entries (config index_topk); the rest
+  // read them all. Compute only: KV memory and the decode read stay as stored (ADR 0009 D9).
+  compressed_attention: z
+    .object({
+      topk: z.number().int().positive(),
+      // Indexer scoring (config index_n_heads, index_head_dim): each indexer layer scores every
+      // compressed entry; `indexer_layers` counts the class's layers that own one.
+      indexer_heads: z.number().int().positive(),
+      indexer_head_dim: z.number().int().positive(),
+      classes: z.array(
+        z.object({
+          layers: z.number().int().positive(),
+          ratio: z.number().int().positive(),
+          indexed: z.boolean(),
+          indexer_layers: z.number().int().positive().optional(),
+        }),
+      ),
+    })
+    .optional(),
   // Gemma 4: the full-attention layers use their own head width and KV head count
   // (global_head_dim, num_global_key_value_heads); head_dim and num_kv_heads then describe the
   // windowed layers.
