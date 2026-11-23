@@ -90,32 +90,44 @@ export function attendedTokens(model: Model, contextTokens: number): number {
  * min(T, window)). Models without the layer-mix fields keep num_hidden_layers x hidden_size.
  */
 export function prefillAttentionFLOPs(model: Model, T: number): Decimal {
-  const { full, sliding, width } = attentionLayout(model)
+  const { full, sliding, fullWidth, slidingWidth } = attentionLayout(model)
   const a = attendedTokens(model, T)
   const w = Math.min(T, model.kv_sliding_window ?? T)
-  return new Decimal(2).mul(width).mul(
-    new Decimal(full)
+  return new Decimal(2).mul(
+    new Decimal(fullWidth)
+      .mul(full)
       .mul(a)
       .mul(2 * T - a)
-      .add(new Decimal(sliding).mul(w).mul(2 * T - w)),
+      .add(
+        new Decimal(slidingWidth)
+          .mul(sliding)
+          .mul(w)
+          .mul(2 * T - w),
+      ),
   )
 }
 
 /** Attention FLOPs for one decode token reading a context of T tokens: 4 * width * layers * read */
 export function decodeAttentionFLOPsPerToken(model: Model, T: number): Decimal {
-  const { full, sliding, width } = attentionLayout(model)
+  const { full, sliding, fullWidth, slidingWidth } = attentionLayout(model)
   const w = Math.min(T, model.kv_sliding_window ?? T)
-  return new Decimal(4)
-    .mul(width)
-    .mul(new Decimal(full).mul(attendedTokens(model, T)).add(new Decimal(sliding).mul(w)))
+  return new Decimal(4).mul(
+    new Decimal(fullWidth)
+      .mul(full)
+      .mul(attendedTokens(model, T))
+      .add(new Decimal(slidingWidth).mul(sliding).mul(w)),
+  )
 }
 
 function attentionLayout(model: Model) {
   const sliding = model.num_sliding_attention_layers ?? 0
+  const width = (headDim?: number) =>
+    headDim ? model.num_attention_heads * headDim : model.hidden_size
   return {
     full: model.num_full_attention_layers ?? model.num_hidden_layers - sliding,
     sliding,
-    width: model.head_dim ? model.num_attention_heads * model.head_dim : model.hidden_size,
+    fullWidth: width(model.full_attention_head_dim ?? model.head_dim),
+    slidingWidth: width(model.head_dim),
   }
 }
 
