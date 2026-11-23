@@ -545,7 +545,13 @@ describe('attention FLOPs layer mix', () => {
     expect(withMix.length).toBeGreaterThan(10)
     for (const m of withMix) {
       const perLayer = 2 * (m.num_kv_heads ?? m.num_attention_heads) * (m.head_dim ?? 0)
-      expect(m.num_full_attention_layers * perLayer, m.id).toBe(m.kv_cache_elements_per_token)
+      const fullPerLayer =
+        2 *
+        (m.full_attention_kv_heads ?? m.num_kv_heads ?? m.num_attention_heads) *
+        (m.full_attention_head_dim ?? m.head_dim ?? 0)
+      // MLA caches one latent per layer: kv_lora_rank 512 + rope 64 (config.json of each)
+      const cachePerLayer = m.use_mla ? 576 : fullPerLayer
+      expect(m.num_full_attention_layers * cachePerLayer, m.id).toBe(m.kv_cache_elements_per_token)
       if (m.num_sliding_attention_layers) {
         expect(m.num_sliding_attention_layers * perLayer, m.id).toBe(
           m.kv_sliding_elements_per_token,

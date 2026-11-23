@@ -183,6 +183,15 @@ const ModelFields = z.object({
   num_full_attention_layers: z.number().int().positive().optional(),
   num_sliding_attention_layers: z.number().int().positive().optional(),
   head_dim: z.number().int().positive().optional(),
+  // MLA models: head_dim is the mean of qk_head_dim and v_head_dim (prefill scores at qk width,
+  // values at v width), so 2 * heads * head_dim * T^2 stays the causal FLOP count.
+  // shortcut: decode really runs absorbed MLA (kv_lora_rank + rope wide), 3x this, still far
+  // below the memory term; split it out if decode attention ever binds.
+  // Gemma 4: the full-attention layers use their own head width and KV head count
+  // (global_head_dim, num_global_key_value_heads); head_dim and num_kv_heads then describe the
+  // windowed layers.
+  full_attention_head_dim: z.number().int().positive().optional(),
+  full_attention_kv_heads: z.number().int().positive().optional(),
   // Tensor-parallel all-reduces per layer per decode step. Absent: 2 (attention o_proj + MLP
   // down_proj). NemotronH layers are one mixer each (vLLM nemotron_h.py: Mamba out_proj,
   // attention o_proj, MoE with the shared expert's reduce_results=False): 1.
