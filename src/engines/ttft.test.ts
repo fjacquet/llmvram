@@ -139,7 +139,7 @@ describe('burstTTFT', () => {
     expect(b.lastExpected.toNumber()).toBeCloseTo(c?.expectedTTFT.times(3).toNumber() ?? 0, 9)
   })
 
-  it('M5 Max, Qwen3.6 35B A3B NVFP4, 262144 tokens: 29.0 min (ceiling 13.6 min); 10 s target misses', () => {
+  it('M5 Max, Qwen3.6 35B A3B NVFP4, 262144 tokens: 16.3 min (ceiling 7.6 min); 10 s target misses', () => {
     const q = find(models, 'qwen-qwen3.6-35b-a3b')
     const m5 = find(gpus, 'apple-m5-max')
     const p = estimatePerformance({
@@ -149,8 +149,8 @@ describe('burstTTFT', () => {
       batchSize: 1,
       sequenceLength: 262144,
     })
-    expect(p.expected.timeToFirstToken.toNumber() / 60).toBeCloseTo(29.0, 1)
-    expect(p.timeToFirstToken.toNumber() / 60).toBeCloseTo(13.6, 1)
+    expect(p.expected.timeToFirstToken.toNumber() / 60).toBeCloseTo(16.3, 1) // 10 of 40 layers are attention (layer mix); was 29.0 with all 40
+    expect(p.timeToFirstToken.toNumber() / 60).toBeCloseTo(7.6, 1) // was 13.6
     const classes = classPrefills({ model: q, gpu: m5, quantization: 'nvfp4' }, [
       { tokens: 262144, share: 1 },
     ])

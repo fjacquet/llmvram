@@ -85,6 +85,41 @@ export function attendedTokens(model: Model, contextTokens: number): number {
 }
 
 /**
+ * Causal attention score+value FLOPs for one prompt of T tokens: 2 * width * sum over layer
+ * classes of layers * a * (2T - a), a = tokens a query reads (full: attendedTokens, windowed:
+ * min(T, window)). Models without the layer-mix fields keep num_hidden_layers x hidden_size.
+ */
+export function prefillAttentionFLOPs(model: Model, T: number): Decimal {
+  const { full, sliding, width } = attentionLayout(model)
+  const a = attendedTokens(model, T)
+  const w = Math.min(T, model.kv_sliding_window ?? T)
+  return new Decimal(2).mul(width).mul(
+    new Decimal(full)
+      .mul(a)
+      .mul(2 * T - a)
+      .add(new Decimal(sliding).mul(w).mul(2 * T - w)),
+  )
+}
+
+/** Attention FLOPs for one decode token reading a context of T tokens: 4 * width * layers * read */
+export function decodeAttentionFLOPsPerToken(model: Model, T: number): Decimal {
+  const { full, sliding, width } = attentionLayout(model)
+  const w = Math.min(T, model.kv_sliding_window ?? T)
+  return new Decimal(4)
+    .mul(width)
+    .mul(new Decimal(full).mul(attendedTokens(model, T)).add(new Decimal(sliding).mul(w)))
+}
+
+function attentionLayout(model: Model) {
+  const sliding = model.num_sliding_attention_layers ?? 0
+  return {
+    full: model.num_full_attention_layers ?? model.num_hidden_layers - sliding,
+    sliding,
+    width: model.head_dim ? model.num_attention_heads * model.head_dim : model.hidden_size,
+  }
+}
+
+/**
  * Sparse-attention indexer cache (DSA): every token is indexed, so it grows with the full
  * context. Raw bytes: vLLM stores it uint8 (FP8 + scales) whatever the KV precision.
  * shortcut: it rides inside the KV total, so TP splits it by kvCacheTPShards; vLLM replicates

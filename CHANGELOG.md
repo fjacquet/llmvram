@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Prefill and decode attention FLOPs charged every layer at `hidden_size`. New optional model fields `num_full_attention_layers`, `num_sliding_attention_layers` and `head_dim` charge only the attention layers, windowed layers at min(T, window), at width heads × head_dim. Filled for Nemotron 3.5 Lightning (6 of 52 layers): single-GPU 256K prefill 192 s to 46 s. Also filled: Nemotron 3 Nano 30B/4B, Super, Ultra, Qwen3.6 27B/35B, Qwen3.8 2.4T/27B, LFM2.5 2.6B, gpt-oss 20B/120B (every count equals the stored KV elements per layer x layers). Not filled, still on the old formula: Gemma 3 and Llama 4 (gated configs), Gemma 4 (two head widths), DeepSeek V4, Kimi, Ling (MLA).
+- Tensor-parallel decode charged two all-reduces per layer; NemotronH layers are one mixer each, so the new `allreduces_per_layer: 1` applies to the Nemotron 3 family.
+- Qwen3.6 35B A3B at 262144 tokens on M5 Max: expected TTFT 29.0 to 16.3 min.
+
 ## [2.2.0] - 2026-11-12
 
 ### Added

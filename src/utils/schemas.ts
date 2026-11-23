@@ -176,6 +176,18 @@ const ModelFields = z.object({
   kv_sliding_elements_per_token: z.number().int().positive().optional(),
   kv_sliding_window: z.number().int().positive().optional(),
 
+  // Attention layer mix, for compute only (prefill and decode attention FLOPs). Absent: every
+  // layer is full attention (num_hidden_layers). Hybrids (Mamba/linear + a few attention layers)
+  // set the full count; windowed layers (kv_sliding_window) set theirs. head_dim sets the Q/K
+  // width num_attention_heads x head_dim; absent: hidden_size.
+  num_full_attention_layers: z.number().int().positive().optional(),
+  num_sliding_attention_layers: z.number().int().positive().optional(),
+  head_dim: z.number().int().positive().optional(),
+  // Tensor-parallel all-reduces per layer per decode step. Absent: 2 (attention o_proj + MLP
+  // down_proj). NemotronH layers are one mixer each (vLLM nemotron_h.py: Mamba out_proj,
+  // attention o_proj, MoE with the shared expert's reduce_results=False): 1.
+  allreduces_per_layer: z.number().int().positive().optional(),
+
   // Multi-head latent attention (config.json carries kv_lora_rank). vLLM caches one latent
   // per token and duplicates it on every tensor-parallel rank, so TP does not split it.
   use_mla: z.boolean().optional(),
